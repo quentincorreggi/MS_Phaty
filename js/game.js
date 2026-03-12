@@ -83,7 +83,7 @@ function initGame() {
       } else if (typeof cell === 'number') {
         if (cell >= 0) boxSlots[i] = { ci: cell, boxType: 'default' };
       } else if (typeof cell === 'object' && cell.ci >= 0) {
-        boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default' };
+        boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default', ci2: cell.ci2, ci3: cell.ci3 };
       }
     }
     if (lvl.mrbPerBox) MRB_PER_BOX = lvl.mrbPerBox;
@@ -105,9 +105,15 @@ function initGame() {
   for (var k in boxSlots) {
     var bs = boxSlots[k];
     var isBlockerBox = (bs.boxType === 'blocker');
-    var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
-    colorMarblesTotal[bs.ci] += regularPerBox;
-    if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
+    var isTricolorBox = (bs.boxType === 'tricolor');
+    if (isTricolorBox) {
+      var tc = [bs.ci, bs.ci2 !== undefined ? bs.ci2 : (bs.ci + 1) % NUM_COLORS, bs.ci3 !== undefined ? bs.ci3 : (bs.ci + 2) % NUM_COLORS];
+      for (var tci = 0; tci < 3; tci++) colorMarblesTotal[tc[tci]] += 3;
+    } else {
+      var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
+      colorMarblesTotal[bs.ci] += regularPerBox;
+      if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
+    }
   }
   // Count marbles from tunnel contents
   for (var k in tunnelSlots) {
@@ -167,12 +173,15 @@ function initGame() {
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
+      var isTricolor = (slot.boxType === 'tricolor');
+      var triColors = isTricolor ? [slot.ci, slot.ci2 !== undefined ? slot.ci2 : (slot.ci + 1) % NUM_COLORS, slot.ci3 !== undefined ? slot.ci3 : (slot.ci + 2) % NUM_COLORS] : null;
       stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
         revealed: isIce ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        triColors: triColors,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });

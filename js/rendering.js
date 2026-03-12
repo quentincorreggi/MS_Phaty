@@ -208,11 +208,20 @@ function drawStock() {
 
     if (b.revealT > 0) {
       var phase = 1 - b.revealT;
-      bt.drawReveal(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, phase, b.remaining, tick);
+      bt.drawReveal(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, phase, b.remaining, tick, b);
     } else if (!b.revealed) {
       var idleWobble = Math.sin(tick * 0.02 + b.idlePhase) * 0.006;
       ctx.rotate(idleWobble);
-      bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase);
+      bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase, b);
+    } else if (b.boxType === 'tricolor' && b.triColors) {
+      var mc = COLORS[b.triColors[1]];
+      if (isBoxTappable(i) && b.hoverT > 0.01) { ctx.shadowColor = mc.glow; ctx.shadowBlur = 20 * S * b.hoverT; }
+      drawTricolorBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.triColors);
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+      if (b.remaining > 0) {
+        drawBoxMarblesTricolor(b.triColors, b.remaining);
+        drawTricolorBoxLip(b.triColors);
+      }
     } else {
       var c = COLORS[b.ci];
       if (isBoxTappable(i) && b.hoverT > 0.01) { ctx.shadowColor = c.glow; ctx.shadowBlur = 20 * S * b.hoverT; }

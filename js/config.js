@@ -25,11 +25,22 @@ var LEVELS = [
   { name: 'Grand Finale',    mrbPerBox: 9, sortCap: 3, desc: 'The ultimate test' },
   { name: 'Encore',          mrbPerBox: 9, sortCap: 3, desc: 'One more round' },
   { name: 'Masterclass',     mrbPerBox: 9, sortCap: 3, desc: 'Prove yourself' },
-  { name: 'Perfection',      mrbPerBox: 9, sortCap: 3, desc: 'No mistakes' }
+  { name: 'Perfection',      mrbPerBox: 9, sortCap: 3, desc: 'No mistakes' },
+  { name: 'Tricolor',        mrbPerBox: 9, sortCap: 3, desc: 'Three colors per box!',
+    grid: [
+      null,null,null,null,null,null,null,
+      null,null,{ci:0,ci2:1,ci3:2,type:'tricolor'},null,{ci:0,ci2:1,ci3:2,type:'tricolor'},null,null,
+      null,null,null,null,null,null,null,
+      null,{ci:3,ci2:4,ci3:5,type:'tricolor'},null,null,null,{ci:3,ci2:4,ci3:5,type:'tricolor'},null,
+      null,null,null,null,null,null,null,
+      null,null,null,null,null,null,null,
+      null,null,null,null,null,null,null
+    ]
+  }
 ];
 var levelStars = [];
 for (var li = 0; li < LEVELS.length; li++) levelStars.push(0);
-var unlockedLevels = 4;
+var unlockedLevels = 13;
 var gameActive = false;
 
 var LEVEL_COLORS = [
