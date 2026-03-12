@@ -197,14 +197,13 @@ For mechanics beyond box types (power-up marbles, new belt behaviors, grid effec
 Each branch is auto-deployed by Netlify. The URL pattern is:
 
 ```
-https://prototype-<slug>--<NETLIFY_SITE_NAME>.netlify.app
+https://prototype-<slug>--stellar-fenglisu-906f5f.netlify.app
 ```
 
-Replace `<NETLIFY_SITE_NAME>` with the actual Netlify site name.
 Branch slashes (`/`) become hyphens (`-`) in the URL.
 
 Example: branch `prototype/exploding-boxes` →
-`https://prototype-exploding-boxes--<NETLIFY_SITE_NAME>.netlify.app`
+`https://prototype-exploding-boxes--stellar-fenglisu-906f5f.netlify.app`
 
 ### Safety Rules
 
