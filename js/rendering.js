@@ -65,14 +65,17 @@ function drawEmptySlot(x, y, w, h) {
   ctx.restore();
 }
 
-function drawBoxMarbles(ci, remaining) {
+function drawBoxMarbles(ci, remaining, boxTotal) {
   if (remaining <= 0) return;
   var mr = Math.min(7 * S, L.bw / 8.5);
   var mg = Math.min(14 * S, L.bw / 4.2);
   var mgY = mg * MRB_GAP_FACTOR;
-  var gone = MRB_PER_BOX - remaining;
+  var gridSize = SNAKE_ORDER.length;
+  // For boxes with more than 9 marbles (e.g. double), show all 9 slots filled until remaining <= 9
+  var effectiveRemaining = Math.min(remaining, gridSize);
+  var gone = gridSize - effectiveRemaining;
   var mrbsToDraw = [];
-  for (var si = gone; si < MRB_PER_BOX; si++) mrbsToDraw.push(SNAKE_ORDER[si]);
+  for (var si = gone; si < gridSize; si++) mrbsToDraw.push(SNAKE_ORDER[si]);
   mrbsToDraw.sort(function (a, b) { return a.r - b.r; });
   for (var si = 0; si < mrbsToDraw.length; si++) {
     var sp = mrbsToDraw[si];
@@ -233,9 +236,16 @@ function drawStock() {
         if (b.boxType === 'blocker' && b.blockerCount > 0) {
           drawBoxMarblesWithBlockers(b.ci, b.remaining, b.blockerCount);
         } else {
-          drawBoxMarbles(b.ci, b.remaining);
+          drawBoxMarbles(b.ci, b.remaining, b.boxMrbCount);
         }
         drawBoxLip(b.ci);
+      }
+      // Double box overlay — gold border + x2 badge
+      if (b.boxType === 'double') {
+        var dblType = getBoxType('double');
+        if (dblType && dblType.drawOverlay) {
+          dblType.drawOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, tick);
+        }
       }
     }
 

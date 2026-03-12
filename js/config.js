@@ -25,7 +25,18 @@ var LEVELS = [
   { name: 'Grand Finale',    mrbPerBox: 9, sortCap: 3, desc: 'The ultimate test' },
   { name: 'Encore',          mrbPerBox: 9, sortCap: 3, desc: 'One more round' },
   { name: 'Masterclass',     mrbPerBox: 9, sortCap: 3, desc: 'Prove yourself' },
-  { name: 'Perfection',      mrbPerBox: 9, sortCap: 3, desc: 'No mistakes' }
+  { name: 'Perfection',      mrbPerBox: 9, sortCap: 3, desc: 'No mistakes' },
+  { name: 'Double Up',       mrbPerBox: 9, sortCap: 3, desc: 'Twice the marbles!',
+    grid: [
+      null, {ci:0,type:'default'}, null, {ci:1,type:'double'}, null, {ci:2,type:'default'}, null,
+      {ci:3,type:'default'}, null, {ci:0,type:'double'}, null, {ci:1,type:'default'}, null, {ci:3,type:'default'},
+      null, {ci:2,type:'default'}, null, {ci:3,type:'default'}, null, {ci:0,type:'default'}, null,
+      {ci:1,type:'default'}, null, {ci:2,type:'double'}, null, {ci:3,type:'double'}, null, {ci:1,type:'default'},
+      null, {ci:0,type:'default'}, null, {ci:2,type:'default'}, null, {ci:0,type:'default'}, null,
+      {ci:3,type:'default'}, null, {ci:1,type:'default'}, null, {ci:2,type:'default'}, null, {ci:3,type:'default'},
+      null, {ci:1,type:'default'}, null, {ci:0,type:'default'}, null, {ci:2,type:'default'}, null
+    ]
+  }
 ];
 var levelStars = [];
 for (var li = 0; li < LEVELS.length; li++) levelStars.push(0);
