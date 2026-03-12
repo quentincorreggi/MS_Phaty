@@ -112,6 +112,10 @@ function initGame() {
     var isBlockerBox = (bs.boxType === 'blocker');
     var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
     colorMarblesTotal[bs.ci] += regularPerBox;
+    // ColorSwap boxes spawn marbles of BOTH colors (primary first, secondary after swap)
+    if (bs.boxType === 'colorswap' && bs.ci2 !== undefined && bs.ci2 >= 0) {
+      colorMarblesTotal[bs.ci2] += regularPerBox;
+    }
     if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
   }
   // Count marbles from tunnel contents
@@ -196,6 +200,7 @@ function initGame() {
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        swapTapped: false,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2,
@@ -409,11 +414,12 @@ function activateSwitch(switchIdx) {
   var bx = sw.x + L.bw / 2, by = sw.y + L.bh / 2;
   spawnBurst(bx, by, 'rgba(200,180,255,0.8)', 15);
 
-  // Swap all colorswap boxes
+  // Swap all colorswap boxes that haven't been tapped yet
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.boxType !== 'colorswap' || b.used || b.empty) continue;
     if (b.ci2 < 0) continue;
+    if (b.swapTapped) continue;  // already activated, switch has no effect
 
     // Swap primary and secondary colors
     var tmp = b.ci;

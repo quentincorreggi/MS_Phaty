@@ -119,15 +119,40 @@ function spawnPhysMarbles(box) {
         sfx.drop();
         spawnBurst(mx, my, COLORS[marbleCi].fill, 4);
         if (b.remaining <= 0) {
-          b.emptyT = 1.0;
-          setTimeout(function () {
-            b.used = true;
+          // ColorSwap box: swap to secondary color instead of emptying (first time only)
+          if (b.boxType === 'colorswap' && b.ci2 >= 0 && !b.swapTapped) {
             b.spawning = false;
-            // Reveal adjacent boxes now that this cell is empty
-            for (var si = 0; si < stock.length; si++) {
-              if (stock[si] === b) { revealAroundEmptyCell(si); break; }
+            b.swapTapped = true;
+            // Swap colors
+            var tmpCi = b.ci;
+            b.ci = b.ci2;
+            b.ci2 = tmpCi;
+            // Refill with marbles of the new color
+            b.remaining = MRB_PER_BOX;
+            b.popT = 0.8;
+            // Particle burst to show the swap
+            var bx2 = b.x + L.bw / 2, by2 = b.y + L.bh / 2;
+            for (var p = 0; p < 10; p++) {
+              var a2 = Math.PI * 2 * p / 10 + Math.random() * 0.3, sp2 = 2 + Math.random() * 3;
+              particles.push({
+                x: bx2, y: by2,
+                vx: Math.cos(a2) * sp2 * S, vy: Math.sin(a2) * sp2 * S,
+                r: (2 + Math.random() * 3) * S,
+                color: COLORS[b.ci].fill,
+                life: 0.8, decay: 0.03, grav: false
+              });
             }
-          }, 300);
+          } else {
+            b.emptyT = 1.0;
+            setTimeout(function () {
+              b.used = true;
+              b.spawning = false;
+              // Reveal adjacent boxes now that this cell is empty
+              for (var si = 0; si < stock.length; si++) {
+                if (stock[si] === b) { revealAroundEmptyCell(si); break; }
+              }
+            }, 300);
+          }
         }
       }, i * 120);
     })(idx, box, blockerStart);
