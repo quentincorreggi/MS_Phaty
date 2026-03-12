@@ -5,18 +5,20 @@
 // ============================================================
 
 var editor = {
-  grid: [],            // 7x7: null = empty, { ci, type } or { tunnel: true, ... } or { wall: true }
+  grid: [],            // 7x7: null = empty, { ci, type } or { tunnel: true, ... } or { wall: true } or { isSwitch: true }
   name: 'Custom Level',
   desc: 'My custom level',
   mrbPerBox: 9,
   sortCap: 3,
   lockButtons: 0,
   activeColor: 0,      // -1=eraser, 0-7=color
+  activeColor2: 1,     // secondary color for colorswap boxes
   activeType: BoxTypeOrder[0],
   tunnelMode: false,    // true when placing tunnels
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  switchMode: false,    // true when placing switches
   visible: false
 };
 
@@ -29,11 +31,13 @@ function editorInit() {
   editor.sortCap = 3;
   editor.lockButtons = 0;
   editor.activeColor = 0;
+  editor.activeColor2 = 1;
   editor.activeType = BoxTypeOrder[0];
   editor.tunnelMode = false;
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.switchMode = false;
 }
 
 function showEditor(fresh) {
@@ -70,7 +74,12 @@ function editorRenderGrid() {
     var cell = document.createElement('div');
     cell.className = 'ed-cell';
     var v = editor.grid[i];
-    if (v && v.wall) {
+    if (v && v.isSwitch) {
+      // Switch cell
+      cell.style.background = 'linear-gradient(135deg,#5A5068,#3A3248)';
+      cell.style.borderColor = '#8070A0';
+      cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(200,180,255,0.8);font-size:11px">\u21C4</span>';
+    } else if (v && v.wall) {
       // Wall cell
       cell.style.background = 'linear-gradient(135deg,#9A8D7B,#6F6355)';
       cell.style.borderColor = '#8A7D6B';
@@ -90,7 +99,7 @@ function editorRenderGrid() {
       var st = bt.editorCellStyle(v.ci);
       cell.style.background = st.background;
       cell.style.borderColor = st.borderColor;
-      cell.innerHTML = bt.editorCellHTML(v.ci);
+      cell.innerHTML = bt.editorCellHTML(v.ci, v.ci2);
     } else {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
@@ -104,6 +113,21 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.switchMode) {
+    // Switch placement mode
+    var existing = editor.grid[idx];
+    if (existing && existing.isSwitch) {
+      editor.grid[idx] = null;
+    } else {
+      editor.grid[idx] = { isSwitch: true };
+    }
+    if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderTunnelPanel();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -141,10 +165,14 @@ function editorCellClick(e) {
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     } else {
       var existing = editor.grid[idx];
-      if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
+      if (existing && !existing.tunnel && !existing.wall && !existing.isSwitch && existing.ci === editor.activeColor && existing.type === editor.activeType) {
         editor.grid[idx] = null;
       } else {
-        editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
+        var cellData = { ci: editor.activeColor, type: editor.activeType };
+        if (editor.activeType === 'colorswap') {
+          cellData.ci2 = editor.activeColor2;
+        }
+        editor.grid[idx] = cellData;
       }
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     }
@@ -178,13 +206,14 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.switchMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.switchMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -200,10 +229,26 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.switchMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(wallBtn);
+
+  // Switch mode button
+  var switchBtn = document.createElement('button');
+  switchBtn.className = 'ed-type-btn' + (editor.switchMode ? ' active' : '');
+  switchBtn.textContent = '\u21C4 Switch';
+  switchBtn.style.borderColor = editor.switchMode ? 'rgba(128,112,160,0.6)' : '';
+  switchBtn.style.color = editor.switchMode ? '#5A5068' : '';
+  switchBtn.addEventListener('click', function () {
+    editor.switchMode = true;
+    editor.wallMode = false;
+    editor.tunnelMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(switchBtn);
 
   // Tunnel mode button
   var tunnelBtn = document.createElement('button');
@@ -214,6 +259,7 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.switchMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -254,6 +300,12 @@ function editorRenderToolbar() {
       dirRow.appendChild(db);
     }
     el.appendChild(dirRow);
+  } else if (editor.switchMode) {
+    // Switch mode: just show info hint
+    var switchInfo = document.createElement('div');
+    switchInfo.className = 'ed-color-row';
+    switchInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove switches</span>';
+    el.appendChild(switchInfo);
   } else if (editor.wallMode) {
     // Wall mode: just show info hint
     var wallInfo = document.createElement('div');
@@ -285,6 +337,32 @@ function editorRenderToolbar() {
       colorRow.appendChild(cb);
     }
     el.appendChild(colorRow);
+
+    // Secondary color row for colorswap type
+    if (editor.activeType === 'colorswap') {
+      var secLabel = document.createElement('div');
+      secLabel.style.cssText = 'font-size:10px;color:#9C8A70;text-align:center;margin-top:4px';
+      secLabel.textContent = 'Secondary color (swap target):';
+      el.appendChild(secLabel);
+
+      var secRow = document.createElement('div');
+      secRow.className = 'ed-color-row';
+      for (var ci2 = 0; ci2 < NUM_COLORS; ci2++) {
+        var sb = document.createElement('button');
+        sb.className = 'ed-tool' + (editor.activeColor2 === ci2 ? ' active' : '');
+        sb.style.background = COLORS[ci2].fill;
+        sb.style.opacity = editor.activeColor2 === ci2 ? '1' : '0.6';
+        sb.innerHTML = CLR_NAMES[ci2][0].toUpperCase();
+        sb.title = CLR_NAMES[ci2] + ' (secondary)';
+        sb.setAttribute('data-ci2', ci2);
+        sb.addEventListener('click', function () {
+          editor.activeColor2 = parseInt(this.getAttribute('data-ci2'));
+          editorRenderToolbar();
+        });
+        secRow.appendChild(sb);
+      }
+      el.appendChild(secRow);
+    }
   }
 }
 
@@ -452,10 +530,14 @@ function editorUpdateStats() {
   for (var c = 0; c < NUM_COLORS; c++) { counts.push(0); regularMrb.push(0); }
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
-  var wallCount = 0;
+  var wallCount = 0, switchCount = 0;
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
+    if (v.isSwitch) {
+      switchCount++;
+      continue;
+    }
     if (v.wall) {
       wallCount++;
       continue;
@@ -496,6 +578,9 @@ function editorUpdateStats() {
     if (typeCounts[tid]) {
       html += '<span class="ed-stat-chip" style="background:' + BoxTypes[tid].editorColor + '">' + typeCounts[tid] + ' ' + BoxTypes[tid].label.toLowerCase() + '</span>';
     }
+  }
+  if (switchCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#5A5068">' + switchCount + ' switch' + (switchCount > 1 ? 'es' : '') + '</span>';
   }
   if (wallCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#8A7D6B">' + wallCount + ' wall' + (wallCount > 1 ? 's' : '') + '</span>';
@@ -617,6 +702,7 @@ function editorImportJSON() {
           var cell = lvl.grid[i];
           if (cell === null || cell === undefined || cell === -1) editor.grid[i] = null;
           else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
+          else if (cell.isSwitch) editor.grid[i] = { isSwitch: true };
           else if (cell.wall) editor.grid[i] = { wall: true };
           else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
           else editor.grid[i] = cell;

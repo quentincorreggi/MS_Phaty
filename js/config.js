@@ -25,7 +25,18 @@ var LEVELS = [
   { name: 'Grand Finale',    mrbPerBox: 9, sortCap: 3, desc: 'The ultimate test' },
   { name: 'Encore',          mrbPerBox: 9, sortCap: 3, desc: 'One more round' },
   { name: 'Masterclass',     mrbPerBox: 9, sortCap: 3, desc: 'Prove yourself' },
-  { name: 'Perfection',      mrbPerBox: 9, sortCap: 3, desc: 'No mistakes' }
+  { name: 'Perfection',      mrbPerBox: 9, sortCap: 3, desc: 'No mistakes' },
+  { name: 'Color Swap',      mrbPerBox: 9, sortCap: 3, desc: 'Flip the switch!',
+    grid: [
+      null, {ci:0,type:'colorswap',ci2:1}, null, {isSwitch:true}, null, {ci:1,type:'colorswap',ci2:0}, null,
+      {ci:0,type:'default'}, null, {ci:1,type:'default'}, null, {ci:0,type:'default'}, null, {ci:1,type:'default'},
+      null, {ci:2,type:'colorswap',ci2:3}, null, null, null, {ci:3,type:'colorswap',ci2:2}, null,
+      null, null, null, {isSwitch:true}, null, null, null,
+      null, {ci:2,type:'default'}, null, null, null, {ci:3,type:'default'}, null,
+      {ci:0,type:'default'}, null, {ci:1,type:'default'}, null, {ci:2,type:'default'}, null, {ci:3,type:'default'},
+      null, {ci:0,type:'default'}, null, null, null, {ci:3,type:'default'}, null
+    ]
+  }
 ];
 var levelStars = [];
 for (var li = 0; li < LEVELS.length; li++) levelStars.push(0);

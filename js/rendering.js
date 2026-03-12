@@ -177,6 +177,17 @@ function drawStock() {
       continue;
     }
 
+    // ── Switch ──
+    if (b.isSwitch) {
+      var swPs = 1 + (b.popT || 0) * 0.15;
+      ctx.save();
+      ctx.translate(b.x + L.bw / 2, b.y + L.bh / 2);
+      ctx.scale(swPs, swPs);
+      drawSwitchOnGrid(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, tick, b.switchPressT || 0);
+      ctx.restore();
+      continue;
+    }
+
     var ox = 0;
     if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
     var breathe = 0;
@@ -236,6 +247,14 @@ function drawStock() {
           drawBoxMarbles(b.ci, b.remaining);
         }
         drawBoxLip(b.ci);
+      }
+    }
+
+    // ColorSwap indicator — draw secondary color badge
+    if (b.boxType === 'colorswap' && b.ci2 >= 0 && !b.used) {
+      var csType = getBoxType('colorswap');
+      if (csType && csType.drawSwapIndicator) {
+        csType.drawSwapIndicator(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci2, S, tick);
       }
     }
 
