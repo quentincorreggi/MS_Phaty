@@ -209,7 +209,7 @@ The URL includes the short commit SHA so it is always unique — no caching issu
 `https://quentincorreggi.github.io/MS_Phaty/<branch-name>--<short-sha>/`
 
 Branch names containing slashes are converted: `/` becomes `--`.
-Get the short SHA with: `git rev-parse --short HEAD`
+Get the short SHA with: `git rev-parse --short=8 HEAD`
 
 Examples:
 - `prototype/magnet-box` at commit `abc12345` → `https://quentincorreggi.github.io/MS_Phaty/prototype--magnet-box--abc12345/`
