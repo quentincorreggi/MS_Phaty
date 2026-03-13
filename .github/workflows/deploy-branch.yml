@@ -67,7 +67,7 @@ jobs:
             echo "No changes to deploy"
           else
             git commit -m "Deploy branch ${{ steps.folder.outputs.branch }} to /${{ steps.folder.outputs.folder }}"
-            git push
+            git push origin HEAD:gh-pages
           fi
 
   cleanup:
