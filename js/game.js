@@ -67,6 +67,7 @@ function initGame() {
   for (var c = 0; c < NUM_COLORS; c++) colorMarblesTotal.push(0);
   for (var k in boxSlots) {
     var bs = boxSlots[k];
+    if (bs.boxType === 'bomb') continue; // bombs don't contribute marbles
     var isBlockerBox = (bs.boxType === 'blocker');
     var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
     colorMarblesTotal[bs.ci] += regularPerBox;
@@ -130,12 +131,16 @@ function initGame() {
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
-      stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
+      var isBomb = (slot.boxType === 'bomb');
+      stock.push({ ci: isBomb ? BOMB_STAGE_CI[0] : slot.ci,
+        used: false, remaining: isBomb ? 0 : MRB_PER_BOX, spawning: false, spawnIdx: 0,
         revealed: isIce ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        bombStage: isBomb ? 1 : 0,
+        bombTimer: isBomb ? BOMB_TIMER_FRAMES : 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
@@ -317,6 +322,43 @@ function handleTap(px, py) {
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
+
+      // ── Bomb box: detonate a random revealed box ──
+      if (b.boxType === 'bomb') {
+        var targets = [];
+        for (var j = 0; j < stock.length; j++) {
+          if (j === i) continue;
+          var t = stock[j];
+          if (t.isTunnel || t.isWall || t.empty || t.used || t.spawning) continue;
+          if (t.revealT > 0 || !t.revealed) continue;
+          if (t.iceHP > 0) continue;
+          targets.push(j);
+        }
+        var bombCi = BOMB_STAGE_CI[b.bombStage - 1];
+        b.popT = 1;
+        spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[bombCi].fill, 28);
+        sfx.complete();
+        if (targets.length > 0) {
+          var tIdx = targets[Math.floor(Math.random() * targets.length)];
+          var tgt = stock[tIdx];
+          tgt.popT = 1; tgt.shakeT = 0.8;
+          spawnBurst(tgt.x + L.bw / 2, tgt.y + L.bh / 2, COLORS[tgt.ci].fill, 20);
+          spawnPhysMarbles(tgt);
+          damageAdjacentIce(tIdx);
+        }
+        if (b.bombStage >= 3) {
+          b.used = true;
+          b.emptyT = 1.0;
+          (function(bidx) { setTimeout(function() { revealAroundEmptyCell(bidx); }, 350); })(i);
+        } else {
+          b.bombStage++;
+          b.ci = BOMB_STAGE_CI[b.bombStage - 1];
+          b.bombTimer = BOMB_TIMER_FRAMES;
+          b.shakeT = 0.6;
+        }
+        return;
+      }
+
       b.popT = 1;
       sfx.pop();
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
@@ -458,6 +500,18 @@ function update() {
     if (b.emptyT > 0) b.emptyT = Math.max(0, b.emptyT - 0.025);
     if (b.iceCrackT > 0) b.iceCrackT = Math.max(0, b.iceCrackT - 0.03);
     if (b.iceShatterT > 0) b.iceShatterT = Math.max(0, b.iceShatterT - 0.025);
+
+    // ── Bomb timer countdown ──
+    if (b.boxType === 'bomb' && b.revealed && !b.used && b.bombTimer > 0 && b.revealT <= 0) {
+      b.bombTimer--;
+      if (b.bombTimer <= 0) {
+        b.used = true;
+        b.emptyT = 1.0;
+        b.shakeT = 0.5;
+        (function(bidx) { setTimeout(function() { revealAroundEmptyCell(bidx); }, 350); })(i);
+      }
+    }
+
     var th = (i === hoverIdx && !b.used && isBoxTappable(i)) ? 1 : 0;
     b.hoverT += (th - b.hoverT) * 0.12;
   }
@@ -528,6 +582,7 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    drawBombOverlays();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();
