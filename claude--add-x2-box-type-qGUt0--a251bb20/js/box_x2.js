@@ -24,8 +24,8 @@ registerBoxType('x2', {
     ctx.fillStyle = '#A09888';
     rRect(x, y, w, h, 6 * S); ctx.fill();
     // Gold border
-    ctx.globalAlpha = 0.7;
-    ctx.strokeStyle = '#DAA520'; ctx.lineWidth = 2.5 * S;
+    ctx.globalAlpha = 0.8;
+    ctx.strokeStyle = '#DAA520'; ctx.lineWidth = 4 * S;
     rRect(x, y, w, h, 6 * S); ctx.stroke();
     // "x2" label
     ctx.globalAlpha = 0.5;
@@ -48,8 +48,8 @@ registerBoxType('x2', {
     }
     drawBox(x, y, w, h, ci);
     // Gold border accent on revealed box
-    ctx.globalAlpha = 0.5;
-    ctx.strokeStyle = '#DAA520'; ctx.lineWidth = 2 * S;
+    ctx.globalAlpha = 0.7;
+    ctx.strokeStyle = '#DAA520'; ctx.lineWidth = 3.5 * S;
     rRect(x, y, w, h, 6 * S); ctx.stroke();
     ctx.globalAlpha = 1;
     if (remaining > 0 && phase > 0.3) {

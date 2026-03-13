@@ -244,7 +244,7 @@ function drawStock() {
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
       if (b.boxType === 'x2') {
         ctx.save();
-        ctx.strokeStyle = '#DAA520'; ctx.lineWidth = 2.5 * S; ctx.globalAlpha = 0.6;
+        ctx.strokeStyle = '#DAA520'; ctx.lineWidth = 4 * S; ctx.globalAlpha = 0.75;
         rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.stroke();
         ctx.restore();
       }
