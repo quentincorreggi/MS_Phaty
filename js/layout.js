@@ -86,6 +86,14 @@ function computeLayout() {
   var stw = 4 * L.sBw + 3 * L.sColGap;
   L.sSx = sortCx - stw / 2;
 
+  // BOOSTER BUTTON (above the stock grid, centered)
+  var boosterH2 = 32 * S;
+  var boosterW2 = 110 * S;
+  L.boosterW = boosterW2;
+  L.boosterH = boosterH2;
+  L.boosterX = cx - boosterW2 / 2;
+  L.boosterY = L.sy - boosterH2 - 8 * S;
+
   // BACK BUTTON
   var bkCal = cal.back;
   var bkSize = 40 * S * bkCal.s;

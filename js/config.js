@@ -54,6 +54,13 @@ var blockerCollectSlots = [];
 var blockerCollectCleared = false;
 
 var MRB_PER_BOX = 9, SORT_CAP = 3;
+
+// Slot Booster
+var boosterEnabled = false;
+var boosterCharges = 0;
+var boosterMaxCharges = 0;
+var boosterPopT = 0;
+var boosterShakeT = 0;
 var SORT_VISIBLE_ROWS = 4;
 
 // Snake order for 3x3 grid
