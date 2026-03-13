@@ -218,6 +218,9 @@ function drawStock() {
       if (isBoxTappable(i) && b.hoverT > 0.01) { ctx.shadowColor = c.glow; ctx.shadowBlur = 20 * S * b.hoverT; }
       drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci);
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+      if (bt.drawRevealedOverlay) {
+        bt.drawRevealedOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b);
+      }
       if (b.boxType === 'blocker' && b.blockerCount > 0) {
         ctx.save();
         ctx.globalAlpha = 0.06;

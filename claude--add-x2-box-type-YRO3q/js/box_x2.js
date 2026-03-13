@@ -85,6 +85,43 @@ registerBoxType('x2', {
     ctx.restore();
   },
 
+  // Overlay drawn on top of the revealed (tappable) box state
+  drawRevealedOverlay: function (ctx, x, y, w, h, ci, S, tick, b) {
+    ctx.save();
+
+    // Persistent gold border, pulsing faster when tappable
+    var pulse = Math.sin(tick * 0.06 + (b.idlePhase || 0)) * 0.2 + 0.8;
+    ctx.strokeStyle = '#D4A017';
+    ctx.lineWidth = 2.5 * S;
+    ctx.globalAlpha = pulse;
+    rRect(x, y, w, h, 6 * S); ctx.stroke();
+
+    // Subtle gold sheen across the top third
+    ctx.globalAlpha = 0.08 * pulse;
+    var sheen = ctx.createLinearGradient(x, y, x, y + h * 0.4);
+    sheen.addColorStop(0, '#FFD700');
+    sheen.addColorStop(1, 'rgba(255,215,0,0)');
+    ctx.fillStyle = sheen;
+    rRect(x, y, w, h * 0.4, 6 * S); ctx.fill();
+
+    // Small "×2" badge in top-right corner
+    var bw = w * 0.38, bh = h * 0.22;
+    var bx = x + w - bw - 2 * S, by = y + 2 * S;
+    ctx.globalAlpha = 0.92;
+    ctx.fillStyle = '#B8860B';
+    rRect(bx, by, bw, bh, 3 * S); ctx.fill();
+    ctx.strokeStyle = '#FFD700'; ctx.lineWidth = 1 * S;
+    rRect(bx, by, bw, bh, 3 * S); ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#FFD700';
+    ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 2 * S;
+    ctx.font = 'bold ' + (bh * 0.8) + 'px Fredoka, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('×2', bx + bw / 2, by + bh / 2);
+
+    ctx.restore();
+  },
+
   // Custom marble draw for the revealed-open state in rendering.js
   drawBoxMarbles: function (ci, remaining, b) {
     // Map X2 remaining (0..MRB_PER_BOX*2) to visual (0..MRB_PER_BOX)
