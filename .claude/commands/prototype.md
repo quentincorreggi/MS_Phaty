@@ -7,9 +7,38 @@ Guide the user through creating a new game mechanic prototype for Marble Sorter.
 1. **Understand the mechanic.** Ask the user to describe what they want. If they
    already described it (in $ARGUMENTS), proceed with that description.
 
-2. **Confirm the design.** Before coding, briefly explain back what you'll build
-   and how it fits into the game (which files you'll create/modify). Keep the
-   explanation non-technical. Ask for confirmation before proceeding.
+2. **Propose a design brief.** Before writing any code, present the user with
+   a short plain-language description of what you plan to build. Cover these
+   four areas naturally (don't use a rigid numbered checklist — weave them
+   into a readable narrative):
+
+   - **How it works** — The core rules and behavior. What happens when the
+     player encounters this mechanic? What are the edge cases (e.g., what
+     happens if it interacts with ice boxes, blockers, tunnels, or walls)?
+     Propose sensible defaults for anything the user didn't specify.
+
+   - **How the player uses it** — The interaction model. Is it tap-based
+     like regular boxes? Does it require timing, multiple taps, dragging, or
+     something else? If it changes how existing interactions work (e.g.,
+     marbles behave differently on the belt), explain that.
+
+   - **What it looks and sounds like** — Visual appearance on the grid (color,
+     shape, icon, animation). What happens visually when the mechanic
+     activates (particles, glow, shake, etc.)? Any sound effects? Propose
+     specific colors and effects — the user can adjust these later.
+
+   - **How it appears in the level editor** — What toolbar button or mode is
+     added? What color/icon represents it? Can the user configure it (e.g.,
+     set a timer duration, choose a target color)? If the mechanic uses the
+     existing box type registry, it auto-appears in the toolbar — mention
+     this so the user knows.
+
+   End by asking: "Does this match what you had in mind? Feel free to change
+   anything — or just say 'go for it' and I'll start building."
+
+   **Important:** Propose concrete defaults for every dimension rather than
+   asking open-ended questions. The user should be able to approve the whole
+   design with a single response.
 
 3. **Create a prototype branch:**
    - Generate a short slug from the mechanic name (lowercase, hyphenated, max 40 chars)

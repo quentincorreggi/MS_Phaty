@@ -183,14 +183,19 @@ For mechanics beyond box types (power-up marbles, new belt behaviors, grid effec
 ### For Claude: Step-by-step process
 
 1. Understand the mechanic the user wants to prototype
-2. Create a branch: `git checkout main && git checkout -b prototype/<slug>`
-3. Implement the mechanic following the patterns above
-4. Add at least one showcase level to the `LEVELS` array so the user can test it
-5. Validate syntax: run `node --check` on each modified/new JS file
-6. Commit all changes with a descriptive message
-7. Push: `git push -u origin prototype/<slug>`
-8. Provide the preview URL (see below)
-9. Tell the user which level number to select and how to test the mechanic
+2. Align on the design: present a plain-language design brief covering how
+   the mechanic works, how the player interacts with it, what it looks/sounds
+   like, and how it appears in the level editor. Propose concrete defaults
+   and let the user confirm or adjust before coding. (See `/prototype` command
+   for the detailed prompt.)
+3. Create a branch: `git checkout main && git checkout -b prototype/<slug>`
+4. Implement the mechanic following the patterns above
+5. Add at least one showcase level to the `LEVELS` array so the user can test it
+6. Validate syntax: run `node --check` on each modified/new JS file
+7. Commit all changes with a descriptive message
+8. Push: `git push -u origin prototype/<slug>`
+9. Provide the preview URL (see below)
+10. Tell the user which level number to select and how to test the mechanic
 
 ### Netlify Preview URL Pattern
 
@@ -211,3 +216,21 @@ Example: branch `prototype/exploding-boxes` →
 - Each prototype is isolated on its own branch
 - Keep prototypes self-contained (don't depend on other prototype branches)
 - The game must remain playable — always verify `index.html` loads without errors
+
+### Alignment Phase
+
+Before coding any prototype or iteration, confirm alignment with the user on
+four dimensions:
+
+1. **Design** — Core rules, behavior, edge cases, interactions with existing
+   mechanics (ice, blockers, tunnels, walls)
+2. **Interaction** — How the player triggers or uses the feature (tap, timing,
+   multiple taps, etc.)
+3. **Visuals & Feedback** — Colors, shapes, animations, particles, sound
+   effects
+4. **Level Editor** — Toolbar appearance, configuration options, placement
+   behavior
+
+Always propose specific defaults rather than asking open-ended questions.
+The user should be able to approve with a single "go for it" response. Keep
+the language plain and non-technical.
