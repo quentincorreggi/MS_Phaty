@@ -270,10 +270,25 @@ function drawStock() {
         ctx.restore();
       }
       if (b.boxType === 'x2') {
+        // Gold border
         ctx.save();
-        ctx.globalAlpha = 0.4;
-        ctx.strokeStyle = '#DAA520'; ctx.lineWidth = 2 * S;
+        ctx.globalAlpha = 0.55;
+        ctx.strokeStyle = '#DAA520'; ctx.lineWidth = 2.5 * S;
         rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.stroke();
+        ctx.restore();
+        // "x2" badge in top-right corner
+        ctx.save();
+        var badgeR = L.bw * 0.22;
+        var badgeX = L.bw / 2 - badgeR * 0.6;
+        var badgeY = -L.bh / 2 + badgeR * 0.6;
+        ctx.fillStyle = '#DAA520';
+        ctx.shadowColor = 'rgba(0,0,0,0.25)'; ctx.shadowBlur = 3 * S; ctx.shadowOffsetY = 1 * S;
+        ctx.beginPath(); ctx.arc(badgeX, badgeY, badgeR, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold ' + (badgeR * 1.1) + 'px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('x2', badgeX, badgeY + 0.5 * S);
         ctx.restore();
       }
       if (b.remaining > 0) {
