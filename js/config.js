@@ -15,7 +15,25 @@ var audioCtx = null;
 var currentLevel = 0;
 var LEVELS = [];
 var levelStars = [];
-var unlockedLevels = 0;
+var unlockedLevels = 1;
+
+// === MAGNET SHOWCASE LEVEL ===
+LEVELS.push({
+  name: 'Magnet Demo',
+  desc: 'Tap the magnet box to attract marbles, tap again to release',
+  mrbPerBox: 9,
+  sortCap: 3,
+  grid: [
+    null, null, {ci:0,type:'default'}, null, {ci:1,type:'default'}, null, null,
+    null, null, null, null, null, null, null,
+    {ci:2,type:'default'}, null, null, null, null, null, {ci:3,type:'default'},
+    null, null, null, {ci:0,type:'magnet'}, null, null, null,
+    null, null, null, null, null, null, null,
+    null, {ci:1,type:'default'}, null, null, null, {ci:2,type:'default'}, null,
+    null, null, null, {ci:3,type:'default'}, null, null, null
+  ]
+});
+levelStars.push(0);
 var gameActive = false;
 
 // === PHYSICS ===

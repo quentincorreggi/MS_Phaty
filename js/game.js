@@ -16,6 +16,20 @@ function showLevelSelect() {
   }
   document.getElementById('level-screen').classList.remove('hidden');
   if (typeof editorCleanupTest === 'function') editorCleanupTest();
+
+  // Render level buttons
+  var container = document.getElementById('ls-levels');
+  if (container) {
+    container.innerHTML = '';
+    for (var i = 0; i < LEVELS.length; i++) {
+      var btn = document.createElement('button');
+      btn.className = 'ls-level-btn';
+      btn.textContent = LEVELS[i].name || ('Level ' + (i + 1));
+      btn.setAttribute('data-idx', i);
+      btn.onclick = function () { startLevel(parseInt(this.getAttribute('data-idx'))); };
+      container.appendChild(btn);
+    }
+  }
 }
 
 function startLevel(idx) {
@@ -67,6 +81,7 @@ function initGame() {
   for (var c = 0; c < NUM_COLORS; c++) colorMarblesTotal.push(0);
   for (var k in boxSlots) {
     var bs = boxSlots[k];
+    if (bs.boxType === 'magnet') continue; // magnet boxes start empty, don't contribute marbles
     var isBlockerBox = (bs.boxType === 'blocker');
     var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
     colorMarblesTotal[bs.ci] += regularPerBox;
@@ -130,12 +145,14 @@ function initGame() {
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
-      stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
-        revealed: isIce ? true : false, empty: false,
+      var isMagnet = (slot.boxType === 'magnet');
+      stock.push({ ci: slot.ci, used: false, remaining: isMagnet ? 0 : MRB_PER_BOX, spawning: false, spawnIdx: 0,
+        revealed: (isIce || isMagnet) ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        magnetActive: false, magnetCaptured: isMagnet ? [] : null,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
@@ -316,6 +333,23 @@ function handleTap(px, py) {
     if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
+      // Magnet box — toggle activate/deactivate
+      if (b.boxType === 'magnet') {
+        if (!b.revealed) { b.shakeT = 0.5; return; }
+        if (b.magnetActive) {
+          // Deactivate — release captured marbles
+          b.magnetActive = false;
+          magnetRelease(b);
+          sfx.pop();
+        } else {
+          // Activate — start attracting
+          b.magnetActive = true;
+          b.popT = 0.8;
+          sfx.sort();
+          spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, '#6A80D0', 12);
+        }
+        return;
+      }
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
       b.popT = 1;
       sfx.pop();
@@ -348,6 +382,7 @@ function update() {
   if (!gameActive) return;
   tick++;
   physicsStep();
+  applyMagnetAttraction();
 
   beltOffset = (beltOffset + BELT_SPEED * S) % 1;
   for (var i = 0; i < BELT_SLOTS; i++) {

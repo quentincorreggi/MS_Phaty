@@ -35,6 +35,11 @@
     transition:transform 0.18s;display:flex;align-items:center;gap:10px}
   .ls-editor-btn:hover{transform:scale(1.06)}.ls-editor-btn:active{transform:scale(0.94)}
   .ls-import-btn{background:linear-gradient(135deg,#E8A84C,#D4903A);box-shadow:0 6px 22px rgba(232,168,76,0.35)}
+  .ls-level-btn{padding:12px 24px;border:none;border-radius:14px;cursor:pointer;
+    font-family:'Fredoka',sans-serif;font-weight:600;font-size:15px;color:white;
+    background:linear-gradient(135deg,#4EE68C,#36C76E);box-shadow:0 4px 16px rgba(78,230,140,0.3);
+    transition:transform 0.18s}
+  .ls-level-btn:hover{transform:scale(1.06)}.ls-level-btn:active{transform:scale(0.94)}
   #cal-toggle{position:absolute;top:10px;right:10px;z-index:30;width:40px;height:40px;border-radius:12px;border:none;
     background:rgba(160,130,100,0.8);color:white;font-size:20px;cursor:pointer;font-family:'Fredoka',sans-serif}
   #cal-toggle:active{transform:scale(0.9)}
@@ -194,6 +199,7 @@
     <button class="ls-editor-btn" onclick="showEditor()"><span style="font-size:22px">&#9998;</span> Level Editor</button>
     <button class="ls-editor-btn ls-import-btn" onclick="showEditor(); setTimeout(editorImportJSON, 100)"><span style="font-size:22px">&#128229;</span> Import Level</button>
   </div>
+  <div id="ls-levels" style="display:flex;flex-wrap:wrap;gap:12px;padding:0 24px 30px;justify-content:center"></div>
 </div>
 <div id="editor-screen" class="hidden">
   <div class="ed-header">
@@ -246,6 +252,7 @@
 <script src="js/box_hidden.js"></script>
 <script src="js/box_ice.js"></script>
 <script src="js/box_blocker.js"></script>
+<script src="js/box_magnet.js"></script>
 <script src="js/calibration.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/particles.js"></script>
