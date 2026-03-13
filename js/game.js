@@ -325,17 +325,59 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
-      // Defuse bomb if tapped in time
-      if (b.boxType === 'bomb' && !b.bombDetonated) {
+      // Bomb tapped in time — explode 2 random adjacent boxes
+      if (b.boxType === 'bomb' && b.bombActive && !b.bombDetonated) {
         b.bombActive = false;
         b.bombDetonated = true;
-        // Green defuse particles
-        var dfx = b.x + L.bw / 2, dfy = b.y + L.bh / 2;
-        for (var p = 0; p < 12; p++) {
-          var a = Math.PI * 2 * p / 12, sp = 2 + Math.random() * 3;
-          particles.push({ x: dfx, y: dfy, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
-            r: (2 + Math.random() * 3) * S, color: '#4EE68C',
-            life: 0.8, decay: 0.03, grav: false });
+        var bx2 = b.x + L.bw / 2, by2 = b.y + L.bh / 2;
+        // Explosion particles on the bomb itself
+        for (var p = 0; p < 20; p++) {
+          var a = Math.PI * 2 * p / 20 + Math.random() * 0.3, sp = 4 + Math.random() * 6;
+          particles.push({ x: bx2, y: by2, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
+            r: (3 + Math.random() * 4) * S,
+            color: Math.random() > 0.5 ? '#FF6600' : '#FFD700',
+            life: 1, decay: 0.015 + Math.random() * 0.01, grav: true });
+        }
+        sfx.complete();
+        // Collect destroyable neighbors (all 8 directions)
+        var bombRow = Math.floor(i / L.cols), bombCol = i % L.cols;
+        var targets = [];
+        for (var dr = -1; dr <= 1; dr++) {
+          for (var dc = -1; dc <= 1; dc++) {
+            if (dr === 0 && dc === 0) continue;
+            var nr = bombRow + dr, nc = bombCol + dc;
+            if (nr < 0 || nr >= L.rows || nc < 0 || nc >= L.cols) continue;
+            var ni = nr * L.cols + nc;
+            var nb = stock[ni];
+            if (nb.isWall || nb.isTunnel || nb.empty || nb.used) continue;
+            targets.push(ni);
+          }
+        }
+        // Pick 2 random targets (or fewer if less available)
+        shuffle(targets);
+        var destroyCount = Math.min(2, targets.length);
+        for (var di = 0; di < destroyCount; di++) {
+          var ti = targets[di];
+          var tb = stock[ti];
+          tb.used = true;
+          tb.remaining = 0;
+          tb.emptyT = 1;
+          tb.iceHP = 0;
+          if (tb.boxType === 'bomb') { tb.bombActive = false; tb.bombDetonated = true; }
+          // Explosion particles for destroyed neighbor
+          var tbx = tb.x + L.bw / 2, tby = tb.y + L.bh / 2;
+          for (var p2 = 0; p2 < 15; p2++) {
+            var a2 = Math.PI * 2 * p2 / 15 + Math.random() * 0.3, sp2 = 3 + Math.random() * 4;
+            particles.push({ x: tbx, y: tby, vx: Math.cos(a2) * sp2 * S, vy: Math.sin(a2) * sp2 * S,
+              r: (2 + Math.random() * 3) * S,
+              color: Math.random() > 0.4 ? '#FF4500' : COLORS[tb.ci].fill,
+              life: 0.9, decay: 0.02 + Math.random() * 0.015, grav: true });
+          }
+        }
+        // Reveal around newly empty cells
+        _revealVisited = {};
+        for (var di2 = 0; di2 < destroyCount; di2++) {
+          revealAroundEmptyCell(targets[di2]);
         }
       }
       return;
@@ -490,68 +532,20 @@ function update() {
     if (!b.bombActive) continue;
     b.bombTimer--;
     if (b.bombTimer <= 0) {
-      // DETONATE — destroy all 8 neighbors
+      // FIZZLE — timer expired, bomb loses its explosion power
       b.bombDetonated = true;
-      b.used = true;
-      b.emptyT = 1;
-      b.remaining = 0;
+      b.bombActive = false;
+      b.shakeT = 0.5;
       var bx = b.x + L.bw / 2, by = b.y + L.bh / 2;
-      // Big explosion particles
-      for (var p = 0; p < 30; p++) {
-        var a = Math.PI * 2 * p / 30 + Math.random() * 0.3, sp = 4 + Math.random() * 7;
-        particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
-          r: (3 + Math.random() * 5) * S,
-          color: Math.random() > 0.5 ? '#FF6600' : '#FFD700',
-          life: 1, decay: 0.012 + Math.random() * 0.01, grav: true });
+      // Gray smoke/fizzle particles
+      for (var p = 0; p < 12; p++) {
+        var a = Math.PI * 2 * p / 12 + Math.random() * 0.3, sp = 1.5 + Math.random() * 2;
+        particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S - 1.5 * S,
+          r: (2 + Math.random() * 3) * S,
+          color: 'rgba(120,110,100,0.6)',
+          life: 0.7, decay: 0.025 + Math.random() * 0.015, grav: false });
       }
-      // White flash particles
-      for (var p = 0; p < 10; p++) {
-        var a = Math.random() * Math.PI * 2, sp = 2 + Math.random() * 3;
-        particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
-          r: (4 + Math.random() * 4) * S, color: 'rgba(255,255,255,0.9)',
-          life: 0.8, decay: 0.04, grav: false });
-      }
-      sfx.complete();
-      // Destroy 8 neighbors
-      var row = Math.floor(i / L.cols), col = i % L.cols;
-      for (var dr = -1; dr <= 1; dr++) {
-        for (var dc = -1; dc <= 1; dc++) {
-          if (dr === 0 && dc === 0) continue;
-          var nr = row + dr, nc = col + dc;
-          if (nr < 0 || nr >= L.rows || nc < 0 || nc >= L.cols) continue;
-          var ni = nr * L.cols + nc;
-          var nb = stock[ni];
-          if (nb.isWall || nb.isTunnel || nb.empty || nb.used) continue;
-          // Destroy the neighbor
-          nb.used = true;
-          nb.remaining = 0;
-          nb.emptyT = 1;
-          nb.iceHP = 0;
-          nb.bombActive = false;
-          nb.bombDetonated = true;
-          // Explosion particles for neighbor
-          var nbx = nb.x + L.bw / 2, nby = nb.y + L.bh / 2;
-          for (var p2 = 0; p2 < 15; p2++) {
-            var a2 = Math.PI * 2 * p2 / 15 + Math.random() * 0.3, sp2 = 3 + Math.random() * 4;
-            particles.push({ x: nbx, y: nby, vx: Math.cos(a2) * sp2 * S, vy: Math.sin(a2) * sp2 * S,
-              r: (2 + Math.random() * 3) * S,
-              color: Math.random() > 0.4 ? '#FF4500' : COLORS[nb.ci].fill,
-              life: 0.9, decay: 0.02 + Math.random() * 0.015, grav: true });
-          }
-        }
-      }
-      // Reveal around newly empty cells
-      _revealVisited = {};
-      revealAroundEmptyCell(i);
-      var row2 = Math.floor(i / L.cols), col2 = i % L.cols;
-      for (var dr2 = -1; dr2 <= 1; dr2++) {
-        for (var dc2 = -1; dc2 <= 1; dc2++) {
-          if (dr2 === 0 && dc2 === 0) continue;
-          var nr2 = row2 + dr2, nc2 = col2 + dc2;
-          if (nr2 < 0 || nr2 >= L.rows || nc2 < 0 || nc2 >= L.cols) continue;
-          revealAroundEmptyCell(nr2 * L.cols + nc2);
-        }
-      }
+      sfx.pop();
     }
   }
 
