@@ -57,6 +57,13 @@ jobs:
           mkdir -p "gh-pages/$FOLDER"
           rsync -a --exclude='.git' --exclude='gh-pages' --exclude='.github' ./ "gh-pages/$FOLDER/"
 
+      - name: Inject cache-busting version into index.html
+        run: |
+          FOLDER="${{ steps.folder.outputs.folder }}"
+          SHORT_SHA="${{ github.sha }}"
+          SHORT_SHA="${SHORT_SHA:0:8}"
+          sed -i "s|\.js\">|.js?v=$SHORT_SHA\">|g" "gh-pages/$FOLDER/index.html"
+
       - name: Commit and push to gh-pages
         run: |
           cd gh-pages
