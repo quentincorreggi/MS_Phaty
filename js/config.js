@@ -13,39 +13,10 @@ var audioCtx = null;
 
 // === LEVEL SYSTEM ===
 var currentLevel = 0;
-var LEVELS = [
-  { name: 'Getting Started', mrbPerBox: 9, sortCap: 3, desc: 'Learn the basics' },
-  { name: 'Double Trouble',  mrbPerBox: 9, sortCap: 3, desc: 'More marbles' },
-  { name: 'Color Cascade',   mrbPerBox: 9, sortCap: 3, desc: 'Stay sharp' },
-  { name: 'Marble Madness',  mrbPerBox: 9, sortCap: 3, desc: 'Stay focused' },
-  { name: 'Sorted Chaos',    mrbPerBox: 9, sortCap: 3, desc: 'Organized mess' },
-  { name: 'Belt Runner',     mrbPerBox: 9, sortCap: 3, desc: 'Keep it moving' },
-  { name: 'Gravity Drop',    mrbPerBox: 9, sortCap: 3, desc: 'Let them fall' },
-  { name: 'Precision',       mrbPerBox: 9, sortCap: 3, desc: 'Every marble counts' },
-  { name: 'Grand Finale',    mrbPerBox: 9, sortCap: 3, desc: 'The ultimate test' },
-  { name: 'Encore',          mrbPerBox: 9, sortCap: 3, desc: 'One more round' },
-  { name: 'Masterclass',     mrbPerBox: 9, sortCap: 3, desc: 'Prove yourself' },
-  { name: 'Perfection',      mrbPerBox: 9, sortCap: 3, desc: 'No mistakes' }
-];
+var LEVELS = [];
 var levelStars = [];
-for (var li = 0; li < LEVELS.length; li++) levelStars.push(0);
-var unlockedLevels = 4;
+var unlockedLevels = 0;
 var gameActive = false;
-
-var LEVEL_COLORS = [
-  { bg: 'linear-gradient(135deg,#FF9A9E,#E8706E)', shadow: 'rgba(232,112,110,0.5)' },
-  { bg: 'linear-gradient(135deg,#89CFF0,#5BA3D9)', shadow: 'rgba(91,163,217,0.5)' },
-  { bg: 'linear-gradient(135deg,#77DD77,#4EBF5E)', shadow: 'rgba(78,191,94,0.5)' },
-  { bg: 'linear-gradient(135deg,#FFD966,#E8B84C)', shadow: 'rgba(232,184,76,0.5)' },
-  { bg: 'linear-gradient(135deg,#C89CF2,#A66DD4)', shadow: 'rgba(166,109,212,0.5)' },
-  { bg: 'linear-gradient(135deg,#FFB07C,#E88A5A)', shadow: 'rgba(232,138,90,0.5)' },
-  { bg: 'linear-gradient(135deg,#87CEEB,#5EAED4)', shadow: 'rgba(94,174,212,0.5)' },
-  { bg: 'linear-gradient(135deg,#F4A4C0,#D87EA0)', shadow: 'rgba(216,126,160,0.5)' },
-  { bg: 'linear-gradient(135deg,#98D8A0,#6EBF7A)', shadow: 'rgba(110,191,122,0.5)' },
-  { bg: 'linear-gradient(135deg,#F7C873,#D4A84C)', shadow: 'rgba(212,168,76,0.5)' },
-  { bg: 'linear-gradient(135deg,#B8A9E2,#9080C4)', shadow: 'rgba(144,128,196,0.5)' },
-  { bg: 'linear-gradient(135deg,#E8A4A4,#C87878)', shadow: 'rgba(200,120,120,0.5)' }
-];
 
 // === PHYSICS ===
 var PHYS_GRAVITY = 0.67, PHYS_DAMPING = 0.997, PHYS_BOUNCE = 0.45, PHYS_FRICTION = 0.995;
@@ -82,7 +53,7 @@ var blockerCollectT = 0;
 var blockerCollectSlots = [];
 var blockerCollectCleared = false;
 
-var MRB_PER_BOX = 9, SORT_CAP = 3, STOCK_PER_CLR = 6;
+var MRB_PER_BOX = 9, SORT_CAP = 3;
 var SORT_VISIBLE_ROWS = 4;
 
 // Snake order for 3x3 grid

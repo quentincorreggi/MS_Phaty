@@ -5,28 +5,6 @@
 // ============================================================
 
 // === LEVEL SELECT ===
-function buildLevelGrid() {
-  var grid = document.getElementById('ls-grid');
-  grid.innerHTML = '';
-  for (var i = 0; i < LEVELS.length; i++) {
-    var btn = document.createElement('button');
-    btn.className = 'level-btn' + (i >= unlockedLevels ? ' locked' : '');
-    btn.style.animationDelay = (i * 0.06) + 's';
-    var clr = LEVEL_COLORS[i % LEVEL_COLORS.length];
-    btn.style.background = clr.bg;
-    btn.style.boxShadow = '0 5px 18px ' + clr.shadow;
-    if (i < unlockedLevels) {
-      var stars = '', s = levelStars[i];
-      for (var j = 0; j < 3; j++) stars += (j < s ? '\u2605' : '\u2606');
-      btn.innerHTML = '<span class="lb-num">' + (i + 1) + '</span><span class="lb-stars">' + stars + '</span>';
-      (function (idx) { btn.addEventListener('click', function () { startLevel(idx); }); })(i);
-    } else {
-      btn.innerHTML = '<span class="lb-lock">\uD83D\uDD12</span><span class="lb-num" style="font-size:16px;opacity:0.6">' + (i + 1) + '</span>';
-    }
-    grid.appendChild(btn);
-  }
-}
-
 function showLevelSelect() {
   gameActive = false;
   document.getElementById('win-screen').classList.remove('show');
@@ -38,7 +16,6 @@ function showLevelSelect() {
   }
   document.getElementById('level-screen').classList.remove('hidden');
   if (typeof editorCleanupTest === 'function') editorCleanupTest();
-  buildLevelGrid();
 }
 
 function startLevel(idx) {
@@ -48,11 +25,6 @@ function startLevel(idx) {
   document.getElementById('cal-toggle').style.display = '';
   ensureAudio();
   initGame();
-}
-
-function goNextLevel() {
-  if (currentLevel + 1 < LEVELS.length) startLevel(currentLevel + 1);
-  else showLevelSelect();
 }
 
 // === GAME INIT ===
@@ -86,18 +58,9 @@ function initGame() {
         boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default' };
       }
     }
-    if (lvl.mrbPerBox) MRB_PER_BOX = lvl.mrbPerBox;
-    if (lvl.sortCap) SORT_CAP = lvl.sortCap;
-  } else {
-    var totalBoxes = 4 * STOCK_PER_CLR;
-    var cl = [];
-    for (var c = 0; c < 4; c++) for (var n = 0; n < STOCK_PER_CLR; n++) cl.push(c);
-    shuffle(cl);
-    var slotIndices = [];
-    for (var i = 0; i < totalSlots; i++) slotIndices.push(i);
-    shuffle(slotIndices);
-    for (var i = 0; i < totalBoxes; i++) boxSlots[slotIndices[i]] = { ci: cl[i], boxType: 'default' };
   }
+  if (lvl.mrbPerBox) MRB_PER_BOX = lvl.mrbPerBox;
+  if (lvl.sortCap) SORT_CAP = lvl.sortCap;
 
   // ── Count regular marbles per color for sort columns ──
   var colorMarblesTotal = [];
@@ -547,9 +510,7 @@ function checkWin() {
   }
   if (!won) {
     won = true; sfx.win();
-    levelStars[currentLevel] = 3;
-    if (currentLevel + 1 < LEVELS.length && unlockedLevels <= currentLevel + 1) unlockedLevels = currentLevel + 2;
-    document.getElementById('win-msg').textContent = 'Level ' + (currentLevel + 1) + ' complete!';
+    document.getElementById('win-msg').textContent = 'All marbles sorted perfectly!';
     spawnConfetti(W / 2, H / 3, 60);
     setTimeout(function () { spawnConfetti(W * 0.3, H / 2, 40); }, 200);
     setTimeout(function () { spawnConfetti(W * 0.7, H / 2, 40); }, 400);
