@@ -2,17 +2,23 @@
 // shaker.js — Shaker booster: uplift + shuffle funnel marbles
 // ============================================================
 
+var SHAKER_COOLDOWN = 45;  // frames before button is usable again
+var shakerCooldownT = 0;
+
 function activateShaker() {
-  if (shakerUsed || !gameActive || won) return;
-  shakerUsed = true;
+  if (shakerCooldownT > 0 || !gameActive || won) return;
+  if (physMarbles.length === 0) return;  // no marbles to shake
+  shakerCooldownT = SHAKER_COOLDOWN;
   shakerActiveT = 0.6;
   shakerPressT = 0.4;
 
-  // Apply strong upward + random horizontal impulse to all physics marbles
+  // Chaotic impulse: strong random direction per marble, biased upward
   for (var i = 0; i < physMarbles.length; i++) {
     var m = physMarbles[i];
-    m.vy = -(8 + Math.random() * 6) * S;
-    m.vx = (Math.random() - 0.5) * 10 * S;
+    var angle = Math.random() * Math.PI * 2;
+    var force = (10 + Math.random() * 8) * S;
+    m.vx = Math.cos(angle) * force;
+    m.vy = Math.sin(angle) * force - (6 + Math.random() * 6) * S;  // upward bias
   }
 
   // Sound effect — ascending whoosh + rattle
@@ -41,6 +47,7 @@ function activateShaker() {
 function updateShaker() {
   if (shakerActiveT > 0) shakerActiveT = Math.max(0, shakerActiveT - 0.02);
   if (shakerPressT > 0) shakerPressT = Math.max(0, shakerPressT - 0.04);
+  if (shakerCooldownT > 0) shakerCooldownT--;
 }
 
 function drawShakerButton() {
@@ -56,10 +63,12 @@ function drawShakerButton() {
   ctx.save();
   ctx.translate(shakeOx, shakeOy);
 
+  var onCooldown = shakerCooldownT > 0;
+
   // Button scale: press animation + idle breathing
   var pressScale = 1 - shakerPressT * 0.15;
-  var breathe = shakerUsed ? 0 : Math.sin(tick * 0.05) * 0.03;
-  var hoverScale = shakerHover && !shakerUsed ? 0.05 : 0;
+  var breathe = onCooldown ? 0 : Math.sin(tick * 0.05) * 0.03;
+  var hoverScale = shakerHover && !onCooldown ? 0.05 : 0;
   var totalScale = pressScale + breathe + hoverScale;
 
   ctx.translate(x + w / 2, y + h / 2);
@@ -67,7 +76,7 @@ function drawShakerButton() {
 
   // Button background
   var bgColor, borderColor;
-  if (shakerUsed) {
+  if (onCooldown) {
     bgColor = 'rgba(140,130,120,0.5)';
     borderColor = 'rgba(120,110,100,0.4)';
   } else {
@@ -78,8 +87,8 @@ function drawShakerButton() {
     borderColor = '#C43A28';
   }
 
-  ctx.shadowColor = shakerUsed ? 'rgba(0,0,0,0.1)' : 'rgba(255,107,74,0.4)';
-  ctx.shadowBlur = shakerUsed ? 3 * S : 8 * S;
+  ctx.shadowColor = onCooldown ? 'rgba(0,0,0,0.1)' : 'rgba(255,107,74,0.4)';
+  ctx.shadowBlur = onCooldown ? 3 * S : 8 * S;
   ctx.shadowOffsetY = 2 * S;
   ctx.fillStyle = bgColor;
   rRect(-w / 2, -h / 2, w, h, 10 * S);
@@ -92,7 +101,7 @@ function drawShakerButton() {
   ctx.stroke();
 
   // Vibration icon — three wavy lines
-  var iconAlpha = shakerUsed ? 0.3 : 0.9;
+  var iconAlpha = onCooldown ? 0.3 : 0.9;
   ctx.globalAlpha = iconAlpha;
   ctx.strokeStyle = 'white';
   ctx.lineWidth = 2.2 * S;
@@ -100,7 +109,7 @@ function drawShakerButton() {
 
   var lineSpacing = 5 * S;
   var lineH = h * 0.32;
-  var waveAmp = shakerUsed ? 2 * S : (2.5 + Math.sin(tick * 0.08) * 0.8) * S;
+  var waveAmp = onCooldown ? 2 * S : (2.5 + Math.sin(tick * 0.08) * 0.8) * S;
 
   for (var li = -1; li <= 1; li++) {
     var lx = li * lineSpacing;
@@ -136,5 +145,5 @@ function isShakerTap(px, py) {
 }
 
 function isShakerHover(px, py) {
-  return !shakerUsed && isShakerTap(px, py);
+  return shakerCooldownT <= 0 && isShakerTap(px, py);
 }
