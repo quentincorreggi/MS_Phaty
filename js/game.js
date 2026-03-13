@@ -67,7 +67,7 @@ function initGame() {
   for (var c = 0; c < NUM_COLORS; c++) colorMarblesTotal.push(0);
   for (var k in boxSlots) {
     var bs = boxSlots[k];
-    if (bs.boxType === 'bomb') continue; // bombs don't contribute marbles
+    if (bs.boxType === 'bomb') { colorMarblesTotal[bs.ci] += MRB_PER_BOX * 3; continue; } // 3 respawn stages
     var isBlockerBox = (bs.boxType === 'blocker');
     var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
     colorMarblesTotal[bs.ci] += regularPerBox;
@@ -132,8 +132,8 @@ function initGame() {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
       var isBomb = (slot.boxType === 'bomb');
-      stock.push({ ci: isBomb ? BOMB_STAGE_CI[0] : slot.ci,
-        used: false, remaining: isBomb ? 0 : MRB_PER_BOX, spawning: false, spawnIdx: 0,
+      stock.push({ ci: slot.ci,
+        used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
         revealed: isIce ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
@@ -323,39 +323,58 @@ function handleTap(px, py) {
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
 
-      // ── Bomb box: detonate a random revealed box ──
+      // ── Bomb box: spawn own marbles + silently destroy a random box ──
       if (b.boxType === 'bomb') {
+        // Find a random target to destroy (no marbles from it)
         var targets = [];
         for (var j = 0; j < stock.length; j++) {
           if (j === i) continue;
           var t = stock[j];
           if (t.isTunnel || t.isWall || t.empty || t.used || t.spawning) continue;
-          if (t.revealT > 0 || !t.revealed) continue;
-          if (t.iceHP > 0) continue;
           targets.push(j);
         }
-        var bombCi = BOMB_STAGE_CI[b.bombStage - 1];
+        var stageColor = BOMB_STAGE_COLORS[b.bombStage - 1];
         b.popT = 1;
-        spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[bombCi].fill, 28);
+        spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, stageColor, 28);
         sfx.complete();
+
+        // Silently destroy the chosen target
         if (targets.length > 0) {
           var tIdx = targets[Math.floor(Math.random() * targets.length)];
           var tgt = stock[tIdx];
-          tgt.popT = 1; tgt.shakeT = 0.8;
-          spawnBurst(tgt.x + L.bw / 2, tgt.y + L.bh / 2, COLORS[tgt.ci].fill, 20);
-          spawnPhysMarbles(tgt);
-          damageAdjacentIce(tIdx);
+          tgt.remaining = 0;
+          tgt.used = true;
+          tgt.emptyT = 1.0;
+          tgt.shakeT = 1.0;
+          spawnBurst(tgt.x + L.bw / 2, tgt.y + L.bh / 2, stageColor, 20);
+          for (var p = 0; p < 10; p++) {
+            var ang = Math.PI * 2 * p / 10 + Math.random() * 0.4;
+            var spd = 3 + Math.random() * 4;
+            particles.push({ x: tgt.x + L.bw / 2, y: tgt.y + L.bh / 2,
+              vx: Math.cos(ang) * spd * S, vy: Math.sin(ang) * spd * S - 2 * S,
+              r: (2 + Math.random() * 4) * S, color: '#222',
+              life: 0.9, decay: 0.022, grav: true });
+          }
+          (function(tidx) { setTimeout(function() { revealAroundEmptyCell(tidx); }, 350); })(tIdx);
         }
-        if (b.bombStage >= 3) {
-          b.used = true;
-          b.emptyT = 1.0;
-          (function(bidx) { setTimeout(function() { revealAroundEmptyCell(bidx); }, 350); })(i);
-        } else {
-          b.bombStage++;
-          b.ci = BOMB_STAGE_CI[b.bombStage - 1];
-          b.bombTimer = BOMB_TIMER_FRAMES;
-          b.shakeT = 0.6;
-        }
+
+        // Spawn the bomb's own marbles; on completion, respawn or finish
+        var currentStage = b.bombStage;
+        spawnBombMarbles(b, function(box) {
+          if (currentStage >= 3) {
+            box.used = true;
+            for (var si2 = 0; si2 < stock.length; si2++) {
+              if (stock[si2] === box) { revealAroundEmptyCell(si2); break; }
+            }
+          } else {
+            box.remaining  = MRB_PER_BOX;
+            box.emptyT     = 0;
+            box.bombStage  = currentStage + 1;
+            box.bombTimer  = BOMB_TIMER_FRAMES;
+            box.popT       = 1.0;
+            box.shakeT     = 0.4;
+          }
+        });
         return;
       }
 
@@ -502,7 +521,7 @@ function update() {
     if (b.iceShatterT > 0) b.iceShatterT = Math.max(0, b.iceShatterT - 0.025);
 
     // ── Bomb timer countdown ──
-    if (b.boxType === 'bomb' && b.revealed && !b.used && b.bombTimer > 0 && b.revealT <= 0) {
+    if (b.boxType === 'bomb' && b.revealed && !b.used && !b.spawning && b.bombTimer > 0 && b.revealT <= 0) {
       b.bombTimer--;
       if (b.bombTimer <= 0) {
         b.used = true;
