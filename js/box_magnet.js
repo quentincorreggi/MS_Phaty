@@ -202,7 +202,7 @@ function applyMagnetAttraction() {
 
     var targetX = b.x + L.bw / 2;
     var targetY = b.y + L.bh / 2;
-    var attractStr = 0.35 * S;
+    var attractStr = 0.8 * S;
 
     for (var mi = physMarbles.length - 1; mi >= 0; mi--) {
       if (b.magnetCaptured.length >= MRB_PER_BOX) break;
@@ -212,13 +212,16 @@ function applyMagnetAttraction() {
       var dist = Math.sqrt(dx * dx + dy * dy);
       if (dist < 1) dist = 1;
 
-      // Apply attraction force (stronger when closer)
-      var force = attractStr / Math.max(dist / (200 * S), 0.5);
+      // Constant strong pull regardless of distance — all funnel marbles get attracted
+      var force = attractStr;
       m.vx += (dx / dist) * force;
       m.vy += (dy / dist) * force;
+      // Dampen velocity slightly so marbles home in smoothly
+      m.vx *= 0.97;
+      m.vy *= 0.97;
 
       // Particle trail toward magnet
-      if (tick % 4 === 0 && dist < 300 * S) {
+      if (tick % 4 === 0) {
         particles.push({
           x: m.x, y: m.y,
           vx: (dx / dist) * 1.5 * S, vy: (dy / dist) * 1.5 * S,
