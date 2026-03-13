@@ -21,12 +21,24 @@ jobs:
     steps:
       - name: Checkout pushed branch
         uses: actions/checkout@v4
-
-      - name: Checkout gh-pages branch
-        uses: actions/checkout@v4
         with:
-          ref: gh-pages
-          path: gh-pages
+          fetch-depth: 0
+
+      - name: Checkout or create gh-pages branch
+        run: |
+          if git ls-remote --exit-code origin gh-pages >/dev/null 2>&1; then
+            git worktree add gh-pages origin/gh-pages
+          else
+            git worktree add --detach gh-pages
+            cd gh-pages
+            git checkout --orphan gh-pages
+            git rm -rf .
+            touch .nojekyll
+            echo '<!DOCTYPE html><html><head><title>MS_Phaty Previews</title></head><body><h1>MS_Phaty Branch Previews</h1><p>Previews are at /&lt;branch-name&gt;/</p></body></html>' > index.html
+            git add .nojekyll index.html
+            git commit -m "Initialize gh-pages branch"
+            git push -u origin gh-pages
+          fi
 
       - name: Compute folder name
         id: folder
