@@ -57,6 +57,7 @@ var MRB_PER_BOX = 9, SORT_CAP = 3;
 
 // === FIREWORKS (Firebox mechanic) ===
 var fireworks = [];
+var firebolts = [];
 var FIREBOX_TARGET_COUNT = 3;
 var SORT_VISIBLE_ROWS = 4;
 

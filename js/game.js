@@ -33,6 +33,7 @@ function initGame() {
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
   fireworks = [];
+  firebolts = [];
   document.getElementById('win-screen').classList.remove('show');
   computeLayout(); initBeltSlots();
 
@@ -442,54 +443,103 @@ function updateFireworks() {
         });
       }
 
-      // Activate target boxes with staggered delays
+      // Spawn firebolts — visible projectiles that fly to each target
       for (var ti = 0; ti < fw.targets.length; ti++) {
-        (function (targetIdx, delay) {
-          setTimeout(function () {
-            var tb = stock[targetIdx];
-            if (tb.used || tb.spawning || !tb.revealed) return;
-            if (tb.iceHP > 0) {
-              // Deal ice damage instead
-              tb.iceHP--;
-              var bx = tb.x + L.bw / 2, by = tb.y + L.bh / 2;
-              if (tb.iceHP === 1) {
-                tb.iceCrackT = 1.0; tb.shakeT = 0.4;
-                sfx.pop();
-                for (var p = 0; p < 10; p++) {
-                  var a = Math.PI * 2 * p / 10 + Math.random() * 0.4, sp = 2 + Math.random() * 3;
-                  particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
-                    r: (1.5 + Math.random() * 3) * S, color: 'rgba(180,225,255,0.8)',
-                    life: 0.8, decay: 0.03 + Math.random() * 0.02, grav: false });
-                }
-              } else if (tb.iceHP === 0) {
-                tb.iceShatterT = 1.0; tb.popT = 0.8; tb.boxType = 'default';
-                sfx.complete();
-                for (var p = 0; p < 20; p++) {
-                  var a = Math.PI * 2 * p / 20 + Math.random() * 0.3, sp = 3 + Math.random() * 5;
-                  particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S - 2 * S,
-                    r: (2 + Math.random() * 4) * S,
-                    color: Math.random() > 0.5 ? 'rgba(180,225,255,0.9)' : 'rgba(220,240,255,0.9)',
-                    life: 1, decay: 0.015 + Math.random() * 0.015, grav: true });
-                }
-              }
-              return;
-            }
-            // Highlight flash on target
-            tb.popT = 1;
-            sfx.pop();
-            // Firework hit particles at target
-            spawnBurst(tb.x + L.bw / 2, tb.y + L.bh / 2, '#FFD040', 12);
-            spawnBurst(tb.x + L.bw / 2, tb.y + L.bh / 2, COLORS[tb.ci].fill, 10);
-            spawnPhysMarbles(tb);
-            damageAdjacentIce(targetIdx);
-          }, delay);
-        })(fw.targets[ti], (ti + 1) * 250);
+        var tb = stock[fw.targets[ti]];
+        firebolts.push({
+          srcX: peakX,
+          srcY: peakY,
+          destX: tb.x + L.bw / 2,
+          destY: tb.y + L.bh / 2,
+          targetIdx: fw.targets[ti],
+          t: 0,
+          speed: 0.025 + ti * 0.005,  // slight stagger
+          arcHeight: 40 + Math.random() * 30
+        });
+        // Whoosh for each bolt
+        tone(600 + ti * 200, 0.2, 'sine', 0.06, 300);
       }
     }
 
     // Remove firework after animation completes
     if (fw.phase > 2) {
       fireworks.splice(i, 1);
+    }
+  }
+}
+
+function updateFirebolts() {
+  for (var i = firebolts.length - 1; i >= 0; i--) {
+    var fb = firebolts[i];
+    fb.t += fb.speed;
+
+    // Spawn trail particles along the path
+    var e = fb.t < 0.5 ? 2 * fb.t * fb.t : 1 - Math.pow(-2 * fb.t + 2, 2) / 2;
+    var cx = fb.srcX + (fb.destX - fb.srcX) * e;
+    var cy = fb.srcY + (fb.destY - fb.srcY) * e - Math.sin(fb.t * Math.PI) * fb.arcHeight * S;
+    if (tick % 2 === 0) {
+      particles.push({
+        x: cx, y: cy,
+        vx: (Math.random() - 0.5) * 1.5 * S,
+        vy: (Math.random() - 0.5) * 1.5 * S,
+        r: (2 + Math.random() * 3) * S,
+        color: Math.random() > 0.5 ? '#FFD040' : '#FF8C20',
+        life: 0.7, decay: 0.05, grav: false
+      });
+    }
+    // Sparkle trail
+    particles.push({
+      x: cx + (Math.random() - 0.5) * 4 * S,
+      y: cy + (Math.random() - 0.5) * 4 * S,
+      vx: (Math.random() - 0.5) * 0.5 * S,
+      vy: 0.3 * S,
+      r: (1 + Math.random() * 2) * S,
+      color: '#FFE880',
+      life: 0.5, decay: 0.06, grav: false
+    });
+
+    if (fb.t >= 1) {
+      // Firebolt arrived — activate the target box
+      var tb = stock[fb.targetIdx];
+      if (!tb.used && !tb.spawning && tb.revealed) {
+        if (tb.iceHP > 0) {
+          // Deal ice damage
+          tb.iceHP--;
+          var bx = tb.x + L.bw / 2, by = tb.y + L.bh / 2;
+          if (tb.iceHP === 1) {
+            tb.iceCrackT = 1.0; tb.shakeT = 0.4;
+            sfx.pop();
+            for (var p = 0; p < 10; p++) {
+              var a = Math.PI * 2 * p / 10 + Math.random() * 0.4, sp = 2 + Math.random() * 3;
+              particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
+                r: (1.5 + Math.random() * 3) * S, color: 'rgba(180,225,255,0.8)',
+                life: 0.8, decay: 0.03 + Math.random() * 0.02, grav: false });
+            }
+          } else if (tb.iceHP === 0) {
+            tb.iceShatterT = 1.0; tb.popT = 0.8; tb.boxType = 'default';
+            sfx.complete();
+            for (var p = 0; p < 20; p++) {
+              var a = Math.PI * 2 * p / 20 + Math.random() * 0.3, sp = 3 + Math.random() * 5;
+              particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S - 2 * S,
+                r: (2 + Math.random() * 4) * S,
+                color: Math.random() > 0.5 ? 'rgba(180,225,255,0.9)' : 'rgba(220,240,255,0.9)',
+                life: 1, decay: 0.015 + Math.random() * 0.015, grav: true });
+            }
+          }
+        } else {
+          // Impact burst + activate
+          tb.popT = 1;
+          sfx.pop();
+          spawnBurst(tb.x + L.bw / 2, tb.y + L.bh / 2, '#FFD040', 15);
+          spawnBurst(tb.x + L.bw / 2, tb.y + L.bh / 2, COLORS[tb.ci].fill, 12);
+          spawnPhysMarbles(tb);
+          damageAdjacentIce(fb.targetIdx);
+        }
+      }
+      // Impact explosion at destination
+      spawnBurst(fb.destX, fb.destY, '#FF6A3D', 10);
+      tone(800, 0.1, 'sine', 0.08, 400);
+      firebolts.splice(i, 1);
     }
   }
 }
@@ -510,6 +560,7 @@ function update() {
 
   // ── Firework animations ──
   updateFireworks();
+  updateFirebolts();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -676,23 +727,54 @@ function checkWin() {
 
 // === FIREWORK DRAWING ===
 function drawFireworks() {
+  // Draw rising rockets
   for (var i = 0; i < fireworks.length; i++) {
     var fw = fireworks[i];
-    if (fw.phase >= 1) continue; // rising phase only
+    if (fw.phase >= 1) continue;
     var t = fw.phase;
     var curX = fw.srcX + Math.sin(t * 8) * 3 * S;
     var curY = fw.srcY + (fw.peakY - fw.srcY) * t;
-    // Rocket head
     ctx.save();
-    var glow = ctx.createRadialGradient(curX, curY, 0, curX, curY, 8 * S);
+    var glow = ctx.createRadialGradient(curX, curY, 0, curX, curY, 10 * S);
     glow.addColorStop(0, 'rgba(255,200,60,0.9)');
-    glow.addColorStop(0.5, 'rgba(255,120,40,0.4)');
+    glow.addColorStop(0.4, 'rgba(255,120,40,0.5)');
     glow.addColorStop(1, 'rgba(255,60,20,0)');
     ctx.fillStyle = glow;
-    ctx.beginPath(); ctx.arc(curX, curY, 8 * S, 0, Math.PI * 2); ctx.fill();
-    // Core
+    ctx.beginPath(); ctx.arc(curX, curY, 10 * S, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#FFE880';
     ctx.beginPath(); ctx.arc(curX, curY, 3 * S, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  // Draw firebolts — glowing projectiles flying to targets
+  for (var i = 0; i < firebolts.length; i++) {
+    var fb = firebolts[i];
+    var e = fb.t < 0.5 ? 2 * fb.t * fb.t : 1 - Math.pow(-2 * fb.t + 2, 2) / 2;
+    var cx = fb.srcX + (fb.destX - fb.srcX) * e;
+    var cy = fb.srcY + (fb.destY - fb.srcY) * e - Math.sin(fb.t * Math.PI) * fb.arcHeight * S;
+
+    ctx.save();
+    // Outer glow
+    var glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, 14 * S);
+    glow.addColorStop(0, 'rgba(255,180,40,0.7)');
+    glow.addColorStop(0.4, 'rgba(255,100,20,0.3)');
+    glow.addColorStop(1, 'rgba(255,60,20,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(cx, cy, 14 * S, 0, Math.PI * 2); ctx.fill();
+
+    // Bright core
+    ctx.fillStyle = '#FFF0C0';
+    ctx.beginPath(); ctx.arc(cx, cy, 4 * S, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#FFD040';
+    ctx.beginPath(); ctx.arc(cx, cy, 3 * S, 0, Math.PI * 2); ctx.fill();
+
+    // Pulsing target ring on destination box
+    var ringPulse = 0.6 + Math.sin(tick * 0.15) * 0.4;
+    ctx.strokeStyle = 'rgba(255,160,40,' + (ringPulse * 0.5) + ')';
+    ctx.lineWidth = 2.5 * S;
+    ctx.beginPath();
+    ctx.arc(fb.destX, fb.destY, (L.bw * 0.4 + Math.sin(tick * 0.1) * 4 * S), 0, Math.PI * 2);
+    ctx.stroke();
     ctx.restore();
   }
 }
