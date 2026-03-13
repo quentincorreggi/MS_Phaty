@@ -16,13 +16,14 @@ var currentLevel = 0;
 var LEVELS = [
   {
     name: 'Bomb Boxes',
+    mrbPerBox: 3,
     grid: [
       null,                      null,                      null,                      null,                      null,                      null,                      null,
-      null,                      {ci:0,type:'default'},     null,                      {ci:1,type:'default'},     null,                      {ci:2,type:'default'},     null,
-      null,                      null,                      {ci:0,type:'bomb'},        null,                      null,                      null,                      null,
-      {ci:0,type:'default'},     null,                      {ci:1,type:'default'},     null,                      {ci:2,type:'default'},     null,                      {ci:0,type:'default'},
-      null,                      null,                      null,                      {ci:0,type:'bomb'},        null,                      null,                      null,
-      null,                      {ci:1,type:'default'},     null,                      {ci:2,type:'default'},     null,                      null,                      null,
+      null,                      {ci:0,type:'default'},     null,                      {ci:1,type:'default'},     null,                      {ci:0,type:'default'},     null,
+      null,                      null,                      {ci:2,type:'bomb'},        null,                      {ci:1,type:'default'},     null,                      null,
+      {ci:0,type:'default'},     null,                      {ci:1,type:'default'},     null,                      {ci:0,type:'default'},     null,                      null,
+      null,                      null,                      null,                      {ci:2,type:'bomb'},        null,                      null,                      null,
+      null,                      {ci:1,type:'default'},     null,                      null,                      null,                      null,                      null,
       null,                      null,                      null,                      null,                      null,                      null,                      null
     ]
   }
