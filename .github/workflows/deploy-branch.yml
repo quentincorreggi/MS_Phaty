@@ -57,9 +57,9 @@ jobs:
       - name: Remove previous versions of this branch
         run: |
           FOLDER="${{ steps.folder.outputs.folder }}"
-          # Delete any existing folder--sha deployments for this branch
+          shopt -s nullglob
           for old in gh-pages/${FOLDER}--*; do
-            [ -d "$old" ] && rm -rf "$old"
+            rm -rf "$old"
           done
 
       - name: Copy branch files to versioned gh-pages subfolder
@@ -100,12 +100,11 @@ jobs:
       - name: Remove all versioned folders for this branch
         run: |
           FOLDER="${{ steps.folder.outputs.folder }}"
+          shopt -s nullglob
           removed=0
           for dir in ${FOLDER}--*; do
-            if [ -d "$dir" ]; then
-              rm -rf "$dir"
-              removed=1
-            fi
+            rm -rf "$dir"
+            removed=1
           done
           if [ "$removed" = "1" ]; then
             git config user.name "github-actions[bot]"
