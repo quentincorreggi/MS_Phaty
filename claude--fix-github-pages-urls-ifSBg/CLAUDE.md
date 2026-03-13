@@ -152,7 +152,7 @@ level's `grid` array (49 = 7x7) is:
 
 1. Create `js/box_<name>.js`
 2. Call `registerBoxType('<name>', { ... })` with all required methods + label + editorColor
-3. Add `<script src="js/box_<name>.js"></script>` to `index.html` AFTER the other `box_*.js` and BEFORE `calibration.js`
+3. Add `'js/box_<name>.js'` to the script list in `index.html` AFTER the other `box_*.js` entries and BEFORE `calibration.js`
 4. If the box needs special game logic (like ice needs `damageAdjacentIce`), add that to `game.js`
 5. If the box needs custom state on stock objects, initialize it in `initGame()` where stock objects are created
 6. The registry auto-adds new types to the editor toolbar
@@ -164,7 +164,7 @@ Reference implementation for complex box types: `js/box_ice.js`
 For mechanics beyond box types (power-up marbles, new belt behaviors, grid effects):
 
 1. Create a new JS file (e.g., `js/yourmechanic.js`)
-2. Add the `<script>` tag in `index.html` AFTER `belt.js` and BEFORE `rendering.js`
+2. Add `'js/yourmechanic.js'` to the script list in `index.html` AFTER `belt.js` and BEFORE `rendering.js`
 3. Hook into the game loop: add update logic in `game.js` `update()` function
 4. Hook into rendering: add draw calls in `game.js` `frame()` or extend `rendering.js`
 5. Hook into input if needed: extend `handleTap()` in `game.js`

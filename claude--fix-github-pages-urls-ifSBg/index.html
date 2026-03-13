@@ -239,23 +239,17 @@
 </div>
 <div id="ed-toast"></div>
 
-<!-- Scripts: order matters -->
-<script src="js/config.js?v=fab09256"></script>
-<script src="js/registry.js?v=fab09256"></script>
-<script src="js/box_default.js?v=fab09256"></script>
-<script src="js/box_hidden.js?v=fab09256"></script>
-<script src="js/box_ice.js?v=fab09256"></script>
-<script src="js/box_blocker.js?v=fab09256"></script>
-<script src="js/calibration.js?v=fab09256"></script>
-<script src="js/audio.js?v=fab09256"></script>
-<script src="js/particles.js?v=fab09256"></script>
-<script src="js/layout.js?v=fab09256"></script>
-<script src="js/belt.js?v=fab09256"></script>
-<script src="js/physics.js?v=fab09256"></script>
-<script src="js/tunnel.js?v=fab09256"></script>
-<script src="js/wall.js?v=fab09256"></script>
-<script src="js/rendering.js?v=fab09256"></script>
-<script src="js/editor.js?v=fab09256"></script>
-<script src="js/game.js?v=fab09256"></script>
+<!-- Scripts: order matters. Cache-busted at runtime so iterating on a branch always loads fresh JS. -->
+<script>
+var _v = Date.now();
+[
+  'js/config.js','js/registry.js',
+  'js/box_default.js','js/box_hidden.js','js/box_ice.js','js/box_blocker.js',
+  'js/calibration.js','js/audio.js','js/particles.js',
+  'js/layout.js','js/belt.js','js/physics.js',
+  'js/tunnel.js','js/wall.js','js/rendering.js',
+  'js/editor.js','js/game.js'
+].forEach(function(s){ document.write('<script src="'+s+'?v='+_v+'"><\/script>'); });
+</script>
 </body>
 </html>
