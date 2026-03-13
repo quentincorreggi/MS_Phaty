@@ -195,33 +195,35 @@ For mechanics beyond box types (power-up marbles, new belt behaviors, grid effec
 5. Validate syntax: run `node --check` on each modified/new JS file
 6. Commit all changes with a descriptive message
 7. Push: `git push -u origin prototype/<slug>`
-8. Fetch the real Netlify preview URL (see below)
+8. Construct the GitHub Pages preview URL (see below)
 9. Share the URL with the user
 10. Tell the user to open the Level Editor, place boxes using the new mechanic,
    and hit "Test Play" to try it out
 
-### Getting the Netlify Preview URL
+### Getting the Preview URL
 
-Each branch is auto-deployed by Netlify. The deploy URL contains a unique hash
-that **cannot be predicted** — you must fetch it from GitHub after pushing.
+Each branch is auto-deployed to GitHub Pages via a GitHub Actions workflow.
+The URL is **predictable** from the branch name — no polling needed.
 
-After pushing a branch, run this command to get the deploy URL:
+**URL pattern:**
+`https://quentincorreggi.github.io/MS_Phaty/<branch-name>/`
 
+Branch names containing slashes are converted: `/` becomes `--`.
+
+Examples:
+- `main` → `https://quentincorreggi.github.io/MS_Phaty/main/`
+- `prototype/magnet-box` → `https://quentincorreggi.github.io/MS_Phaty/prototype--magnet-box/`
+
+After pushing, the deploy takes 30-60 seconds. You can construct the URL
+immediately without waiting.
+
+To verify the deploy completed, you can optionally check:
 ```bash
-# Wait for Netlify to post the deploy status (retry up to 5 times, 15s apart)
-for i in 1 2 3 4 5; do
-  URL=$(gh api repos/quentincorreggi/MS_Phaty/commits/$(git rev-parse HEAD)/statuses \
-    --jq '[.[] | select(.context | test("netlify")) | .target_url] | first // empty')
-  if [ -n "$URL" ]; then echo "$URL"; break; fi
-  echo "Waiting for Netlify deploy status... (attempt $i/5)"
-  sleep 15
-done
+gh run list --workflow=deploy-branch.yml --limit=3
 ```
 
-**IMPORTANT:** Never guess or construct the URL manually. Always use the
-command above to get the real URL from the deploy status. If after 5 attempts
-no URL is found, tell the user the deploy may still be in progress and ask
-them to check their Netlify dashboard.
+**IMPORTANT:** Always replace `/` with `--` in branch names when constructing
+the URL.
 
 ### Safety Rules
 
