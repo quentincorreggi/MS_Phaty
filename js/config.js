@@ -13,7 +13,23 @@ var audioCtx = null;
 
 // === LEVEL SYSTEM ===
 var currentLevel = 0;
-var LEVELS = [];
+var LEVELS = [
+  {
+    name: 'Bomb Demo',
+    desc: 'Defuse the bombs before they explode!',
+    mrbPerBox: 9,
+    sortCap: 3,
+    grid: [
+      null, {ci:0,type:'default'}, {ci:1,type:'default'}, null, {ci:2,type:'default'}, {ci:3,type:'default'}, null,
+      {ci:0,type:'default'}, {ci:1,type:'bomb'}, {ci:0,type:'default'}, null, {ci:2,type:'default'}, {ci:3,type:'bomb'}, {ci:3,type:'default'},
+      null, {ci:1,type:'default'}, {ci:0,type:'default'}, null, {ci:2,type:'default'}, {ci:3,type:'default'}, null,
+      null, null, null, null, null, null, null,
+      null, {ci:0,type:'default'}, {ci:1,type:'bomb'}, null, {ci:2,type:'bomb'}, {ci:3,type:'default'}, null,
+      {ci:1,type:'default'}, {ci:0,type:'default'}, {ci:1,type:'default'}, null, {ci:2,type:'default'}, {ci:3,type:'default'}, {ci:2,type:'default'},
+      null, null, null, null, null, null, null
+    ]
+  }
+];
 var levelStars = [];
 var unlockedLevels = 0;
 var gameActive = false;
