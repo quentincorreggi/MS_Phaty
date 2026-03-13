@@ -32,6 +32,7 @@ function initGame() {
   won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
+  fireworks = [];
   document.getElementById('win-screen').classList.remove('show');
   computeLayout(); initBeltSlots();
 
@@ -67,6 +68,7 @@ function initGame() {
   for (var c = 0; c < NUM_COLORS; c++) colorMarblesTotal.push(0);
   for (var k in boxSlots) {
     var bs = boxSlots[k];
+    if (bs.boxType === 'firebox') continue; // fireboxes have no marbles
     var isBlockerBox = (bs.boxType === 'blocker');
     var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
     colorMarblesTotal[bs.ci] += regularPerBox;
@@ -130,12 +132,14 @@ function initGame() {
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
-      stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
-        revealed: isIce ? true : false, empty: false,
+      var isFirebox = (slot.boxType === 'firebox');
+      stock.push({ ci: slot.ci, used: false, remaining: isFirebox ? 0 : MRB_PER_BOX, spawning: false, spawnIdx: 0,
+        revealed: isIce ? true : (isFirebox ? false : false), empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        fireboxUsed: false,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
@@ -299,6 +303,7 @@ function isBoxTappable(idx) {
   if (b.isTunnel) return false;
   if (b.isWall) return false;      // walls are not tappable
   if (b.empty || b.used) return false;
+  if (b.boxType === 'firebox' && b.fireboxUsed) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
   return b.revealed;
@@ -317,6 +322,14 @@ function handleTap(px, py) {
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
+      if (b.boxType === 'firebox') {
+        b.popT = 1;
+        sfx.pop();
+        spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, '#FF6A3D', 18);
+        launchFirework(i);
+        damageAdjacentIce(i);
+        return;
+      }
       b.popT = 1;
       sfx.pop();
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
@@ -343,6 +356,144 @@ canvas.addEventListener('mousemove', function (e) {
   canvas.style.cursor = hoverIdx >= 0 ? 'pointer' : 'default';
 });
 
+// === FIREBOX ===
+function launchFirework(idx) {
+  var b = stock[idx];
+  b.fireboxUsed = true;
+  b.emptyT = 1.0;
+  // Find tappable target boxes (excluding this firebox and other fireboxes)
+  var candidates = [];
+  for (var i = 0; i < stock.length; i++) {
+    if (i === idx) continue;
+    var s = stock[i];
+    if (s.isTunnel || s.isWall || s.empty || s.used) continue;
+    if (s.boxType === 'firebox') continue;
+    if (!s.revealed || s.spawning || s.revealT > 0) continue;
+    if (s.iceHP > 0) continue;
+    candidates.push(i);
+  }
+  shuffle(candidates);
+  var targetCount = Math.min(FIREBOX_TARGET_COUNT, candidates.length);
+  var targets = candidates.slice(0, targetCount);
+
+  // Launch firework animation
+  fireworks.push({
+    srcX: b.x + L.bw / 2,
+    srcY: b.y + L.bh / 2,
+    peakY: b.y - L.bh * 1.5,
+    targets: targets,
+    phase: 0,       // 0..1 = rising, 1..2 = detonation
+    detonated: false,
+    trail: []
+  });
+
+  // Whoosh sound
+  tone(200, 0.4, 'sawtooth', 0.06, 800);
+
+  setTimeout(function () {
+    b.used = true;
+    b.spawning = false;
+    for (var si = 0; si < stock.length; si++) {
+      if (stock[si] === b) { revealAroundEmptyCell(si); break; }
+    }
+  }, 300);
+}
+
+function updateFireworks() {
+  for (var i = fireworks.length - 1; i >= 0; i--) {
+    var fw = fireworks[i];
+    fw.phase += 0.03;
+
+    if (fw.phase < 1) {
+      // Rising phase — trail particles
+      var t = fw.phase;
+      var curX = fw.srcX + Math.sin(t * 8) * 3 * S;
+      var curY = fw.srcY + (fw.peakY - fw.srcY) * t;
+      fw.trail.push({ x: curX, y: curY });
+      // Spawn trail particles
+      if (tick % 2 === 0) {
+        particles.push({
+          x: curX, y: curY,
+          vx: (Math.random() - 0.5) * 2 * S,
+          vy: 1 * S + Math.random() * S,
+          r: (2 + Math.random() * 3) * S,
+          color: Math.random() > 0.5 ? '#FFD040' : '#FF6A3D',
+          life: 0.8, decay: 0.04, grav: false
+        });
+      }
+    } else if (!fw.detonated) {
+      // Detonation!
+      fw.detonated = true;
+      var peakX = fw.srcX;
+      var peakY = fw.peakY;
+
+      // Big starburst
+      tone(1200, 0.15, 'sine', 0.1, 400);
+      var burstColors = ['#FF4020', '#FFD040', '#FF8C20', '#FFE880', '#FF6A3D'];
+      for (var p = 0; p < 30; p++) {
+        var a = Math.PI * 2 * p / 30 + Math.random() * 0.3;
+        var sp = 4 + Math.random() * 6;
+        particles.push({
+          x: peakX, y: peakY,
+          vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
+          r: (3 + Math.random() * 5) * S,
+          color: burstColors[~~(Math.random() * burstColors.length)],
+          life: 1, decay: 0.012 + Math.random() * 0.01, grav: true
+        });
+      }
+
+      // Activate target boxes with staggered delays
+      for (var ti = 0; ti < fw.targets.length; ti++) {
+        (function (targetIdx, delay) {
+          setTimeout(function () {
+            var tb = stock[targetIdx];
+            if (tb.used || tb.spawning || !tb.revealed) return;
+            if (tb.iceHP > 0) {
+              // Deal ice damage instead
+              tb.iceHP--;
+              var bx = tb.x + L.bw / 2, by = tb.y + L.bh / 2;
+              if (tb.iceHP === 1) {
+                tb.iceCrackT = 1.0; tb.shakeT = 0.4;
+                sfx.pop();
+                for (var p = 0; p < 10; p++) {
+                  var a = Math.PI * 2 * p / 10 + Math.random() * 0.4, sp = 2 + Math.random() * 3;
+                  particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
+                    r: (1.5 + Math.random() * 3) * S, color: 'rgba(180,225,255,0.8)',
+                    life: 0.8, decay: 0.03 + Math.random() * 0.02, grav: false });
+                }
+              } else if (tb.iceHP === 0) {
+                tb.iceShatterT = 1.0; tb.popT = 0.8; tb.boxType = 'default';
+                sfx.complete();
+                for (var p = 0; p < 20; p++) {
+                  var a = Math.PI * 2 * p / 20 + Math.random() * 0.3, sp = 3 + Math.random() * 5;
+                  particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S - 2 * S,
+                    r: (2 + Math.random() * 4) * S,
+                    color: Math.random() > 0.5 ? 'rgba(180,225,255,0.9)' : 'rgba(220,240,255,0.9)',
+                    life: 1, decay: 0.015 + Math.random() * 0.015, grav: true });
+                }
+              }
+              return;
+            }
+            // Highlight flash on target
+            tb.popT = 1;
+            sfx.pop();
+            // Firework hit particles at target
+            spawnBurst(tb.x + L.bw / 2, tb.y + L.bh / 2, '#FFD040', 12);
+            spawnBurst(tb.x + L.bw / 2, tb.y + L.bh / 2, COLORS[tb.ci].fill, 10);
+            spawnPhysMarbles(tb);
+            damageAdjacentIce(targetIdx);
+          }, delay);
+        })(fw.targets[ti], (ti + 1) * 250);
+      }
+    }
+
+    // Remove firework after animation completes
+    if (fw.phase > 2) {
+      fireworks.splice(i, 1);
+    }
+  }
+}
+
 // === UPDATE ===
 function update() {
   if (!gameActive) return;
@@ -356,6 +507,9 @@ function update() {
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
+
+  // ── Firework animations ──
+  updateFireworks();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -520,6 +674,29 @@ function checkWin() {
   }
 }
 
+// === FIREWORK DRAWING ===
+function drawFireworks() {
+  for (var i = 0; i < fireworks.length; i++) {
+    var fw = fireworks[i];
+    if (fw.phase >= 1) continue; // rising phase only
+    var t = fw.phase;
+    var curX = fw.srcX + Math.sin(t * 8) * 3 * S;
+    var curY = fw.srcY + (fw.peakY - fw.srcY) * t;
+    // Rocket head
+    ctx.save();
+    var glow = ctx.createRadialGradient(curX, curY, 0, curX, curY, 8 * S);
+    glow.addColorStop(0, 'rgba(255,200,60,0.9)');
+    glow.addColorStop(0.5, 'rgba(255,120,40,0.4)');
+    glow.addColorStop(1, 'rgba(255,60,20,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(curX, curY, 8 * S, 0, Math.PI * 2); ctx.fill();
+    // Core
+    ctx.fillStyle = '#FFE880';
+    ctx.beginPath(); ctx.arc(curX, curY, 3 * S, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+}
+
 // === MAIN LOOP ===
 function frame() {
   if (gameActive) {
@@ -534,6 +711,7 @@ function frame() {
     drawJumpers();
     drawSortArea();
     drawBackButton();
+    drawFireworks();
     drawParticles();
     drawDebugWalls();
   }

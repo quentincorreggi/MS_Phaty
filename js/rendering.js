@@ -229,7 +229,10 @@ function drawStock() {
         }
         ctx.restore();
       }
-      if (b.remaining > 0) {
+      if (b.boxType === 'firebox' && !b.fireboxUsed) {
+        // Draw firebox icon instead of marbles
+        drawFireboxIcon(ctx, 0, 0, L.bw, L.bh, S, tick, 1);
+      } else if (b.remaining > 0) {
         if (b.boxType === 'blocker' && b.blockerCount > 0) {
           drawBoxMarblesWithBlockers(b.ci, b.remaining, b.blockerCount);
         } else {
