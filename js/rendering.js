@@ -99,6 +99,46 @@ function drawBoxMarblesWithBlockers(ci, remaining, blockerCount) {
   }
 }
 
+function drawBoxMarblesX2(ci, remaining, totalMarbles) {
+  if (remaining <= 0) return;
+  var mr = Math.min(7 * S, L.bw / 8.5);
+  var mg = Math.min(14 * S, L.bw / 4.2);
+  var mgY = mg * MRB_GAP_FACTOR;
+  var gone = totalMarbles - remaining;
+
+  if (gone < 9) {
+    // Back layer hint (second round marbles, drawn dimmer behind)
+    ctx.save();
+    ctx.globalAlpha = 0.3;
+    var backMrbs = [];
+    for (var si = 0; si < 9; si++) backMrbs.push(SNAKE_ORDER[si]);
+    backMrbs.sort(function (a, b) { return a.r - b.r; });
+    for (var si = 0; si < backMrbs.length; si++) {
+      var sp = backMrbs[si];
+      drawMarble((sp.c - 1) * mg + 1.5 * S, (sp.r - 1) * mgY - 2 * S + 1.5 * S, mr * 0.75, ci);
+    }
+    ctx.restore();
+    // Front layer (first round, partially gone)
+    var mrbsToDraw = [];
+    for (var si = gone; si < 9; si++) mrbsToDraw.push(SNAKE_ORDER[si]);
+    mrbsToDraw.sort(function (a, b) { return a.r - b.r; });
+    for (var si = 0; si < mrbsToDraw.length; si++) {
+      var sp = mrbsToDraw[si];
+      drawMarble((sp.c - 1) * mg, (sp.r - 1) * mgY - 2 * S, mr, ci);
+    }
+  } else {
+    // First round fully gone, draw second round normally
+    var backGone = gone - 9;
+    var mrbsToDraw = [];
+    for (var si = backGone; si < 9; si++) mrbsToDraw.push(SNAKE_ORDER[si]);
+    mrbsToDraw.sort(function (a, b) { return a.r - b.r; });
+    for (var si = 0; si < mrbsToDraw.length; si++) {
+      var sp = mrbsToDraw[si];
+      drawMarble((sp.c - 1) * mg, (sp.r - 1) * mgY - 2 * S, mr, ci);
+    }
+  }
+}
+
 function drawBoxLip(ci) {
   ctx.save();
   var lipH = L.bh * LIP_PCT;
@@ -229,9 +269,18 @@ function drawStock() {
         }
         ctx.restore();
       }
+      if (b.boxType === 'x2') {
+        ctx.save();
+        ctx.globalAlpha = 0.4;
+        ctx.strokeStyle = '#DAA520'; ctx.lineWidth = 2 * S;
+        rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.stroke();
+        ctx.restore();
+      }
       if (b.remaining > 0) {
         if (b.boxType === 'blocker' && b.blockerCount > 0) {
           drawBoxMarblesWithBlockers(b.ci, b.remaining, b.blockerCount);
+        } else if (b.boxType === 'x2') {
+          drawBoxMarblesX2(b.ci, b.remaining, b.totalMarbles || MRB_PER_BOX);
         } else {
           drawBoxMarbles(b.ci, b.remaining);
         }

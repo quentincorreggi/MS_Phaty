@@ -68,7 +68,8 @@ function initGame() {
   for (var k in boxSlots) {
     var bs = boxSlots[k];
     var isBlockerBox = (bs.boxType === 'blocker');
-    var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
+    var isX2Box = (bs.boxType === 'x2');
+    var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : (isX2Box ? MRB_PER_BOX * 2 : MRB_PER_BOX);
     colorMarblesTotal[bs.ci] += regularPerBox;
     if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
   }
@@ -78,7 +79,8 @@ function initGame() {
     for (var tc = 0; tc < ts.contents.length; tc++) {
       var tItem = ts.contents[tc];
       var isBlockerBox = (tItem.type === 'blocker');
-      var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
+      var isX2Box = (tItem.type === 'x2');
+      var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : (isX2Box ? MRB_PER_BOX * 2 : MRB_PER_BOX);
       colorMarblesTotal[tItem.ci] += regularPerBox;
       if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
     }
@@ -130,7 +132,10 @@ function initGame() {
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
-      stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
+      var isX2 = (slot.boxType === 'x2');
+      var boxMrbCount = isX2 ? MRB_PER_BOX * 2 : MRB_PER_BOX;
+      stock.push({ ci: slot.ci, used: false, remaining: boxMrbCount, totalMarbles: boxMrbCount,
+        spawning: false, spawnIdx: 0,
         revealed: isIce ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
@@ -319,7 +324,9 @@ function handleTap(px, py) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
       b.popT = 1;
       sfx.pop();
-      spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
+      var burstCount = (b.boxType === 'x2') ? 30 : 18;
+      spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, burstCount);
+      if (b.boxType === 'x2') spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, '#FFD700', 12);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
       return;
