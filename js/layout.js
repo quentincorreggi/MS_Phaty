@@ -86,6 +86,14 @@ function computeLayout() {
   var stw = 4 * L.sBw + 3 * L.sColGap;
   L.sSx = sortCx - stw / 2;
 
+  // SHAKER BUTTON — centered above stock grid
+  var shakerW = 44 * S;
+  var shakerH = 36 * S;
+  L.shakerW = shakerW;
+  L.shakerH = shakerH;
+  L.shakerX = stockCx - shakerW / 2;
+  L.shakerY = L.sy - shakerH - 10 * S;
+
   // BACK BUTTON
   var bkCal = cal.back;
   var bkSize = 40 * S * bkCal.s;

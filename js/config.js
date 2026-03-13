@@ -45,6 +45,12 @@ var BLOCKER_CI = COLORS.length;
 COLORS.push({ fill: '#7A7068', light: '#A89E94', dark: '#4A4440', glow: 'rgba(122,112,104,0.5)' });
 var BLOCKER_PER_BOX = 3;
 
+// Shaker booster state
+var shakerUsed = false;
+var shakerActiveT = 0;    // countdown timer for shake visual effect (~0.6 → 0)
+var shakerPressT = 0;     // button press animation
+var shakerHover = false;   // mouse hover state
+
 // Blocker tracking state
 var totalBlockerMarbles = 0;
 var blockersOnBelt = 0;
