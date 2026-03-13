@@ -40,13 +40,13 @@ You can also use these commands:
 | File | Purpose | Lines |
 |------|---------|-------|
 | `index.html` | Entry point, loads all JS in order, CSS + HTML | 269 |
-| `js/config.js` | Global state, constants, LEVELS array, COLORS, physics params | 108 |
+| `js/config.js` | Global state, constants, COLORS, physics params | 108 |
 | `js/registry.js` | Box type registration system (`registerBoxType`/`getBoxType`) | 32 |
 | `js/box_default.js` | Default box — drawClosed, drawReveal, editor hooks | 65 |
 | `js/box_hidden.js` | Hidden "?" box — color unknown until revealed | 73 |
 | `js/box_ice.js` | Ice box — requires 2 adjacent taps to shatter ice first | 160 |
 | `js/box_blocker.js` | Blocker box — spawns neutral gray marbles that jam the belt | 127 |
-| `js/game.js` | Game loop, init, update, input handling, level select, win check | 585 |
+| `js/game.js` | Game loop, init, update, input handling, win check | 585 |
 | `js/physics.js` | Marble physics — gravity, collision, funnel walls, belt entry | 136 |
 | `js/rendering.js` | Core drawing — boxes, marbles, funnel, belt, sort area | 469 |
 | `js/layout.js` | Layout computation — stock grid, funnel, belt path, sort area | 128 |
@@ -140,7 +140,9 @@ Drawing helpers available: `drawBox()`, `drawMarble()`, `drawBoxMarbles()`,
 
 #### Level Data Format
 
-Levels in the `LEVELS` array. Each cell in a `grid` array (49 = 7x7) is:
+Levels are created via the level editor and played via "Test Play". There are
+no pre-built levels — the `LEVELS` array is empty at startup. Each cell in a
+level's `grid` array (49 = 7x7) is:
 - `null` — empty slot
 - `{ ci: 0-7, type: 'default'|'hidden'|'ice'|'blocker' }` — box
 - `{ tunnel: true, dir: 'top'|'bottom'|'left'|'right', contents: [{ci, type}...] }` — tunnel
@@ -190,12 +192,12 @@ For mechanics beyond box types (power-up marbles, new belt behaviors, grid effec
    for the detailed prompt.)
 3. Create a branch: `git checkout main && git checkout -b prototype/<slug>`
 4. Implement the mechanic following the patterns above
-5. Add at least one showcase level to the `LEVELS` array so the user can test it
-6. Validate syntax: run `node --check` on each modified/new JS file
-7. Commit all changes with a descriptive message
-8. Push: `git push -u origin prototype/<slug>`
-9. Provide the preview URL (see below)
-10. Tell the user which level number to select and how to test the mechanic
+5. Validate syntax: run `node --check` on each modified/new JS file
+6. Commit all changes with a descriptive message
+7. Push: `git push -u origin prototype/<slug>`
+8. Provide the preview URL (see below)
+9. Tell the user to open the Level Editor, place boxes using the new mechanic,
+   and hit "Test Play" to try it out
 
 ### Netlify Preview URL Pattern
 
