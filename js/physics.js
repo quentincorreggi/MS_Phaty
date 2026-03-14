@@ -97,15 +97,16 @@ function physicsStep() {
 function spawnPhysMarbles(box) {
   box.spawning = true; box.spawnIdx = 0;
   var count = box.remaining;
+  var boxTotal = box.totalMarbles || MRB_PER_BOX;
   var bt = getBoxType(box.boxType);
   for (var idx = 0; idx < count; idx++) {
-    (function (i, b, boxType) {
+    (function (i, b, boxType, bTotal) {
       setTimeout(function () {
         if (b.remaining <= 0) return;
-        var spawnIdx = MRB_PER_BOX - b.remaining;
-        var si = SNAKE_ORDER[spawnIdx];
+        var spawnIdx = bTotal - b.remaining;
+        var si = SNAKE_ORDER[spawnIdx % MRB_PER_BOX];
         b.remaining--;
-        b.spawnIdx = MRB_PER_BOX - b.remaining;
+        b.spawnIdx = bTotal - b.remaining;
         var MR = getMR();
         var mg = Math.min(14 * S, L.bw / 4.2);
         var mgY = mg * MRB_GAP_FACTOR;
@@ -128,6 +129,6 @@ function spawnPhysMarbles(box) {
           }, 300);
         }
       }, i * 120);
-    })(idx, box, bt);
+    })(idx, box, bt, boxTotal);
   }
 }
