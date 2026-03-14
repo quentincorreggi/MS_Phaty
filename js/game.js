@@ -328,22 +328,37 @@ function handleTap(px, py) {
         spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, BOMB_COLOR, 28);
         sfx.complete();
 
-        // Pop up to 3 random physics marbles currently waiting in the funnel
-        var toDestroy = Math.min(6, physMarbles.length);
+        // Build a pool of all destroyable marbles: funnel + belt
+        var pool = [];
+        for (var k = 0; k < physMarbles.length; k++) pool.push({ src: 'phys', idx: k });
+        for (var k = 0; k < BELT_SLOTS; k++) { if (beltSlots[k].marble >= 0) pool.push({ src: 'belt', idx: k }); }
+        shuffle(pool);
+        var toDestroy = Math.min(6, pool.length);
+        var physToRemove = [];
         for (var k = 0; k < toDestroy; k++) {
-          var rIdx = Math.floor(Math.random() * physMarbles.length);
-          var m = physMarbles[rIdx];
-          spawnBurst(m.x, m.y, COLORS[m.ci].fill, 10);
+          var entry = pool[k];
+          var ex, ey, eci;
+          if (entry.src === 'phys') {
+            ex = physMarbles[entry.idx].x; ey = physMarbles[entry.idx].y; eci = physMarbles[entry.idx].ci;
+            physToRemove.push(entry.idx);
+          } else {
+            var bpos = getSlotPos(entry.idx);
+            ex = bpos.x; ey = bpos.y; eci = beltSlots[entry.idx].marble;
+            beltSlots[entry.idx].marble = -1;
+          }
+          spawnBurst(ex, ey, COLORS[eci].fill, 10);
           for (var p = 0; p < 6; p++) {
             var ang = Math.random() * Math.PI * 2;
             var spd = 2 + Math.random() * 3;
-            particles.push({ x: m.x, y: m.y,
+            particles.push({ x: ex, y: ey,
               vx: Math.cos(ang) * spd * S, vy: Math.sin(ang) * spd * S,
               r: (2 + Math.random() * 3) * S, color: '#222',
               life: 0.8, decay: 0.028, grav: true });
           }
-          physMarbles.splice(rIdx, 1);
         }
+        // Remove physMarbles in descending index order to avoid shifting
+        physToRemove.sort(function(a, b) { return b - a; });
+        for (var k = 0; k < physToRemove.length; k++) physMarbles.splice(physToRemove[k], 1);
 
         // Spawn the bomb's own marbles; always respawn with a fresh timer
         spawnBombMarbles(b, function(box) {
