@@ -69,8 +69,8 @@ function physicsStep() {
   }
 
   var exitY = L.funnelBot;
-  var exitL = L.funnelCx - L.funnelOpenW / 2;
-  var exitR = L.funnelCx + L.funnelOpenW / 2;
+  var exitL = L.funnelCx + chaosFunnelDx - (L.funnelOpenW * chaosFunnelWScale) / 2;
+  var exitR = L.funnelCx + chaosFunnelDx + (L.funnelOpenW * chaosFunnelWScale) / 2;
   for (var i = physMarbles.length - 1; i >= 0; i--) {
     var m = physMarbles[i];
     if (m.y + m.r >= exitY - 3 * S && m.x > exitL - m.r && m.x < exitR + m.r) {

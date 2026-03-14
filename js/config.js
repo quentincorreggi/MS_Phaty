@@ -18,6 +18,20 @@ var levelStars = [];
 var unlockedLevels = 0;
 var gameActive = false;
 
+// Chaos Funnel showcase level
+LEVELS.push({
+  name: 'Chaos Funnel',
+  grid: [
+    {ci:4,type:'chaos'}, {ci:0,type:'default'}, {ci:1,type:'default'}, null, {ci:2,type:'default'}, {ci:3,type:'default'}, {ci:4,type:'chaos'},
+    null,               {ci:0,type:'default'}, {ci:1,type:'default'}, null, {ci:2,type:'default'}, {ci:3,type:'default'}, null,
+    null, null, {ci:5,type:'default'}, {ci:4,type:'chaos'}, {ci:6,type:'default'}, null, null,
+    null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null
+  ]
+});
+
 // === PHYSICS ===
 var PHYS_GRAVITY = 0.67, PHYS_DAMPING = 0.997, PHYS_BOUNCE = 0.45, PHYS_FRICTION = 0.995;
 var MARBLE_R_BASE = 7;
@@ -72,6 +86,12 @@ var cal = {
   marble: { s: 1.37 },
   back:   { dx: -23, dy: 85, s: 1.0 }
 };
+
+// === CHAOS FUNNEL ===
+var chaosFunnelTimer = 0;    // frames remaining (600 = 10s at 60fps)
+var chaosFunnelDx = 0;       // horizontal shift of the funnel exit center
+var chaosFunnelWScale = 1;   // width multiplier for the funnel opening
+var CHAOS_DURATION = 600;    // 10 seconds
 
 // === HELPERS ===
 function getMR() { return MARBLE_R_BASE * S * cal.marble.s; }

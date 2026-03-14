@@ -28,10 +28,23 @@ function startLevel(idx) {
 }
 
 // === GAME INIT ===
+function updateChaosFunnelWalls() {
+  var chaosExitCx = L.funnelCx + chaosFunnelDx;
+  var chaosOpenW = L.funnelOpenW * chaosFunnelWScale;
+  var exitL = chaosExitCx - chaosOpenW / 2;
+  var exitR = chaosExitCx + chaosOpenW / 2;
+  funnelWalls[2] = { x1: L.funnelLeft, y1: L.funnelBendY, x2: exitL, y2: L.funnelBot };
+  funnelWalls[3] = { x1: L.funnelRight, y1: L.funnelBendY, x2: exitR, y2: L.funnelBot };
+  funnelWalls[4] = { x1: 0, y1: L.funnelBot, x2: exitL, y2: L.funnelBot };
+  funnelWalls[5] = { x1: exitR, y1: L.funnelBot, x2: W, y2: L.funnelBot };
+  funnelWalls[6] = { x1: exitL, y1: L.funnelBot, x2: exitR, y2: L.funnelBot, isPlug: true };
+}
+
 function initGame() {
   won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
+  chaosFunnelTimer = 0; chaosFunnelDx = 0; chaosFunnelWScale = 1;
   document.getElementById('win-screen').classList.remove('show');
   computeLayout(); initBeltSlots();
 
@@ -322,6 +335,10 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      if (b.boxType === 'chaos') {
+        chaosFunnelTimer = CHAOS_DURATION;
+        spawnBurst(L.funnelCx, L.funnelBot, '#A040E0', 24);
+      }
       return;
     }
   }
@@ -347,6 +364,21 @@ canvas.addEventListener('mousemove', function (e) {
 function update() {
   if (!gameActive) return;
   tick++;
+
+  // Chaos funnel update
+  if (chaosFunnelTimer > 0) {
+    chaosFunnelTimer--;
+    var elapsed = CHAOS_DURATION - chaosFunnelTimer;
+    var driftAmp = L.gameW * 0.16;
+    chaosFunnelDx = Math.sin(elapsed * 0.019) * driftAmp;
+    chaosFunnelWScale = 1.0 + Math.sin(elapsed * 0.036) * 0.52;
+    updateChaosFunnelWalls();
+    if (chaosFunnelTimer === 0) {
+      chaosFunnelDx = 0; chaosFunnelWScale = 1;
+      updateChaosFunnelWalls();
+    }
+  }
+
   physicsStep();
 
   beltOffset = (beltOffset + BELT_SPEED * S) % 1;

@@ -110,9 +110,29 @@ function drawBoxLip(ci) {
 // ── Funnel (always visible) ──
 
 function drawFunnel() {
-  var exitL = L.funnelCx - L.funnelOpenW / 2;
-  var exitR = L.funnelCx + L.funnelOpenW / 2;
+  // Apply chaos offsets when active
+  var chaosExitCx = L.funnelCx + chaosFunnelDx;
+  var chaosOpenW = L.funnelOpenW * chaosFunnelWScale;
+  var exitL = chaosExitCx - chaosOpenW / 2;
+  var exitR = chaosExitCx + chaosOpenW / 2;
+
   ctx.save();
+
+  // Purple glow overlay when chaos is active
+  if (chaosFunnelTimer > 0) {
+    var glowAlpha = Math.min(1, chaosFunnelTimer / 60) * 0.18;
+    ctx.beginPath();
+    ctx.moveTo(L.funnelLeft, L.funnelTop);
+    ctx.lineTo(L.funnelLeft, L.funnelBendY);
+    ctx.lineTo(exitL, L.funnelBot);
+    ctx.lineTo(exitR, L.funnelBot);
+    ctx.lineTo(L.funnelRight, L.funnelBendY);
+    ctx.lineTo(L.funnelRight, L.funnelTop);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(160,80,255,' + glowAlpha + ')';
+    ctx.fill();
+  }
+
   ctx.beginPath();
   ctx.moveTo(L.funnelLeft, L.funnelTop);
   ctx.lineTo(L.funnelLeft, L.funnelBendY);
@@ -123,7 +143,11 @@ function drawFunnel() {
   ctx.closePath();
   ctx.fillStyle = 'rgba(180,165,145,0.12)';
   ctx.fill();
-  ctx.strokeStyle = 'rgba(140,120,95,0.5)';
+
+  var strokeColor = chaosFunnelTimer > 0
+    ? 'rgba(160,80,255,0.7)'
+    : 'rgba(140,120,95,0.5)';
+  ctx.strokeStyle = strokeColor;
   ctx.lineWidth = 2.5 * S;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
@@ -137,7 +161,9 @@ function drawFunnel() {
   ctx.lineTo(L.funnelRight, L.funnelBendY);
   ctx.lineTo(exitR, L.funnelBot);
   ctx.stroke();
-  ctx.strokeStyle = 'rgba(140,120,95,0.35)';
+  ctx.strokeStyle = chaosFunnelTimer > 0
+    ? 'rgba(160,80,255,0.45)'
+    : 'rgba(140,120,95,0.35)';
   ctx.lineWidth = 2 * S;
   ctx.beginPath();
   ctx.moveTo(0, L.funnelBot);
