@@ -1,17 +1,18 @@
 // ============================================================
 // box_bomb.js — Bomb box type
-// Tapping spawns the bomb's OWN marbles AND silently destroys
-// a random other box (no marbles from that box). Respawns up
-// to 3 times with a fresh 15-second countdown each stage.
-// Timer expiry makes the bomb fade away, losing its marbles.
+// Looks like a normal closed box until revealed — then unveils
+// as a bomb with a 15-second countdown arc. Tapping spawns the
+// bomb's own marbles AND silently destroys a random other box.
+// Respawns with a fresh timer each time. Timer expiry = gone.
 // ============================================================
 
-var BOMB_STAGE_COLORS = ['#FF8C00', '#CC2200', '#7B35CC']; // arc color per stage
-var BOMB_TIMER_FRAMES = 15 * 60; // ~900 frames at 60 fps
-var BOMB_WARN_FRAMES  = 5 * 60;  // final 5 s: flashing arc
+var BOMB_COLOR       = '#E07820';  // arc and burst colour
+var BOMB_TIMER_FRAMES = 15 * 60;   // ~900 frames at 60 fps
+var BOMB_WARN_FRAMES  = 5 * 60;    // final 5 s: flashing arc
 
 // Custom marble-spawning function for bombs — same as spawnPhysMarbles
-// but calls onComplete(box) instead of setting box.used = true.
+// but calls onComplete(box) instead of setting box.used = true,
+// allowing the bomb to respawn rather than become an empty cell.
 function spawnBombMarbles(box, onComplete) {
   box.spawning = true; box.spawnIdx = 0;
   var count = box.remaining;
@@ -46,8 +47,8 @@ function spawnBombMarbles(box, onComplete) {
 }
 
 // Called from frame() in game.js, after drawStock().
-// Draws the bomb emoji, countdown arc and stage-indicator dots
-// for every active revealed non-spawning bomb box.
+// Draws the bomb emoji and countdown arc for every active
+// revealed non-spawning bomb box.
 function drawBombOverlays() {
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
@@ -60,7 +61,6 @@ function drawBombOverlays() {
     var arcR = Math.min(L.bw, L.bh) * 0.47;
     var prog = b.bombTimer / BOMB_TIMER_FRAMES;
     var warn = b.bombTimer <= BOMB_WARN_FRAMES;
-    var stageColor = BOMB_STAGE_COLORS[b.bombStage - 1];
 
     ctx.save();
 
@@ -70,32 +70,21 @@ function drawBombOverlays() {
     ctx.textBaseline = 'middle';
     ctx.fillText('\uD83D\uDCA3', cx, cy);
 
-    // ── Countdown arc (background track) ──
+    // ── Countdown arc — background track ──
     ctx.beginPath();
     ctx.arc(cx, cy, arcR, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(0,0,0,0.20)';
     ctx.lineWidth = 4 * S;
     ctx.stroke();
 
-    // ── Countdown arc (foreground, drains clockwise from top) ──
+    // ── Countdown arc — foreground, drains clockwise from top ──
     if (prog > 0) {
       ctx.beginPath();
       ctx.arc(cx, cy, arcR, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * prog, false);
-      ctx.strokeStyle = (warn && Math.floor(tick / 8) % 2 === 0) ? '#FF3300' : stageColor;
+      ctx.strokeStyle = (warn && Math.floor(tick / 8) % 2 === 0) ? '#FF3300' : BOMB_COLOR;
       ctx.lineWidth = 4 * S;
       ctx.lineCap = 'round';
       ctx.stroke();
-    }
-
-    // ── Stage dots (remaining uses, including current stage) ──
-    var dotR   = 3 * S;
-    var dotGap = 8 * S;
-    var filled = 4 - b.bombStage; // 3 → 2 → 1
-    for (var d = 0; d < 3; d++) {
-      ctx.beginPath();
-      ctx.arc(cx + (d - 1) * dotGap, b.y + L.bh + 5 * S, dotR, 0, Math.PI * 2);
-      ctx.fillStyle = d < filled ? stageColor : 'rgba(0,0,0,0.18)';
-      ctx.fill();
     }
 
     ctx.restore();
@@ -106,18 +95,15 @@ registerBoxType('bomb', {
   label: 'Bomb',
   editorColor: '#2A2030',
 
-  // Shown when the box is not yet revealed
+  // Closed (unrevealed) state — looks like any normal box; no bomb hint.
   drawClosed: function(ctx, x, y, w, h, ci, S, tick, idlePhase) {
     drawBox(x, y, w, h, ci);
-    ctx.save();
-    ctx.font = 'bold ' + Math.round(h * 0.40) + 'px serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('\uD83D\uDCA3', x + w / 2, y + h * 0.50);
-    ctx.restore();
+    drawBoxMarbles(ci, MRB_PER_BOX);
+    drawBoxLip(ci);
   },
 
-  // Shown during reveal animation (phase 0 → 1)
+  // Reveal animation (phase 0→1) — the bomb emoji fades in,
+  // giving the "this is a bomb!" unveil moment.
   drawReveal: function(ctx, x, y, w, h, ci, S, phase, remaining, tick) {
     ctx.save();
     ctx.globalAlpha = phase;

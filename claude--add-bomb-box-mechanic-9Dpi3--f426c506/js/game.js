@@ -67,7 +67,7 @@ function initGame() {
   for (var c = 0; c < NUM_COLORS; c++) colorMarblesTotal.push(0);
   for (var k in boxSlots) {
     var bs = boxSlots[k];
-    if (bs.boxType === 'bomb') { colorMarblesTotal[bs.ci] += MRB_PER_BOX * 3; continue; } // 3 respawn stages
+    if (bs.boxType === 'bomb') { colorMarblesTotal[bs.ci] += MRB_PER_BOX * 3; continue; } // counts ~3 uses
     var isBlockerBox = (bs.boxType === 'blocker');
     var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
     colorMarblesTotal[bs.ci] += regularPerBox;
@@ -139,7 +139,6 @@ function initGame() {
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
-        bombStage: isBomb ? 1 : 0,
         bombTimer: isBomb ? BOMB_TIMER_FRAMES : 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
@@ -333,9 +332,8 @@ function handleTap(px, py) {
           if (t.isTunnel || t.isWall || t.empty || t.used || t.spawning) continue;
           targets.push(j);
         }
-        var stageColor = BOMB_STAGE_COLORS[b.bombStage - 1];
         b.popT = 1;
-        spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, stageColor, 28);
+        spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, BOMB_COLOR, 28);
         sfx.complete();
 
         // Silently destroy the chosen target
@@ -346,7 +344,7 @@ function handleTap(px, py) {
           tgt.used = true;
           tgt.emptyT = 1.0;
           tgt.shakeT = 1.0;
-          spawnBurst(tgt.x + L.bw / 2, tgt.y + L.bh / 2, stageColor, 20);
+          spawnBurst(tgt.x + L.bw / 2, tgt.y + L.bh / 2, BOMB_COLOR, 20);
           for (var p = 0; p < 10; p++) {
             var ang = Math.PI * 2 * p / 10 + Math.random() * 0.4;
             var spd = 3 + Math.random() * 4;
@@ -358,22 +356,13 @@ function handleTap(px, py) {
           (function(tidx) { setTimeout(function() { revealAroundEmptyCell(tidx); }, 350); })(tIdx);
         }
 
-        // Spawn the bomb's own marbles; on completion, respawn or finish
-        var currentStage = b.bombStage;
+        // Spawn the bomb's own marbles; always respawn with a fresh timer
         spawnBombMarbles(b, function(box) {
-          if (currentStage >= 3) {
-            box.used = true;
-            for (var si2 = 0; si2 < stock.length; si2++) {
-              if (stock[si2] === box) { revealAroundEmptyCell(si2); break; }
-            }
-          } else {
-            box.remaining  = MRB_PER_BOX;
-            box.emptyT     = 0;
-            box.bombStage  = currentStage + 1;
-            box.bombTimer  = BOMB_TIMER_FRAMES;
-            box.popT       = 1.0;
-            box.shakeT     = 0.4;
-          }
+          box.remaining = MRB_PER_BOX;
+          box.emptyT    = 0;
+          box.bombTimer = BOMB_TIMER_FRAMES;
+          box.revealT   = 1.0;   // replay the "unveil" animation each respawn
+          box.popT      = 1.0;
         });
         return;
       }
