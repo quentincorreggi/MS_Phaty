@@ -175,10 +175,8 @@ function trySpawnFromTunnels() {
 
     var exitRow = Math.floor(exitIdx / L.cols);
     var exitCol = exitIdx % L.cols;
-    var isIce = (nextBox.type === 'ice');
-    var isBlocker = (nextBox.type === 'blocker');
 
-    stock[exitIdx] = {
+    var newObj = {
       ci: nextBox.ci,
       used: false,
       remaining: MRB_PER_BOX,
@@ -187,10 +185,6 @@ function trySpawnFromTunnels() {
       revealed: true,
       empty: false,
       boxType: nextBox.type || 'default',
-      iceHP: isIce ? 2 : 0,
-      iceCrackT: 0,
-      iceShatterT: 0,
-      blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
       isTunnel: false,
       isWall: false,
       x: L.sx + exitCol * (L.bw + L.bg),
@@ -202,6 +196,10 @@ function trySpawnFromTunnels() {
       emptyT: 0,
       idlePhase: Math.random() * Math.PI * 2
     };
+    applyBoxTypeDefaults(newObj);
+    var tbt = getBoxType(newObj.boxType);
+    if (tbt.initBox) tbt.initBox(newObj, nextBox.ci);
+    stock[exitIdx] = newObj;
 
     // Particles from tunnel toward exit tile
     var tx = s.x + L.bw / 2, ty = s.y + L.bh / 2;

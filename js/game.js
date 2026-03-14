@@ -30,8 +30,6 @@ function startLevel(idx) {
 // === GAME INIT ===
 function initGame() {
   won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
-  totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
-  blockerCollectSlots = []; blockerCollectCleared = false;
   document.getElementById('win-screen').classList.remove('show');
   computeLayout(); initBeltSlots();
 
@@ -65,22 +63,23 @@ function initGame() {
   // ── Count regular marbles per color for sort columns ──
   var colorMarblesTotal = [];
   for (var c = 0; c < NUM_COLORS; c++) colorMarblesTotal.push(0);
+  function _countBoxMarbles(ci, boxType) {
+    var bt = getBoxType(boxType || 'default');
+    if (bt.countMarbles) {
+      var mc = bt.countMarbles({ ci: ci, remaining: MRB_PER_BOX });
+      colorMarblesTotal[ci] += mc.regular;
+    } else {
+      colorMarblesTotal[ci] += MRB_PER_BOX;
+    }
+  }
   for (var k in boxSlots) {
-    var bs = boxSlots[k];
-    var isBlockerBox = (bs.boxType === 'blocker');
-    var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
-    colorMarblesTotal[bs.ci] += regularPerBox;
-    if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
+    _countBoxMarbles(boxSlots[k].ci, boxSlots[k].boxType);
   }
   // Count marbles from tunnel contents
   for (var k in tunnelSlots) {
     var ts = tunnelSlots[k];
     for (var tc = 0; tc < ts.contents.length; tc++) {
-      var tItem = ts.contents[tc];
-      var isBlockerBox = (tItem.type === 'blocker');
-      var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
-      colorMarblesTotal[tItem.ci] += regularPerBox;
-      if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
+      _countBoxMarbles(ts.contents[tc].ci, ts.contents[tc].type);
     }
   }
   var sortPerColor = [];
@@ -96,6 +95,7 @@ function initGame() {
     var tSlot = tunnelSlots[idx];
     var wSlot = wallSlots[idx];
 
+    var cellX = L.sx + c * (L.bw + L.bg), cellY = L.sy + r * (L.bh + L.bg);
     if (tSlot) {
       // Tunnel entry
       stock.push({
@@ -107,8 +107,7 @@ function initGame() {
         tunnelCooldown: 60,
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: false, boxType: 'default',
-        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
-        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+        x: cellX, y: cellY,
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
     } else if (wSlot) {
@@ -117,28 +116,25 @@ function initGame() {
         isWall: true, isTunnel: false,
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: false, empty: false, boxType: 'default',
-        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
-        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+        x: cellX, y: cellY,
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
     } else if (!slot) {
       stock.push({ ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
-        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
-        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+        x: cellX, y: cellY,
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
     } else {
-      var isIce = (slot.boxType === 'ice');
-      var isBlocker = (slot.boxType === 'blocker');
-      stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
-        revealed: isIce ? true : false, empty: false,
+      var obj = { ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
+        revealed: false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
-        iceHP: isIce ? 2 : 0,
-        iceCrackT: 0, iceShatterT: 0,
-        blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
-        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+        x: cellX, y: cellY,
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
-        idlePhase: Math.random() * Math.PI * 2 });
+        idlePhase: Math.random() * Math.PI * 2 };
+      applyBoxTypeDefaults(obj);
+      var bt = getBoxType(obj.boxType);
+      if (bt.initBox) bt.initBox(obj, slot.ci);
+      stock.push(obj);
     }
   }
 
@@ -178,6 +174,12 @@ function initGame() {
   shuffle(allBoxes);
   sortCols = [[], [], [], []];
   for (var i = 0; i < allBoxes.length; i++) sortCols[i % 4].push(allBoxes[i]);
+
+  // ── Init registered mechanics ──
+  for (var mi = 0; mi < MechanicOrder.length; mi++) {
+    var mech = Mechanics[MechanicOrder[mi]];
+    if (mech.init) mech.init();
+  }
 
   // Lock buttons
   var numLocks = lvl.lockButtons || 0;
@@ -246,61 +248,14 @@ function revealAroundEmptyCell(idx) {
   _revealVisited[idx] = false;
 }
 
-// === ICE DAMAGE ===
-function damageAdjacentIce(idx) {
-  var row = Math.floor(idx / L.cols), col = idx % L.cols;
-  var neighbors = [];
-  if (row > 0)          neighbors.push((row - 1) * L.cols + col);
-  if (row < L.rows - 1) neighbors.push((row + 1) * L.cols + col);
-  if (col > 0)          neighbors.push(row * L.cols + (col - 1));
-  if (col < L.cols - 1) neighbors.push(row * L.cols + (col + 1));
-  for (var ni = 0; ni < neighbors.length; ni++) {
-    var nb = stock[neighbors[ni]];
-    if (nb.isTunnel || nb.isWall) continue;  // tunnels and walls don't have ice
-    if (nb.empty || nb.used || nb.iceHP <= 0) continue;
-
-    nb.iceHP--;
-    var bx = nb.x + L.bw / 2, by = nb.y + L.bh / 2;
-
-    if (nb.iceHP === 1) {
-      nb.iceCrackT = 1.0;
-      nb.shakeT = 0.4;
-      sfx.pop();
-      for (var p = 0; p < 10; p++) {
-        var a = Math.PI * 2 * p / 10 + Math.random() * 0.4, sp = 2 + Math.random() * 3;
-        particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
-          r: (1.5 + Math.random() * 3) * S, color: 'rgba(180,225,255,0.8)',
-          life: 0.8, decay: 0.03 + Math.random() * 0.02, grav: false });
-      }
-    } else if (nb.iceHP === 0) {
-      nb.iceShatterT = 1.0;
-      nb.popT = 0.8;
-      nb.boxType = 'default';
-      sfx.complete();
-      for (var p = 0; p < 20; p++) {
-        var a = Math.PI * 2 * p / 20 + Math.random() * 0.3, sp = 3 + Math.random() * 5;
-        particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S - 2 * S,
-          r: (2 + Math.random() * 4) * S,
-          color: Math.random() > 0.5 ? 'rgba(180,225,255,0.9)' : 'rgba(220,240,255,0.9)',
-          life: 1, decay: 0.015 + Math.random() * 0.015, grav: true });
-      }
-      for (var p = 0; p < 8; p++) {
-        var a = Math.random() * Math.PI * 2, sp = 1 + Math.random() * 2;
-        particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
-          r: (3 + Math.random() * 3) * S, color: 'rgba(255,255,255,0.7)',
-          life: 0.6, decay: 0.04, grav: false });
-      }
-    }
-  }
-}
-
 function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
-  if (b.isWall) return false;      // walls are not tappable
+  if (b.isWall) return false;
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
-  if (b.iceHP > 0) return false;
+  var bt = getBoxType(b.boxType);
+  if (bt.isBoxTappable && bt.isBoxTappable(idx, b) === false) return false;
   return b.revealed;
 }
 
@@ -317,11 +272,29 @@ function handleTap(px, py) {
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
+      // Let mechanics intercept tap
+      var consumed = false;
+      for (var mi = 0; mi < MechanicOrder.length; mi++) {
+        var mech = Mechanics[MechanicOrder[mi]];
+        if (mech.onTap && mech.onTap(i, b) === false) { consumed = true; break; }
+      }
+      if (consumed) return;
       b.popT = 1;
       sfx.pop();
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
-      spawnPhysMarbles(b);
-      damageAdjacentIce(i);
+      // Let box type handle tap (return false to skip default spawn)
+      var bt = getBoxType(b.boxType);
+      var doSpawn = true;
+      if (bt.onTap && bt.onTap(i, b) === false) doSpawn = false;
+      if (doSpawn) spawnPhysMarbles(b);
+      // Notify adjacent boxes
+      var neighbors = getNeighbors(i);
+      for (var ni = 0; ni < neighbors.length; ni++) {
+        var nb = stock[neighbors[ni]];
+        if (nb.isTunnel || nb.isWall) continue;
+        var nbt = getBoxType(nb.boxType);
+        if (nbt.onAdjacentTap) nbt.onAdjacentTap(neighbors[ni], nb, i);
+      }
       return;
     }
   }
@@ -404,47 +377,18 @@ function update() {
     }
   }
 
-  // Blocker collection
-  if (!blockerCollecting && totalBlockerMarbles > 0) {
-    blockersOnBelt = 0;
-    blockerCollectSlots = [];
-    for (var i = 0; i < BELT_SLOTS; i++) {
-      if (beltSlots[i].marble === BLOCKER_CI) { blockersOnBelt++; blockerCollectSlots.push(i); }
-    }
-    if (blockersOnBelt >= totalBlockerMarbles) {
-      blockerCollecting = true; blockerCollectT = 1; blockerCollectCleared = false;
-    }
+  // ── Box type per-frame updates ──
+  for (var i = 0; i < stock.length; i++) {
+    var ub = stock[i];
+    if (ub.isTunnel || ub.isWall || ub.empty) continue;
+    var ubt = getBoxType(ub.boxType);
+    if (ubt.updateBox) ubt.updateBox(i, ub, tick);
   }
-  if (blockerCollecting) {
-    blockerCollectT = Math.max(0, blockerCollectT - 0.015);
-    if (blockerCollectT <= 0.5 && !blockerCollectCleared) {
-      blockerCollectCleared = true;
-      for (var k = 0; k < blockerCollectSlots.length; k++) {
-        var csi = blockerCollectSlots[k];
-        if (beltSlots[csi].marble === BLOCKER_CI) {
-          var cpos = getSlotPos(csi);
-          beltSlots[csi].marble = -1;
-          spawnBurst(cpos.x, cpos.y, COLORS[BLOCKER_CI].light, 10);
-          for (var p = 0; p < 3; p++) {
-            var a = Math.random() * Math.PI * 2, sp = 1 + Math.random() * 2;
-            particles.push({ x: cpos.x, y: cpos.y,
-              vx: (L.beltCx - cpos.x) * 0.03 + Math.cos(a) * sp * S,
-              vy: ((L.beltTopY + L.beltBotY) / 2 - cpos.y) * 0.03 + Math.sin(a) * sp * S,
-              r: (2 + Math.random() * 3) * S, color: '#fff', life: 0.8, decay: 0.03, grav: false });
-          }
-        }
-      }
-      var bcx = L.beltCx, bcy = (L.beltTopY + L.beltBotY) / 2;
-      spawnBurst(bcx, bcy, '#A89E94', 20);
-      spawnConfetti(bcx, bcy, 25);
-      sfx.win();
-      blockersOnBelt = 0;
-    }
-    if (blockerCollectT <= 0) {
-      blockerCollecting = false;
-      blockerCollectT = 0;
-      blockerCollectSlots = [];
-    }
+
+  // ── Mechanic per-frame updates ──
+  for (var mi = 0; mi < MechanicOrder.length; mi++) {
+    var mech = Mechanics[MechanicOrder[mi]];
+    if (mech.update) mech.update(tick);
   }
 
   // Stock animations
@@ -456,8 +400,6 @@ function update() {
     if (b.popT > 0) b.popT = Math.max(0, b.popT - 0.025);
     if (b.revealT > 0) b.revealT = Math.max(0, b.revealT - 0.03);
     if (b.emptyT > 0) b.emptyT = Math.max(0, b.emptyT - 0.025);
-    if (b.iceCrackT > 0) b.iceCrackT = Math.max(0, b.iceCrackT - 0.03);
-    if (b.iceShatterT > 0) b.iceShatterT = Math.max(0, b.iceShatterT - 0.025);
     var th = (i === hoverIdx && !b.used && isBoxTappable(i)) ? 1 : 0;
     b.hoverT += (th - b.hoverT) * 0.12;
   }
@@ -527,12 +469,14 @@ function frame() {
     ctx.clearRect(0, 0, W, H);
     drawBackground();
     drawFunnel();
+    _dispatchMechanicRender('pre-stock');
     drawStock();
     drawPhysMarbles();
     drawBelt();
-    drawBlockerProgress();
+    _dispatchMechanicRender('post-belt');
     drawJumpers();
     drawSortArea();
+    _dispatchMechanicRender('post-sort');
     drawBackButton();
     drawParticles();
     drawDebugWalls();

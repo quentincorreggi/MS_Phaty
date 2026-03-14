@@ -97,10 +97,9 @@ function physicsStep() {
 function spawnPhysMarbles(box) {
   box.spawning = true; box.spawnIdx = 0;
   var count = box.remaining;
-  var blockerCount = box.blockerCount || 0;
-  var blockerStart = MRB_PER_BOX - blockerCount;
+  var bt = getBoxType(box.boxType);
   for (var idx = 0; idx < count; idx++) {
-    (function (i, b, bStart) {
+    (function (i, b, boxType) {
       setTimeout(function () {
         if (b.remaining <= 0) return;
         var spawnIdx = MRB_PER_BOX - b.remaining;
@@ -114,7 +113,7 @@ function spawnPhysMarbles(box) {
         var my = b.y + L.bh / 2 + (si.r - 1) * mgY - 2 * S;
         var vx = (Math.random() - 0.5) * 2 * S;
         var vy = -(2 + Math.random() * 2) * S;
-        var marbleCi = (blockerCount > 0 && spawnIdx >= bStart) ? BLOCKER_CI : b.ci;
+        var marbleCi = (boxType.getMarbleCi) ? boxType.getMarbleCi(b, spawnIdx) : b.ci;
         physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR, spawnT: 1.0 });
         sfx.drop();
         spawnBurst(mx, my, COLORS[marbleCi].fill, 4);
@@ -123,13 +122,12 @@ function spawnPhysMarbles(box) {
           setTimeout(function () {
             b.used = true;
             b.spawning = false;
-            // Reveal adjacent boxes now that this cell is empty
             for (var si = 0; si < stock.length; si++) {
               if (stock[si] === b) { revealAroundEmptyCell(si); break; }
             }
           }, 300);
         }
       }, i * 120);
-    })(idx, box, blockerStart);
+    })(idx, box, bt);
   }
 }

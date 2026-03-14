@@ -1,9 +1,8 @@
 // ============================================================
 // rendering.js — Core drawing functions
 // ============================================================
-// drawStock delegates closed/reveal states to BoxTypes registry.
-// Open (tappable) state is the same for all box types.
-// Ice overlay is drawn on top of revealed boxes with iceHP > 0.
+// drawStock delegates closed/reveal/overlay states to BoxTypes registry.
+// Box types can provide drawOpenBox for custom revealed-state rendering.
 // Tunnel entries are drawn via drawTunnelOnGrid.
 // Wall cells are drawn via drawWallOnGrid.
 // ============================================================
@@ -216,42 +215,23 @@ function drawStock() {
     } else {
       var c = COLORS[b.ci];
       if (isBoxTappable(i) && b.hoverT > 0.01) { ctx.shadowColor = c.glow; ctx.shadowBlur = 20 * S * b.hoverT; }
-      drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci);
-      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
-      if (b.boxType === 'blocker' && b.blockerCount > 0) {
-        ctx.save();
-        ctx.globalAlpha = 0.06;
-        ctx.beginPath(); rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.clip();
-        ctx.strokeStyle = COLORS[BLOCKER_CI].fill; ctx.lineWidth = 2 * S;
-        var sg = 8 * S;
-        for (var d = -L.bw; d < L.bw + L.bh; d += sg) {
-          ctx.beginPath(); ctx.moveTo(-L.bw / 2 + d, -L.bh / 2); ctx.lineTo(-L.bw / 2 + d - L.bh, L.bh / 2); ctx.stroke();
-        }
-        ctx.restore();
-      }
-      if (b.remaining > 0) {
-        if (b.boxType === 'blocker' && b.blockerCount > 0) {
-          drawBoxMarblesWithBlockers(b.ci, b.remaining, b.blockerCount);
-        } else {
+      // Let box type provide custom open-box rendering, or use default
+      if (bt.drawOpenBox) {
+        ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+        bt.drawOpenBox(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b, S, tick);
+      } else {
+        drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci);
+        ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+        if (b.remaining > 0) {
           drawBoxMarbles(b.ci, b.remaining);
+          drawBoxLip(b.ci);
         }
-        drawBoxLip(b.ci);
       }
     }
 
-    if (b.iceHP > 0) {
-      var iceType = getBoxType('ice');
-      if (iceType && iceType.drawIceOverlay) {
-        iceType.drawIceOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, b.iceHP, tick);
-      }
-    }
-
-    if (b.iceShatterT > 0) {
-      ctx.save();
-      ctx.globalAlpha = b.iceShatterT * 0.4;
-      ctx.fillStyle = 'rgba(200,235,255,1)';
-      rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.fill();
-      ctx.restore();
+    // Box type overlay hook (ice overlay, blocker stripes, etc.)
+    if (bt.drawOverlay) {
+      bt.drawOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b, S, tick);
     }
 
     ctx.restore();
@@ -284,8 +264,8 @@ function drawBelt() {
     if (slot.marble >= 0) {
       var bs = 1;
       if (slot.arriveAnim > 0) { var t2 = 1 - slot.arriveAnim; bs = 1 + Math.sin(t2 * Math.PI * 3) * 0.3 * slot.arriveAnim; }
-      if (slot.marble === BLOCKER_CI && blockerCollecting && blockerCollectT > 0.5) {
-        var ct = (blockerCollectT - 0.5) * 2;
+      if (slot.marble === BLOCKER_CI && typeof _blockerState !== 'undefined' && _blockerState.collecting && _blockerState.collectT > 0.5) {
+        var ct = (_blockerState.collectT - 0.5) * 2;
         var pulse = 1 + Math.sin((1 - ct) * Math.PI * 8) * 0.2;
         bs *= pulse;
         ctx.save();
@@ -297,64 +277,6 @@ function drawBelt() {
       drawMarble(pos.x, pos.y, slotR * 0.8 * cal.marble.s, slot.marble, bs);
     }
   }
-}
-
-// ── Blocker progress indicator ──
-
-function drawBlockerProgress() {
-  if (totalBlockerMarbles <= 0) return;
-  var cx = L.beltCx;
-  var cy = (L.beltBotY + L.sTop) / 2;
-  var total = totalBlockerMarbles;
-  var filled = blockersOnBelt;
-  var dotR = 3.5 * S;
-  var gap = dotR * 3;
-  var startX = cx - (total - 1) * gap / 2;
-  var pillW = Math.max((total - 1) * gap + dotR * 5, dotR * 6);
-  var pillH = dotR * 3.2;
-  ctx.save();
-  ctx.fillStyle = 'rgba(122,112,104,0.10)';
-  rRect(cx - pillW / 2, cy - pillH / 2, pillW, pillH, pillH / 2); ctx.fill();
-  ctx.strokeStyle = 'rgba(122,112,104,0.18)'; ctx.lineWidth = 1 * S;
-  rRect(cx - pillW / 2, cy - pillH / 2, pillW, pillH, pillH / 2); ctx.stroke();
-  var iconX = cx - pillW / 2 - dotR * 2.5;
-  var bc = COLORS[BLOCKER_CI];
-  ctx.globalAlpha = 0.4;
-  var icGrd = ctx.createRadialGradient(iconX, cy, 0, iconX, cy, dotR * 1.1);
-  icGrd.addColorStop(0, bc.light); icGrd.addColorStop(1, bc.dark);
-  ctx.fillStyle = icGrd;
-  ctx.beginPath(); ctx.arc(iconX, cy, dotR * 1.1, 0, Math.PI * 2); ctx.fill();
-  ctx.globalAlpha = 1;
-  for (var i = 0; i < total; i++) {
-    var dx = startX + i * gap;
-    if (i < filled) {
-      var grd = ctx.createRadialGradient(dx - dotR * 0.15, cy - dotR * 0.15, dotR * 0.1, dx, cy, dotR);
-      grd.addColorStop(0, bc.light); grd.addColorStop(0.7, bc.fill); grd.addColorStop(1, bc.dark);
-      ctx.fillStyle = grd;
-      ctx.beginPath(); ctx.arc(dx, cy, dotR, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.25)';
-      ctx.beginPath(); ctx.arc(dx - dotR * 0.2, cy - dotR * 0.2, dotR * 0.35, 0, Math.PI * 2); ctx.fill();
-      if (blockerCollecting && blockerCollectT > 0.5) {
-        ctx.globalAlpha = 0.4 + Math.sin(tick * 0.2 + i * 0.5) * 0.3;
-        ctx.fillStyle = bc.glow;
-        ctx.beginPath(); ctx.arc(dx, cy, dotR * 2, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
-      }
-    } else {
-      ctx.strokeStyle = 'rgba(122,112,104,0.22)'; ctx.lineWidth = 1 * S;
-      ctx.setLineDash([2 * S, 2 * S]);
-      ctx.beginPath(); ctx.arc(dx, cy, dotR * 0.65, 0, Math.PI * 2); ctx.stroke();
-      ctx.setLineDash([]);
-    }
-  }
-  if (blockerCollecting && blockerCollectT <= 0.5 && blockerCollectT > 0) {
-    var flashAlpha = blockerCollectT * 2;
-    ctx.globalAlpha = flashAlpha * 0.6;
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    rRect(cx - pillW / 2, cy - pillH / 2, pillW, pillH, pillH / 2); ctx.fill();
-    ctx.globalAlpha = 1;
-  }
-  ctx.restore();
 }
 
 // ── Jumpers ──

@@ -453,6 +453,16 @@ function editorUpdateStats() {
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
   var wallCount = 0;
+  function _edCountBox(ci, type) {
+    var bt = getBoxType(type || 'default');
+    if (bt.countMarbles) {
+      var mc = bt.countMarbles({ ci: ci, remaining: editor.mrbPerBox });
+      regularMrb[ci] += mc.regular;
+      totalBlockers += (mc.special || 0);
+    } else {
+      regularMrb[ci] += editor.mrbPerBox;
+    }
+  }
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
@@ -467,12 +477,7 @@ function editorUpdateStats() {
         for (var tc = 0; tc < v.contents.length; tc++) {
           var tItem = v.contents[tc];
           counts[tItem.ci]++;
-          if (tItem.type === 'blocker') {
-            regularMrb[tItem.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
-            totalBlockers += BLOCKER_PER_BOX;
-          } else {
-            regularMrb[tItem.ci] += editor.mrbPerBox;
-          }
+          _edCountBox(tItem.ci, tItem.type);
         }
       }
       continue;
@@ -481,12 +486,7 @@ function editorUpdateStats() {
       counts[v.ci]++;
       total++;
       typeCounts[v.type] = (typeCounts[v.type] || 0) + 1;
-      if (v.type === 'blocker') {
-        regularMrb[v.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
-        totalBlockers += BLOCKER_PER_BOX;
-      } else {
-        regularMrb[v.ci] += editor.mrbPerBox;
-      }
+      _edCountBox(v.ci, v.type);
     }
   }
   var el = document.getElementById('ed-stats');

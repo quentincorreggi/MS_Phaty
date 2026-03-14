@@ -41,7 +41,8 @@ You can also use these commands:
 |------|---------|-------|
 | `index.html` | Entry point, loads all JS in order, CSS + HTML | 269 |
 | `js/config.js` | Global state, constants, COLORS, physics params | 108 |
-| `js/registry.js` | Box type registration system (`registerBoxType`/`getBoxType`) | 32 |
+| `js/registry.js` | Box type registration, `getNeighbors()`, `applyBoxTypeDefaults()` | 60 |
+| `js/mechanics.js` | Game-wide mechanic registration (`registerMechanic`) | 33 |
 | `js/box_default.js` | Default box — drawClosed, drawReveal, editor hooks | 65 |
 | `js/box_hidden.js` | Hidden "?" box — color unknown until revealed | 73 |
 | `js/box_ice.js` | Ice box — requires 2 adjacent taps to shatter ice first | 160 |
@@ -64,9 +65,10 @@ Scripts load in `index.html` in this exact order. New files must go in the
 correct position:
 
 1. `config.js` — globals and constants (must be first)
-2. `registry.js` — box type registration system
-3. `box_*.js` — box type implementations (register themselves on load)
-4. `calibration.js`, `audio.js`, `particles.js` — utilities
+2. `registry.js` — box type registration + `getNeighbors()` helper
+3. `mechanics.js` — game-wide mechanic registration (`registerMechanic`)
+4. `box_*.js` — box type implementations (register themselves on load)
+5. `calibration.js`, `audio.js`, `particles.js` — utilities
 5. `layout.js` — layout computation
 6. `belt.js` — belt helpers
 7. `physics.js` — marble physics
@@ -76,7 +78,7 @@ correct position:
 11. `editor.js` — level editor
 12. `game.js` — game loop, init, boot (must be last)
 
-**Rule: New box type files go AFTER `registry.js` and BEFORE `calibration.js`.**
+**Rule: New box type files go AFTER `mechanics.js` and BEFORE `calibration.js`.**
 **Rule: New mechanic files go AFTER `belt.js` and BEFORE `rendering.js`.**
 
 ### Key Patterns
@@ -98,16 +100,30 @@ All game state lives in global variables declared in `config.js`:
 #### The Registry Pattern
 
 Box types register via `registerBoxType(id, definition)` in `registry.js`.
-Each box type must implement:
+Each box type must implement the required methods, and can optionally
+implement lifecycle hooks for game logic:
 
 ```js
 registerBoxType('yourtype', {
-  label: 'Display Name',        // shown in editor toolbar
-  editorColor: '#hexcolor',     // button color in editor
+  // ── Required ──
+  label: 'Display Name',
+  editorColor: '#hexcolor',
   drawClosed: function(ctx, x, y, w, h, ci, S, tick, idlePhase) { ... },
   drawReveal: function(ctx, x, y, w, h, ci, S, phase, remaining, tick) { ... },
   editorCellStyle: function(ci) { return { background: '...', borderColor: '...' }; },
-  editorCellHTML: function(ci) { return '<span>...</span>'; }
+  editorCellHTML: function(ci) { return '<span>...</span>'; },
+
+  // ── Optional lifecycle hooks ──
+  defaultState: function() { return { myHP: 2 }; },           // merged onto stock objects
+  initBox: function(box, ci) { ... },                          // called per box at game init
+  isBoxTappable: function(idx, box) { return true; },          // return false to block tap
+  onTap: function(idx, box) { ... },                           // return false to skip default spawn
+  onAdjacentTap: function(idx, box, tappedIdx) { ... },       // called when neighbor is tapped
+  updateBox: function(idx, box, tick) { ... },                 // per-frame update
+  drawOverlay: function(ctx, x, y, w, h, box, S, tick) { },   // drawn on top of box
+  drawOpenBox: function(ctx, x, y, w, h, box, S, tick) { },   // custom revealed-state rendering
+  getMarbleCi: function(box, spawnIdx) { return box.ci; },    // color per spawned marble
+  countMarbles: function(box) { return { regular: 9 }; }      // for editor stats
 });
 ```
 
@@ -121,6 +137,20 @@ Parameters:
 Drawing helpers available: `drawBox()`, `drawMarble()`, `drawBoxMarbles()`,
 `drawBoxLip()`, `rRect()` (from `rendering.js`)
 
+#### The Mechanic Registration Pattern
+
+For game-wide mechanics not tied to a single box type, use
+`registerMechanic(id, definition)` in `mechanics.js`:
+
+```js
+registerMechanic('yourMechanic', {
+  init:    function() { ... },           // called once at game start
+  update:  function(tick) { ... },       // called each frame
+  render:  function(ctx, phase) { ... }, // 'pre-stock', 'post-belt', 'post-sort'
+  onTap:   function(idx, box) { ... }    // return false to consume tap
+});
+```
+
 #### Game Flow
 
 1. Player sees 7x7 grid of boxes (some revealed, some hidden)
@@ -131,12 +161,14 @@ Drawing helpers available: `drawBox()`, `drawMarble()`, `drawBoxMarbles()`,
 
 #### How a Box Tap Works
 
-`handleTap()` in game.js → `spawnPhysMarbles()` in physics.js:
-1. Checks `isBoxTappable(i)` — revealed, not ice-locked, not already spawning
-2. Calls `spawnPhysMarbles(box)` — spawns `MRB_PER_BOX` marbles with physics
-3. Calls `damageAdjacentIce(i)` — ice mechanic interaction
-4. Box becomes `used=true` after all marbles spawn
-5. `revealAroundEmptyCell()` reveals adjacent hidden boxes
+`handleTap()` in game.js → lifecycle hooks → `spawnPhysMarbles()`:
+1. Checks `isBoxTappable(i)` — calls `bt.isBoxTappable()` hook if present
+2. Calls `mech.onTap()` for each registered mechanic (can consume tap)
+3. Calls `bt.onTap()` on the box type (return false to skip default spawn)
+4. Calls `spawnPhysMarbles(box)` — uses `bt.getMarbleCi()` per marble
+5. Calls `nbt.onAdjacentTap()` on each neighbor's box type
+6. Box becomes `used=true` after all marbles spawn
+7. `revealAroundEmptyCell()` reveals adjacent hidden boxes
 
 #### Level Data Format
 
@@ -151,13 +183,25 @@ level's `grid` array (49 = 7x7) is:
 ## How to Add a New Box Type
 
 1. Create `js/box_<name>.js`
-2. Call `registerBoxType('<name>', { ... })` with all required methods + label + editorColor
+2. Call `registerBoxType('<name>', { ... })` with required + optional lifecycle hooks
 3. Add `<script src="js/box_<name>.js"></script>` to `index.html` AFTER the other `box_*.js` and BEFORE `calibration.js`
-4. If the box needs special game logic (like ice needs `damageAdjacentIce`), add that to `game.js`
-5. If the box needs custom state on stock objects, initialize it in `initGame()` where stock objects are created
-6. The registry auto-adds new types to the editor toolbar
+4. That's it! No changes needed to game.js, rendering.js, config.js, etc.
 
-Reference implementation for complex box types: `js/box_ice.js`
+Use lifecycle hooks for all game logic:
+- `defaultState()` for custom state (replaces editing `initGame()`)
+- `initBox()` for per-box initialization
+- `isBoxTappable()` to block tapping (replaces editing `isBoxTappable()`)
+- `onTap()` for custom tap behavior
+- `onAdjacentTap()` for neighbor interactions (like ice cracking)
+- `updateBox()` for per-frame logic (replaces editing `update()`)
+- `drawOverlay()` / `drawOpenBox()` for custom rendering
+- `getMarbleCi()` for custom marble colors (like blocker's stone marbles)
+- `countMarbles()` for editor stat counting
+
+Reference implementations:
+- Simple box type: `js/box_default.js`
+- Complex box type with state + interactions: `js/box_ice.js`
+- Box type + game-wide mechanic: `js/box_blocker.js`
 
 ## How to Add an Entirely New Mechanic
 
@@ -165,10 +209,15 @@ For mechanics beyond box types (power-up marbles, new belt behaviors, grid effec
 
 1. Create a new JS file (e.g., `js/yourmechanic.js`)
 2. Add the `<script>` tag in `index.html` AFTER `belt.js` and BEFORE `rendering.js`
-3. Hook into the game loop: add update logic in `game.js` `update()` function
-4. Hook into rendering: add draw calls in `game.js` `frame()` or extend `rendering.js`
-5. Hook into input if needed: extend `handleTap()` in `game.js`
-6. Add any new global state variables to `config.js`
+3. Call `registerMechanic('name', { init, update, render, onTap })` — no need to edit game.js
+
+Use mechanic hooks:
+- `init()` — called at game start (count state from stock, set up globals)
+- `update(tick)` — called each frame
+- `render(ctx, phase)` — draw at 'pre-stock', 'post-belt', or 'post-sort'
+- `onTap(idx, box)` — intercept taps (return false to consume)
+
+Reference: `js/box_blocker.js` registers both a box type and a mechanic.
 
 ## Coding Conventions
 
