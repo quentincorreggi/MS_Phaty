@@ -232,10 +232,25 @@ function drawStock() {
       if (b.remaining > 0) {
         if (b.boxType === 'blocker' && b.blockerCount > 0) {
           drawBoxMarblesWithBlockers(b.ci, b.remaining, b.blockerCount);
+        } else if (b.isDouble) {
+          drawBoxMarbles(b.ci, Math.ceil(b.remaining / 2));
         } else {
           drawBoxMarbles(b.ci, b.remaining);
         }
         drawBoxLip(b.ci);
+      }
+      // Gold "x2" badge for double boxes
+      if (b.isDouble && !b.used) {
+        ctx.save();
+        ctx.globalAlpha = 0.08;
+        ctx.fillStyle = '#FFD700';
+        rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.fill();
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = '#D4A017';
+        ctx.font = 'bold ' + (L.bh * 0.22) + 'px sans-serif';
+        ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+        ctx.fillText('x2', L.bw / 2 - 3 * S, -L.bh / 2 + 2 * S);
+        ctx.restore();
       }
     }
 

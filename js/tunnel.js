@@ -177,16 +177,20 @@ function trySpawnFromTunnels() {
     var exitCol = exitIdx % L.cols;
     var isIce = (nextBox.type === 'ice');
     var isBlocker = (nextBox.type === 'blocker');
+    var isDouble = (nextBox.type === 'double');
+    var tunnelBoxRemaining = isDouble ? MRB_PER_BOX * 2 : MRB_PER_BOX;
 
     stock[exitIdx] = {
       ci: nextBox.ci,
       used: false,
-      remaining: MRB_PER_BOX,
+      remaining: tunnelBoxRemaining,
       spawning: false,
       spawnIdx: 0,
       revealed: true,
       empty: false,
       boxType: nextBox.type || 'default',
+      isDouble: isDouble,
+      mrbTotal: tunnelBoxRemaining,
       iceHP: isIce ? 2 : 0,
       iceCrackT: 0,
       iceShatterT: 0,

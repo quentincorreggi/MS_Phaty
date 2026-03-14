@@ -13,7 +13,21 @@ var audioCtx = null;
 
 // === LEVEL SYSTEM ===
 var currentLevel = 0;
-var LEVELS = [];
+var LEVELS = [
+  {
+    name: 'Double Trouble',
+    desc: 'Gold boxes spawn twice the marbles!',
+    grid: [
+      null, null, null, null, null, null, null,
+      null, {ci:0,type:'double'}, null, {ci:1,type:'default'}, null, {ci:2,type:'double'}, null,
+      null, null, {ci:3,type:'default'}, null, {ci:3,type:'default'}, null, null,
+      null, {ci:1,type:'default'}, null, {ci:0,type:'double'}, null, {ci:2,type:'default'}, null,
+      null, null, {ci:0,type:'default'}, null, {ci:1,type:'default'}, null, null,
+      null, {ci:2,type:'default'}, null, {ci:3,type:'double'}, null, {ci:0,type:'default'}, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+];
 var levelStars = [];
 var unlockedLevels = 0;
 var gameActive = false;
