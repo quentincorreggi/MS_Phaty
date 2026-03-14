@@ -322,38 +322,27 @@ function handleTap(px, py) {
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
 
-      // ── Bomb box: spawn own marbles + silently destroy a random box ──
+      // ── Bomb box: spawn own marbles + destroy 3 marbles in the funnel ──
       if (b.boxType === 'bomb') {
-        // Find a random target to destroy (no marbles from it)
-        var targets = [];
-        for (var j = 0; j < stock.length; j++) {
-          if (j === i) continue;
-          var t = stock[j];
-          if (t.isTunnel || t.isWall || t.empty || t.used || t.spawning) continue;
-          targets.push(j);
-        }
         b.popT = 1;
         spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, BOMB_COLOR, 28);
         sfx.complete();
 
-        // Silently destroy the chosen target
-        if (targets.length > 0) {
-          var tIdx = targets[Math.floor(Math.random() * targets.length)];
-          var tgt = stock[tIdx];
-          tgt.remaining = 0;
-          tgt.used = true;
-          tgt.emptyT = 1.0;
-          tgt.shakeT = 1.0;
-          spawnBurst(tgt.x + L.bw / 2, tgt.y + L.bh / 2, BOMB_COLOR, 20);
-          for (var p = 0; p < 10; p++) {
-            var ang = Math.PI * 2 * p / 10 + Math.random() * 0.4;
-            var spd = 3 + Math.random() * 4;
-            particles.push({ x: tgt.x + L.bw / 2, y: tgt.y + L.bh / 2,
-              vx: Math.cos(ang) * spd * S, vy: Math.sin(ang) * spd * S - 2 * S,
-              r: (2 + Math.random() * 4) * S, color: '#222',
-              life: 0.9, decay: 0.022, grav: true });
+        // Pop up to 3 random physics marbles currently waiting in the funnel
+        var toDestroy = Math.min(3, physMarbles.length);
+        for (var k = 0; k < toDestroy; k++) {
+          var rIdx = Math.floor(Math.random() * physMarbles.length);
+          var m = physMarbles[rIdx];
+          spawnBurst(m.x, m.y, COLORS[m.ci].fill, 10);
+          for (var p = 0; p < 6; p++) {
+            var ang = Math.random() * Math.PI * 2;
+            var spd = 2 + Math.random() * 3;
+            particles.push({ x: m.x, y: m.y,
+              vx: Math.cos(ang) * spd * S, vy: Math.sin(ang) * spd * S,
+              r: (2 + Math.random() * 3) * S, color: '#222',
+              life: 0.8, decay: 0.028, grav: true });
           }
-          (function(tidx) { setTimeout(function() { revealAroundEmptyCell(tidx); }, 350); })(tIdx);
+          physMarbles.splice(rIdx, 1);
         }
 
         // Spawn the bomb's own marbles; always respawn with a fresh timer
