@@ -329,7 +329,7 @@ function handleTap(px, py) {
         sfx.complete();
 
         // Pop up to 3 random physics marbles currently waiting in the funnel
-        var toDestroy = Math.min(3, physMarbles.length);
+        var toDestroy = Math.min(6, physMarbles.length);
         for (var k = 0; k < toDestroy; k++) {
           var rIdx = Math.floor(Math.random() * physMarbles.length);
           var m = physMarbles[rIdx];

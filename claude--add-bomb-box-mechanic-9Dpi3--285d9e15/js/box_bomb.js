@@ -7,8 +7,8 @@
 // ============================================================
 
 var BOMB_COLOR       = '#E07820';  // arc and burst colour
-var BOMB_TIMER_FRAMES = 15 * 60;   // ~900 frames at 60 fps
-var BOMB_WARN_FRAMES  = 5 * 60;    // final 5 s: flashing arc
+var BOMB_TIMER_FRAMES = 30 * 60;   // ~1800 frames at 60 fps
+var BOMB_WARN_FRAMES  = 8 * 60;    // final 8 s: flashing arc
 
 // Custom marble-spawning function for bombs — same as spawnPhysMarbles
 // but calls onComplete(box) instead of setting box.used = true,
