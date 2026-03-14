@@ -43,6 +43,9 @@ Guide the user through creating a new game mechanic prototype for Marble Sorter.
 3. **Create a prototype branch:**
    - Generate a short slug from the mechanic name (lowercase, hyphenated, max 40 chars)
    - Run: `git checkout main && git checkout -b prototype/<slug>`
+   - **IMPORTANT:** The branch MUST use the `prototype/` prefix. This is required
+     for the prototype to appear on the Prototype Library landing page at the
+     GitHub Pages root. Do NOT use `claude/` or any other prefix.
 
 4. **Implement the mechanic** following the patterns in CLAUDE.md:
    - For new box types: create `js/box_<name>.js`, register it, add `<script>` tag to `index.html`
