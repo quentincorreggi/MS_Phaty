@@ -219,8 +219,16 @@
     return new Date(iso).toLocaleDateString();
   }
 
+  function isPrototype(branch) {
+    return branch.indexOf('prototype') !== -1 && branch !== 'main';
+  }
+
   function formatName(branch) {
-    var name = branch.replace(/^prototype\//, '');
+    // Strip common prefixes: "claude/prototype-slug-ID" or "prototype/slug"
+    var name = branch
+      .replace(/^claude\//, '')
+      .replace(/^prototype[\/-]/, '')
+      .replace(/-[A-Za-z0-9]{4,6}$/, ''); // strip trailing session ID like "-tQOk2"
     return name.replace(/-/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
   }
 
@@ -240,10 +248,10 @@
       baseGameEl.classList.remove('hidden');
     }
 
-    // Filter to prototype/* branches only
+    // Filter to branches containing "prototype"
     var items = [];
     for (var i = 0; i < prototypes.length; i++) {
-      if (prototypes[i].branch.indexOf('prototype/') === 0) {
+      if (isPrototype(prototypes[i].branch)) {
         items.push(prototypes[i]);
       }
     }
