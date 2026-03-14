@@ -11,6 +11,8 @@ Help the user refine or extend an existing mechanic prototype.
 
 2. **Check out the branch:**
    `git checkout prototype/<name>`
+   - **IMPORTANT:** Only iterate on branches with the `prototype/` prefix. This
+     ensures the prototype appears on the Prototype Library landing page.
 
 3. **Understand the current state.** Read the relevant files to understand what
    was already implemented. Summarize the current mechanic for the user.
