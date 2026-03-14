@@ -48,10 +48,16 @@ Guide the user through creating a new game mechanic prototype for Marble Sorter.
      GitHub Pages root. Do NOT use `claude/` or any other prefix.
 
 4. **Implement the mechanic** following the patterns in CLAUDE.md:
-   - For new box types: create `js/box_<name>.js`, register it, add `<script>` tag to `index.html`
-   - For other mechanics: create new JS file or modify existing ones as needed
+   - For new box types: create `js/box_<name>.js` with `registerBoxType()` and all
+     needed lifecycle hooks (`defaultState`, `onTap`, `onAdjacentTap`, `updateBox`,
+     `drawOverlay`, etc.). Add a `<script>` tag to `index.html` AFTER `mechanics.js`
+     and BEFORE `calibration.js`. **Do NOT edit game.js, config.js, or rendering.js**
+     — the hook system handles dispatch automatically.
+   - For game-wide mechanics (belt effects, grid-wide events): use
+     `registerMechanic()` with `init`, `update`, `render`, and/or `onTap` hooks.
+     See `js/box_blocker.js` for a reference that registers both a box type and a mechanic.
    - Follow all conventions: `var` not `const`, global functions, vanilla JS only
-   - Add at least one showcase level to the `LEVELS` array in `config.js` that demonstrates the mechanic
+   - The new box type auto-appears in the level editor toolbar — no editor changes needed
 
 5. **Validate the code:**
    - Run `node --check` on each new or modified JS file to catch syntax errors
@@ -63,8 +69,9 @@ Guide the user through creating a new game mechanic prototype for Marble Sorter.
    - `git push -u origin prototype/<slug>`
 
 7. **Share the result:**
-   - Provide the Netlify preview URL (see CLAUDE.md for the pattern)
-   - Explain what was built, which level to select, and how to test the mechanic
+   - Construct the GitHub Pages preview URL (see CLAUDE.md for the pattern)
+   - Tell the user to open the Level Editor, place boxes using the new type, and
+     hit "Test Play" to try it out
    - Use plain, non-technical language
 
 8. **Offer next steps:** Ask if they want to refine anything or try a different mechanic.

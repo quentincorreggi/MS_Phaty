@@ -33,27 +33,27 @@ You can also use these commands:
 ### Tech Stack
 - Vanilla JavaScript, HTML5 Canvas, Web Audio API
 - No dependencies, no build step — runs directly in browser via `index.html`
-- ~3300 lines across 17 JS files
+- ~3100 lines across 18 JS files
 
 ### File Map
 
 | File | Purpose | Lines |
 |------|---------|-------|
-| `index.html` | Entry point, loads all JS in order, CSS + HTML | 269 |
-| `js/config.js` | Global state, constants, COLORS, physics params | 108 |
-| `js/registry.js` | Box type registration, `getNeighbors()`, `applyBoxTypeDefaults()` | 60 |
-| `js/mechanics.js` | Game-wide mechanic registration (`registerMechanic`) | 33 |
+| `index.html` | Entry point, loads all JS in order, CSS + HTML | 262 |
+| `js/config.js` | Global state, constants, COLORS, physics params | 70 |
+| `js/registry.js` | Box type registration, `getNeighbors()`, `applyBoxTypeDefaults()` | 63 |
+| `js/mechanics.js` | Game-wide mechanic registration (`registerMechanic`) | 32 |
 | `js/box_default.js` | Default box — drawClosed, drawReveal, editor hooks | 65 |
-| `js/box_hidden.js` | Hidden "?" box — color unknown until revealed | 73 |
-| `js/box_ice.js` | Ice box — requires 2 adjacent taps to shatter ice first | 160 |
-| `js/box_blocker.js` | Blocker box — spawns neutral gray marbles that jam the belt | 127 |
-| `js/game.js` | Game loop, init, update, input handling, win check | 585 |
-| `js/physics.js` | Marble physics — gravity, collision, funnel walls, belt entry | 136 |
-| `js/rendering.js` | Core drawing — boxes, marbles, funnel, belt, sort area | 469 |
-| `js/layout.js` | Layout computation — stock grid, funnel, belt path, sort area | 128 |
-| `js/belt.js` | Belt slot init, position helpers (`getSlotPos`, `getSlotT`) | 37 |
-| `js/tunnel.js` | Tunnel mechanic — hidden box queue, spawns into adjacent cell | 219 |
-| `js/wall.js` | Wall cell — inert structural blocker | 96 |
+| `js/box_hidden.js` | Hidden "?" box — color unknown until revealed | 72 |
+| `js/box_ice.js` | Ice box — requires 2 adjacent taps to shatter ice first | 221 |
+| `js/box_blocker.js` | Blocker box — spawns neutral gray marbles that jam the belt | 318 |
+| `js/game.js` | Game loop, init, update, input handling, win check | 490 |
+| `js/physics.js` | Marble physics — gravity, collision, funnel walls, belt entry | 133 |
+| `js/rendering.js` | Core drawing — boxes, marbles, funnel, belt, sort area | 391 |
+| `js/layout.js` | Layout computation — stock grid, funnel, belt path, sort area | 127 |
+| `js/belt.js` | Belt slot init, position helpers (`getSlotPos`, `getSlotT`) | 36 |
+| `js/tunnel.js` | Tunnel mechanic — hidden box queue, spawns into adjacent cell | 216 |
+| `js/wall.js` | Wall cell — inert structural blocker | 95 |
 | `js/editor.js` | Level editor UI — grid painting, toolbar, import/export JSON | 653 |
 | `js/particles.js` | Particle effects (bursts, confetti) | 42 |
 | `js/audio.js` | Sound effects via Web Audio API | 62 |
@@ -69,14 +69,14 @@ correct position:
 3. `mechanics.js` — game-wide mechanic registration (`registerMechanic`)
 4. `box_*.js` — box type implementations (register themselves on load)
 5. `calibration.js`, `audio.js`, `particles.js` — utilities
-5. `layout.js` — layout computation
-6. `belt.js` — belt helpers
-7. `physics.js` — marble physics
-8. `tunnel.js` — tunnel mechanic
-9. `wall.js` — wall mechanic
-10. `rendering.js` — all drawing code
-11. `editor.js` — level editor
-12. `game.js` — game loop, init, boot (must be last)
+6. `layout.js` — layout computation
+7. `belt.js` — belt helpers
+8. `physics.js` — marble physics
+9. `tunnel.js` — tunnel mechanic
+10. `wall.js` — wall mechanic
+11. `rendering.js` — all drawing code
+12. `editor.js` — level editor
+13. `game.js` — game loop, init, boot (must be last)
 
 **Rule: New box type files go AFTER `mechanics.js` and BEFORE `calibration.js`.**
 **Rule: New mechanic files go AFTER `belt.js` and BEFORE `rendering.js`.**
@@ -203,6 +203,61 @@ Reference implementations:
 - Complex box type with state + interactions: `js/box_ice.js`
 - Box type + game-wide mechanic: `js/box_blocker.js`
 
+### Quick Template — Copy-Paste Starter
+
+```js
+// js/box_<name>.js
+registerBoxType('<name>', {
+  label: '<Name>',
+  editorColor: '#hexcolor',
+
+  // Optional hooks — delete any you don't need:
+  defaultState: function () { return {}; },
+  initBox: function (box, ci) {},
+  isBoxTappable: function (idx, box) { return true; },
+  onTap: function (idx, box) {},
+  onAdjacentTap: function (idx, box, tappedIdx) {},
+  updateBox: function (idx, box, tick) {},
+  drawOverlay: function (ctx, x, y, w, h, box, S, tick) {},
+  drawOpenBox: function (ctx, x, y, w, h, box, S, tick) {},
+  getMarbleCi: function (box, spawnIdx) { return box.ci; },
+  countMarbles: function (box) { return { regular: MRB_PER_BOX }; },
+
+  // Required drawing methods:
+  drawClosed: function (ctx, x, y, w, h, ci, S, tick, idlePhase) {
+    var c = COLORS[ci];
+    ctx.save();
+    ctx.globalAlpha = 0.55;
+    var grad = ctx.createLinearGradient(x, y, x, y + h);
+    grad.addColorStop(0, c.light); grad.addColorStop(1, c.dark);
+    ctx.fillStyle = grad;
+    rRect(x, y, w, h, 6 * S); ctx.fill();
+    ctx.restore();
+  },
+  drawReveal: function (ctx, x, y, w, h, ci, S, phase, remaining, tick) {
+    drawBox(x, y, w, h, ci);
+    if (remaining > 0 && phase > 0.3) {
+      ctx.globalAlpha = Math.min(1, (phase - 0.3) / 0.5);
+      drawBoxMarbles(ci, remaining);
+      ctx.globalAlpha = 1;
+      drawBoxLip(ci);
+    }
+  },
+  editorCellStyle: function (ci) {
+    var c = COLORS[ci];
+    return { background: 'linear-gradient(135deg,' + c.light + ',' + c.dark + ')', borderColor: c.dark };
+  },
+  editorCellHTML: function (ci) {
+    return '<span class="ed-cell-dot">' + CLR_NAMES[ci][0].toUpperCase() + '</span>';
+  }
+});
+```
+
+After creating the file, add one script tag to `index.html`:
+```html
+<script src="js/box_<name>.js"></script>
+```
+
 ## How to Add an Entirely New Mechanic
 
 For mechanics beyond box types (power-up marbles, new belt behaviors, grid effects):
@@ -240,7 +295,8 @@ Reference: `js/box_blocker.js` registers both a box type and a mechanic.
    and let the user confirm or adjust before coding. (See `/prototype` command
    for the detailed prompt.)
 3. Create a branch: `git checkout main && git checkout -b prototype/<slug>`
-4. Implement the mechanic following the patterns above
+4. Implement the mechanic using lifecycle hooks — do NOT edit game.js, config.js,
+   or rendering.js for new box types. Use the quick template above as a starting point.
 5. Validate syntax: run `node --check` on each modified/new JS file
 6. Commit all changes with a descriptive message
 7. Push: `git push -u origin prototype/<slug>`

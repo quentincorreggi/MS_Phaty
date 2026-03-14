@@ -36,7 +36,9 @@ Help the user refine or extend an existing mechanic prototype.
    sentences. End with: "Sound right?"
 
 6. **Implement the changes** following the same conventions as the original
-   prototype (see CLAUDE.md).
+   prototype (see CLAUDE.md). Prefer adding or modifying lifecycle hooks in the
+   box type file (`js/box_<name>.js`) rather than patching `game.js`,
+   `rendering.js`, or `config.js`. The hook system handles dispatch automatically.
 
 7. **Validate:** Run `node --check` on modified JS files.
 
