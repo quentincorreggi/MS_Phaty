@@ -1,0 +1,27 @@
+{
+  "name": "Connected Boxes",
+  "description": "Groups of 2-3 adjacent boxes linked by golden chains. Tap any one box in a group and ALL linked boxes fire their marbles at the same time!",
+  "howToPlay": "Look for boxes connected by golden chain links. Tap any box in a connected group to release marbles from ALL boxes in that group simultaneously. Plan your taps to maximize color combos!",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Connected Chaos",
+    "desc": "3 linked groups — tap one, fire all!",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, {"ci":0,"type":"default"}, {"ci":0,"type":"default"}, {"ci":0,"type":"default"}, null, null, null,
+      null, null, null, null, {"ci":1,"type":"default"}, null, null,
+      null, null, null, null, {"ci":1,"type":"default"}, null, null,
+      null, null, null, null, {"ci":1,"type":"default"}, null, null,
+      null, null, {"ci":2,"type":"default"}, {"ci":2,"type":"default"}, null, null, null,
+      null, null, null, null, null, null, null
+    ],
+    "connectedGroups": [
+      [8, 9, 10],
+      [25, 32, 39],
+      [37, 38]
+    ]
+  }
+}
