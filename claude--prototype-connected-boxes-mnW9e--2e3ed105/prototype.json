@@ -1,0 +1,29 @@
+{
+  "name": "Connected Boxes",
+  "description": "Groups of 2-3 adjacent boxes linked by golden chains. Tap any one box in a group and ALL linked boxes fire their marbles at the same time!",
+  "howToPlay": "Look for boxes connected by golden chain links — 5 linked groups form a chain reaction puzzle. Tap any box in a connected group to release marbles from ALL boxes in that group simultaneously. Plan your taps carefully to sort all colors!",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Custom Level",
+    "desc": "My custom level",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, {"ci":0,"type":"default"}, {"ci":0,"type":"default"}, {"ci":1,"type":"default"}, null, null, null,
+      null, {"ci":0,"type":"default"}, {"ci":1,"type":"default"}, {"ci":1,"type":"default"}, {"ci":0,"type":"default"}, null, null,
+      null, {"ci":2,"type":"default"}, {"ci":2,"type":"default"}, {"ci":2,"type":"default"}, {"ci":0,"type":"default"}, null, null,
+      null, {"ci":1,"type":"default"}, {"ci":1,"type":"default"}, {"ci":1,"type":"default"}, {"ci":0,"type":"default"}, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null
+    ],
+    "connectedGroups": [
+      [29, 30, 31],
+      [32, 25, 18],
+      [24, 23, 22],
+      [10, 17, 16],
+      [15, 8, 9]
+    ]
+  }
+}
