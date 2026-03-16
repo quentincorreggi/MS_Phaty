@@ -211,8 +211,13 @@ The URL includes the short commit SHA so it is always unique — no caching issu
 Branch names containing slashes are converted: `/` becomes `--`.
 Get the short SHA with: `git rev-parse --short=8 HEAD`
 
+**IMPORTANT:** The SHA MUST be exactly 8 characters. Using 7 characters (the
+git default) will produce a 404. Always use `--short=8` — never omit the
+length argument.
+
 Examples:
 - `prototype/magnet-box` at commit `abc12345` → `https://quentincorreggi.github.io/MS_Phaty/prototype--magnet-box--abc12345/`
+- `claude/my-feature-abc123` at commit `deadbeef` → `https://quentincorreggi.github.io/MS_Phaty/claude--my-feature-abc123--deadbeef/`
 
 After pushing, the deploy takes 30-60 seconds. You can construct the URL
 immediately without waiting.
