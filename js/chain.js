@@ -39,6 +39,83 @@ function chainPartnersReady(idx) {
   return true;
 }
 
+// Propagate reveal along chains — when a box is revealed, reveal its chain partners
+// with a green spark VFX. Cascades through the full chain graph.
+function chainRevealPropagate(startIdx, animated) {
+  var visited = {};
+  visited[startIdx] = true;
+  var queue = [{ idx: startIdx, delay: 0 }];
+  var head = 0;
+
+  while (head < queue.length) {
+    var current = queue[head++];
+    var neighbors = chainGetNeighbors(current.idx);
+
+    for (var i = 0; i < neighbors.length; i++) {
+      var partnerIdx = neighbors[i].partner;
+      if (visited[partnerIdx]) continue;
+      visited[partnerIdx] = true;
+
+      var partnerBox = stock[partnerIdx];
+      if (!partnerBox || partnerBox.isTunnel || partnerBox.isWall || partnerBox.empty || partnerBox.used) continue;
+      if (partnerBox.revealed) {
+        // Already revealed — continue propagating through it
+        queue.push({ idx: partnerIdx, delay: current.delay });
+        continue;
+      }
+
+      var sparkDelay = current.delay + (animated ? 30 : 0); // ~500ms between reveals
+
+      if (animated) {
+        // Spawn green spark VFX
+        chainSparks.push({
+          fromIdx: current.idx,
+          toIdx: partnerIdx,
+          chainIdx: neighbors[i].chainIdx,
+          t: 0,
+          duration: 30,
+          delay: current.delay,
+          started: false,
+          isReveal: true  // flag for green color
+        });
+
+        // Schedule the reveal
+        (function(pIdx, d) {
+          setTimeout(function() {
+            var pb = stock[pIdx];
+            if (!pb || pb.revealed || pb.used || pb.empty) return;
+            pb.revealed = true;
+            pb.revealT = 1.0;
+            var bx = pb.x + L.bw / 2, by = pb.y + L.bh / 2;
+            var burstColor = (pb.boxType === 'hidden') ? '#FFD700' : COLORS[pb.ci].fill;
+            // Green burst for chain reveal
+            spawnBurst(bx, by, '#4EE68C', 12);
+            spawnBurst(bx, by, burstColor, 8);
+            sfx.pop();
+            // Continue revealing from this newly revealed box
+            chainRevealPropagate(pIdx, true);
+          }, d * (1000 / 60));
+        })(partnerIdx, sparkDelay);
+      } else {
+        // Instant reveal (used during initGame)
+        partnerBox.revealed = true;
+        queue.push({ idx: partnerIdx, delay: 0 });
+      }
+    }
+  }
+}
+
+// Called during initGame after initial reveals — propagate chain reveals instantly
+function chainInitialReveal() {
+  for (var i = 0; i < stock.length; i++) {
+    if (stock[i].revealed && !stock[i].empty && !stock[i].used && !stock[i].isTunnel && !stock[i].isWall) {
+      if (isChained(i)) {
+        chainRevealPropagate(i, false);
+      }
+    }
+  }
+}
+
 // Trigger chain reaction starting from tapped box
 function chainReact(startIdx) {
   var visited = {};
@@ -330,31 +407,40 @@ function drawChains() {
     var sx = fx + (tx - fx) * t;
     var sy = fy + (ty - fy) * t;
 
-    // Spark glow — large and bright
+    // Spark glow — large and bright, green for reveal, gold for activation
     ctx.save();
     var sparkR = 14 * S;
+    var isRevealSpark = spark.isReveal;
     var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, sparkR);
-    grad.addColorStop(0, 'rgba(255,240,150,1)');
-    grad.addColorStop(0.3, 'rgba(255,210,60,0.7)');
-    grad.addColorStop(0.6, 'rgba(255,180,30,0.3)');
-    grad.addColorStop(1, 'rgba(255,160,20,0)');
+    if (isRevealSpark) {
+      grad.addColorStop(0, 'rgba(150,255,180,1)');
+      grad.addColorStop(0.3, 'rgba(78,230,140,0.7)');
+      grad.addColorStop(0.6, 'rgba(54,199,110,0.3)');
+      grad.addColorStop(1, 'rgba(45,184,102,0)');
+    } else {
+      grad.addColorStop(0, 'rgba(255,240,150,1)');
+      grad.addColorStop(0.3, 'rgba(255,210,60,0.7)');
+      grad.addColorStop(0.6, 'rgba(255,180,30,0.3)');
+      grad.addColorStop(1, 'rgba(255,160,20,0)');
+    }
     ctx.fillStyle = grad;
     ctx.beginPath(); ctx.arc(sx, sy, sparkR, 0, Math.PI * 2); ctx.fill();
 
     // Spark core
-    ctx.fillStyle = '#FFFDE8';
+    ctx.fillStyle = isRevealSpark ? '#E8FFF0' : '#FFFDE8';
     ctx.beginPath(); ctx.arc(sx, sy, 4.5 * S, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.9)';
     ctx.beginPath(); ctx.arc(sx, sy, 2.5 * S, 0, Math.PI * 2); ctx.fill();
 
     // Trail particles
+    var trailColor = isRevealSpark ? '#4EE68C' : '#FFD700';
     if (tick % 2 === 0) {
       particles.push({
         x: sx, y: sy,
         vx: (Math.random() - 0.5) * 2 * S,
         vy: (Math.random() - 0.5) * 2 * S,
         r: (2 + Math.random() * 2) * S,
-        color: '#FFD700',
+        color: trailColor,
         life: 0.6,
         decay: 0.04,
         grav: false

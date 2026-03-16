@@ -172,6 +172,9 @@ function initGame() {
     }
   }
 
+  // ── Chain initial reveal: propagate reveals along chains instantly ──
+  chainInitialReveal();
+
   // ── Sort columns ──
   var allBoxes = [];
   for (var c = 0; c < NUM_COLORS; c++) for (var r = 0; r < sortPerColor[c]; r++)
@@ -243,6 +246,8 @@ function revealAroundEmptyCell(idx) {
         r: (2 + Math.random() * 4) * S, color: burstColor, life: 1, decay: 0.02 + Math.random() * 0.015, grav: false });
     }
     sfx.pop();
+    // Propagate reveal along chains with green spark
+    if (isChained(nIdx)) chainRevealPropagate(nIdx, true);
   }
   _revealVisited[idx] = false;
 }
