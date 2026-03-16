@@ -10,6 +10,7 @@ var beltPath = [];
 var stock = [], sortCols = [], particles = [], physMarbles = [], jumpers = [];
 var score = 0, won = false, tick = 0, hoverIdx = -1;
 var audioCtx = null;
+var sfxMuted = false;
 
 // === LEVEL SYSTEM ===
 var currentLevel = 0;

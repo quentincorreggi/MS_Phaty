@@ -7,6 +7,7 @@ function ensureAudio() {
 }
 
 function tone(freq, dur, type, vol, ramp) {
+  if (sfxMuted) return;
   ensureAudio();
   var t = audioCtx.currentTime;
   var o = audioCtx.createOscillator(), g = audioCtx.createGain();
@@ -28,7 +29,7 @@ var sfx = {
 };
 
 function spawnMarbleClick(intensity) {
-  if (!audioCtx) return;
+  if (sfxMuted || !audioCtx) return;
   var t = audioCtx.currentTime;
   var o = audioCtx.createOscillator(), g = audioCtx.createGain();
   var baseFreq = 800 + Math.random() * 1200;

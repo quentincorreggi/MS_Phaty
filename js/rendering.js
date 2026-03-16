@@ -462,6 +462,21 @@ function drawBackButton() {
   ctx.restore();
 }
 
+// ── SFX toggle button ──
+
+function drawSfxButton() {
+  ctx.save();
+  ctx.fillStyle = sfxMuted ? 'rgba(180,80,80,0.7)' : 'rgba(100,160,130,0.7)';
+  ctx.shadowColor = 'rgba(0,0,0,0.15)'; ctx.shadowBlur = 4 * S; ctx.shadowOffsetY = 2 * S;
+  rRect(L.sfxX, L.sfxY, L.sfxSize, L.sfxSize, 8 * S); ctx.fill();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  ctx.fillStyle = 'white'; ctx.font = 'bold ' + (L.sfxSize * 0.45) + 'px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  var cx = L.sfxX + L.sfxSize / 2, cy = L.sfxY + L.sfxSize / 2;
+  ctx.fillText(sfxMuted ? '\uD83D\uDD07' : '\uD83D\uDD0A', cx, cy);
+  ctx.restore();
+}
+
 // ── Debug walls ──
 
 function drawDebugWalls() {

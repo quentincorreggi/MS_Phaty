@@ -311,6 +311,7 @@ function handleTap(px, py) {
   if (won || !gameActive) return;
   ensureAudio();
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
+  if (px >= L.sfxX && px <= L.sfxX + L.sfxSize && py >= L.sfxY && py <= L.sfxY + L.sfxSize) { sfxMuted = !sfxMuted; return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
@@ -333,6 +334,7 @@ canvas.addEventListener('mousemove', function (e) {
   hoverIdx = -1;
   if (!gameActive) return;
   if (e.clientX >= L.bkX && e.clientX <= L.bkX + L.bkSize && e.clientY >= L.bkY && e.clientY <= L.bkY + L.bkSize) { canvas.style.cursor = 'pointer'; return; }
+  if (e.clientX >= L.sfxX && e.clientX <= L.sfxX + L.sfxSize && e.clientY >= L.sfxY && e.clientY <= L.sfxY + L.sfxSize) { canvas.style.cursor = 'pointer'; return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;
@@ -534,6 +536,7 @@ function frame() {
     drawJumpers();
     drawSortArea();
     drawBackButton();
+    drawSfxButton();
     drawParticles();
     drawDebugWalls();
   }

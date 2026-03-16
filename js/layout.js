@@ -93,6 +93,11 @@ function computeLayout() {
   L.bkY = 10 * S + bkCal.dy * S;
   L.bkSize = bkSize;
 
+  // SFX TOGGLE BUTTON (right of back button)
+  L.sfxX = L.bkX + bkSize + 8 * S;
+  L.sfxY = L.bkY;
+  L.sfxSize = bkSize;
+
   // Sort-belt alignment
   L.sortBeltT = [];
   for (var c = 0; c < 4; c++) {
