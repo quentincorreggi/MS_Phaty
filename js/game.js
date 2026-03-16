@@ -34,6 +34,7 @@ function initGame() {
   blockerCollectSlots = []; blockerCollectCleared = false;
   document.getElementById('win-screen').classList.remove('show');
   computeLayout(); initBeltSlots();
+  if (typeof initConnectedGroups === 'function') initConnectedGroups();
 
   var totalSlots = L.rows * L.cols;
   var lvl = LEVELS[currentLevel];
@@ -317,11 +318,33 @@ function handleTap(px, py) {
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
-      b.popT = 1;
-      sfx.pop();
-      spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
-      spawnPhysMarbles(b);
-      damageAdjacentIce(i);
+      // Connected boxes: fire all siblings in the group
+      var group = (typeof getConnectedGroup === 'function') ? getConnectedGroup(i) : null;
+      if (group) {
+        for (var gi = 0; gi < group.length; gi++) {
+          var si = group[gi];
+          var sb = stock[si];
+          if (!sb || sb.empty || sb.used || sb.spawning) continue;
+          // Ice-locked siblings shake but don't fire
+          if (sb.iceHP > 0) { sb.shakeT = 0.5; continue; }
+          // Hidden siblings get revealed first, then fire
+          if (!sb.revealed) {
+            sb.revealed = true;
+            sb.revealT = 1.0;
+          }
+          sb.popT = 1;
+          sfx.pop();
+          spawnBurst(sb.x + L.bw / 2, sb.y + L.bh / 2, COLORS[sb.ci].fill, 18);
+          spawnPhysMarbles(sb);
+          damageAdjacentIce(si);
+        }
+      } else {
+        b.popT = 1;
+        sfx.pop();
+        spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
+        spawnPhysMarbles(b);
+        damageAdjacentIce(i);
+      }
       return;
     }
   }
@@ -528,6 +551,7 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    if (typeof drawConnectedLinks === 'function') drawConnectedLinks();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();

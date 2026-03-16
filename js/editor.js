@@ -17,6 +17,9 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  connectedMode: false, // true when linking connected groups
+  connectedGroups: [],  // array of arrays of grid indices
+  connectedPending: [], // indices being linked in current group
   visible: false
 };
 
@@ -34,6 +37,9 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.connectedMode = false;
+  editor.connectedGroups = [];
+  editor.connectedPending = [];
 }
 
 function showEditor(fresh) {
@@ -95,6 +101,19 @@ function editorRenderGrid() {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
     }
+    // Highlight connected group memberships
+    var isInGroup = false;
+    for (var gi = 0; gi < editor.connectedGroups.length; gi++) {
+      if (editor.connectedGroups[gi].indexOf(i) >= 0) { isInGroup = true; break; }
+    }
+    var isInPending = editor.connectedPending.indexOf(i) >= 0;
+    if (isInGroup) {
+      cell.style.boxShadow = '0 0 0 2px rgba(218,165,32,0.7), inset 0 0 6px rgba(218,165,32,0.3)';
+    }
+    if (isInPending) {
+      cell.style.boxShadow = '0 0 0 2px rgba(218,165,32,1), inset 0 0 8px rgba(218,165,32,0.5)';
+    }
+
     cell.setAttribute('data-idx', i);
     cell.addEventListener('click', editorCellClick);
     cell.addEventListener('contextmenu', editorCellErase);
@@ -104,6 +123,59 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.connectedMode) {
+    // In connected mode: click boxes to add/remove from pending group
+    var cell = editor.grid[idx];
+    // Must be a box (not empty, tunnel, or wall)
+    if (!cell || cell.tunnel || cell.wall) return;
+
+    // Check if clicking on an already-connected box — remove its group
+    for (var gi = 0; gi < editor.connectedGroups.length; gi++) {
+      for (var mi = 0; mi < editor.connectedGroups[gi].length; mi++) {
+        if (editor.connectedGroups[gi][mi] === idx) {
+          editor.connectedGroups.splice(gi, 1);
+          editorRenderGrid();
+          editorRenderToolbar();
+          editorUpdateStats();
+          return;
+        }
+      }
+    }
+
+    // Check if already in pending
+    var pendingIdx = editor.connectedPending.indexOf(idx);
+    if (pendingIdx >= 0) {
+      editor.connectedPending.splice(pendingIdx, 1);
+      editorRenderGrid();
+      editorRenderToolbar();
+      return;
+    }
+
+    // Check adjacency to existing pending members (if any)
+    if (editor.connectedPending.length > 0) {
+      var isAdj = false;
+      for (var pi = 0; pi < editor.connectedPending.length; pi++) {
+        if (areAdjacent(idx, editor.connectedPending[pi], 7)) { isAdj = true; break; }
+      }
+      if (!isAdj) return; // must be adjacent to at least one member
+    }
+
+    if (editor.connectedPending.length < 3) {
+      editor.connectedPending.push(idx);
+    }
+
+    // Auto-confirm when 3 boxes selected
+    if (editor.connectedPending.length === 3) {
+      editor.connectedGroups.push(editor.connectedPending.slice());
+      editor.connectedPending = [];
+    }
+
+    editorRenderGrid();
+    editorRenderToolbar();
+    editorUpdateStats();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -178,13 +250,15 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.connectedMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.connectedMode = false;
+      editor.connectedPending = [];
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -200,6 +274,8 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.connectedMode = false;
+    editor.connectedPending = [];
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -214,14 +290,104 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.connectedMode = false;
+    editor.connectedPending = [];
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(tunnelBtn);
 
+  // Connected mode button
+  var connBtn = document.createElement('button');
+  connBtn.className = 'ed-type-btn' + (editor.connectedMode ? ' active' : '');
+  connBtn.textContent = '\uD83D\uDD17 Connected';
+  connBtn.style.borderColor = editor.connectedMode ? 'rgba(218,165,32,0.6)' : '';
+  connBtn.style.color = editor.connectedMode ? '#DAA520' : '';
+  connBtn.addEventListener('click', function () {
+    editor.connectedMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editor.connectedPending = [];
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(connBtn);
+
   el.appendChild(typeRow);
 
-  if (editor.tunnelMode) {
+  if (editor.connectedMode) {
+    // Connected mode: info + pending group display
+    var connInfo = document.createElement('div');
+    connInfo.className = 'ed-color-row';
+    var pendingText = editor.connectedPending.length > 0
+      ? 'Linking: ' + editor.connectedPending.length + '/3 boxes selected'
+      : 'Click 2-3 adjacent boxes to link them';
+    connInfo.innerHTML = '<span style="font-size:11px;color:#DAA520">' + pendingText + '</span>';
+    if (editor.connectedPending.length >= 2) {
+      var doneBtn = document.createElement('button');
+      doneBtn.className = 'ed-qbtn';
+      doneBtn.style.marginLeft = '8px';
+      doneBtn.style.background = 'rgba(218,165,32,0.35)';
+      doneBtn.style.color = '#8B6914';
+      doneBtn.textContent = '\u2713 Link Group';
+      doneBtn.addEventListener('click', function () {
+        editor.connectedGroups.push(editor.connectedPending.slice());
+        editor.connectedPending = [];
+        editorRenderGrid();
+        editorRenderToolbar();
+        editorUpdateStats();
+      });
+      connInfo.appendChild(doneBtn);
+    }
+    if (editor.connectedPending.length > 0) {
+      var cancelBtn = document.createElement('button');
+      cancelBtn.className = 'ed-qbtn';
+      cancelBtn.style.marginLeft = '4px';
+      cancelBtn.textContent = '\u2716 Cancel';
+      cancelBtn.addEventListener('click', function () {
+        editor.connectedPending = [];
+        editorRenderGrid();
+        editorRenderToolbar();
+      });
+      connInfo.appendChild(cancelBtn);
+    }
+    el.appendChild(connInfo);
+
+    // Show existing groups with remove buttons
+    if (editor.connectedGroups.length > 0) {
+      var groupsRow = document.createElement('div');
+      groupsRow.className = 'ed-color-row';
+      groupsRow.style.flexWrap = 'wrap';
+      groupsRow.style.gap = '4px';
+      for (var gi = 0; gi < editor.connectedGroups.length; gi++) {
+        var grp = editor.connectedGroups[gi];
+        var gBtn = document.createElement('button');
+        gBtn.className = 'ed-qbtn';
+        gBtn.style.background = 'rgba(218,165,32,0.2)';
+        gBtn.style.border = '1px solid rgba(218,165,32,0.4)';
+        gBtn.style.color = '#8B6914';
+        var label = 'Group ' + (gi + 1) + ': ';
+        for (var mi = 0; mi < grp.length; mi++) {
+          var r = Math.floor(grp[mi] / 7) + 1;
+          var c = grp[mi] % 7 + 1;
+          if (mi > 0) label += '-';
+          label += '(' + r + ',' + c + ')';
+        }
+        label += ' \u2716';
+        gBtn.textContent = label;
+        gBtn.setAttribute('data-gi', gi);
+        gBtn.addEventListener('click', function () {
+          var idx = parseInt(this.getAttribute('data-gi'));
+          editor.connectedGroups.splice(idx, 1);
+          editorRenderGrid();
+          editorRenderToolbar();
+          editorUpdateStats();
+        });
+        groupsRow.appendChild(gBtn);
+      }
+      el.appendChild(groupsRow);
+    }
+  } else if (editor.tunnelMode) {
     // Direction selector row
     var dirRow = document.createElement('div');
     dirRow.className = 'ed-color-row';
@@ -503,6 +669,9 @@ function editorUpdateStats() {
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
   }
+  if (editor.connectedGroups.length > 0) {
+    html += '<span class="ed-stat-chip" style="background:#DAA520">' + editor.connectedGroups.length + ' linked group' + (editor.connectedGroups.length > 1 ? 's' : '') + '</span>';
+  }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
   }
@@ -563,12 +732,19 @@ function editorRenderSettings() {
 
 // ── Build level definition ──
 function editorBuildLevel() {
-  return {
+  var lvl = {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
     grid: editor.grid.slice()
   };
+  if (editor.connectedGroups.length > 0) {
+    lvl.connectedGroups = [];
+    for (var g = 0; g < editor.connectedGroups.length; g++) {
+      lvl.connectedGroups.push(editor.connectedGroups[g].slice());
+    }
+  }
+  return lvl;
 }
 
 // ── Test play ──
@@ -625,6 +801,15 @@ function editorImportJSON() {
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
+      if (lvl.connectedGroups) {
+        editor.connectedGroups = [];
+        for (var cg = 0; cg < lvl.connectedGroups.length; cg++) {
+          editor.connectedGroups.push(lvl.connectedGroups[cg].slice());
+        }
+      } else {
+        editor.connectedGroups = [];
+      }
+      editor.connectedPending = [];
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
       var nameEl = document.getElementById('ed-name');
