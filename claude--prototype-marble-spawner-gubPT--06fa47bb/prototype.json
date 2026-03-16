@@ -1,0 +1,22 @@
+{
+  "name": "Triple Box",
+  "description": "A box that spawns 3x the normal number of marbles when tapped. Floods the belt with a massive burst!",
+  "howToPlay": "Tap a gold-tinted 'x3' box to release a huge wave of marbles. Plan ahead — the belt fills up fast!",
+  "author": "",
+  "showcaseLevel": {
+    "name": "Custom Level",
+    "desc": "My custom level",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, {"wall": true}, {"wall": true}, {"wall": true}, {"wall": true}, {"wall": true}, null,
+      null, {"wall": true}, {"ci": 0, "type": "triple"}, {"ci": 0, "type": "triple"}, {"ci": 0, "type": "triple"}, {"wall": true}, null,
+      null, {"wall": true}, {"ci": 1, "type": "default"}, {"ci": 1, "type": "default"}, {"ci": 1, "type": "default"}, {"wall": true}, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}
