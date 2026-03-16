@@ -324,7 +324,7 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
-      onBoxTappedForShifters();
+      if (b.boxType !== 'shifter') onBoxTappedForShifters();
       return;
     }
   }
