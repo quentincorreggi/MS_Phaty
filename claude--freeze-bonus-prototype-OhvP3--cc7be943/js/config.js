@@ -56,7 +56,6 @@ var blockerCollectCleared = false;
 // === FREEZE BONUS ===
 var freezeActive = false;
 var freezeTimer = 0;
-var freezeUsed = false;
 var FREEZE_DURATION = 420;
 
 var MRB_PER_BOX = 9, SORT_CAP = 3;

@@ -8,16 +8,14 @@
 function initFreeze() {
   freezeActive = false;
   freezeTimer = 0;
-  freezeUsed = false;
   for (var i = 0; i < physMarbles.length; i++) {
     physMarbles[i].frozen = false;
   }
 }
 
 function activateFreeze() {
-  if (freezeUsed || freezeActive || won || !gameActive) return;
+  if (freezeActive || won || !gameActive) return;
   freezeActive = true;
-  freezeUsed = true;
   freezeTimer = FREEZE_DURATION;
   // Freeze all current funnel marbles in place
   for (var i = 0; i < physMarbles.length; i++) {
@@ -90,10 +88,6 @@ function drawFreezeButton() {
     ctx.fillStyle = 'rgba(100,190,255,' + alpha + ')';
     ctx.shadowColor = 'rgba(100,190,255,0.7)';
     ctx.shadowBlur = 14 * S;
-  } else if (freezeUsed) {
-    ctx.fillStyle = 'rgba(150,145,140,0.55)';
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
   } else {
     ctx.fillStyle = 'rgba(90,170,255,0.82)';
     ctx.shadowColor = 'rgba(0,0,0,0.18)';
@@ -105,7 +99,7 @@ function drawFreezeButton() {
   ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
 
   // Label
-  ctx.fillStyle = (freezeUsed && !freezeActive) ? 'rgba(180,175,170,0.85)' : 'white';
+  ctx.fillStyle = 'white';
   ctx.font = 'bold ' + (13 * S) + 'px Fredoka, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -113,8 +107,6 @@ function drawFreezeButton() {
   if (freezeActive) {
     var secsLeft = Math.ceil(freezeTimer / 60);
     label = '\u2744 Freeze ' + secsLeft + 's';
-  } else if (freezeUsed) {
-    label = '\u2744 Used';
   } else {
     label = '\u2744 Freeze';
   }
