@@ -68,7 +68,9 @@ function initGame() {
   for (var k in boxSlots) {
     var bs = boxSlots[k];
     var isBlockerBox = (bs.boxType === 'blocker');
-    var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
+    var isTripleBox = (bs.boxType === 'triple');
+    var boxTotal = isTripleBox ? (MRB_PER_BOX * TRIPLE_MULT) : MRB_PER_BOX;
+    var regularPerBox = isBlockerBox ? (boxTotal - BLOCKER_PER_BOX) : boxTotal;
     colorMarblesTotal[bs.ci] += regularPerBox;
     if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
   }
@@ -78,7 +80,9 @@ function initGame() {
     for (var tc = 0; tc < ts.contents.length; tc++) {
       var tItem = ts.contents[tc];
       var isBlockerBox = (tItem.type === 'blocker');
-      var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
+      var isTripleBox = (tItem.type === 'triple');
+      var boxTotal = isTripleBox ? (MRB_PER_BOX * TRIPLE_MULT) : MRB_PER_BOX;
+      var regularPerBox = isBlockerBox ? (boxTotal - BLOCKER_PER_BOX) : boxTotal;
       colorMarblesTotal[tItem.ci] += regularPerBox;
       if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
     }
@@ -130,7 +134,10 @@ function initGame() {
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
-      stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
+      var isTriple = (slot.boxType === 'triple');
+      var marblesTotal = isTriple ? MRB_PER_BOX * TRIPLE_MULT : MRB_PER_BOX;
+      stock.push({ ci: slot.ci, used: false, remaining: marblesTotal, marblesTotal: marblesTotal,
+        spawning: false, spawnIdx: 0,
         revealed: isIce ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,

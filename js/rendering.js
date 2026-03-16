@@ -218,6 +218,10 @@ function drawStock() {
       if (isBoxTappable(i) && b.hoverT > 0.01) { ctx.shadowColor = c.glow; ctx.shadowBlur = 20 * S * b.hoverT; }
       drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci);
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+      if (b.boxType === 'triple') {
+        ctx.save(); ctx.globalAlpha = 0.08; ctx.fillStyle = '#D4A017';
+        rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.fill(); ctx.restore();
+      }
       if (b.boxType === 'blocker' && b.blockerCount > 0) {
         ctx.save();
         ctx.globalAlpha = 0.06;
@@ -233,9 +237,13 @@ function drawStock() {
         if (b.boxType === 'blocker' && b.blockerCount > 0) {
           drawBoxMarblesWithBlockers(b.ci, b.remaining, b.blockerCount);
         } else {
-          drawBoxMarbles(b.ci, b.remaining);
+          var displayRem = (b.boxType === 'triple') ? Math.min(b.remaining, MRB_PER_BOX) : b.remaining;
+          drawBoxMarbles(b.ci, displayRem);
         }
         drawBoxLip(b.ci);
+        if (b.boxType === 'triple') {
+          drawTripleBadge(ctx, L.bw, L.bh, S);
+        }
       }
     }
 
