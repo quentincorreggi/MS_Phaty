@@ -6,8 +6,7 @@
 
 // --- Activation ---
 function activateFreeze() {
-  if (!freezeAvailable || freezeUsed || freezeActive) return;
-  freezeUsed = true;
+  if (!freezeAvailable || freezeActive) return;
   freezeActive = true;
   freezeTimer = FREEZE_DURATION;
   freezeFlashT = 1.0;
@@ -124,23 +123,6 @@ function drawFreezeButton() {
 
   ctx.save();
 
-  if (freezeUsed && !freezeActive) {
-    // Used up — grayed out
-    ctx.globalAlpha = 0.35;
-    ctx.fillStyle = 'rgba(160,150,140,0.5)';
-    rRect(bx, by, bw, bh, r); ctx.fill();
-    ctx.strokeStyle = 'rgba(140,130,120,0.3)';
-    ctx.lineWidth = 1.5 * S;
-    rRect(bx, by, bw, bh, r); ctx.stroke();
-    // Snowflake icon (dimmed)
-    ctx.fillStyle = 'rgba(160,150,140,0.6)';
-    ctx.font = 'bold ' + (bh * 0.45) + 'px sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('\u2744', bx + bw / 2, by + bh / 2);
-    ctx.restore();
-    return;
-  }
-
   // Active or available
   var pulse = freezeActive ? 0 : Math.sin(tick * 0.06) * 0.04;
   var sc = 1 + pulse;
@@ -216,7 +198,7 @@ function drawFreezeOverlay() {
 
 // --- Check if tap hit freeze button ---
 function isFreezeButtonTap(px, py) {
-  if (!freezeAvailable || freezeUsed || freezeActive) return false;
+  if (!freezeAvailable || freezeActive) return false;
   return px >= L.freezeBtnX && px <= L.freezeBtnX + L.freezeBtnW &&
          py >= L.freezeBtnY && py <= L.freezeBtnY + L.freezeBtnH;
 }
