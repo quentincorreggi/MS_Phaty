@@ -540,7 +540,55 @@ function frame() {
   requestAnimationFrame(frame);
 }
 
+// === PROTOTYPE.JSON LOADER ===
+var prototypeInfo = null;  // loaded from prototype.json if present
+
+function loadPrototypeJSON(callback) {
+  fetch('prototype.json').then(function(r) {
+    if (!r.ok) throw new Error('not found');
+    return r.json();
+  }).then(function(data) {
+    prototypeInfo = data;
+    if (data.showcaseLevel && data.showcaseLevel.grid) {
+      LEVELS.push(data.showcaseLevel);
+      levelStars.push(0);
+      unlockedLevels = LEVELS.length;
+    }
+    callback();
+  }).catch(function() {
+    callback();
+  });
+}
+
+function playShowcase() {
+  if (!prototypeInfo || !prototypeInfo.showcaseLevel) return;
+  var idx = LEVELS.length - 1; // showcase level is always last added
+  startLevel(idx);
+}
+
+function updateShowcaseUI() {
+  var btn = document.getElementById('ls-showcase-btn');
+  var info = document.getElementById('ls-showcase-info');
+  if (!prototypeInfo || !prototypeInfo.showcaseLevel) {
+    if (btn) btn.style.display = 'none';
+    if (info) info.style.display = 'none';
+    return;
+  }
+  if (btn) btn.style.display = '';
+  if (info) {
+    info.style.display = '';
+    var html = '';
+    if (prototypeInfo.name) html += '<div class="ls-showcase-name">' + prototypeInfo.name + '</div>';
+    if (prototypeInfo.description) html += '<div class="ls-showcase-desc">' + prototypeInfo.description + '</div>';
+    if (prototypeInfo.howToPlay) html += '<div class="ls-showcase-how"><strong>How to play:</strong> ' + prototypeInfo.howToPlay + '</div>';
+    info.innerHTML = html;
+  }
+}
+
 // === BOOT ===
 resize();
-showLevelSelect();
+loadPrototypeJSON(function() {
+  updateShowcaseUI();
+  showLevelSelect();
+});
 frame();

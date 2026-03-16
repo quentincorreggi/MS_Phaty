@@ -29,6 +29,15 @@
   .ls-title{font-size:38px;font-weight:700;color:#8B6914;text-shadow:0 3px 0 #C4A84D;margin-bottom:4px}
   .ls-sub{font-size:15px;color:#9C8A70}
   .ls-actions{display:flex;flex-direction:column;align-items:center;gap:16px;padding:40px 24px 30px;width:100%}
+  .ls-showcase-info{max-width:380px;text-align:center;padding:0 20px;display:none}
+  .ls-showcase-name{font-size:20px;font-weight:700;color:#7B52A0;margin-bottom:4px}
+  .ls-showcase-desc{font-size:14px;color:#5A4A38;margin-bottom:6px}
+  .ls-showcase-how{font-size:12px;color:#9C8A70;line-height:1.4}
+  .ls-showcase-btn{padding:14px 32px;border:none;border-radius:16px;cursor:pointer;
+    font-family:'Fredoka',sans-serif;font-weight:700;font-size:17px;color:white;
+    background:linear-gradient(135deg,#4EE68C,#36C76E);box-shadow:0 6px 22px rgba(78,230,140,0.35);
+    transition:transform 0.18s;display:flex;align-items:center;gap:10px}
+  .ls-showcase-btn:hover{transform:scale(1.06)}.ls-showcase-btn:active{transform:scale(0.94)}
   .ls-editor-btn{padding:14px 32px;border:none;border-radius:16px;cursor:pointer;
     font-family:'Fredoka',sans-serif;font-weight:700;font-size:17px;color:white;
     background:linear-gradient(135deg,#C89CF2,#9060C4);box-shadow:0 6px 22px rgba(144,96,196,0.35);
@@ -118,6 +127,7 @@
   .ed-action.play{background:linear-gradient(135deg,#4EE68C,#36C76E);box-shadow:0 4px 16px rgba(78,230,140,0.35)}
   .ed-action.export{background:linear-gradient(135deg,#89CFF0,#5BA3D9);box-shadow:0 4px 16px rgba(91,163,217,0.3)}
   .ed-action.import{background:linear-gradient(135deg,#E8A84C,#D4903A);box-shadow:0 4px 16px rgba(232,168,76,0.3)}
+  .ed-action.showcase{background:linear-gradient(135deg,#C89CF2,#9060C4);box-shadow:0 4px 16px rgba(144,96,196,0.3)}
   #ed-export-area{display:none;width:100%;min-height:80px;margin-top:8px;padding:8px;border:1.5px solid rgba(160,140,120,0.3);
     border-radius:8px;background:rgba(255,255,255,0.7);font-family:monospace;font-size:10px;color:#5A4A38;resize:vertical;outline:none}
   #ed-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);
@@ -190,7 +200,9 @@
 </div>
 <div id="level-screen">
   <div class="ls-header"><div class="ls-title">Marble Sorter</div><div class="ls-sub">Design and test your own levels</div></div>
+  <div id="ls-showcase-info" class="ls-showcase-info"></div>
   <div class="ls-actions">
+    <button id="ls-showcase-btn" class="ls-showcase-btn" style="display:none" onclick="playShowcase()"><span style="font-size:22px">&#9654;</span> Play Showcase</button>
     <button class="ls-editor-btn" onclick="showEditor()"><span style="font-size:22px">&#9998;</span> Level Editor</button>
     <button class="ls-editor-btn ls-import-btn" onclick="showEditor(); setTimeout(editorImportJSON, 100)"><span style="font-size:22px">&#128229;</span> Import Level</button>
   </div>
@@ -229,6 +241,7 @@
         <button class="ed-action play" onclick="editorTestPlay()">&#9654; Test Play</button>
         <button class="ed-action export" onclick="editorExportJSON()">&#128203; Export</button>
         <button class="ed-action import" onclick="editorImportJSON()">&#128229; Import</button>
+        <button class="ed-action showcase" onclick="editorSaveShowcase()">&#11088; Save as Showcase</button>
       </div>
       <textarea id="ed-export-area"></textarea>
     </div>

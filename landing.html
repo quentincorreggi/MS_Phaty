@@ -144,6 +144,19 @@
     color: #B8A890;
   }
 
+  .card-description {
+    font-size: 0.85em;
+    color: #7A6A58;
+    margin-bottom: 8px;
+    line-height: 1.4;
+  }
+
+  .card-author {
+    font-size: 0.8em;
+    color: #9C8A70;
+    font-style: italic;
+  }
+
   .empty-state {
     text-align: center;
     padding: 60px 20px;
@@ -263,45 +276,80 @@
       return;
     }
 
+    // Fetch prototype.json for each branch, only show those that have it
     cardsEl.style.display = 'grid';
     cardsEl.innerHTML = '';
     allCards = [];
 
+    var shownCount = 0;
+    var pending = items.length;
+
     for (var i = 0; i < items.length; i++) {
-      var p = items[i];
-      var card = document.createElement('a');
-      card.className = 'card';
-      card.href = './' + p.folder + '/';
-      card.dataset.branch = p.branch.toLowerCase();
-
-      var nameDiv = document.createElement('div');
-      nameDiv.className = 'card-name';
-      nameDiv.textContent = formatName(p.branch);
-      card.appendChild(nameDiv);
-
-      var branchDiv = document.createElement('div');
-      branchDiv.className = 'card-branch';
-      branchDiv.textContent = p.branch;
-      card.appendChild(branchDiv);
-
-      var metaDiv = document.createElement('div');
-      metaDiv.className = 'card-meta';
-
-      var shaSpan = document.createElement('span');
-      shaSpan.className = 'card-sha';
-      shaSpan.textContent = p.sha;
-      metaDiv.appendChild(shaSpan);
-
-      var timeSpan = document.createElement('span');
-      timeSpan.className = 'card-time';
-      timeSpan.textContent = relativeTime(p.deployedAt);
-      timeSpan.title = new Date(p.deployedAt).toLocaleString();
-      metaDiv.appendChild(timeSpan);
-
-      card.appendChild(metaDiv);
-      cardsEl.appendChild(card);
-      allCards.push(card);
+      (function(p) {
+        fetch('./' + p.folder + '/prototype.json').then(function(r) {
+          if (!r.ok) throw new Error('not found');
+          return r.json();
+        }).then(function(meta) {
+          shownCount++;
+          var card = buildCard(p, meta);
+          cardsEl.appendChild(card);
+          allCards.push(card);
+          emptyEl.style.display = 'none';
+        }).catch(function() {
+          // No prototype.json — skip this branch (unlisted)
+        }).finally(function() {
+          pending--;
+          if (pending === 0 && shownCount === 0) {
+            emptyEl.style.display = 'block';
+            cardsEl.style.display = 'none';
+          }
+        });
+      })(items[i]);
     }
+  }
+
+  function buildCard(p, meta) {
+    var card = document.createElement('a');
+    card.className = 'card';
+    card.href = './' + p.folder + '/';
+    card.dataset.branch = p.branch.toLowerCase();
+    if (meta && meta.name) card.dataset.branch += ' ' + meta.name.toLowerCase();
+
+    var nameDiv = document.createElement('div');
+    nameDiv.className = 'card-name';
+    nameDiv.textContent = (meta && meta.name) ? meta.name : formatName(p.branch);
+    card.appendChild(nameDiv);
+
+    if (meta && meta.description) {
+      var descDiv = document.createElement('div');
+      descDiv.className = 'card-description';
+      descDiv.textContent = meta.description;
+      card.appendChild(descDiv);
+    }
+
+    var branchDiv = document.createElement('div');
+    branchDiv.className = 'card-branch';
+    var branchText = p.branch;
+    if (meta && meta.author) branchText += ' — by ' + meta.author;
+    branchDiv.textContent = branchText;
+    card.appendChild(branchDiv);
+
+    var metaDiv = document.createElement('div');
+    metaDiv.className = 'card-meta';
+
+    var shaSpan = document.createElement('span');
+    shaSpan.className = 'card-sha';
+    shaSpan.textContent = p.sha;
+    metaDiv.appendChild(shaSpan);
+
+    var timeSpan = document.createElement('span');
+    timeSpan.className = 'card-time';
+    timeSpan.textContent = relativeTime(p.deployedAt);
+    timeSpan.title = new Date(p.deployedAt).toLocaleString();
+    metaDiv.appendChild(timeSpan);
+
+    card.appendChild(metaDiv);
+    return card;
   }
 
   function filterCards() {
