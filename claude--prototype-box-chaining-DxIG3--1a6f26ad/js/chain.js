@@ -58,7 +58,7 @@ function chainReact(startIdx) {
       var partnerBox = stock[partnerIdx];
       if (!partnerBox || partnerBox.isTunnel || partnerBox.isWall || partnerBox.empty || partnerBox.used) continue;
 
-      var sparkDelay = current.delay + 15; // ~250ms at 60fps
+      var sparkDelay = current.delay + 40; // ~667ms at 60fps — slow enough to follow
 
       // Spawn spark VFX from current box to partner
       chainSparks.push({
@@ -66,7 +66,7 @@ function chainReact(startIdx) {
         toIdx: partnerIdx,
         chainIdx: neighbors[i].chainIdx,
         t: 0,
-        duration: 15,
+        duration: 40,
         delay: current.delay,
         started: false
       });
@@ -178,6 +178,27 @@ function updateChains() {
       chainFlashes.splice(i, 1);
     }
   }
+
+  // Remove chains where both boxes are used/empty
+  for (var i = chains.length - 1; i >= 0; i--) {
+    var boxA = stock[chains[i].a];
+    var boxB = stock[chains[i].b];
+    if (!boxA || !boxB) { chains.splice(i, 1); continue; }
+    var aGone = boxA.used || boxA.empty || boxA.isTunnel || boxA.isWall;
+    var bGone = boxB.used || boxB.empty || boxB.isTunnel || boxB.isWall;
+    if (aGone && bGone) {
+      // Fade-out burst along the chain before removing
+      var ax = boxA.x + L.bw / 2, ay = boxA.y + L.bh / 2;
+      var bx = boxB.x + L.bw / 2, by = boxB.y + L.bh / 2;
+      var mx = (ax + bx) / 2, my = (ay + by) / 2;
+      for (var p = 0; p < 6; p++) {
+        var a = Math.random() * Math.PI * 2, sp = 1 + Math.random() * 2;
+        particles.push({ x: mx, y: my, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
+          r: (2 + Math.random() * 2) * S, color: '#CDB064', life: 0.5, decay: 0.03, grav: false });
+      }
+      chains.splice(i, 1);
+    }
+  }
 }
 
 // Initialize chains from level data
@@ -217,43 +238,72 @@ function drawChains() {
       }
     }
 
-    // Chain link color
-    var shimmer = Math.sin(tick * 0.06 + i * 1.7) * 0.15 + 0.6;
-    if (flashAlpha > 0) {
-      // Red flash
-      var r = Math.floor(255);
+    // Chain link color — bold and visible
+    var shimmer = Math.sin(tick * 0.06 + i * 1.7) * 0.1 + 0.9;
+    var isFlashing = flashAlpha > 0;
+
+    // Outer glow (shadow layer)
+    ctx.save();
+    if (isFlashing) {
+      ctx.shadowColor = 'rgba(255,50,50,0.6)';
+      ctx.shadowBlur = 10 * S;
+    } else {
+      ctx.shadowColor = 'rgba(205,175,100,0.5)';
+      ctx.shadowBlur = 8 * S;
+    }
+
+    if (isFlashing) {
+      var r = 255;
       var g = Math.floor(60 * (1 - flashAlpha));
       var b2 = Math.floor(60 * (1 - flashAlpha));
-      ctx.strokeStyle = 'rgba(' + r + ',' + g + ',' + b2 + ',' + (0.7 + flashAlpha * 0.3) + ')';
-      ctx.lineWidth = 3.5 * S;
+      ctx.strokeStyle = 'rgba(' + r + ',' + g + ',' + b2 + ',' + (0.85 + flashAlpha * 0.15) + ')';
+      ctx.lineWidth = 5 * S;
     } else {
-      ctx.strokeStyle = 'rgba(205,175,100,' + shimmer + ')';
-      ctx.lineWidth = 2.5 * S;
+      ctx.strokeStyle = 'rgba(220,190,80,' + shimmer + ')';
+      ctx.lineWidth = 4 * S;
     }
 
     // Draw chain as dashed line (chain links)
     ctx.lineCap = 'round';
-    ctx.setLineDash([5 * S, 4 * S]);
+    ctx.setLineDash([6 * S, 4 * S]);
     ctx.beginPath();
     ctx.moveTo(ax, ay);
     ctx.lineTo(bx, by);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Draw small link circles at each end
-    var linkR = 3 * S;
-    var linkColor = flashAlpha > 0 ? 'rgba(255,80,80,' + (0.6 + flashAlpha * 0.4) + ')' : 'rgba(205,175,100,' + shimmer + ')';
+    // Inner bright highlight line
+    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+    ctx.strokeStyle = isFlashing
+      ? 'rgba(255,150,150,' + (0.4 + flashAlpha * 0.4) + ')'
+      : 'rgba(255,240,180,' + (shimmer * 0.5) + ')';
+    ctx.lineWidth = 2 * S;
+    ctx.setLineDash([6 * S, 4 * S]);
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    // Draw link circles at each end
+    var linkR = 5 * S;
+    var linkColor = isFlashing ? 'rgba(255,80,80,' + (0.7 + flashAlpha * 0.3) + ')' : 'rgba(220,190,80,' + shimmer + ')';
     ctx.fillStyle = linkColor;
     ctx.beginPath(); ctx.arc(ax, ay, linkR, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(bx, by, linkR, 0, Math.PI * 2); ctx.fill();
+    // Bright center dot
+    ctx.fillStyle = isFlashing ? 'rgba(255,200,200,0.8)' : 'rgba(255,245,200,0.7)';
+    ctx.beginPath(); ctx.arc(ax, ay, linkR * 0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(bx, by, linkR * 0.5, 0, Math.PI * 2); ctx.fill();
 
     // Glow effect for active flash
-    if (flashAlpha > 0) {
+    if (isFlashing) {
       ctx.save();
-      ctx.globalAlpha = flashAlpha * 0.3;
-      ctx.strokeStyle = 'rgba(255,50,50,0.8)';
-      ctx.lineWidth = 6 * S;
-      ctx.setLineDash([5 * S, 4 * S]);
+      ctx.globalAlpha = flashAlpha * 0.4;
+      ctx.strokeStyle = 'rgba(255,50,50,0.9)';
+      ctx.lineWidth = 8 * S;
+      ctx.setLineDash([6 * S, 4 * S]);
       ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
       ctx.setLineDash([]);
       ctx.restore();
@@ -280,19 +330,22 @@ function drawChains() {
     var sx = fx + (tx - fx) * t;
     var sy = fy + (ty - fy) * t;
 
-    // Spark glow
+    // Spark glow — large and bright
     ctx.save();
-    var sparkR = 8 * S;
+    var sparkR = 14 * S;
     var grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, sparkR);
-    grad.addColorStop(0, 'rgba(255,230,100,0.9)');
-    grad.addColorStop(0.4, 'rgba(255,200,50,0.5)');
-    grad.addColorStop(1, 'rgba(255,180,30,0)');
+    grad.addColorStop(0, 'rgba(255,240,150,1)');
+    grad.addColorStop(0.3, 'rgba(255,210,60,0.7)');
+    grad.addColorStop(0.6, 'rgba(255,180,30,0.3)');
+    grad.addColorStop(1, 'rgba(255,160,20,0)');
     ctx.fillStyle = grad;
     ctx.beginPath(); ctx.arc(sx, sy, sparkR, 0, Math.PI * 2); ctx.fill();
 
     // Spark core
-    ctx.fillStyle = '#FFF8DC';
-    ctx.beginPath(); ctx.arc(sx, sy, 3 * S, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#FFFDE8';
+    ctx.beginPath(); ctx.arc(sx, sy, 4.5 * S, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.beginPath(); ctx.arc(sx, sy, 2.5 * S, 0, Math.PI * 2); ctx.fill();
 
     // Trail particles
     if (tick % 2 === 0) {

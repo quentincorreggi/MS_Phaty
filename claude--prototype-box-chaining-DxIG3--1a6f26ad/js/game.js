@@ -537,8 +537,8 @@ function frame() {
     ctx.clearRect(0, 0, W, H);
     drawBackground();
     drawFunnel();
-    drawChains();
     drawStock();
+    drawChains();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();
