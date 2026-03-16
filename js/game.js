@@ -32,6 +32,7 @@ function initGame() {
   won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
+  initFreeze();
   document.getElementById('win-screen').classList.remove('show');
   computeLayout(); initBeltSlots();
 
@@ -310,6 +311,7 @@ function getSortBoxY(ci, vi) { return L.sTop + vi * (L.sBh + L.sGap); }
 function handleTap(px, py) {
   if (won || !gameActive) return;
   ensureAudio();
+  if (isFreezeButtonTap(px, py)) { activateFreeze(); return; }
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
@@ -497,6 +499,7 @@ function update() {
     if (box.type === 'lock' && box.triggerT > 0) box.triggerT = Math.max(0, box.triggerT - 0.03);
   }
 
+  updateFreeze();
   tickParticles();
   updateRollingSound();
 }
@@ -534,6 +537,7 @@ function frame() {
     drawJumpers();
     drawSortArea();
     drawBackButton();
+    drawFreezeButton();
     drawParticles();
     drawDebugWalls();
   }

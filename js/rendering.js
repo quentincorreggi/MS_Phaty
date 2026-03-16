@@ -264,7 +264,22 @@ function drawPhysMarbles() {
   for (var i = 0; i < physMarbles.length; i++) {
     var m = physMarbles[i];
     var bounce = m.spawnT > 0 ? (1 + Math.sin(m.spawnT * Math.PI) * 0.4) : 1;
-    drawMarble(m.x, m.y, m.r, m.ci, bounce);
+    if (m.frozen) {
+      ctx.save();
+      // Semi-transparent + slow shimmer
+      var shimmer = 0.38 + Math.sin(tick * 0.12 + i * 1.3) * 0.07;
+      ctx.globalAlpha = shimmer;
+      drawMarble(m.x, m.y, m.r, m.ci, bounce);
+      // Icy blue overlay
+      ctx.globalAlpha = 0.28 + Math.sin(tick * 0.10 + i) * 0.07;
+      ctx.fillStyle = '#88CCFF';
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, m.r * bounce, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    } else {
+      drawMarble(m.x, m.y, m.r, m.ci, bounce);
+    }
   }
 }
 

@@ -53,6 +53,12 @@ var blockerCollectT = 0;
 var blockerCollectSlots = [];
 var blockerCollectCleared = false;
 
+// === FREEZE BONUS ===
+var freezeActive = false;
+var freezeTimer = 0;
+var freezeUsed = false;
+var FREEZE_DURATION = 420;
+
 var MRB_PER_BOX = 9, SORT_CAP = 3;
 var SORT_VISIBLE_ROWS = 4;
 

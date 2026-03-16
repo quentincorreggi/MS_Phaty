@@ -35,6 +35,7 @@ function physicsStep() {
   for (var sub = 0; sub < subSteps; sub++) {
     for (var i = 0; i < physMarbles.length; i++) {
       var m = physMarbles[i];
+      if (m.frozen) continue;
       m.vy += PHYS_GRAVITY * S / subSteps;
       m.vx *= PHYS_DAMPING; m.vy *= PHYS_DAMPING;
       m.x += m.vx / subSteps; m.y += m.vy / subSteps;
@@ -42,6 +43,7 @@ function physicsStep() {
     for (var i = 0; i < physMarbles.length; i++) {
       for (var j = i + 1; j < physMarbles.length; j++) {
         var a = physMarbles[i], b = physMarbles[j];
+        if (a.frozen || b.frozen) continue;
         var dx = b.x - a.x, dy = b.y - a.y;
         var dist = Math.sqrt(dx * dx + dy * dy);
         var minD = a.r + b.r;
@@ -61,6 +63,7 @@ function physicsStep() {
     }
     for (var i = 0; i < physMarbles.length; i++) {
       var m = physMarbles[i];
+      if (m.frozen) continue;
       for (var w = 0; w < funnelWalls.length; w++) {
         var col = circleLineCollide(m.x, m.y, m.r, funnelWalls[w].x1, funnelWalls[w].y1, funnelWalls[w].x2, funnelWalls[w].y2);
         if (col) resolveWallCollision(m, col);
@@ -73,6 +76,7 @@ function physicsStep() {
   var exitR = L.funnelCx + L.funnelOpenW / 2;
   for (var i = physMarbles.length - 1; i >= 0; i--) {
     var m = physMarbles[i];
+    if (m.frozen) continue;
     if (m.y + m.r >= exitY - 3 * S && m.x > exitL - m.r && m.x < exitR + m.r) {
       var entryT = getBeltEntryT();
       var bestIdx = -1, bestDist = Infinity;
