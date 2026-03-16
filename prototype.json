@@ -1,0 +1,20 @@
+{
+  "name": "Shifter Box",
+  "description": "A box that changes color every 3 taps. Time your moves to get the color you need!",
+  "howToPlay": "Shifter boxes have a rainbow border and a circular arrow icon. Every time you tap 3 boxes anywhere on the grid, all Shifter boxes change to a random new color. Plan your taps carefully — tap the Shifter when its color matches a sort column you need to fill! Open the Level Editor to place Shifter boxes and test them yourself.",
+  "showcaseLevel": {
+    "name": "Shifter Demo",
+    "desc": "Try the color-changing Shifter boxes!",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "grid": [
+      null, {"ci":0,"type":"default"}, null, {"ci":1,"type":"default"}, null, {"ci":2,"type":"default"}, null,
+      {"ci":0,"type":"default"}, null, {"ci":1,"type":"shifter"}, null, {"ci":2,"type":"shifter"}, null, {"ci":3,"type":"default"},
+      null, {"ci":1,"type":"default"}, null, null, null, {"ci":3,"type":"default"}, null,
+      {"ci":0,"type":"default"}, null, null, null, null, null, {"ci":2,"type":"default"},
+      null, {"ci":3,"type":"default"}, null, null, null, {"ci":0,"type":"default"}, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}

@@ -32,6 +32,7 @@ function initGame() {
   won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
+  shifterTapCount = 0;
   document.getElementById('win-screen').classList.remove('show');
   computeLayout(); initBeltSlots();
 
@@ -136,6 +137,7 @@ function initGame() {
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        shifterFlashT: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
@@ -322,6 +324,7 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      onBoxTappedForShifters();
       return;
     }
   }
@@ -458,6 +461,7 @@ function update() {
     if (b.emptyT > 0) b.emptyT = Math.max(0, b.emptyT - 0.025);
     if (b.iceCrackT > 0) b.iceCrackT = Math.max(0, b.iceCrackT - 0.03);
     if (b.iceShatterT > 0) b.iceShatterT = Math.max(0, b.iceShatterT - 0.025);
+    if (b.shifterFlashT > 0) b.shifterFlashT = Math.max(0, b.shifterFlashT - 0.03);
     var th = (i === hoverIdx && !b.used && isBoxTappable(i)) ? 1 : 0;
     b.hoverT += (th - b.hoverT) * 0.12;
   }

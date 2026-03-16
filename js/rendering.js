@@ -237,6 +237,13 @@ function drawStock() {
         }
         drawBoxLip(b.ci);
       }
+      // Shifter rainbow border overlay on revealed/open state
+      if (b.boxType === 'shifter') {
+        var shifterType = getBoxType('shifter');
+        if (shifterType && shifterType._drawShifterOverlay) {
+          shifterType._drawShifterOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, tick);
+        }
+      }
     }
 
     if (b.iceHP > 0) {
@@ -250,6 +257,15 @@ function drawStock() {
       ctx.save();
       ctx.globalAlpha = b.iceShatterT * 0.4;
       ctx.fillStyle = 'rgba(200,235,255,1)';
+      rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.fill();
+      ctx.restore();
+    }
+
+    // Shifter color-change flash
+    if (b.shifterFlashT > 0 && b.boxType === 'shifter') {
+      ctx.save();
+      ctx.globalAlpha = b.shifterFlashT * 0.5;
+      ctx.fillStyle = 'rgba(255,255,255,1)';
       rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.fill();
       ctx.restore();
     }
