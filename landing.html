@@ -179,12 +179,12 @@
 <div class="container">
   <header>
     <div class="title">Marble Sorter</div>
-    <div class="subtitle">Prototype Library</div>
+    <div class="subtitle">Branch Library</div>
     <a id="base-game" class="base-game-link hidden" href="#">Play Base Game</a>
   </header>
 
   <div class="search-bar">
-    <input id="search" type="text" placeholder="Search prototypes...">
+    <input id="search" type="text" placeholder="Search branches...">
   </div>
 
   <div id="loading" class="loading">Loading prototypes...</div>
@@ -193,7 +193,7 @@
 
   <div id="empty" class="empty-state">
     <div class="emoji">🔮</div>
-    <div class="message">No prototypes yet</div>
+    <div class="message">No branches yet</div>
     <div class="hint">Create one by describing a game mechanic idea!</div>
   </div>
 </div>
@@ -219,12 +219,8 @@
     return new Date(iso).toLocaleDateString();
   }
 
-  function isPrototype(branch) {
-    return branch.indexOf('prototype') !== -1 && branch !== 'main';
-  }
-
   function formatName(branch) {
-    // Strip common prefixes: "claude/prototype-slug-ID" or "prototype/slug"
+    // Strip common prefixes: "claude/...", "prototype/..."
     var name = branch
       .replace(/^claude\//, '')
       .replace(/^prototype[\/-]/, '')
@@ -248,10 +244,10 @@
       baseGameEl.classList.remove('hidden');
     }
 
-    // Filter to branches containing "prototype"
+    // Show all branches except main
     var items = [];
     for (var i = 0; i < prototypes.length; i++) {
-      if (isPrototype(prototypes[i].branch)) {
+      if (prototypes[i].branch !== 'main') {
         items.push(prototypes[i]);
       }
     }
@@ -318,7 +314,7 @@
     }
     emptyEl.style.display = (allCards.length > 0 && visibleCount === 0) ? 'block' : 'none';
     if (visibleCount === 0 && allCards.length > 0) {
-      emptyEl.querySelector('.message').textContent = 'No matching prototypes';
+      emptyEl.querySelector('.message').textContent = 'No matching branches';
       emptyEl.querySelector('.hint').textContent = 'Try a different search term';
     }
   }
