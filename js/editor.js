@@ -649,5 +649,42 @@ function editorShowToast(msg) {
   setTimeout(function () { el.classList.remove('show'); }, 2000);
 }
 
+// ── Save as Showcase (generates prototype.json content) ──
+function editorSaveShowcase() {
+  var total = 0;
+  for (var i = 0; i < 49; i++) if (editor.grid[i]) total++;
+  if (total === 0) { editorShowToast('Place some boxes first!'); return; }
+
+  var level = editorBuildLevel();
+  var proto = {
+    name: '',
+    description: '',
+    howToPlay: '',
+    author: '',
+    showcaseLevel: level
+  };
+
+  // Pre-fill from existing prototype.json if loaded
+  if (typeof prototypeInfo !== 'undefined' && prototypeInfo) {
+    if (prototypeInfo.name) proto.name = prototypeInfo.name;
+    if (prototypeInfo.description) proto.description = prototypeInfo.description;
+    if (prototypeInfo.howToPlay) proto.howToPlay = prototypeInfo.howToPlay;
+    if (prototypeInfo.author) proto.author = prototypeInfo.author;
+  }
+
+  var json = JSON.stringify(proto, null, 2);
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(json).then(function() {
+      editorShowToast('prototype.json copied to clipboard!');
+    }).catch(function() {
+      editorShowExportFallback(json);
+      editorShowToast('Select all and copy the prototype.json');
+    });
+  } else {
+    editorShowExportFallback(json);
+    editorShowToast('Select all and copy the prototype.json');
+  }
+}
+
 function editorSetName(val) { editor.name = val; }
 function editorSetDesc(val) { editor.desc = val; }
