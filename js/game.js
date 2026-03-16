@@ -142,6 +142,15 @@ function initGame() {
     }
   }
 
+  // ── Build chains from level data ──
+  chains = [];
+  if (lvl.chains) {
+    for (var chi = 0; chi < lvl.chains.length; chi++) {
+      var pair = lvl.chains[chi];
+      chains.push({ a: pair[0], b: pair[1], errorT: 0 });
+    }
+  }
+
   // ── Initial reveal: lowest non-empty box per column ──
   for (var c = 0; c < L.cols; c++) {
     for (var r = L.rows - 1; r >= 0; r--) {
@@ -317,11 +326,33 @@ function handleTap(px, py) {
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
+      // Chain check: partner must also be ready
+      if (!isChainReady(i)) {
+        b.shakeT = 0.5;
+        var ch = getChainForBox(i);
+        if (ch) {
+          ch.errorT = 1;
+          var pi = getChainPartnerIdx(i);
+          if (pi >= 0) stock[pi].shakeT = 0.5;
+        }
+        return;
+      }
       b.popT = 1;
       sfx.pop();
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      // Activate chain partner
+      var chainPI = getChainPartnerIdx(i);
+      if (chainPI >= 0) {
+        var cp = stock[chainPI];
+        if (!cp.used && !cp.spawning && cp.remaining > 0) {
+          cp.popT = 1;
+          spawnBurst(cp.x + L.bw / 2, cp.y + L.bh / 2, COLORS[cp.ci].fill, 18);
+          spawnPhysMarbles(cp);
+          damageAdjacentIce(chainPI);
+        }
+      }
       return;
     }
   }
@@ -353,6 +384,9 @@ function update() {
   for (var i = 0; i < BELT_SLOTS; i++) {
     if (beltSlots[i].arriveAnim > 0) beltSlots[i].arriveAnim = Math.max(0, beltSlots[i].arriveAnim - 0.025);
   }
+
+  // ── Chain animations ──
+  updateChains();
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
@@ -528,6 +562,7 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    drawChains();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();

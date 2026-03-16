@@ -17,6 +17,9 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  chainMode: false,     // true when linking chains
+  chains: [],           // [[idxA, idxB], ...]
+  chainFirst: -1,       // first selected cell when creating a chain
   visible: false
 };
 
@@ -34,6 +37,9 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.chainMode = false;
+  editor.chains = [];
+  editor.chainFirst = -1;
 }
 
 function showEditor(fresh) {
@@ -60,6 +66,7 @@ function editorBuildUI() {
   editorRenderSettings();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  requestAnimationFrame(editorRenderChainOverlay);
 }
 
 // ── Grid ──
@@ -95,6 +102,22 @@ function editorRenderGrid() {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
     }
+    // Chain badge
+    var isChained = false;
+    for (var ch = 0; ch < editor.chains.length; ch++) {
+      if (editor.chains[ch][0] === i || editor.chains[ch][1] === i) { isChained = true; break; }
+    }
+    if (isChained) {
+      var badge = document.createElement('span');
+      badge.style.cssText = 'position:absolute;bottom:-2px;left:-2px;background:rgba(50,50,50,0.85);color:#fff;font-size:8px;min-width:14px;height:14px;border-radius:7px;display:flex;align-items:center;justify-content:center;pointer-events:none';
+      badge.textContent = '\uD83D\uDD17';
+      cell.appendChild(badge);
+    }
+    // Chain-first highlight
+    if (editor.chainMode && editor.chainFirst === i) {
+      cell.style.boxShadow = '0 0 0 3px rgba(50,50,50,0.8)';
+      cell.style.borderColor = '#333';
+    }
     cell.setAttribute('data-idx', i);
     cell.addEventListener('click', editorCellClick);
     cell.addEventListener('contextmenu', editorCellErase);
@@ -102,18 +125,65 @@ function editorRenderGrid() {
   }
 }
 
+function editorRemoveChainsForCell(idx) {
+  for (var i = editor.chains.length - 1; i >= 0; i--) {
+    if (editor.chains[i][0] === idx || editor.chains[i][1] === idx) {
+      editor.chains.splice(i, 1);
+    }
+  }
+}
+
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  // Chain mode
+  if (editor.chainMode) {
+    var v = editor.grid[idx];
+    if (!v || v.tunnel || v.wall) {
+      editor.chainFirst = -1;
+      editorRenderGrid();
+      editorRenderToolbar();
+      requestAnimationFrame(editorRenderChainOverlay);
+      return;
+    }
+    // Check if already chained
+    var existingIdx = -1;
+    for (var c = 0; c < editor.chains.length; c++) {
+      if (editor.chains[c][0] === idx || editor.chains[c][1] === idx) { existingIdx = c; break; }
+    }
+    if (editor.chainFirst === -1) {
+      if (existingIdx >= 0) {
+        // Remove existing chain
+        editor.chains.splice(existingIdx, 1);
+      } else {
+        // Select first box
+        editor.chainFirst = idx;
+      }
+    } else if (editor.chainFirst === idx) {
+      // Deselect
+      editor.chainFirst = -1;
+    } else {
+      // Remove any existing chains for either box
+      editorRemoveChainsForCell(editor.chainFirst);
+      editorRemoveChainsForCell(idx);
+      // Create new chain
+      editor.chains.push([editor.chainFirst, idx]);
+      editor.chainFirst = -1;
+    }
+    editorRenderGrid();
+    editorRenderToolbar();
+    requestAnimationFrame(editorRenderChainOverlay);
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
     var existing = editor.grid[idx];
     if (existing && existing.wall) {
-      // Toggle off: clicking existing wall removes it
       editor.grid[idx] = null;
     } else {
-      // Place wall
       editor.grid[idx] = { wall: true };
+      editorRemoveChainsForCell(idx);
     }
     if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     editorRenderGrid();
@@ -129,15 +199,18 @@ function editorCellClick(e) {
       editor.selectedTunnel = idx;
     } else if (editor.activeColor === -1) {
       editor.grid[idx] = null;
+      editorRemoveChainsForCell(idx);
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     } else {
       editor.grid[idx] = { tunnel: true, dir: editor.tunnelDir, contents: [] };
+      editorRemoveChainsForCell(idx);
       editor.selectedTunnel = idx;
     }
   } else {
     // Normal box painting mode
     if (editor.activeColor === -1) {
       editor.grid[idx] = null;
+      editorRemoveChainsForCell(idx);
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     } else {
       var existing = editor.grid[idx];
@@ -158,10 +231,61 @@ function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
   editor.grid[idx] = null;
+  editorRemoveChainsForCell(idx);
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
   editorRenderGrid();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  requestAnimationFrame(editorRenderChainOverlay);
+}
+
+// ── Chain overlay (SVG lines on editor grid) ──
+function editorRenderChainOverlay() {
+  var grid = document.getElementById('ed-grid');
+  if (!grid) return;
+
+  // Ensure wrapper exists
+  var wrap = document.getElementById('ed-grid-wrap');
+  if (!wrap) return;
+
+  var svg = document.getElementById('ed-chain-svg');
+  if (!svg) {
+    svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.id = 'ed-chain-svg';
+    svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:2';
+    wrap.appendChild(svg);
+  }
+
+  svg.innerHTML = '';
+  if (!editor.chains || editor.chains.length === 0) return;
+
+  var cells = grid.querySelectorAll('.ed-cell');
+  var gridRect = grid.getBoundingClientRect();
+
+  for (var i = 0; i < editor.chains.length; i++) {
+    var a = editor.chains[i][0], b = editor.chains[i][1];
+    var cellA = cells[a], cellB = cells[b];
+    if (!cellA || !cellB) continue;
+
+    var rectA = cellA.getBoundingClientRect();
+    var rectB = cellB.getBoundingClientRect();
+
+    var ax = rectA.left + rectA.width / 2 - gridRect.left;
+    var ay = rectA.top + rectA.height / 2 - gridRect.top;
+    var bx = rectB.left + rectB.width / 2 - gridRect.left;
+    var by = rectB.top + rectB.height / 2 - gridRect.top;
+
+    var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', ax);
+    line.setAttribute('y1', ay);
+    line.setAttribute('x2', bx);
+    line.setAttribute('y2', by);
+    line.setAttribute('stroke', '#333');
+    line.setAttribute('stroke-width', '2');
+    line.setAttribute('stroke-dasharray', '5,4');
+    line.setAttribute('stroke-linecap', 'round');
+    svg.appendChild(line);
+  }
 }
 
 // ── Toolbar: mode toggle + type selector + color/direction palette ──
@@ -178,13 +302,15 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.chainMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.chainMode = false;
+      editor.chainFirst = -1;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -200,6 +326,8 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.chainMode = false;
+    editor.chainFirst = -1;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -214,14 +342,43 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.chainMode = false;
+    editor.chainFirst = -1;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(tunnelBtn);
 
+  // Chain mode button
+  var chainBtn = document.createElement('button');
+  chainBtn.className = 'ed-type-btn' + (editor.chainMode ? ' active' : '');
+  chainBtn.textContent = '\uD83D\uDD17 Chain';
+  chainBtn.style.borderColor = editor.chainMode ? 'rgba(50,50,50,0.6)' : '';
+  chainBtn.style.color = editor.chainMode ? '#333' : '';
+  chainBtn.addEventListener('click', function () {
+    editor.chainMode = !editor.chainMode;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editor.chainFirst = -1;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+    editorRenderGrid();
+    requestAnimationFrame(editorRenderChainOverlay);
+  });
+  typeRow.appendChild(chainBtn);
+
   el.appendChild(typeRow);
 
-  if (editor.tunnelMode) {
+  if (editor.chainMode) {
+    // Chain mode instructions
+    var chainInfo = document.createElement('div');
+    chainInfo.className = 'ed-color-row';
+    var msg = editor.chainFirst >= 0
+      ? 'Click another box to complete the chain'
+      : 'Click a box to start linking \u00B7 click linked box to unlink';
+    chainInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">' + msg + '</span>';
+    el.appendChild(chainInfo);
+  } else if (editor.tunnelMode) {
     // Direction selector row
     var dirRow = document.createElement('div');
     dirRow.className = 'ed-color-row';
@@ -430,6 +587,8 @@ function editorRenderTunnelPanel() {
 function editorFillRandom() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
+  editor.chains = [];
+  editor.chainFirst = -1;
   var cl = [];
   for (var c = 0; c < 4; c++) for (var n = 0; n < 6; n++) cl.push(c);
   shuffle(cl);
@@ -437,12 +596,16 @@ function editorFillRandom() {
   shuffle(indices);
   for (var i = 0; i < cl.length; i++) editor.grid[indices[i]] = { ci: cl[i], type: 'default' };
   editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+  requestAnimationFrame(editorRenderChainOverlay);
 }
 
 function editorClearAll() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
+  editor.chains = [];
+  editor.chainFirst = -1;
   editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+  requestAnimationFrame(editorRenderChainOverlay);
 }
 
 // ── Stats ──
@@ -563,12 +726,19 @@ function editorRenderSettings() {
 
 // ── Build level definition ──
 function editorBuildLevel() {
-  return {
+  var lvl = {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
     grid: editor.grid.slice()
   };
+  if (editor.chains.length > 0) {
+    lvl.chains = [];
+    for (var i = 0; i < editor.chains.length; i++) {
+      lvl.chains.push(editor.chains[i].slice());
+    }
+  }
+  return lvl;
 }
 
 // ── Test play ──
@@ -627,6 +797,15 @@ function editorImportJSON() {
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
+      if (lvl.chains) {
+        editor.chains = [];
+        for (var ci5 = 0; ci5 < lvl.chains.length; ci5++) {
+          editor.chains.push(lvl.chains[ci5].slice());
+        }
+      } else {
+        editor.chains = [];
+      }
+      editor.chainFirst = -1;
       var nameEl = document.getElementById('ed-name');
       var descEl = document.getElementById('ed-desc');
       if (nameEl) nameEl.value = editor.name;

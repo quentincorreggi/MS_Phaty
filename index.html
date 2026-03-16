@@ -74,7 +74,7 @@
     background:rgba(255,255,255,0.7);font-family:'Fredoka',sans-serif;font-size:13px;color:#5A4A38;outline:none}
   .ed-text-row input:focus{border-color:rgba(123,82,160,0.5)}
   .ed-text-row label{font-size:11px;color:#9C8A70;width:42px;text-align:right;display:flex;align-items:center;justify-content:flex-end;flex-shrink:0}
-  #ed-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;max-width:320px;margin:0 auto}
+  #ed-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
   .ed-cell{aspect-ratio:1;border-radius:6px;cursor:pointer;border:2px solid rgba(160,140,120,0.3);
     display:flex;align-items:center;justify-content:center;transition:transform 0.12s;-webkit-tap-highlight-color:transparent;
     position:relative}
@@ -210,7 +210,9 @@
     <div class="ed-section">
       <div class="ed-section-title"><span class="icon">&#128230;</span> Box Grid <span style="font-weight:400;font-size:10px;color:#9C8A70;margin-left:auto">tap = paint &middot; right-click = erase</span></div>
       <div id="ed-toolbar"></div>
-      <div id="ed-grid"></div>
+      <div id="ed-grid-wrap" style="position:relative;max-width:320px;margin:0 auto">
+        <div id="ed-grid"></div>
+      </div>
       <div class="ed-quick">
         <button class="ed-qbtn" onclick="editorFillRandom()">&#127922; Random 24</button>
         <button class="ed-qbtn" onclick="editorClearAll()">&#129529; Clear All</button>
@@ -251,6 +253,7 @@
 <script src="js/particles.js"></script>
 <script src="js/layout.js"></script>
 <script src="js/belt.js"></script>
+<script src="js/chain.js"></script>
 <script src="js/physics.js"></script>
 <script src="js/tunnel.js"></script>
 <script src="js/wall.js"></script>
