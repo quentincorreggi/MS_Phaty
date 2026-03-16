@@ -5,7 +5,7 @@
 // ============================================================
 
 var shifterTapCount = 0;
-var SHIFTER_TAP_THRESHOLD = 3;
+var SHIFTER_TAP_THRESHOLD = 2;
 
 function onBoxTappedForShifters() {
   shifterTapCount++;

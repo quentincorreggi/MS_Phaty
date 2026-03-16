@@ -28,6 +28,12 @@ document.getElementById('mrbGapSlider').addEventListener('input', function () {
   document.getElementById('mrbGapVal').textContent = this.value;
 });
 
+document.getElementById('shifterSlider').addEventListener('input', function () {
+  SHIFTER_TAP_THRESHOLD = parseInt(this.value);
+  shifterTapCount = 0;
+  document.getElementById('shifterVal').textContent = this.value;
+});
+
 function hookCal(id, obj, key, factor) {
   var el = document.getElementById(id);
   var valEl = document.getElementById(id + '-v');
