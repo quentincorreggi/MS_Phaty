@@ -186,6 +186,50 @@
     box-shadow: 0 3px 10px rgba(45, 184, 102, 0.35);
   }
 
+  .card-author {
+    font-size: 0.8em;
+    color: #9C8A70;
+    margin-bottom: 6px;
+  }
+
+  .card-author span {
+    color: #7B52A0;
+    font-weight: 600;
+  }
+
+  .author-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .author-filter.hidden { display: none; }
+
+  .author-chip {
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-family: 'Fredoka', sans-serif;
+    font-size: 0.85em;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid rgba(180, 165, 145, 0.4);
+    background: rgba(255, 255, 255, 0.5);
+    color: #5A4A38;
+    transition: all 0.15s;
+  }
+
+  .author-chip:hover {
+    border-color: rgba(123, 82, 160, 0.4);
+    background: rgba(255, 255, 255, 0.7);
+  }
+
+  .author-chip.active {
+    background: linear-gradient(135deg, #C89CF2, #9060C4);
+    color: #fff;
+    border-color: transparent;
+  }
+
   .empty-state {
     text-align: center;
     padding: 60px 20px;
@@ -229,6 +273,8 @@
     <input id="search" type="text" placeholder="Search branches...">
   </div>
 
+  <div id="author-filter" class="author-filter hidden"></div>
+
   <div id="loading" class="loading">Loading prototypes...</div>
 
   <div id="cards" class="cards-grid" style="display:none;"></div>
@@ -247,7 +293,9 @@
   var loadingEl = document.getElementById('loading');
   var searchEl = document.getElementById('search');
   var baseGameEl = document.getElementById('base-game');
+  var authorFilterEl = document.getElementById('author-filter');
   var allCards = [];
+  var activeAuthor = null;
 
   function relativeTime(iso) {
     var diff = Date.now() - new Date(iso).getTime();
@@ -326,6 +374,14 @@
       branchDiv.textContent = p.branch;
       card.appendChild(branchDiv);
 
+      if (p.author) {
+        var authorDiv = document.createElement('div');
+        authorDiv.className = 'card-author';
+        authorDiv.innerHTML = 'by <span>' + p.author.replace(/</g, '&lt;') + '</span>';
+        card.appendChild(authorDiv);
+        card.dataset.author = p.author.toLowerCase();
+      }
+
       if (p.description) {
         var descDiv = document.createElement('div');
         descDiv.className = 'card-description';
@@ -372,20 +428,76 @@
       cardsEl.appendChild(card);
       allCards.push(card);
     }
+
+    buildAuthorFilter(items);
+  }
+
+  function buildAuthorFilter(items) {
+    var authors = {};
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].author) {
+        authors[items[i].author] = true;
+      }
+    }
+    var names = Object.keys(authors).sort();
+    if (names.length < 2) {
+      authorFilterEl.classList.add('hidden');
+      return;
+    }
+    authorFilterEl.classList.remove('hidden');
+    authorFilterEl.innerHTML = '';
+
+    var allChip = document.createElement('button');
+    allChip.className = 'author-chip active';
+    allChip.textContent = 'All';
+    allChip.onclick = function() {
+      activeAuthor = null;
+      updateChipStates();
+      filterCards();
+    };
+    authorFilterEl.appendChild(allChip);
+
+    for (var i = 0; i < names.length; i++) {
+      (function(name) {
+        var chip = document.createElement('button');
+        chip.className = 'author-chip';
+        chip.textContent = name;
+        chip.onclick = function() {
+          activeAuthor = name.toLowerCase();
+          updateChipStates();
+          filterCards();
+        };
+        authorFilterEl.appendChild(chip);
+      })(names[i]);
+    }
+  }
+
+  function updateChipStates() {
+    var chips = authorFilterEl.querySelectorAll('.author-chip');
+    for (var i = 0; i < chips.length; i++) {
+      if (i === 0) {
+        chips[i].className = 'author-chip' + (activeAuthor === null ? ' active' : '');
+      } else {
+        chips[i].className = 'author-chip' + (activeAuthor === chips[i].textContent.toLowerCase() ? ' active' : '');
+      }
+    }
   }
 
   function filterCards() {
     var query = searchEl.value.toLowerCase().trim();
     var visibleCount = 0;
     for (var i = 0; i < allCards.length; i++) {
-      var match = !query || allCards[i].dataset.branch.indexOf(query) !== -1 || (allCards[i].dataset.description && allCards[i].dataset.description.indexOf(query) !== -1);
-      allCards[i].style.display = match ? '' : 'none';
+      var c = allCards[i];
+      var matchText = !query || c.dataset.branch.indexOf(query) !== -1 || (c.dataset.description && c.dataset.description.indexOf(query) !== -1);
+      var matchAuthor = !activeAuthor || (c.dataset.author && c.dataset.author === activeAuthor);
+      var match = matchText && matchAuthor;
+      c.style.display = match ? '' : 'none';
       if (match) visibleCount++;
     }
     emptyEl.style.display = (allCards.length > 0 && visibleCount === 0) ? 'block' : 'none';
     if (visibleCount === 0 && allCards.length > 0) {
       emptyEl.querySelector('.message').textContent = 'No matching branches';
-      emptyEl.querySelector('.hint').textContent = 'Try a different search term';
+      emptyEl.querySelector('.hint').textContent = 'Try a different search or filter';
     }
   }
 

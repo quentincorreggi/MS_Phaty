@@ -18,6 +18,9 @@ Library landing page.
    commits).
 
 4. **Propose sharing metadata.** Present the user with:
+   - **Author** — Ask who should be credited. Use their name or GitHub
+     username. If they don't specify, use the current git user name
+     (`git config user.name`).
    - **Name** — A short, human-friendly name for the mechanic (2-4 words)
    - **Description** — One or two plain-language sentences explaining what
      this mechanic does
@@ -31,6 +34,7 @@ Library landing page.
    ```json
    {
      "name": "Mechanic Name",
+     "author": "Author Name",
      "description": "What this mechanic does.",
      "howToPlay": "How to use it in the editor and during gameplay.",
      "showcaseLevel": { ...the pasted level JSON object... }
