@@ -1,0 +1,20 @@
+{
+  "name": "Freeze Bonus",
+  "description": "Tap the ❄ Freeze button to suspend all funnel marbles mid-air for 7 seconds. Frozen marbles are semi-transparent and non-colliding, giving you a window to tap boxes without interference.",
+  "howToPlay": "Tap any box to launch marbles into the funnel, then press ❄ Freeze to freeze them in place. The bonus works once per level.",
+  "showcaseLevel": {
+    "name": "Freeze Demo",
+    "desc": "Try the freeze bonus!",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "grid": [
+      null, {"ci":0,"type":"default"}, {"ci":1,"type":"default"}, {"ci":2,"type":"default"}, {"ci":0,"type":"default"}, {"ci":1,"type":"default"}, null,
+      {"ci":3,"type":"default"}, null, {"ci":2,"type":"default"}, null, {"ci":3,"type":"default"}, null, {"ci":0,"type":"default"},
+      null, {"ci":1,"type":"default"}, null, {"ci":4,"type":"default"}, null, {"ci":2,"type":"default"}, null,
+      {"ci":4,"type":"default"}, null, {"ci":3,"type":"default"}, null, {"ci":0,"type":"default"}, null, {"ci":1,"type":"default"},
+      null, {"ci":2,"type":"default"}, null, {"ci":4,"type":"default"}, null, {"ci":3,"type":"default"}, null,
+      {"ci":1,"type":"default"}, null, {"ci":0,"type":"default"}, null, {"ci":2,"type":"default"}, null, {"ci":4,"type":"default"},
+      null, {"ci":3,"type":"default"}, {"ci":1,"type":"default"}, {"ci":0,"type":"default"}, {"ci":4,"type":"default"}, {"ci":2,"type":"default"}, null
+    ]
+  }
+}
