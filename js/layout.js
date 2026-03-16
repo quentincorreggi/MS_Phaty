@@ -93,6 +93,14 @@ function computeLayout() {
   L.bkY = 10 * S + bkCal.dy * S;
   L.bkSize = bkSize;
 
+  // FREEZE BUTTON — right side of header area
+  var fbtnH = 36 * S;
+  var fbtnW = 48 * S;
+  L.freezeBtnW = fbtnW;
+  L.freezeBtnH = fbtnH;
+  L.freezeBtnX = L.gameRight - fbtnW - 8 * S;
+  L.freezeBtnY = L.bkY + (bkSize - fbtnH) / 2;
+
   // Sort-belt alignment
   L.sortBeltT = [];
   for (var c = 0; c < 4; c++) {

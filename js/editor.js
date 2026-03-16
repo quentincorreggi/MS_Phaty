@@ -11,6 +11,7 @@ var editor = {
   mrbPerBox: 9,
   sortCap: 3,
   lockButtons: 0,
+  freeze: false,
   activeColor: 0,      // -1=eraser, 0-7=color
   activeType: BoxTypeOrder[0],
   tunnelMode: false,    // true when placing tunnels
@@ -28,6 +29,7 @@ function editorInit() {
   editor.mrbPerBox = 9;
   editor.sortCap = 3;
   editor.lockButtons = 0;
+  editor.freeze = false;
   editor.activeColor = 0;
   editor.activeType = BoxTypeOrder[0];
   editor.tunnelMode = false;
@@ -559,16 +561,27 @@ function editorRenderSettings() {
       });
     })(fields[i]);
   }
+  // Freeze toggle
+  var fRow = document.createElement('div');
+  fRow.className = 'ed-setting-row';
+  fRow.innerHTML = '<label>\u2744 Freeze</label>' +
+    '<input type="checkbox" id="ed-s-freeze"' + (editor.freeze ? ' checked' : '') + ' style="width:18px;height:18px;cursor:pointer">';
+  el.appendChild(fRow);
+  document.getElementById('ed-s-freeze').addEventListener('change', function () {
+    editor.freeze = this.checked;
+  });
 }
 
 // ── Build level definition ──
 function editorBuildLevel() {
-  return {
+  var lvl = {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
     grid: editor.grid.slice()
   };
+  if (editor.freeze) lvl.freeze = true;
+  return lvl;
 }
 
 // ── Test play ──
@@ -625,6 +638,7 @@ function editorImportJSON() {
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
+      editor.freeze = !!lvl.freeze;
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
       var nameEl = document.getElementById('ed-name');

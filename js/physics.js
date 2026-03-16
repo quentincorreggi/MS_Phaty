@@ -35,6 +35,7 @@ function physicsStep() {
   for (var sub = 0; sub < subSteps; sub++) {
     for (var i = 0; i < physMarbles.length; i++) {
       var m = physMarbles[i];
+      if (m.frozen) continue; // frozen marbles don't move
       m.vy += PHYS_GRAVITY * S / subSteps;
       m.vx *= PHYS_DAMPING; m.vy *= PHYS_DAMPING;
       m.x += m.vx / subSteps; m.y += m.vy / subSteps;
@@ -42,6 +43,10 @@ function physicsStep() {
     for (var i = 0; i < physMarbles.length; i++) {
       for (var j = i + 1; j < physMarbles.length; j++) {
         var a = physMarbles[i], b = physMarbles[j];
+        // Skip collision if one is frozen and the other is not
+        if (a.frozen !== b.frozen) continue;
+        // Skip collision between two frozen marbles (no need)
+        if (a.frozen && b.frozen) continue;
         var dx = b.x - a.x, dy = b.y - a.y;
         var dist = Math.sqrt(dx * dx + dy * dy);
         var minD = a.r + b.r;
@@ -61,6 +66,7 @@ function physicsStep() {
     }
     for (var i = 0; i < physMarbles.length; i++) {
       var m = physMarbles[i];
+      if (m.frozen) continue; // frozen marbles don't collide with walls
       for (var w = 0; w < funnelWalls.length; w++) {
         var col = circleLineCollide(m.x, m.y, m.r, funnelWalls[w].x1, funnelWalls[w].y1, funnelWalls[w].x2, funnelWalls[w].y2);
         if (col) resolveWallCollision(m, col);

@@ -32,6 +32,10 @@ function initGame() {
   won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
+  // Time freeze reset
+  var lvlFreeze = LEVELS[currentLevel] && LEVELS[currentLevel].freeze;
+  freezeAvailable = !!lvlFreeze;
+  freezeActive = false; freezeUsed = false; freezeTimer = 0; freezeFlashT = 0;
   document.getElementById('win-screen').classList.remove('show');
   computeLayout(); initBeltSlots();
 
@@ -311,6 +315,8 @@ function handleTap(px, py) {
   if (won || !gameActive) return;
   ensureAudio();
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
+  // Time freeze button
+  if (isFreezeButtonTap(px, py)) { activateFreeze(); return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
@@ -333,6 +339,7 @@ canvas.addEventListener('mousemove', function (e) {
   hoverIdx = -1;
   if (!gameActive) return;
   if (e.clientX >= L.bkX && e.clientX <= L.bkX + L.bkSize && e.clientY >= L.bkY && e.clientY <= L.bkY + L.bkSize) { canvas.style.cursor = 'pointer'; return; }
+  if (isFreezeButtonTap(e.clientX, e.clientY)) { canvas.style.cursor = 'pointer'; return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;
@@ -348,6 +355,7 @@ function update() {
   if (!gameActive) return;
   tick++;
   physicsStep();
+  updateFreeze();
 
   beltOffset = (beltOffset + BELT_SPEED * S) % 1;
   for (var i = 0; i < BELT_SLOTS; i++) {
@@ -527,6 +535,7 @@ function frame() {
     ctx.clearRect(0, 0, W, H);
     drawBackground();
     drawFunnel();
+    drawFreezeOverlay();
     drawStock();
     drawPhysMarbles();
     drawBelt();
@@ -534,6 +543,7 @@ function frame() {
     drawJumpers();
     drawSortArea();
     drawBackButton();
+    drawFreezeButton();
     drawParticles();
     drawDebugWalls();
   }

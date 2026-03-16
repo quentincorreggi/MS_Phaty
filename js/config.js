@@ -13,7 +13,23 @@ var audioCtx = null;
 
 // === LEVEL SYSTEM ===
 var currentLevel = 0;
-var LEVELS = [];
+var LEVELS = [
+  {
+    name: 'Time Freeze Demo',
+    desc: 'Use the freeze button to pause marbles mid-funnel!',
+    mrbPerBox: 9, sortCap: 3, lockButtons: 0,
+    freeze: true,
+    grid: [
+      null, null, null, null, null, null, null,
+      null, {ci:0,type:'default'}, null, {ci:1,type:'default'}, null, {ci:2,type:'default'}, null,
+      null, null, {ci:0,type:'default'}, null, {ci:1,type:'default'}, null, null,
+      null, {ci:2,type:'default'}, null, {ci:3,type:'default'}, null, {ci:3,type:'default'}, null,
+      null, null, {ci:0,type:'hidden'}, null, {ci:1,type:'hidden'}, null, null,
+      null, {ci:2,type:'hidden'}, null, {ci:3,type:'hidden'}, null, {ci:0,type:'hidden'}, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+];
 var levelStars = [];
 var unlockedLevels = 0;
 var gameActive = false;
@@ -54,6 +70,14 @@ var blockerCollectSlots = [];
 var blockerCollectCleared = false;
 
 var MRB_PER_BOX = 9, SORT_CAP = 3;
+
+// === TIME FREEZE BONUS ===
+var freezeAvailable = false;   // level has freeze bonus
+var freezeActive = false;      // freeze is currently running
+var freezeUsed = false;        // already used this level
+var freezeTimer = 0;           // frames remaining (5s = 300 frames)
+var FREEZE_DURATION = 300;     // 5 seconds at 60fps
+var freezeFlashT = 0;          // activation flash animation
 var SORT_VISIBLE_ROWS = 4;
 
 // Snake order for 3x3 grid

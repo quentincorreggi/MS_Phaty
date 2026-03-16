@@ -265,6 +265,20 @@ function drawPhysMarbles() {
     var m = physMarbles[i];
     var bounce = m.spawnT > 0 ? (1 + Math.sin(m.spawnT * Math.PI) * 0.4) : 1;
     drawMarble(m.x, m.y, m.r, m.ci, bounce);
+    // Frozen overlay
+    if (m.frozen) {
+      ctx.save();
+      var pulseAlpha = 0.25 + Math.sin(tick * 0.08 + i * 0.5) * 0.1;
+      ctx.globalAlpha = pulseAlpha;
+      var fGrad = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, m.r * 1.3);
+      fGrad.addColorStop(0, 'rgba(200,235,255,0.6)');
+      fGrad.addColorStop(0.7, 'rgba(126,200,227,0.4)');
+      fGrad.addColorStop(1, 'rgba(126,200,227,0)');
+      ctx.fillStyle = fGrad;
+      ctx.beginPath(); ctx.arc(m.x, m.y, m.r * 1.3, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
   }
 }
 
