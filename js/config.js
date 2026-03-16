@@ -74,5 +74,10 @@ var cal = {
 };
 
 // === HELPERS ===
+// === CHAINS ===
+var chains = [];        // [{a: idx, b: idx}] — pairs of linked grid indices
+var chainSparks = [];   // active spark VFX traveling along chains
+var chainFlashes = [];  // [{idx, t}] — red flash feedback on blocked taps
+
 function getMR() { return MARBLE_R_BASE * S * cal.marble.s; }
 function shuffle(arr) { for (var i = arr.length - 1; i > 0; i--) { var j = ~~(Math.random() * (i + 1)); var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp; } }

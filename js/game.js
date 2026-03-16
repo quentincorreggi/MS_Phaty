@@ -34,6 +34,7 @@ function initGame() {
   blockerCollectSlots = []; blockerCollectCleared = false;
   document.getElementById('win-screen').classList.remove('show');
   computeLayout(); initBeltSlots();
+  initChains(LEVELS[currentLevel]);
 
   var totalSlots = L.rows * L.cols;
   var lvl = LEVELS[currentLevel];
@@ -317,11 +318,19 @@ function handleTap(px, py) {
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
+      // Chain check: if chained, all direct partners must be revealed and ice-free
+      if (isChained(i) && !chainPartnersReady(i)) {
+        b.shakeT = 0.5;
+        chainFlashBlocked(i);
+        return;
+      }
       b.popT = 1;
       sfx.pop();
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      // Trigger chain reaction
+      if (isChained(i)) chainReact(i);
       return;
     }
   }
@@ -497,6 +506,7 @@ function update() {
     if (box.type === 'lock' && box.triggerT > 0) box.triggerT = Math.max(0, box.triggerT - 0.03);
   }
 
+  updateChains();
   tickParticles();
   updateRollingSound();
 }
@@ -527,6 +537,7 @@ function frame() {
     ctx.clearRect(0, 0, W, H);
     drawBackground();
     drawFunnel();
+    drawChains();
     drawStock();
     drawPhysMarbles();
     drawBelt();

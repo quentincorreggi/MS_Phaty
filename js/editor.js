@@ -17,6 +17,9 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  chainMode: false,     // true when using chain tool
+  chainFirst: -1,       // first box selected for chaining
+  chains: [],           // [{a, b}] chain pairs for the level
   visible: false
 };
 
@@ -34,6 +37,9 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.chainMode = false;
+  editor.chainFirst = -1;
+  editor.chains = [];
 }
 
 function showEditor(fresh) {
@@ -95,15 +101,120 @@ function editorRenderGrid() {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
     }
+    // Chain mode highlights
+    if (editor.chainMode) {
+      if (editor.chainFirst === i) {
+        cell.style.boxShadow = '0 0 0 3px rgba(205,175,100,0.8)';
+      }
+      if (editorIsChained(i)) {
+        cell.style.outline = '2px solid rgba(205,175,100,0.5)';
+        cell.style.outlineOffset = '-2px';
+      }
+    }
     cell.setAttribute('data-idx', i);
     cell.addEventListener('click', editorCellClick);
     cell.addEventListener('contextmenu', editorCellErase);
     el.appendChild(cell);
   }
+
+  // Draw chain lines as SVG overlay on the grid
+  if (editor.chains.length > 0) {
+    var gridEl = el;
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.style.position = 'absolute';
+    svg.style.top = '0';
+    svg.style.left = '0';
+    svg.style.width = '100%';
+    svg.style.height = '100%';
+    svg.style.pointerEvents = 'none';
+    svg.style.overflow = 'visible';
+    el.style.position = 'relative';
+
+    // We need to draw lines between cell centers after layout
+    // Use requestAnimationFrame to measure cell positions
+    setTimeout(function() {
+      var cells = el.querySelectorAll('.ed-cell');
+      if (cells.length === 0) return;
+      var gridRect = el.getBoundingClientRect();
+
+      for (var ci = 0; ci < editor.chains.length; ci++) {
+        var chain = editor.chains[ci];
+        var cellA = cells[chain.a];
+        var cellB = cells[chain.b];
+        if (!cellA || !cellB) continue;
+        var rectA = cellA.getBoundingClientRect();
+        var rectB = cellB.getBoundingClientRect();
+        var ax = rectA.left + rectA.width / 2 - gridRect.left;
+        var ay = rectA.top + rectA.height / 2 - gridRect.top;
+        var bx2 = rectB.left + rectB.width / 2 - gridRect.left;
+        var by2 = rectB.top + rectB.height / 2 - gridRect.top;
+
+        var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', ax);
+        line.setAttribute('y1', ay);
+        line.setAttribute('x2', bx2);
+        line.setAttribute('y2', by2);
+        line.setAttribute('stroke', '#CDB064');
+        line.setAttribute('stroke-width', '3');
+        line.setAttribute('stroke-dasharray', '6,4');
+        line.setAttribute('stroke-linecap', 'round');
+        line.setAttribute('opacity', '0.7');
+        svg.appendChild(line);
+
+        // Link dots at ends
+        var dotA = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dotA.setAttribute('cx', ax); dotA.setAttribute('cy', ay); dotA.setAttribute('r', '4');
+        dotA.setAttribute('fill', '#CDB064'); dotA.setAttribute('opacity', '0.8');
+        svg.appendChild(dotA);
+        var dotB = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dotB.setAttribute('cx', bx2); dotB.setAttribute('cy', by2); dotB.setAttribute('r', '4');
+        dotB.setAttribute('fill', '#CDB064'); dotB.setAttribute('opacity', '0.8');
+        svg.appendChild(dotB);
+      }
+
+      el.appendChild(svg);
+    }, 10);
+  }
 }
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.chainMode) {
+    var cell = editor.grid[idx];
+    // Only allow chaining on box cells (not empty, not wall, not tunnel)
+    if (!cell || cell.wall || cell.tunnel) {
+      // Check if clicking on a chain line to remove it
+      editorRemoveChainAt(idx);
+      editor.chainFirst = -1;
+      editorRenderGrid();
+      editorUpdateStats();
+      return;
+    }
+    if (editor.chainFirst < 0) {
+      // First box selected
+      editor.chainFirst = idx;
+      editorRenderGrid();
+    } else if (editor.chainFirst === idx) {
+      // Clicked same box — deselect
+      editor.chainFirst = -1;
+      editorRenderGrid();
+    } else {
+      // Second box selected — create or remove chain
+      var existingIdx = editorFindChain(editor.chainFirst, idx);
+      if (existingIdx >= 0) {
+        // Remove existing chain
+        editor.chains.splice(existingIdx, 1);
+      } else {
+        // Create new chain
+        editor.chains.push({ a: editor.chainFirst, b: idx });
+      }
+      editor.chainFirst = -1;
+      editorRenderGrid();
+      editorUpdateStats();
+    }
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -159,6 +270,7 @@ function editorCellErase(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
   editor.grid[idx] = null;
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+  editorRemoveChainAt(idx);
   editorRenderGrid();
   editorUpdateStats();
   editorRenderTunnelPanel();
@@ -185,6 +297,8 @@ function editorRenderToolbar() {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.chainMode = false;
+      editor.chainFirst = -1;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -200,6 +314,8 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.chainMode = false;
+    editor.chainFirst = -1;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -214,10 +330,29 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.chainMode = false;
+    editor.chainFirst = -1;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(tunnelBtn);
+
+  // Chain mode button
+  var chainBtn = document.createElement('button');
+  chainBtn.className = 'ed-type-btn' + (editor.chainMode ? ' active' : '');
+  chainBtn.textContent = '\u26D3 Chain';
+  chainBtn.style.borderColor = editor.chainMode ? 'rgba(205,175,100,0.6)' : '';
+  chainBtn.style.color = editor.chainMode ? '#B8922A' : '';
+  chainBtn.addEventListener('click', function () {
+    editor.chainMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editor.chainFirst = -1;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+    editorRenderGrid();
+  });
+  typeRow.appendChild(chainBtn);
 
   el.appendChild(typeRow);
 
@@ -254,6 +389,15 @@ function editorRenderToolbar() {
       dirRow.appendChild(db);
     }
     el.appendChild(dirRow);
+  } else if (editor.chainMode) {
+    // Chain mode: show info hint
+    var chainInfo = document.createElement('div');
+    chainInfo.className = 'ed-color-row';
+    var hint = editor.chainFirst >= 0
+      ? '<span style="font-size:11px;color:#B8922A">Now click a second box to chain them</span>'
+      : '<span style="font-size:11px;color:#9C8A70">Click a box to start a chain, then click another to link them</span>';
+    chainInfo.innerHTML = hint;
+    el.appendChild(chainInfo);
   } else if (editor.wallMode) {
     // Wall mode: just show info hint
     var wallInfo = document.createElement('div');
@@ -442,6 +586,8 @@ function editorFillRandom() {
 function editorClearAll() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
+  editor.chains = [];
+  editor.chainFirst = -1;
   editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
 }
 
@@ -503,6 +649,9 @@ function editorUpdateStats() {
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
   }
+  if (editor.chains.length > 0) {
+    html += '<span class="ed-stat-chip" style="background:#B8922A">' + editor.chains.length + ' chain' + (editor.chains.length > 1 ? 's' : '') + '</span>';
+  }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
   }
@@ -563,12 +712,19 @@ function editorRenderSettings() {
 
 // ── Build level definition ──
 function editorBuildLevel() {
-  return {
+  var lvl = {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
     grid: editor.grid.slice()
   };
+  if (editor.chains.length > 0) {
+    lvl.chains = [];
+    for (var i = 0; i < editor.chains.length; i++) {
+      lvl.chains.push({ a: editor.chains[i].a, b: editor.chains[i].b });
+    }
+  }
+  return lvl;
 }
 
 // ── Test play ──
@@ -625,6 +781,14 @@ function editorImportJSON() {
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
+      if (lvl.chains) {
+        editor.chains = [];
+        for (var ci5 = 0; ci5 < lvl.chains.length; ci5++) {
+          editor.chains.push({ a: lvl.chains[ci5].a, b: lvl.chains[ci5].b });
+        }
+      } else {
+        editor.chains = [];
+      }
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
       var nameEl = document.getElementById('ed-name');
@@ -684,6 +848,31 @@ function editorSaveShowcase() {
     editorShowExportFallback(json);
     editorShowToast('Select all and copy the prototype.json');
   }
+}
+
+// ── Chain editor helpers ──
+function editorFindChain(a, b) {
+  for (var i = 0; i < editor.chains.length; i++) {
+    if ((editor.chains[i].a === a && editor.chains[i].b === b) ||
+        (editor.chains[i].a === b && editor.chains[i].b === a)) return i;
+  }
+  return -1;
+}
+
+function editorRemoveChainAt(idx) {
+  // Remove all chains connected to this index
+  for (var i = editor.chains.length - 1; i >= 0; i--) {
+    if (editor.chains[i].a === idx || editor.chains[i].b === idx) {
+      editor.chains.splice(i, 1);
+    }
+  }
+}
+
+function editorIsChained(idx) {
+  for (var i = 0; i < editor.chains.length; i++) {
+    if (editor.chains[i].a === idx || editor.chains[i].b === idx) return true;
+  }
+  return false;
 }
 
 function editorSetName(val) { editor.name = val; }
