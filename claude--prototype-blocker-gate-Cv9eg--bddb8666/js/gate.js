@@ -71,6 +71,21 @@ function gateOnBoxTap() {
   }
 }
 
+// Check if a marble at position mx is on the unblocked side of the gate
+function gateAllowsExit(mx) {
+  if (!gateEnabled || gateWalls.length === 0) return true;
+  var wall = gateWalls[0];
+  var endX = wall.x2;
+  var pivotX = wall.x1;
+  // Arm goes left of pivot → left blocked → only right side exits
+  // Arm goes right of pivot → right blocked → only left side exits
+  if (endX < pivotX) {
+    return mx > endX;
+  } else {
+    return mx < endX;
+  }
+}
+
 function drawGate() {
   if (!gateEnabled) return;
   var pivotX = L.funnelCx;
