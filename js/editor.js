@@ -17,6 +17,12 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  glassMode: false,     // true when placing glass panels
+  glassStep: null,      // null | 'a2' | 'b' — placement state machine
+  glassCorner1: -1,     // first corner cell index during placement
+  _glassA: null,        // { r1, c1, rows, cols } during placement step 'b'
+  glassPanels: [],      // array of { r1A, c1A, r1B, c1B, rows, cols, tapsToMove }
+  selectedGlass: -1,    // index of selected glass panel
   visible: false
 };
 
@@ -34,6 +40,12 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.glassMode = false;
+  editor.glassStep = null;
+  editor.glassCorner1 = -1;
+  editor._glassA = null;
+  editor.glassPanels = [];
+  editor.selectedGlass = -1;
 }
 
 function showEditor(fresh) {
@@ -60,6 +72,7 @@ function editorBuildUI() {
   editorRenderSettings();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderGlassPanel();
 }
 
 // ── Grid ──
@@ -100,10 +113,16 @@ function editorRenderGrid() {
     cell.addEventListener('contextmenu', editorCellErase);
     el.appendChild(cell);
   }
+  editorApplyGlassOverlays();
 }
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.glassMode) {
+    editorGlassCellClick(idx);
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -157,6 +176,19 @@ function editorCellClick(e) {
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+  // Check if cell is part of a glass panel — right-click deletes the panel
+  var row = Math.floor(idx / 7), col = idx % 7;
+  for (var gi = editor.glassPanels.length - 1; gi >= 0; gi--) {
+    var gp = editor.glassPanels[gi];
+    var inA = (row >= gp.r1A && row < gp.r1A + gp.rows && col >= gp.c1A && col < gp.c1A + gp.cols);
+    var inB = (row >= gp.r1B && row < gp.r1B + gp.rows && col >= gp.c1B && col < gp.c1B + gp.cols);
+    if (inA || inB) {
+      editor.glassPanels.splice(gi, 1);
+      if (editor.selectedGlass >= editor.glassPanels.length) editor.selectedGlass = -1;
+      editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel(); editorRenderGlassPanel();
+      return;
+    }
+  }
   editor.grid[idx] = null;
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
   editorRenderGrid();
@@ -185,8 +217,11 @@ function editorRenderToolbar() {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.glassMode = false;
+      editor.glassStep = null;
       editorRenderToolbar();
       editorRenderTunnelPanel();
+      editorRenderGlassPanel();
     });
     typeRow.appendChild(tb);
   }
@@ -200,8 +235,11 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.glassMode = false;
+    editor.glassStep = null;
     editorRenderToolbar();
     editorRenderTunnelPanel();
+    editorRenderGlassPanel();
   });
   typeRow.appendChild(wallBtn);
 
@@ -214,10 +252,29 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.glassMode = false;
+    editor.glassStep = null;
     editorRenderToolbar();
     editorRenderTunnelPanel();
+    editorRenderGlassPanel();
   });
   typeRow.appendChild(tunnelBtn);
+
+  // Glass panel mode button
+  var glassBtn = document.createElement('button');
+  glassBtn.className = 'ed-type-btn' + (editor.glassMode ? ' active' : '');
+  glassBtn.textContent = '\u25A8 Glass';
+  glassBtn.style.borderColor = editor.glassMode ? 'rgba(80,160,240,0.6)' : '';
+  glassBtn.style.color = editor.glassMode ? '#4A90D0' : '';
+  glassBtn.addEventListener('click', function () {
+    editor.glassMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+    editorRenderGlassPanel();
+  });
+  typeRow.appendChild(glassBtn);
 
   el.appendChild(typeRow);
 
@@ -260,6 +317,15 @@ function editorRenderToolbar() {
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
+  } else if (editor.glassMode) {
+    // Glass mode: show placement instructions
+    var glassInfo = document.createElement('div');
+    glassInfo.className = 'ed-color-row';
+    var hint = 'Click cells to place glass panels \u00B7 right-click to delete';
+    if (editor.glassStep === 'a2') hint = 'Click opposite corner of position A';
+    else if (editor.glassStep === 'b') hint = 'Click top-left of position B (' + editor._glassA.rows + '\u00D7' + editor._glassA.cols + ')';
+    glassInfo.innerHTML = '<span style="font-size:11px;color:#4A90D0">' + hint + '</span>';
+    el.appendChild(glassInfo);
   } else {
     // Color palette: eraser + 8 colors
     var colorRow = document.createElement('div');
@@ -442,7 +508,10 @@ function editorFillRandom() {
 function editorClearAll() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
-  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+  editor.glassPanels = [];
+  editor.selectedGlass = -1;
+  editor.glassStep = null;
+  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel(); editorRenderGlassPanel();
 }
 
 // ── Stats ──
@@ -502,6 +571,9 @@ function editorUpdateStats() {
   }
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
+  }
+  if (editor.glassPanels.length > 0) {
+    html += '<span class="ed-stat-chip" style="background:#4A90D0">' + editor.glassPanels.length + ' glass panel' + (editor.glassPanels.length > 1 ? 's' : '') + '</span>';
   }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
@@ -563,12 +635,21 @@ function editorRenderSettings() {
 
 // ── Build level definition ──
 function editorBuildLevel() {
-  return {
+  var lvl = {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
     grid: editor.grid.slice()
   };
+  if (editor.glassPanels.length > 0) {
+    lvl.panels = [];
+    for (var gi = 0; gi < editor.glassPanels.length; gi++) {
+      var gp = editor.glassPanels[gi];
+      lvl.panels.push({ r1A: gp.r1A, c1A: gp.c1A, r1B: gp.r1B, c1B: gp.c1B,
+        rows: gp.rows, cols: gp.cols, tapsToMove: gp.tapsToMove });
+    }
+  }
+  return lvl;
 }
 
 // ── Test play ──
@@ -625,6 +706,15 @@ function editorImportJSON() {
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
+      if (lvl.panels && lvl.panels.length > 0) {
+        editor.glassPanels = [];
+        for (var pi = 0; pi < lvl.panels.length; pi++) {
+          var pp = lvl.panels[pi];
+          editor.glassPanels.push({ r1A: pp.r1A, c1A: pp.c1A, r1B: pp.r1B, c1B: pp.c1B,
+            rows: pp.rows, cols: pp.cols, tapsToMove: pp.tapsToMove || 3 });
+        }
+      } else { editor.glassPanels = []; }
+      editor.selectedGlass = -1;
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
       var nameEl = document.getElementById('ed-name');
@@ -688,3 +778,166 @@ function editorSaveShowcase() {
 
 function editorSetName(val) { editor.name = val; }
 function editorSetDesc(val) { editor.desc = val; }
+
+// ── Glass panel editor functions ──
+
+function editorGlassCellClick(idx) {
+  if (editor.glassStep === null) {
+    // First click: corner 1 of position A
+    editor.glassCorner1 = idx;
+    editor.glassStep = 'a2';
+  } else if (editor.glassStep === 'a2') {
+    // Second click: corner 2 of position A — compute rectangle
+    var r1 = Math.floor(editor.glassCorner1 / 7), c1 = editor.glassCorner1 % 7;
+    var r2 = Math.floor(idx / 7), c2 = idx % 7;
+    editor._glassA = {
+      r1: Math.min(r1, r2), c1: Math.min(c1, c2),
+      rows: Math.abs(r2 - r1) + 1, cols: Math.abs(c2 - c1) + 1
+    };
+    editor.glassStep = 'b';
+  } else if (editor.glassStep === 'b') {
+    // Third click: top-left of position B
+    var r = Math.floor(idx / 7), c = idx % 7;
+    var a = editor._glassA;
+    if (r + a.rows > 7 || c + a.cols > 7) {
+      editorShowToast('Position B goes out of bounds!');
+      return;
+    }
+    editor.glassPanels.push({
+      r1A: a.r1, c1A: a.c1,
+      r1B: r, c1B: c,
+      rows: a.rows, cols: a.cols,
+      tapsToMove: 3
+    });
+    editor.glassStep = null;
+    editor.glassCorner1 = -1;
+    editor._glassA = null;
+    editor.selectedGlass = editor.glassPanels.length - 1;
+  }
+  editorRenderGrid();
+  editorRenderToolbar();
+  editorUpdateStats();
+  editorRenderGlassPanel();
+}
+
+function editorApplyGlassOverlays() {
+  if (!editor.glassPanels) return;
+  var el = document.getElementById('ed-grid');
+  if (!el || !el.children.length) return;
+
+  for (var gi = 0; gi < editor.glassPanels.length; gi++) {
+    var gp = editor.glassPanels[gi];
+    var isSel = (editor.selectedGlass === gi);
+    // Position A — solid blue inset
+    for (var r = gp.r1A; r < gp.r1A + gp.rows; r++) {
+      for (var c = gp.c1A; c < gp.c1A + gp.cols; c++) {
+        if (r >= 0 && r < 7 && c >= 0 && c < 7) {
+          el.children[r * 7 + c].classList.add(isSel ? 'ed-glass-a-sel' : 'ed-glass-a');
+        }
+      }
+    }
+    // Position B — dashed outline
+    for (var r = gp.r1B; r < gp.r1B + gp.rows; r++) {
+      for (var c = gp.c1B; c < gp.c1B + gp.cols; c++) {
+        if (r >= 0 && r < 7 && c >= 0 && c < 7) {
+          el.children[r * 7 + c].classList.add(isSel ? 'ed-glass-b-sel' : 'ed-glass-b');
+        }
+      }
+    }
+  }
+
+  // Placement progress highlights
+  if (editor.glassMode && editor.glassStep === 'a2' && editor.glassCorner1 >= 0) {
+    var cc = el.children[editor.glassCorner1];
+    if (cc) cc.classList.add('ed-glass-placing');
+  }
+  if (editor.glassMode && editor.glassStep === 'b' && editor._glassA) {
+    var a = editor._glassA;
+    for (var r = a.r1; r < a.r1 + a.rows; r++) {
+      for (var c = a.c1; c < a.c1 + a.cols; c++) {
+        if (r >= 0 && r < 7 && c >= 0 && c < 7) {
+          var cc2 = el.children[r * 7 + c];
+          if (cc2) cc2.classList.add('ed-glass-placing');
+        }
+      }
+    }
+  }
+}
+
+function editorRenderGlassPanel() {
+  var container = document.getElementById('ed-glass-panel');
+  if (!container) return;
+
+  if (!editor.glassMode && editor.glassPanels.length === 0) {
+    container.style.display = 'none';
+    return;
+  }
+
+  container.style.display = 'block';
+  var html = '<div class="ed-section-title"><span class="icon">&#128999;</span> Glass Panels</div>';
+
+  // Cancel button if mid-placement
+  if (editor.glassMode && editor.glassStep !== null) {
+    html += '<div style="text-align:center;margin-bottom:8px"><button class="ed-qbtn" id="ed-glass-cancel">\u2716 Cancel placement</button></div>';
+  }
+
+  // Panel list
+  if (editor.glassPanels.length > 0) {
+    for (var gi = 0; gi < editor.glassPanels.length; gi++) {
+      var gp = editor.glassPanels[gi];
+      var sel = (editor.selectedGlass === gi);
+      html += '<div class="ed-glass-item' + (sel ? ' selected' : '') + '" data-gi="' + gi + '">';
+      html += '<div style="font-size:11px;font-weight:600;color:#4A6A8A">Panel ' + (gi + 1) + ' <span style="font-weight:400;color:#9C8A70">(' + gp.rows + '\u00D7' + gp.cols + ')</span></div>';
+      html += '<div style="font-size:10px;color:#9C8A70">A: row ' + gp.r1A + ' col ' + gp.c1A + '  \u2192  B: row ' + gp.r1B + ' col ' + gp.c1B + '</div>';
+      html += '<div class="ed-setting-row"><label>Taps</label>';
+      html += '<input type="range" class="ed-glass-taps" data-gi="' + gi + '" min="1" max="6" value="' + gp.tapsToMove + '">';
+      html += '<span class="ed-s-val">' + gp.tapsToMove + '</span></div>';
+      html += '<button class="ed-qbtn ed-glass-del" data-gi="' + gi + '" style="margin-top:4px;color:#C44">\u2716 Delete</button>';
+      html += '</div>';
+    }
+  } else if (editor.glassMode && editor.glassStep === null) {
+    html += '<div style="font-size:11px;color:#9C8A70;text-align:center;font-style:italic">No panels yet \u2014 click a grid cell to start placing</div>';
+  }
+
+  container.innerHTML = html;
+
+  // Bind events
+  var cancelBtn = document.getElementById('ed-glass-cancel');
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', function () {
+      editor.glassStep = null;
+      editor.glassCorner1 = -1;
+      editor._glassA = null;
+      editorRenderGrid(); editorRenderToolbar(); editorRenderGlassPanel();
+    });
+  }
+
+  var tapsSliders = container.querySelectorAll('.ed-glass-taps');
+  for (var ts = 0; ts < tapsSliders.length; ts++) {
+    tapsSliders[ts].addEventListener('input', function () {
+      var gi2 = parseInt(this.getAttribute('data-gi'));
+      editor.glassPanels[gi2].tapsToMove = parseInt(this.value);
+      this.nextElementSibling.textContent = this.value;
+    });
+  }
+
+  var delBtns = container.querySelectorAll('.ed-glass-del');
+  for (var db = 0; db < delBtns.length; db++) {
+    delBtns[db].addEventListener('click', function () {
+      var gi2 = parseInt(this.getAttribute('data-gi'));
+      editor.glassPanels.splice(gi2, 1);
+      if (editor.selectedGlass >= editor.glassPanels.length) editor.selectedGlass = -1;
+      editorRenderGrid(); editorUpdateStats(); editorRenderGlassPanel();
+    });
+  }
+
+  var items = container.querySelectorAll('.ed-glass-item');
+  for (var it = 0; it < items.length; it++) {
+    items[it].addEventListener('click', function (e) {
+      if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return;
+      var gi2 = parseInt(this.getAttribute('data-gi'));
+      editor.selectedGlass = (editor.selectedGlass === gi2) ? -1 : gi2;
+      editorRenderGrid(); editorRenderGlassPanel();
+    });
+  }
+}

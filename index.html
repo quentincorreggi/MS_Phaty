@@ -162,6 +162,19 @@
     display:flex;align-items:center;justify-content:center}
   .ed-tunnel-add-clr:hover{transform:scale(1.15);border-color:rgba(255,255,255,0.7)}
   .ed-tunnel-add-clr:active{transform:scale(0.9)}
+
+  /* ═══ GLASS PANEL EDITOR ═══ */
+  #ed-glass-panel{display:none;background:rgba(74,144,208,0.06);border-radius:12px;padding:10px 12px;
+    border:1.5px solid rgba(74,144,208,0.2)}
+  .ed-glass-item{padding:8px 10px;border-radius:8px;border:2px solid transparent;margin-bottom:6px;
+    cursor:pointer;transition:all 0.15s;background:rgba(255,255,255,0.3)}
+  .ed-glass-item:hover{background:rgba(80,160,240,0.08)}
+  .ed-glass-item.selected{border-color:rgba(80,160,240,0.6);background:rgba(80,160,240,0.08)}
+  .ed-glass-a{box-shadow:inset 0 0 0 2px rgba(80,160,240,0.45) !important}
+  .ed-glass-a-sel{box-shadow:inset 0 0 0 2px rgba(80,160,240,0.75) !important}
+  .ed-glass-b{outline:2px dashed rgba(80,160,240,0.35);outline-offset:-2px}
+  .ed-glass-b-sel{outline:2px dashed rgba(80,160,240,0.65);outline-offset:-2px}
+  .ed-glass-placing{box-shadow:inset 0 0 0 3px rgba(80,160,240,0.9) !important;background:rgba(80,160,240,0.15) !important}
 </style>
 </head>
 <body>
@@ -232,6 +245,9 @@
     <div class="ed-section" id="ed-tunnel-panel">
       <!-- Tunnel contents editor — populated dynamically -->
     </div>
+    <div class="ed-section" id="ed-glass-panel">
+      <!-- Glass panel editor — populated dynamically -->
+    </div>
     <div class="ed-section">
       <div class="ed-section-title"><span class="icon">&#9881;</span> Settings</div>
       <div id="ed-settings-body"></div>
@@ -267,6 +283,7 @@
 <script src="js/physics.js"></script>
 <script src="js/tunnel.js"></script>
 <script src="js/wall.js"></script>
+<script src="js/glass.js"></script>
 <script src="js/rendering.js"></script>
 <script src="js/editor.js"></script>
 <script src="js/game.js"></script>

@@ -167,6 +167,8 @@ function trySpawnFromTunnels() {
     var exitIdx = getTunnelExitIdx(i);
     if (exitIdx < 0) continue;
     if (!isTileAvailableForTunnel(exitIdx)) continue;
+    // Glass panel blocks tunnel spawning
+    if (typeof isIdxUnderGlass === 'function' && (isIdxUnderGlass(i) || isIdxUnderGlass(exitIdx))) continue;
 
     // Spawn the next box from the tunnel
     var nextBox = s.tunnelContents.shift();

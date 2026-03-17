@@ -179,6 +179,9 @@ function initGame() {
   sortCols = [[], [], [], []];
   for (var i = 0; i < allBoxes.length; i++) sortCols[i % 4].push(allBoxes[i]);
 
+  // ── Glass panels ──
+  initGlassPanels(lvl);
+
   // Lock buttons
   var numLocks = lvl.lockButtons || 0;
   for (var li2 = 0; li2 < numLocks; li2++) {
@@ -258,6 +261,7 @@ function damageAdjacentIce(idx) {
     var nb = stock[neighbors[ni]];
     if (nb.isTunnel || nb.isWall) continue;  // tunnels and walls don't have ice
     if (nb.empty || nb.used || nb.iceHP <= 0) continue;
+    if (isIdxUnderGlass(neighbors[ni])) continue;  // glass blocks ice cracking
 
     nb.iceHP--;
     var bx = nb.x + L.bw / 2, by = nb.y + L.bh / 2;
@@ -301,6 +305,7 @@ function isBoxTappable(idx) {
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
+  if (isIdxUnderGlass(idx)) return false;  // glass panel blocks tapping
   return b.revealed;
 }
 
@@ -322,6 +327,7 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      glassTapHappened();
       return;
     }
   }
@@ -353,6 +359,9 @@ function update() {
   for (var i = 0; i < BELT_SLOTS; i++) {
     if (beltSlots[i].arriveAnim > 0) beltSlots[i].arriveAnim = Math.max(0, beltSlots[i].arriveAnim - 0.025);
   }
+
+  // ── Glass panel slide animation ──
+  updateGlassPanels();
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
@@ -528,6 +537,7 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    drawGlassPanels();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();
