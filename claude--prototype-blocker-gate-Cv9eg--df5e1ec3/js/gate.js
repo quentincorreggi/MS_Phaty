@@ -152,30 +152,35 @@ function drawGate() {
   // Counter pill background
   var pillW = (gateTapsToSwap - 1) * dotGap + dotR * 4;
   var pillH = dotR * 2.8;
-  ctx.fillStyle = 'rgba(90,75,60,0.08)';
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
   rRect(pivotX - pillW / 2, dotY - pillH / 2, pillW, pillH, pillH / 2);
   ctx.fill();
 
   for (var i = 0; i < gateTapsToSwap; i++) {
     var dx = dotStartX + i * dotGap;
     if (i < gateTapCount) {
-      ctx.fillStyle = 'rgba(90,75,60,0.65)';
+      // Green glow behind filled dot
+      ctx.fillStyle = 'rgba(0,220,80,0.35)';
+      ctx.beginPath();
+      ctx.arc(dx, dotY, dotR * 1.8, 0, Math.PI * 2);
+      ctx.fill();
+      // Filled green dot
+      ctx.fillStyle = '#00dd50';
       ctx.beginPath();
       ctx.arc(dx, dotY, dotR, 0, Math.PI * 2);
       ctx.fill();
       // Shine on filled dot
-      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
       ctx.beginPath();
       ctx.arc(dx - dotR * 0.2, dotY - dotR * 0.2, dotR * 0.35, 0, Math.PI * 2);
       ctx.fill();
     } else {
-      ctx.strokeStyle = 'rgba(90,75,60,0.3)';
-      ctx.lineWidth = 1 * S;
-      ctx.setLineDash([2 * S, 2 * S]);
+      // Empty dot — dim green outline
+      ctx.strokeStyle = 'rgba(0,220,80,0.4)';
+      ctx.lineWidth = 1.5 * S;
       ctx.beginPath();
       ctx.arc(dx, dotY, dotR * 0.65, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.setLineDash([]);
     }
   }
 
