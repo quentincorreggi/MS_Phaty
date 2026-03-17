@@ -98,15 +98,17 @@ function spawnPhysMarbles(box) {
   box.spawning = true; box.spawnIdx = 0;
   var count = box.remaining;
   var blockerCount = box.blockerCount || 0;
-  var blockerStart = MRB_PER_BOX - blockerCount;
+  var totalForBox = box.boxType === 'spawner' ? MRB_PER_BOX * SPAWNER_MULTIPLIER : MRB_PER_BOX;
+  var blockerStart = totalForBox - blockerCount;
   for (var idx = 0; idx < count; idx++) {
     (function (i, b, bStart) {
       setTimeout(function () {
         if (b.remaining <= 0) return;
-        var spawnIdx = MRB_PER_BOX - b.remaining;
-        var si = SNAKE_ORDER[spawnIdx];
+        var totalMrb = b.boxType === 'spawner' ? MRB_PER_BOX * SPAWNER_MULTIPLIER : MRB_PER_BOX;
+        var spawnIdx = totalMrb - b.remaining;
+        var si = SNAKE_ORDER[spawnIdx % SNAKE_ORDER.length];
         b.remaining--;
-        b.spawnIdx = MRB_PER_BOX - b.remaining;
+        b.spawnIdx = totalMrb - b.remaining;
         var MR = getMR();
         var mg = Math.min(14 * S, L.bw / 4.2);
         var mgY = mg * MRB_GAP_FACTOR;

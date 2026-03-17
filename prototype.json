@@ -1,0 +1,20 @@
+{
+  "name": "Spawner Box",
+  "description": "A box that spawns 3× the normal amount of marbles when tapped. Floods the funnel and belt!",
+  "howToPlay": "Tap a Spawner box (marked with ×3) to release 27 marbles instead of the usual 9. Use them to fill sort columns fast — but watch the belt!",
+  "showcaseLevel": {
+    "name": "Spawner Demo",
+    "desc": "Try the new Spawner box type",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, {"ci":0,"type":"spawner"}, null, {"ci":1,"type":"default"}, null, {"ci":2,"type":"spawner"}, null,
+      null, {"ci":0,"type":"default"}, null, {"ci":1,"type":"hidden"}, null, {"ci":2,"type":"default"}, null,
+      null, null, null, {"ci":3,"type":"spawner"}, null, null, null,
+      null, {"ci":3,"type":"default"}, null, {"ci":0,"type":"hidden"}, null, {"ci":1,"type":"default"}, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}

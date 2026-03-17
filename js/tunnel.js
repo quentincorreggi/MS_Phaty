@@ -177,11 +177,12 @@ function trySpawnFromTunnels() {
     var exitCol = exitIdx % L.cols;
     var isIce = (nextBox.type === 'ice');
     var isBlocker = (nextBox.type === 'blocker');
+    var isSpawner = (nextBox.type === 'spawner');
 
     stock[exitIdx] = {
       ci: nextBox.ci,
       used: false,
-      remaining: MRB_PER_BOX,
+      remaining: isSpawner ? MRB_PER_BOX * SPAWNER_MULTIPLIER : MRB_PER_BOX,
       spawning: false,
       spawnIdx: 0,
       revealed: true,

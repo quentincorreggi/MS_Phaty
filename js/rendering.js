@@ -233,9 +233,13 @@ function drawStock() {
         if (b.boxType === 'blocker' && b.blockerCount > 0) {
           drawBoxMarblesWithBlockers(b.ci, b.remaining, b.blockerCount);
         } else {
-          drawBoxMarbles(b.ci, b.remaining);
+          drawBoxMarbles(b.ci, Math.min(b.remaining, MRB_PER_BOX));
         }
         drawBoxLip(b.ci);
+      }
+      // Spawner badge
+      if (b.boxType === 'spawner') {
+        drawSpawnerBadge(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S);
       }
     }
 
