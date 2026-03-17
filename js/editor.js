@@ -17,6 +17,7 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  gate: false,          // true to enable pivoting gate
   visible: false
 };
 
@@ -34,6 +35,7 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.gate = false;
 }
 
 function showEditor(fresh) {
@@ -559,16 +561,29 @@ function editorRenderSettings() {
       });
     })(fields[i]);
   }
+
+  // Gate toggle
+  var gateRow = document.createElement('div');
+  gateRow.className = 'ed-setting-row';
+  gateRow.innerHTML = '<label>Gate</label>' +
+    '<input type="checkbox" id="ed-s-gate"' + (editor.gate ? ' checked' : '') + ' style="width:18px;height:18px;cursor:pointer">' +
+    '<span style="font-size:11px;color:#9C8A70;flex:1">Pivoting blocker in funnel</span>';
+  el.appendChild(gateRow);
+  document.getElementById('ed-s-gate').addEventListener('change', function () {
+    editor.gate = this.checked;
+  });
 }
 
 // ── Build level definition ──
 function editorBuildLevel() {
-  return {
+  var lvl = {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
     grid: editor.grid.slice()
   };
+  if (editor.gate) lvl.gate = true;
+  return lvl;
 }
 
 // ── Test play ──
@@ -625,6 +640,7 @@ function editorImportJSON() {
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
+      editor.gate = !!lvl.gate;
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
       var nameEl = document.getElementById('ed-name');

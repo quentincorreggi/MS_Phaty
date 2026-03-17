@@ -53,6 +53,16 @@ var blockerCollectT = 0;
 var blockerCollectSlots = [];
 var blockerCollectCleared = false;
 
+// === GATE ===
+var gateEnabled = false;
+var gateSide = 'left';
+var gateAngle = 0;
+var gateTargetAngle = 0;
+var gateTapCount = 0;
+var gateTapsToSwap = 3;
+var gateSwapT = 0;
+var gateWalls = [];
+
 var MRB_PER_BOX = 9, SORT_CAP = 3;
 var SORT_VISIBLE_ROWS = 4;
 

@@ -61,6 +61,7 @@ function initGame() {
   }
   if (lvl.mrbPerBox) MRB_PER_BOX = lvl.mrbPerBox;
   if (lvl.sortCap) SORT_CAP = lvl.sortCap;
+  gateEnabled = !!lvl.gate;
 
   // ── Count regular marbles per color for sort columns ──
   var colorMarblesTotal = [];
@@ -186,6 +187,9 @@ function initGame() {
     var lockRow = Math.min(2 + Math.floor(Math.random() * 4), sortCols[lockCol].length);
     sortCols[lockCol].splice(lockRow, 0, { type: 'lock', ci: -1, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0, triggerT: 0, triggered: false });
   }
+
+  // Gate mechanic
+  initGate();
 }
 
 // === EMPTY-CELL REVEAL ===
@@ -322,6 +326,7 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      gateOnBoxTap();
       return;
     }
   }
@@ -353,6 +358,9 @@ function update() {
   for (var i = 0; i < BELT_SLOTS; i++) {
     if (beltSlots[i].arriveAnim > 0) beltSlots[i].arriveAnim = Math.max(0, beltSlots[i].arriveAnim - 0.025);
   }
+
+  // ── Gate update ──
+  updateGate();
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
@@ -527,6 +535,7 @@ function frame() {
     ctx.clearRect(0, 0, W, H);
     drawBackground();
     drawFunnel();
+    drawGate();
     drawStock();
     drawPhysMarbles();
     drawBelt();

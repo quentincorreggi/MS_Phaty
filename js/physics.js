@@ -65,6 +65,10 @@ function physicsStep() {
         var col = circleLineCollide(m.x, m.y, m.r, funnelWalls[w].x1, funnelWalls[w].y1, funnelWalls[w].x2, funnelWalls[w].y2);
         if (col) resolveWallCollision(m, col);
       }
+      for (var w = 0; w < gateWalls.length; w++) {
+        var col = circleLineCollide(m.x, m.y, m.r, gateWalls[w].x1, gateWalls[w].y1, gateWalls[w].x2, gateWalls[w].y2);
+        if (col) resolveWallCollision(m, col);
+      }
     }
   }
 
