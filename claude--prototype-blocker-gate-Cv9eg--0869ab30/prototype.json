@@ -1,0 +1,23 @@
+{
+  "name": "Blocker Gate",
+  "description": "A pivoting arm blocks one side of the funnel exit. Every 3 box taps, the gate swings to the other side — plan your taps carefully!",
+  "howToPlay": "Tap boxes to release marbles into the funnel. The gate starts blocking the left exit. After every 3 taps, it swings to block the right side instead (and vice versa). Watch the dot counter near the pivot to know when the next swap is coming. Think about which side marbles will exit from!",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Gate Demo",
+    "desc": "Try the pivoting blocker gate!",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "gate": true,
+    "grid": [
+      null, null, {"ci":0,"type":"default"}, null, {"ci":1,"type":"default"}, null, null,
+      null, {"ci":0,"type":"default"}, null, {"ci":2,"type":"default"}, null, {"ci":1,"type":"default"}, null,
+      {"ci":2,"type":"default"}, null, {"ci":3,"type":"default"}, null, {"ci":3,"type":"default"}, null, {"ci":0,"type":"default"},
+      null, {"ci":1,"type":"hidden"}, null, null, null, {"ci":2,"type":"hidden"}, null,
+      {"ci":3,"type":"default"}, null, {"ci":0,"type":"default"}, null, {"ci":1,"type":"default"}, null, {"ci":3,"type":"default"},
+      null, {"ci":2,"type":"hidden"}, null, {"ci":3,"type":"hidden"}, null, {"ci":0,"type":"hidden"}, null,
+      null, null, {"ci":1,"type":"default"}, null, {"ci":2,"type":"default"}, null, null
+    ]
+  }
+}
