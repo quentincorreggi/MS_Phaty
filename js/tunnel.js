@@ -178,6 +178,10 @@ function trySpawnFromTunnels() {
     var isIce = (nextBox.type === 'ice');
     var isBlocker = (nextBox.type === 'blocker');
 
+    // Preserve treadmill data if exit cell is on a treadmill
+    var prevTmGroup = stock[exitIdx].treadmillGroup;
+    var prevTmSeq = stock[exitIdx].treadmillSeq;
+
     stock[exitIdx] = {
       ci: nextBox.ci,
       used: false,
@@ -200,7 +204,10 @@ function trySpawnFromTunnels() {
       popT: 0.8,
       revealT: 1.0,
       emptyT: 0,
-      idlePhase: Math.random() * Math.PI * 2
+      idlePhase: Math.random() * Math.PI * 2,
+      treadmillGroup: prevTmGroup !== undefined ? prevTmGroup : -1,
+      treadmillSeq: prevTmSeq !== undefined ? prevTmSeq : -1,
+      slideT: 0, slideFromX: 0, slideFromY: 0
     };
 
     // Particles from tunnel toward exit tile

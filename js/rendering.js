@@ -202,9 +202,17 @@ function drawStock() {
     // Used box (fully empty)
     if (b.used) { drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
 
+    // Treadmill slide offset
+    var slideOX = 0, slideOY = 0;
+    if (b.slideT > 0) {
+      var sp = 1 - b.slideT, se = sp * (2 - sp);
+      slideOX = (b.slideFromX - b.x) * (1 - se);
+      slideOY = (b.slideFromY - b.y) * (1 - se);
+    }
+
     var bt = getBoxType(b.boxType);
     ctx.save();
-    ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2); ctx.scale(ts, ts);
+    ctx.translate(b.x + L.bw / 2 + ox + slideOX, b.y + L.bh / 2 + slideOY); ctx.scale(ts, ts);
 
     if (b.revealT > 0) {
       var phase = 1 - b.revealT;

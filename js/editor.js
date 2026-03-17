@@ -17,6 +17,9 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  treadmillMode: false, // true when drawing treadmill paths
+  treadmillPath: [],    // current path being drawn (cell indices)
+  treadmillCurrentGroup: 0,
   visible: false
 };
 
@@ -34,6 +37,9 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.treadmillMode = false;
+  editor.treadmillPath = [];
+  editor.treadmillCurrentGroup = 0;
 }
 
 function showEditor(fresh) {
@@ -92,8 +98,19 @@ function editorRenderGrid() {
       cell.style.borderColor = st.borderColor;
       cell.innerHTML = bt.editorCellHTML(v.ci);
     } else {
-      cell.style.background = 'rgba(180,165,145,0.25)';
-      cell.style.borderColor = 'rgba(160,140,120,0.3)';
+      if (v && v.treadmill) {
+        cell.style.background = 'rgba(90,102,119,0.2)';
+        cell.style.borderColor = 'rgba(90,102,119,0.4)';
+      } else {
+        cell.style.background = 'rgba(180,165,145,0.25)';
+        cell.style.borderColor = 'rgba(160,140,120,0.3)';
+      }
+    }
+    // Treadmill indicator overlay
+    if (v && v.treadmill) {
+      cell.style.outline = '2px solid rgba(90,102,119,0.7)';
+      cell.style.outlineOffset = '-2px';
+      cell.innerHTML += '<span class="ed-treadmill-seq">' + v.treadmill.seq + '</span>';
     }
     cell.setAttribute('data-idx', i);
     cell.addEventListener('click', editorCellClick);
@@ -109,13 +126,69 @@ function editorCellClick(e) {
     // Wall placement mode
     var existing = editor.grid[idx];
     if (existing && existing.wall) {
-      // Toggle off: clicking existing wall removes it
       editor.grid[idx] = null;
     } else {
-      // Place wall
       editor.grid[idx] = { wall: true };
     }
     if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderTunnelPanel();
+    return;
+  }
+
+  if (editor.treadmillMode) {
+    var existing = editor.grid[idx];
+
+    if (existing && existing.treadmill) {
+      // Click existing treadmill cell → remove entire group
+      var gid = existing.treadmill.group;
+      for (var i = 0; i < 49; i++) {
+        var c = editor.grid[i];
+        if (c && c.treadmill && c.treadmill.group === gid) {
+          delete c.treadmill;
+          if (c.ci === undefined && !c.wall && !c.tunnel) {
+            editor.grid[i] = null;
+          }
+        }
+      }
+      editor.treadmillPath = [];
+    } else {
+      // Add cell to current path
+      var path = editor.treadmillPath;
+
+      if (path.length > 0) {
+        var last = path[path.length - 1];
+        var lr = Math.floor(last / 7), lc = last % 7;
+        var cr = Math.floor(idx / 7), cc = idx % 7;
+        var adj = (Math.abs(lr - cr) + Math.abs(lc - cc)) === 1;
+        if (!adj) {
+          // Not adjacent: finish current path, start new one
+          editor.treadmillPath = [];
+          path = editor.treadmillPath;
+        }
+      }
+
+      if (path.length === 0) {
+        var maxG = -1;
+        for (var i = 0; i < 49; i++) {
+          var c = editor.grid[i];
+          if (c && c.treadmill && c.treadmill.group > maxG) maxG = c.treadmill.group;
+        }
+        editor.treadmillCurrentGroup = maxG + 1;
+      }
+
+      path.push(idx);
+      var gid = editor.treadmillCurrentGroup;
+      var seq = path.length - 1;
+
+      if (!existing) {
+        editor.grid[idx] = { treadmill: { group: gid, seq: seq } };
+      } else {
+        existing.treadmill = { group: gid, seq: seq };
+      }
+    }
+
     editorRenderGrid();
     editorUpdateStats();
     editorRenderTunnelPanel();
@@ -135,16 +208,27 @@ function editorCellClick(e) {
       editor.selectedTunnel = idx;
     }
   } else {
-    // Normal box painting mode
+    // Normal box painting mode — preserve treadmill data
+    var existing = editor.grid[idx];
+    var savedTm = existing && existing.treadmill ? existing.treadmill : null;
+
     if (editor.activeColor === -1) {
-      editor.grid[idx] = null;
+      if (savedTm) {
+        editor.grid[idx] = { treadmill: savedTm };
+      } else {
+        editor.grid[idx] = null;
+      }
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     } else {
-      var existing = editor.grid[idx];
       if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
-        editor.grid[idx] = null;
+        if (savedTm) {
+          editor.grid[idx] = { treadmill: savedTm };
+        } else {
+          editor.grid[idx] = null;
+        }
       } else {
         editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
+        if (savedTm) editor.grid[idx].treadmill = savedTm;
       }
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     }
@@ -157,7 +241,13 @@ function editorCellClick(e) {
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
-  editor.grid[idx] = null;
+  var existing = editor.grid[idx];
+  var savedTm = existing && existing.treadmill ? existing.treadmill : null;
+  if (savedTm) {
+    editor.grid[idx] = { treadmill: savedTm };
+  } else {
+    editor.grid[idx] = null;
+  }
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
   editorRenderGrid();
   editorUpdateStats();
@@ -178,13 +268,14 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.treadmillMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.treadmillMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -200,10 +291,27 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.treadmillMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(wallBtn);
+
+  // Treadmill mode button
+  var treadmillBtn = document.createElement('button');
+  treadmillBtn.className = 'ed-type-btn' + (editor.treadmillMode ? ' active' : '');
+  treadmillBtn.textContent = '\u21E2 Treadmill';
+  treadmillBtn.style.borderColor = editor.treadmillMode ? 'rgba(90,102,119,0.6)' : '';
+  treadmillBtn.style.color = editor.treadmillMode ? '#5a6677' : '';
+  treadmillBtn.addEventListener('click', function () {
+    editor.treadmillMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editor.treadmillPath = [];
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(treadmillBtn);
 
   // Tunnel mode button
   var tunnelBtn = document.createElement('button');
@@ -214,6 +322,7 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.treadmillMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -221,7 +330,13 @@ function editorRenderToolbar() {
 
   el.appendChild(typeRow);
 
-  if (editor.tunnelMode) {
+  if (editor.treadmillMode) {
+    // Treadmill info row
+    var tmInfo = document.createElement('div');
+    tmInfo.className = 'ed-color-row';
+    tmInfo.innerHTML = '<span style="font-size:11px;color:#5a6677">Click cells in order to draw a path. Click existing treadmill to remove.</span>';
+    el.appendChild(tmInfo);
+  } else if (editor.tunnelMode) {
     // Direction selector row
     var dirRow = document.createElement('div');
     dirRow.className = 'ed-color-row';
@@ -452,7 +567,7 @@ function editorUpdateStats() {
   for (var c = 0; c < NUM_COLORS; c++) { counts.push(0); regularMrb.push(0); }
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
-  var wallCount = 0;
+  var wallCount = 0, treadmillCount = 0;
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
@@ -477,6 +592,7 @@ function editorUpdateStats() {
       }
       continue;
     }
+    if (v.treadmill) treadmillCount++;
     if (v.ci >= 0) {
       counts[v.ci]++;
       total++;
@@ -499,6 +615,9 @@ function editorUpdateStats() {
   }
   if (wallCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#8A7D6B">' + wallCount + ' wall' + (wallCount > 1 ? 's' : '') + '</span>';
+  }
+  if (treadmillCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#5a6677">' + treadmillCount + ' treadmill</span>';
   }
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';

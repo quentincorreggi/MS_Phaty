@@ -1,0 +1,21 @@
+{
+  "name": "Treadmill",
+  "description": "A conveyor path on the grid that shifts boxes forward when gaps appear. Tap a box on the treadmill and watch everything behind it slide up to fill the gap — including the feeder cell just past the end.",
+  "howToPlay": "Tap any revealed box to spawn its marbles. When a box on the treadmill is emptied, all boxes behind it slide forward to fill the gap. The box at the end of the dashed border (the feeder) also gets pulled onto the treadmill. Plan which box to tap first — the treadmill reshuffles what's behind it!",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Treadmill Demo",
+    "desc": "A horizontal treadmill with a feeder box",
+    "mrbPerBox": 3,
+    "sortCap": 3,
+    "grid": [
+      null, null, null, {"ci":2,"type":"default"}, null, null, null,
+      null, {"ci":0,"type":"default"}, null, null, null, {"ci":1,"type":"default"}, null,
+      {"ci":2,"type":"default","treadmill":{"group":0,"seq":0}}, {"ci":0,"type":"default","treadmill":{"group":0,"seq":1}}, {"ci":1,"type":"default","treadmill":{"group":0,"seq":2}}, {"ci":2,"type":"default","treadmill":{"group":0,"seq":3}}, {"ci":0,"type":"default","treadmill":{"group":0,"seq":4}}, {"ci":1,"type":"default","treadmill":{"group":0,"seq":5}}, {"ci":2,"type":"default"},
+      null, {"ci":2,"type":"default"}, null, null, null, {"ci":0,"type":"default"}, null,
+      null, null, null, null, null, null, null,
+      null, null, {"ci":1,"type":"default"}, null, {"ci":2,"type":"default"}, null, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}

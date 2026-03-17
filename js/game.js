@@ -42,6 +42,7 @@ function initGame() {
   var boxSlots = {};
   var tunnelSlots = {};
   var wallSlots = {};
+  var treadmillSlots = {};
   if (lvl.grid) {
     for (var i = 0; i < Math.min(lvl.grid.length, totalSlots); i++) {
       var cell = lvl.grid[i];
@@ -49,6 +50,9 @@ function initGame() {
       if (cell.wall) {
         wallSlots[i] = true;
         continue;
+      }
+      if (cell.treadmill) {
+        treadmillSlots[i] = { group: cell.treadmill.group, seq: cell.treadmill.seq };
       }
       if (cell.tunnel) {
         tunnelSlots[i] = { dir: cell.dir || 'bottom', contents: cell.contents ? cell.contents.slice() : [] };
@@ -141,6 +145,20 @@ function initGame() {
         idlePhase: Math.random() * Math.PI * 2 });
     }
   }
+
+  // ── Treadmill properties on all stock objects ──
+  for (var i = 0; i < stock.length; i++) {
+    stock[i].treadmillGroup = -1;
+    stock[i].treadmillSeq = -1;
+    stock[i].slideT = 0;
+    stock[i].slideFromX = 0;
+    stock[i].slideFromY = 0;
+  }
+  for (var k in treadmillSlots) {
+    stock[k].treadmillGroup = treadmillSlots[k].group;
+    stock[k].treadmillSeq = treadmillSlots[k].seq;
+  }
+  buildTreadmillGroups();
 
   // ── Initial reveal: lowest non-empty box per column ──
   for (var c = 0; c < L.cols; c++) {
@@ -357,6 +375,9 @@ function update() {
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
 
+  // ── Treadmill shifting ──
+  updateTreadmills();
+
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
     var slot = beltSlots[si]; if (slot.marble < 0) continue;
@@ -527,6 +548,7 @@ function frame() {
     ctx.clearRect(0, 0, W, H);
     drawBackground();
     drawFunnel();
+    drawTreadmillTracks();
     drawStock();
     drawPhysMarbles();
     drawBelt();
