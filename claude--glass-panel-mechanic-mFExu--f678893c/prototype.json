@@ -4,22 +4,22 @@
   "howToPlay": "Tap boxes to release marbles into the funnel. The glass panel blocks boxes underneath — you can see them but can't tap them. After every 3 taps, the panel slides to its other position, revealing new boxes and covering others. A counter on the panel shows how many taps remain before it moves. Plan your moves around the panel's rhythm!",
   "author": "Claude",
   "showcaseLevel": {
-    "name": "Glass Panel Demo",
-    "desc": "Plan around the sliding glass",
-    "mrbPerBox": 3,
+    "name": "Custom Level",
+    "desc": "My custom level",
+    "mrbPerBox": 9,
     "sortCap": 3,
     "lockButtons": 0,
-    "panels": [
-      { "r1A": 1, "c1A": 1, "r1B": 1, "c1B": 4, "rows": 2, "cols": 2, "tapsToMove": 3 }
-    ],
     "grid": [
       null, null, null, null, null, null, null,
-      null, {"ci":0,"type":"default"}, {"ci":1,"type":"default"}, null, {"ci":2,"type":"default"}, {"ci":3,"type":"default"}, null,
-      null, {"ci":2,"type":"default"}, {"ci":3,"type":"default"}, null, {"ci":0,"type":"default"}, {"ci":1,"type":"default"}, null,
+      null, {"ci":0,"type":"default"}, {"ci":0,"type":"default"}, null, null, {"ci":4,"type":"default"}, {"ci":2,"type":"default"},
+      null, {"ci":4,"type":"default"}, {"ci":4,"type":"default"}, null, null, {"ci":4,"type":"default"}, {"ci":2,"type":"default"},
       null, null, null, null, null, null, null,
-      null, null, {"ci":1,"type":"default"}, {"ci":0,"type":"default"}, {"ci":3,"type":"default"}, {"ci":2,"type":"default"}, null,
+      null, null, null, null, null, null, null,
       null, null, null, null, null, null, null,
       null, null, null, null, null, null, null
+    ],
+    "panels": [
+      {"r1A":1, "c1A":1, "r1B":1, "c1B":5, "rows":2, "cols":2, "tapsToMove":2}
     ]
   }
 }
