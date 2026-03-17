@@ -42,7 +42,7 @@ function buildTreadmillGroups() {
       }
     }
 
-    treadmillGroups.push({ cells: indices, feederIdx: feederIdx, shiftCooldown: 0 });
+    treadmillGroups.push({ cells: indices, feederIdx: feederIdx, shiftCooldown: 0, needsReveal: false });
   }
 }
 
@@ -151,11 +151,10 @@ function treadmillTryShift(gIdx) {
       treadmillMoveBox(srcIdx, cells[i]);
       if (j >= cells.length) {
         treadmillClearSlot(group.feederIdx);
-        revealAroundEmptyCell(group.feederIdx);
       } else {
         treadmillClearSlot(cells[j]);
-        revealAroundEmptyCell(cells[j]);
       }
+      group.needsReveal = true;
       return true;
     }
     return false;
@@ -189,11 +188,22 @@ function updateTreadmills() {
     if (treadmillTryShift(g)) {
       group.shiftCooldown = 4;
       tone(300, 0.15, 'sine', 0.06, 150);
+    } else if (group.needsReveal) {
+      // Group is fully settled — now do reveals
+      group.needsReveal = false;
+      for (var c = 0; c < group.cells.length; c++) {
+        if (isTreadmillSlotEmpty(group.cells[c])) {
+          revealAroundEmptyCell(group.cells[c]);
+        }
+      }
+      if (group.feederIdx >= 0 && isTreadmillSlotEmpty(group.feederIdx)) {
+        revealAroundEmptyCell(group.feederIdx);
+      }
     }
   }
 }
 
-// ── Draw treadmill tracks (called before drawStock) ──
+// ── Draw treadmill tracks (called AFTER drawStock, drawn on top) ──
 
 function drawTreadmillTracks() {
   if (treadmillGroups.length === 0) return;
@@ -202,64 +212,100 @@ function drawTreadmillTracks() {
   for (var g = 0; g < treadmillGroups.length; g++) {
     var group = treadmillGroups[g];
     var cells = group.cells;
-    if (cells.length < 1) continue;
+    if (cells.length < 2) continue;
 
-    // Track connectors between cells
-    for (var i = 1; i < cells.length; i++) {
-      var a = stock[cells[i - 1]], b = stock[cells[i]];
-      var ax = a.x + L.bw / 2, ay = a.y + L.bh / 2;
-      var bx2 = b.x + L.bw / 2, by2 = b.y + L.bh / 2;
+    // Compute path positions (center of each cell)
+    var pts = [];
+    for (var i = 0; i < cells.length; i++) {
+      var s = stock[cells[i]];
+      pts.push({ x: s.x + L.bw / 2, y: s.y + L.bh / 2 });
+    }
 
-      ctx.strokeStyle = 'rgba(80,70,60,0.12)';
-      ctx.lineWidth = L.bw * 0.35;
-      ctx.lineCap = 'butt';
+    // Draw track rail — a thick line alongside the cells, offset to the side
+    // Determine perpendicular offset for each segment
+    var railW = 3 * S;
+    var railOffset = L.bw * 0.42;
+
+    for (var side = -1; side <= 1; side += 2) {
+      ctx.strokeStyle = 'rgba(90,80,65,0.35)';
+      ctx.lineWidth = railW;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
       ctx.beginPath();
-      ctx.moveTo(ax, ay);
-      ctx.lineTo(bx2, by2);
+      for (var i = 0; i < pts.length; i++) {
+        var px, py;
+        if (i < pts.length - 1) {
+          var dx = pts[i + 1].x - pts[i].x;
+          var dy = pts[i + 1].y - pts[i].y;
+          var len = Math.sqrt(dx * dx + dy * dy);
+          if (len > 0) { dx /= len; dy /= len; }
+          px = pts[i].x + (-dy) * side * railOffset;
+          py = pts[i].y + dx * side * railOffset;
+        } else {
+          var dx = pts[i].x - pts[i - 1].x;
+          var dy = pts[i].y - pts[i - 1].y;
+          var len = Math.sqrt(dx * dx + dy * dy);
+          if (len > 0) { dx /= len; dy /= len; }
+          px = pts[i].x + (-dy) * side * railOffset;
+          py = pts[i].y + dx * side * railOffset;
+        }
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
       ctx.stroke();
     }
 
-    // Grooved track on each cell
-    for (var i = 0; i < cells.length; i++) {
-      var s = stock[cells[i]];
-      ctx.fillStyle = 'rgba(80,70,60,0.08)';
-      rRect(s.x + 2, s.y + 2, L.bw - 4, L.bh - 4, 4 * S);
-      ctx.fill();
-    }
-
-    // Chevron arrows pointing toward head (lower seq)
+    // Draw bold arrows between cells pointing toward head
     for (var i = 1; i < cells.length; i++) {
-      var curr = stock[cells[i]], prev = stock[cells[i - 1]];
-      var dx = prev.x - curr.x, dy = prev.y - curr.y;
+      var dx = pts[i - 1].x - pts[i].x;
+      var dy = pts[i - 1].y - pts[i].y;
       var len = Math.sqrt(dx * dx + dy * dy);
       if (len < 1) continue;
       dx /= len;
       dy /= len;
 
-      var acx = curr.x + L.bw / 2 + dx * L.bw * 0.15;
-      var acy = curr.y + L.bh / 2 + dy * L.bh * 0.15;
-      var asize = L.bw * 0.1;
+      // Arrow at midpoint between cells
+      var mx = (pts[i].x + pts[i - 1].x) / 2;
+      var my = (pts[i].y + pts[i - 1].y) / 2;
+      var asize = L.bw * 0.18;
 
-      ctx.strokeStyle = 'rgba(80,70,60,0.18)';
-      ctx.lineWidth = 2 * S;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
+      ctx.fillStyle = 'rgba(70,60,50,0.45)';
       ctx.beginPath();
-      ctx.moveTo(acx - dx * asize + dy * asize, acy - dy * asize - dx * asize);
-      ctx.lineTo(acx, acy);
-      ctx.lineTo(acx - dx * asize - dy * asize, acy - dy * asize + dx * asize);
-      ctx.stroke();
+      ctx.moveTo(mx + dx * asize, my + dy * asize);
+      ctx.lineTo(mx - dx * asize * 0.5 + dy * asize * 0.6, my - dy * asize * 0.5 - dx * asize * 0.6);
+      ctx.lineTo(mx - dx * asize * 0.5 - dy * asize * 0.6, my - dy * asize * 0.5 + dx * asize * 0.6);
+      ctx.closePath();
+      ctx.fill();
     }
 
-    // Feeder cell dashed border
+    // Feeder cell dashed border + arrow into treadmill
     if (group.feederIdx >= 0) {
       var fs = stock[group.feederIdx];
-      ctx.strokeStyle = 'rgba(80,70,60,0.2)';
-      ctx.lineWidth = 1.5 * S;
-      ctx.setLineDash([3 * S, 3 * S]);
+      ctx.strokeStyle = 'rgba(90,80,65,0.35)';
+      ctx.lineWidth = 2 * S;
+      ctx.setLineDash([4 * S, 4 * S]);
       rRect(fs.x + 1, fs.y + 1, L.bw - 2, L.bh - 2, 5 * S);
       ctx.stroke();
       ctx.setLineDash([]);
+
+      // Small arrow from feeder toward the tail
+      var tail = pts[pts.length - 1];
+      var fcx = fs.x + L.bw / 2, fcy = fs.y + L.bh / 2;
+      var fdx = tail.x - fcx, fdy = tail.y - fcy;
+      var flen = Math.sqrt(fdx * fdx + fdy * fdy);
+      if (flen > 0) {
+        fdx /= flen; fdy /= flen;
+        var fmx = (fcx + tail.x) / 2;
+        var fmy = (fcy + tail.y) / 2;
+        var fas = L.bw * 0.13;
+        ctx.fillStyle = 'rgba(70,60,50,0.3)';
+        ctx.beginPath();
+        ctx.moveTo(fmx + fdx * fas, fmy + fdy * fas);
+        ctx.lineTo(fmx - fdx * fas * 0.5 + fdy * fas * 0.6, fmy - fdy * fas * 0.5 - fdx * fas * 0.6);
+        ctx.lineTo(fmx - fdx * fas * 0.5 - fdy * fas * 0.6, fmy - fdy * fas * 0.5 + fdx * fas * 0.6);
+        ctx.closePath();
+        ctx.fill();
+      }
     }
   }
 

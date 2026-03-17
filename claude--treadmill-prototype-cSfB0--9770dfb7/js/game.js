@@ -548,8 +548,8 @@ function frame() {
     ctx.clearRect(0, 0, W, H);
     drawBackground();
     drawFunnel();
-    drawTreadmillTracks();
     drawStock();
+    drawTreadmillTracks();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();
