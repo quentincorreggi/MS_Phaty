@@ -1,0 +1,23 @@
+{
+  "name": "Tray Blocker",
+  "description": "Nine belt slots are blocked by a stone tray. Tap blocker boxes to send gray marbles that fill and shatter the tray, freeing those slots.",
+  "howToPlay": "Tap blocker boxes (striped with gray marbles) to send 3 blocker marbles each toward the tray. Once all 9 tray slots are filled, the tray shatters and those belt slots become usable. Decide when to clear the tray — early to free space, or later if you can manage the cramped belt.",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Tray Demo",
+    "desc": "Clear the tray to free the belt",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "trayPosition": 1,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, {"ci":0,"type":"default"}, null, {"ci":1,"type":"blocker"}, null, {"ci":2,"type":"default"}, null,
+      null, null, {"ci":0,"type":"default"}, null, {"ci":2,"type":"default"}, null, null,
+      null, {"ci":1,"type":"default"}, null, {"ci":3,"type":"blocker"}, null, {"ci":3,"type":"default"}, null,
+      null, null, {"ci":0,"type":"default"}, null, {"ci":2,"type":"default"}, null, null,
+      null, {"ci":3,"type":"default"}, null, {"ci":1,"type":"blocker"}, null, {"ci":1,"type":"default"}, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}
