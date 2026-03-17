@@ -11,6 +11,7 @@ var editor = {
   mrbPerBox: 9,
   sortCap: 3,
   lockButtons: 0,
+  trayPosition: 1,     // 0=left, 1=center, 2=right
   activeColor: 0,      // -1=eraser, 0-7=color
   activeType: BoxTypeOrder[0],
   tunnelMode: false,    // true when placing tunnels
@@ -28,6 +29,7 @@ function editorInit() {
   editor.mrbPerBox = 9;
   editor.sortCap = 3;
   editor.lockButtons = 0;
+  editor.trayPosition = 1;
   editor.activeColor = 0;
   editor.activeType = BoxTypeOrder[0];
   editor.tunnelMode = false;
@@ -537,15 +539,17 @@ function editorRenderSettings() {
   var fields = [
     { label: 'Marbles/Box', key: 'mrbPerBox', min: 1, max: 25, step: 1 },
     { label: 'Sort Cap', key: 'sortCap', min: 1, max: 9, step: 1 },
-    { label: 'Lock Btns', key: 'lockButtons', min: 0, max: 5, step: 1 }
+    { label: 'Lock Btns', key: 'lockButtons', min: 0, max: 5, step: 1 },
+    { label: 'Tray Pos', key: 'trayPosition', min: 0, max: 2, step: 1, labels: ['Left', 'Center', 'Right'] }
   ];
   for (var i = 0; i < fields.length; i++) {
     var f = fields[i];
     var row = document.createElement('div');
     row.className = 'ed-setting-row';
+    var displayVal = f.labels ? f.labels[editor[f.key]] : editor[f.key];
     row.innerHTML = '<label>' + f.label + '</label>' +
       '<input type="range" id="ed-s-' + f.key + '" min="' + f.min + '" max="' + f.max + '" step="' + f.step + '" value="' + editor[f.key] + '">' +
-      '<span class="ed-s-val" id="ed-s-' + f.key + '-v">' + editor[f.key] + '</span>';
+      '<span class="ed-s-val" id="ed-s-' + f.key + '-v">' + displayVal + '</span>';
     el.appendChild(row);
   }
   for (var i = 0; i < fields.length; i++) {
@@ -554,7 +558,7 @@ function editorRenderSettings() {
       var vl = document.getElementById('ed-s-' + f.key + '-v');
       sl.addEventListener('input', function () {
         editor[f.key] = parseInt(sl.value);
-        vl.textContent = sl.value;
+        vl.textContent = f.labels ? f.labels[parseInt(sl.value)] : sl.value;
         editorUpdateStats();
       });
     })(fields[i]);
@@ -567,6 +571,7 @@ function editorBuildLevel() {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
+    trayPosition: editor.trayPosition,
     grid: editor.grid.slice()
   };
 }
@@ -625,6 +630,7 @@ function editorImportJSON() {
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
+      if (lvl.trayPosition !== undefined) editor.trayPosition = lvl.trayPosition;
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
       var nameEl = document.getElementById('ed-name');

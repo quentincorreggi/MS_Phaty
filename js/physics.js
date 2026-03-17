@@ -74,10 +74,27 @@ function physicsStep() {
   for (var i = physMarbles.length - 1; i >= 0; i--) {
     var m = physMarbles[i];
     if (m.y + m.r >= exitY - 3 * S && m.x > exitL - m.r && m.x < exitR + m.r) {
+      // Blocker marbles go to tray slots
+      if (m.ci === BLOCKER_CI && trayActive && !trayShattered) {
+        var trayIdx = getNextTraySlot();
+        if (trayIdx >= 0) {
+          lockBlockerInTray(trayIdx);
+          sfx.drop();
+          spawnBurst(m.x, m.y, COLORS[m.ci].fill, 6);
+          physMarbles.splice(i, 1);
+          continue;
+        }
+      }
+
+      // Regular marbles (and blockers if tray full/shattered) find normal belt slot
       var entryT = getBeltEntryT();
       var bestIdx = -1, bestDist = Infinity;
       for (var k = 0; k < BELT_SLOTS; k++) {
         if (beltSlots[k].marble >= 0) continue;
+        // Regular marbles skip tray slots
+        if (isTraySlot(k) && m.ci !== BLOCKER_CI) continue;
+        // Even blocker marbles skip tray slots here (they use lockBlockerInTray above)
+        if (isTraySlot(k)) continue;
         var st = getSlotT(k);
         var diff = Math.abs(st - entryT);
         diff = Math.min(diff, 1 - diff);

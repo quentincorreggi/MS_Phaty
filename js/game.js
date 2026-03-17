@@ -179,6 +179,10 @@ function initGame() {
   sortCols = [[], [], [], []];
   for (var i = 0; i < allBoxes.length; i++) sortCols[i % 4].push(allBoxes[i]);
 
+  // ── Initialize tray ──
+  var trayPos = (lvl.trayPosition !== undefined) ? lvl.trayPosition : 1;
+  initTray(totalBlockerMarbles, trayPos);
+
   // Lock buttons
   var numLocks = lvl.lockButtons || 0;
   for (var li2 = 0; li2 < numLocks; li2++) {
@@ -360,6 +364,8 @@ function update() {
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
     var slot = beltSlots[si]; if (slot.marble < 0) continue;
+    // Skip tray slots — blocker marbles locked in tray don't sort
+    if (isTraySlot(si)) continue;
     var slotT = getSlotT(si);
     for (var c = 0; c < 4; c++) {
       var col = sortCols[c]; var tv = -1;
@@ -404,48 +410,8 @@ function update() {
     }
   }
 
-  // Blocker collection
-  if (!blockerCollecting && totalBlockerMarbles > 0) {
-    blockersOnBelt = 0;
-    blockerCollectSlots = [];
-    for (var i = 0; i < BELT_SLOTS; i++) {
-      if (beltSlots[i].marble === BLOCKER_CI) { blockersOnBelt++; blockerCollectSlots.push(i); }
-    }
-    if (blockersOnBelt >= totalBlockerMarbles) {
-      blockerCollecting = true; blockerCollectT = 1; blockerCollectCleared = false;
-    }
-  }
-  if (blockerCollecting) {
-    blockerCollectT = Math.max(0, blockerCollectT - 0.015);
-    if (blockerCollectT <= 0.5 && !blockerCollectCleared) {
-      blockerCollectCleared = true;
-      for (var k = 0; k < blockerCollectSlots.length; k++) {
-        var csi = blockerCollectSlots[k];
-        if (beltSlots[csi].marble === BLOCKER_CI) {
-          var cpos = getSlotPos(csi);
-          beltSlots[csi].marble = -1;
-          spawnBurst(cpos.x, cpos.y, COLORS[BLOCKER_CI].light, 10);
-          for (var p = 0; p < 3; p++) {
-            var a = Math.random() * Math.PI * 2, sp = 1 + Math.random() * 2;
-            particles.push({ x: cpos.x, y: cpos.y,
-              vx: (L.beltCx - cpos.x) * 0.03 + Math.cos(a) * sp * S,
-              vy: ((L.beltTopY + L.beltBotY) / 2 - cpos.y) * 0.03 + Math.sin(a) * sp * S,
-              r: (2 + Math.random() * 3) * S, color: '#fff', life: 0.8, decay: 0.03, grav: false });
-          }
-        }
-      }
-      var bcx = L.beltCx, bcy = (L.beltTopY + L.beltBotY) / 2;
-      spawnBurst(bcx, bcy, '#A89E94', 20);
-      spawnConfetti(bcx, bcy, 25);
-      sfx.win();
-      blockersOnBelt = 0;
-    }
-    if (blockerCollectT <= 0) {
-      blockerCollecting = false;
-      blockerCollectT = 0;
-      blockerCollectSlots = [];
-    }
-  }
+  // Tray update (replaces old blocker collection)
+  updateTray();
 
   // Stock animations
   for (var i = 0; i < stock.length; i++) {
@@ -530,7 +496,8 @@ function frame() {
     drawStock();
     drawPhysMarbles();
     drawBelt();
-    drawBlockerProgress();
+    drawTrayOnBelt();
+    drawTrayProgress();
     drawJumpers();
     drawSortArea();
     drawBackButton();

@@ -53,6 +53,19 @@ var blockerCollectT = 0;
 var blockerCollectSlots = [];
 var blockerCollectCleared = false;
 
+// Tray state — 9 consecutive belt slots blocked until filled with blocker marbles
+var TRAY_SIZE = 9;
+var trayActive = false;        // true when level has blocker boxes
+var traySlotStart = 0;         // first belt slot index of the tray
+var trayFilled = [];           // array of TRAY_SIZE bools — true if blocker marble locked in
+var trayFilledCount = 0;       // how many tray slots are filled
+var trayShattered = false;     // true after tray breaks
+var trayShatterT = 0;          // shatter animation timer (1→0)
+var trayCrackT = 0;            // crack animation before shatter
+var trayPulseSlots = [];       // slots that pulse after shatter (green pulse)
+var trayPulseT = 0;            // pulse timer
+var trayPosition = 1;          // 0=left, 1=center, 2=right (editor setting)
+
 var MRB_PER_BOX = 9, SORT_CAP = 3;
 var SORT_VISIBLE_ROWS = 4;
 

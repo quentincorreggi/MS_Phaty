@@ -284,78 +284,12 @@ function drawBelt() {
     if (slot.marble >= 0) {
       var bs = 1;
       if (slot.arriveAnim > 0) { var t2 = 1 - slot.arriveAnim; bs = 1 + Math.sin(t2 * Math.PI * 3) * 0.3 * slot.arriveAnim; }
-      if (slot.marble === BLOCKER_CI && blockerCollecting && blockerCollectT > 0.5) {
-        var ct = (blockerCollectT - 0.5) * 2;
-        var pulse = 1 + Math.sin((1 - ct) * Math.PI * 8) * 0.2;
-        bs *= pulse;
-        ctx.save();
-        ctx.globalAlpha = 0.3 + Math.sin((1 - ct) * Math.PI * 6) * 0.25;
-        ctx.fillStyle = COLORS[BLOCKER_CI].glow;
-        ctx.beginPath(); ctx.arc(pos.x, pos.y, slotR * 1.6 * pulse, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
-      }
       drawMarble(pos.x, pos.y, slotR * 0.8 * cal.marble.s, slot.marble, bs);
     }
   }
 }
 
-// ── Blocker progress indicator ──
-
-function drawBlockerProgress() {
-  if (totalBlockerMarbles <= 0) return;
-  var cx = L.beltCx;
-  var cy = (L.beltBotY + L.sTop) / 2;
-  var total = totalBlockerMarbles;
-  var filled = blockersOnBelt;
-  var dotR = 3.5 * S;
-  var gap = dotR * 3;
-  var startX = cx - (total - 1) * gap / 2;
-  var pillW = Math.max((total - 1) * gap + dotR * 5, dotR * 6);
-  var pillH = dotR * 3.2;
-  ctx.save();
-  ctx.fillStyle = 'rgba(122,112,104,0.10)';
-  rRect(cx - pillW / 2, cy - pillH / 2, pillW, pillH, pillH / 2); ctx.fill();
-  ctx.strokeStyle = 'rgba(122,112,104,0.18)'; ctx.lineWidth = 1 * S;
-  rRect(cx - pillW / 2, cy - pillH / 2, pillW, pillH, pillH / 2); ctx.stroke();
-  var iconX = cx - pillW / 2 - dotR * 2.5;
-  var bc = COLORS[BLOCKER_CI];
-  ctx.globalAlpha = 0.4;
-  var icGrd = ctx.createRadialGradient(iconX, cy, 0, iconX, cy, dotR * 1.1);
-  icGrd.addColorStop(0, bc.light); icGrd.addColorStop(1, bc.dark);
-  ctx.fillStyle = icGrd;
-  ctx.beginPath(); ctx.arc(iconX, cy, dotR * 1.1, 0, Math.PI * 2); ctx.fill();
-  ctx.globalAlpha = 1;
-  for (var i = 0; i < total; i++) {
-    var dx = startX + i * gap;
-    if (i < filled) {
-      var grd = ctx.createRadialGradient(dx - dotR * 0.15, cy - dotR * 0.15, dotR * 0.1, dx, cy, dotR);
-      grd.addColorStop(0, bc.light); grd.addColorStop(0.7, bc.fill); grd.addColorStop(1, bc.dark);
-      ctx.fillStyle = grd;
-      ctx.beginPath(); ctx.arc(dx, cy, dotR, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.25)';
-      ctx.beginPath(); ctx.arc(dx - dotR * 0.2, cy - dotR * 0.2, dotR * 0.35, 0, Math.PI * 2); ctx.fill();
-      if (blockerCollecting && blockerCollectT > 0.5) {
-        ctx.globalAlpha = 0.4 + Math.sin(tick * 0.2 + i * 0.5) * 0.3;
-        ctx.fillStyle = bc.glow;
-        ctx.beginPath(); ctx.arc(dx, cy, dotR * 2, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
-      }
-    } else {
-      ctx.strokeStyle = 'rgba(122,112,104,0.22)'; ctx.lineWidth = 1 * S;
-      ctx.setLineDash([2 * S, 2 * S]);
-      ctx.beginPath(); ctx.arc(dx, cy, dotR * 0.65, 0, Math.PI * 2); ctx.stroke();
-      ctx.setLineDash([]);
-    }
-  }
-  if (blockerCollecting && blockerCollectT <= 0.5 && blockerCollectT > 0) {
-    var flashAlpha = blockerCollectT * 2;
-    ctx.globalAlpha = flashAlpha * 0.6;
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    rRect(cx - pillW / 2, cy - pillH / 2, pillW, pillH, pillH / 2); ctx.fill();
-    ctx.globalAlpha = 1;
-  }
-  ctx.restore();
-}
+// ── Blocker progress indicator — now handled by drawTrayProgress() in tray.js ──
 
 // ── Jumpers ──
 
