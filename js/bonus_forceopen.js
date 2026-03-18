@@ -1,6 +1,8 @@
 // ============================================================
-// bonus_forceopen.js — Force Open bonus: tap to reveal any
-//   unrevealed default box, even without adjacent empty cells
+// bonus_forceopen.js — Force Open bonus: unlock (reveal) any
+//   locked default box so it becomes tappable, even without
+//   an adjacent empty cell. Does NOT spawn marbles — just
+//   transitions the box from locked → opened.
 // ============================================================
 
 // Button layout (computed in computeForceOpenLayout)
@@ -20,9 +22,9 @@ function isForceOpenTarget(idx) {
   if (!b) return false;
   if (b.isTunnel || b.isWall || b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
-  // Only unrevealed default boxes
+  // Only unrevealed (locked) default boxes
   if (b.revealed) return false;
-  if (b.boxType !== 'default' && b.boxType !== 'hidden') return false;
+  if (b.boxType !== 'default') return false;
   return true;
 }
 
@@ -41,31 +43,26 @@ function handleForceOpenTap(px, py) {
       if (b.isTunnel || b.isWall || b.empty || b.used) continue;
       if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
         if (isForceOpenTarget(i)) {
-          // Force reveal and open the box
+          // Unlock the box: transition from locked → revealed (tappable)
           b.revealed = true;
-          b.revealT = 0;
-          b.popT = 1;
+          b.revealT = 1.0;
+          b.popT = 0.6;
           forceOpenFlashT = 1;
           sfx.pop();
 
-          // Golden burst particles
+          // Golden burst particles to show the unlock
           var bx = b.x + L.bw / 2, by = b.y + L.bh / 2;
-          for (var p = 0; p < 24; p++) {
-            var a = Math.PI * 2 * p / 24 + Math.random() * 0.3;
-            var sp = 3 + Math.random() * 5;
+          for (var p = 0; p < 18; p++) {
+            var a = Math.PI * 2 * p / 18 + Math.random() * 0.3;
+            var sp = 2 + Math.random() * 4;
             particles.push({
               x: bx, y: by,
               vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
-              r: (2 + Math.random() * 4) * S,
+              r: (2 + Math.random() * 3) * S,
               color: Math.random() > 0.5 ? '#FFD700' : '#FFA500',
               life: 1, decay: 0.02 + Math.random() * 0.015, grav: false
             });
           }
-
-          // Spawn marbles just like a normal tap
-          spawnBurst(bx, by, COLORS[b.ci].fill, 18);
-          spawnPhysMarbles(b);
-          damageAdjacentIce(i);
 
           forceOpenActive = false;
           return true;
@@ -153,7 +150,7 @@ function drawForceOpenButton() {
   ctx.stroke();
 
   ctx.fillStyle = active ? '#5A3800' : '#5A4A38';
-  ctx.fillText('FORCE OPEN', textX, textY);
+  ctx.fillText('UNLOCK', textX, textY);
 
   ctx.restore();
 }
