@@ -1,0 +1,20 @@
+{
+  "name": "Funnel Scoop",
+  "description": "A bonus power-up that lets you grab marbles from the funnel and release them on demand.",
+  "howToPlay": "Tap boxes to fill the funnel with marbles. When the funnel gets crowded, tap the golden SCOOP button (left of the funnel) to grab up to 9 marbles of the most common color and store them in a ghost box. Tap a ghost box to release its marbles back. Use this strategically to control the flow!",
+  "showcaseLevel": {
+    "name": "Scoop Demo",
+    "desc": "Try the Funnel Scoop bonus!",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "grid": [
+      {"ci":0,"type":"default"},{"ci":1,"type":"default"},{"ci":2,"type":"default"},{"ci":3,"type":"default"},{"ci":0,"type":"default"},{"ci":1,"type":"default"},{"ci":2,"type":"default"},
+      {"ci":3,"type":"hidden"},{"ci":0,"type":"hidden"},{"ci":1,"type":"hidden"},{"ci":2,"type":"hidden"},{"ci":3,"type":"hidden"},{"ci":0,"type":"hidden"},{"ci":1,"type":"hidden"},
+      {"ci":2,"type":"default"},{"ci":3,"type":"default"},{"ci":0,"type":"default"},null,{"ci":1,"type":"default"},{"ci":2,"type":"default"},{"ci":3,"type":"default"},
+      {"ci":0,"type":"hidden"},{"ci":1,"type":"hidden"},null,null,null,{"ci":2,"type":"hidden"},{"ci":3,"type":"hidden"},
+      null,null,null,null,null,null,null,
+      null,null,null,null,null,null,null,
+      null,null,null,null,null,null,null
+    ]
+  }
+}
