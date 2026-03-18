@@ -1,7 +1,7 @@
 {
-  "name": "Unlock Bonus",
-  "description": "A gameplay bonus that lets you unlock any locked default box, making it tappable even without an adjacent empty cell.",
-  "howToPlay": "Tap the golden 'UNLOCK' button at the top of the screen to enter Unlock mode. While active, tap any locked box (visible but not yet tappable) to unlock it — the box reveals and becomes tappable. The grid border glows gold and valid targets shimmer. Use it to break into clusters with no adjacent empty cells!",
+  "name": "Reveal Bonus",
+  "description": "A gameplay bonus that lets you reveal any locked default box, making it tappable even without an adjacent empty cell.",
+  "howToPlay": "Tap the golden 'REVEAL' button at the top of the screen to enter Reveal mode. While active, tap any locked box (visible but not yet tappable) to reveal it. The grid border glows gold and valid targets shimmer. Use it to break into clusters with no adjacent empty cells!",
   "showcaseLevel": {
     "name": "Unlock Bonus Demo",
     "desc": "A dense grid — use Unlock to break in!",

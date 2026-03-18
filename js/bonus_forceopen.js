@@ -150,7 +150,7 @@ function drawForceOpenButton() {
   ctx.stroke();
 
   ctx.fillStyle = active ? '#5A3800' : '#5A4A38';
-  ctx.fillText('UNLOCK', textX, textY);
+  ctx.fillText('REVEAL', textX, textY);
 
   ctx.restore();
 }
