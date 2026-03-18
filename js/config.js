@@ -73,6 +73,10 @@ var cal = {
   back:   { dx: -23, dy: 85, s: 1.0 }
 };
 
+// === FORCE OPEN BONUS ===
+var forceOpenActive = false;
+var forceOpenFlashT = 0;
+
 // === HELPERS ===
 function getMR() { return MARBLE_R_BASE * S * cal.marble.s; }
 function shuffle(arr) { for (var i = arr.length - 1; i > 0; i--) { var j = ~~(Math.random() * (i + 1)); var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp; } }

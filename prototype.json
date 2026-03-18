@@ -1,0 +1,20 @@
+{
+  "name": "Force Open Bonus",
+  "description": "A gameplay bonus that lets you crack open any hidden box, even without an adjacent empty cell.",
+  "howToPlay": "Tap the golden 'FORCE OPEN' button at the top of the screen to enter Force Open mode. While active, tap any unrevealed box (the '?' boxes) to force it open. The grid border glows gold and valid targets shimmer to guide you. Use it to break into locked clusters!",
+  "showcaseLevel": {
+    "name": "Force Open Demo",
+    "desc": "A dense grid — use Force Open to break in!",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "grid": [
+      {"ci":0,"type":"hidden"},{"ci":1,"type":"hidden"},{"ci":2,"type":"hidden"},{"ci":3,"type":"hidden"},{"ci":2,"type":"hidden"},{"ci":1,"type":"hidden"},{"ci":0,"type":"hidden"},
+      {"ci":1,"type":"hidden"},{"ci":0,"type":"hidden"},{"ci":3,"type":"hidden"},{"ci":2,"type":"hidden"},{"ci":3,"type":"hidden"},{"ci":0,"type":"hidden"},{"ci":1,"type":"hidden"},
+      {"ci":2,"type":"hidden"},{"ci":3,"type":"hidden"},{"ci":1,"type":"hidden"},{"ci":0,"type":"hidden"},{"ci":1,"type":"hidden"},{"ci":3,"type":"hidden"},{"ci":2,"type":"hidden"},
+      {"ci":3,"type":"hidden"},{"ci":2,"type":"hidden"},{"ci":0,"type":"hidden"},null,{"ci":0,"type":"hidden"},{"ci":2,"type":"hidden"},{"ci":3,"type":"hidden"},
+      {"ci":0,"type":"hidden"},{"ci":1,"type":"hidden"},{"ci":3,"type":"hidden"},{"ci":1,"type":"hidden"},{"ci":3,"type":"hidden"},{"ci":1,"type":"hidden"},{"ci":0,"type":"hidden"},
+      {"ci":1,"type":"hidden"},{"ci":0,"type":"hidden"},{"ci":2,"type":"hidden"},{"ci":3,"type":"hidden"},{"ci":2,"type":"hidden"},{"ci":0,"type":"hidden"},{"ci":1,"type":"hidden"},
+      {"ci":2,"type":"hidden"},{"ci":3,"type":"hidden"},{"ci":1,"type":"hidden"},{"ci":0,"type":"hidden"},{"ci":1,"type":"hidden"},{"ci":3,"type":"hidden"},{"ci":2,"type":"hidden"}
+    ]
+  }
+}
