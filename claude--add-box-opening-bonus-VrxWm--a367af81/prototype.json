@@ -1,0 +1,20 @@
+{
+  "name": "Unlock Bonus",
+  "description": "A gameplay bonus that lets you unlock any locked default box, making it tappable even without an adjacent empty cell.",
+  "howToPlay": "Tap the golden 'UNLOCK' button at the top of the screen to enter Unlock mode. While active, tap any locked box (visible but not yet tappable) to unlock it — the box reveals and becomes tappable. The grid border glows gold and valid targets shimmer. Use it to break into clusters with no adjacent empty cells!",
+  "showcaseLevel": {
+    "name": "Unlock Bonus Demo",
+    "desc": "A dense grid — use Unlock to break in!",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "grid": [
+      {"ci":0,"type":"default"},{"ci":1,"type":"default"},{"ci":2,"type":"default"},{"ci":3,"type":"default"},{"ci":2,"type":"default"},{"ci":1,"type":"default"},{"ci":0,"type":"default"},
+      {"ci":1,"type":"default"},{"ci":0,"type":"default"},{"ci":3,"type":"default"},{"ci":2,"type":"default"},{"ci":3,"type":"default"},{"ci":0,"type":"default"},{"ci":1,"type":"default"},
+      {"ci":2,"type":"default"},{"ci":3,"type":"default"},{"ci":1,"type":"default"},{"ci":0,"type":"default"},{"ci":1,"type":"default"},{"ci":3,"type":"default"},{"ci":2,"type":"default"},
+      {"ci":3,"type":"default"},{"ci":2,"type":"default"},{"ci":0,"type":"default"},null,{"ci":0,"type":"default"},{"ci":2,"type":"default"},{"ci":3,"type":"default"},
+      {"ci":0,"type":"default"},{"ci":1,"type":"default"},{"ci":3,"type":"default"},{"ci":1,"type":"default"},{"ci":3,"type":"default"},{"ci":1,"type":"default"},{"ci":0,"type":"default"},
+      {"ci":1,"type":"default"},{"ci":0,"type":"default"},{"ci":2,"type":"default"},{"ci":3,"type":"default"},{"ci":2,"type":"default"},{"ci":0,"type":"default"},{"ci":1,"type":"default"},
+      {"ci":2,"type":"default"},{"ci":3,"type":"default"},{"ci":1,"type":"default"},{"ci":0,"type":"default"},{"ci":1,"type":"default"},{"ci":3,"type":"default"},{"ci":2,"type":"default"}
+    ]
+  }
+}
