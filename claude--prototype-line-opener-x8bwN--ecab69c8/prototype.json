@@ -1,0 +1,23 @@
+{
+  "name": "Line Opener",
+  "description": "A one-use booster that reveals all hidden boxes in a chosen row with a satisfying cascading animation. Adds strategic depth — use it wisely on the row that matters most.",
+  "howToPlay": "This level has walls forming a corridor, ice boxes to crack, hidden boxes in row 4, and a tunnel. Tap the golden lightning bolt button, then tap the row of hidden purple boxes to reveal them all at once. Use revealed boxes and ice-cracking to sort all the marbles.",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Custom Level",
+    "desc": "My custom level",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "lineOpener": 1,
+    "grid": [
+      {"wall":true},{"wall":true},{"wall":true},{"wall":true},{"wall":true},{"wall":true},{"wall":true},
+      {"wall":true},{"ci":6,"type":"default"},{"ci":5,"type":"default"},{"tunnel":true,"dir":"bottom","contents":[{"ci":2,"type":"default"},{"ci":4,"type":"default"},{"ci":5,"type":"default"}]},{"ci":5,"type":"default"},{"ci":7,"type":"default"},{"wall":true},
+      {"wall":true},{"ci":6,"type":"default"},{"ci":5,"type":"ice"},{"ci":3,"type":"default"},{"ci":4,"type":"ice"},{"ci":7,"type":"default"},{"wall":true},
+      {"wall":true},{"ci":6,"type":"hidden"},{"ci":6,"type":"hidden"},{"ci":6,"type":"hidden"},{"ci":6,"type":"hidden"},{"ci":6,"type":"hidden"},{"wall":true},
+      {"wall":true},{"ci":0,"type":"default"},{"ci":2,"type":"ice"},{"ci":6,"type":"default"},{"ci":1,"type":"default"},{"ci":5,"type":"default"},{"wall":true},
+      {"wall":true},{"ci":1,"type":"default"},{"ci":6,"type":"default"},{"ci":1,"type":"default"},{"ci":0,"type":"default"},{"ci":1,"type":"default"},{"wall":true},
+      {"wall":true},null,null,null,null,null,{"wall":true}
+    ]
+  }
+}
