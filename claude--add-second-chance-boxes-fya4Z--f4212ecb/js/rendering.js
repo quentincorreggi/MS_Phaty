@@ -224,14 +224,18 @@ function drawStock() {
       if (isBoxTappable(i) && b.hoverT > 0.01) { ctx.shadowColor = c.glow; ctx.shadowBlur = 20 * S * b.hoverT; }
       drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci);
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
-      // 2nd Chance box (first life, pre-tap): draw subtle ↩ badge on top of marbles
-      if (b.boxType === 'secondchance' && b.remaining > 0) {
+      // 2nd Chance box (first life, marbles inside): gold frame + large ↩ watermark
+      if (b.boxType === 'secondchance') {
         ctx.save();
-        ctx.globalAlpha = 0.55;
-        ctx.fillStyle = '#FFD080';
-        ctx.font = 'bold ' + (L.bh * 0.24) + 'px sans-serif';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-        ctx.fillText('\u21A9', 0, -L.bh * 0.46);
+        // Gold border frame to clearly distinguish from normal boxes
+        ctx.strokeStyle = '#D4900A'; ctx.lineWidth = 2.5 * S;
+        rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.stroke();
+        // Large semi-transparent ↩ as a stamp in the upper area
+        ctx.globalAlpha = 0.50;
+        ctx.fillStyle = '#FFD060';
+        ctx.font = 'bold ' + (L.bh * 0.50) + 'px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('\u21A9', 0, -L.bh * 0.14);
         ctx.restore();
       }
       if (b.boxType === 'blocker' && b.blockerCount > 0) {

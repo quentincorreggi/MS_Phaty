@@ -23,31 +23,35 @@ registerBoxType('secondchance', {
   drawClosed: function (ctx, x, y, w, h, ci, S, tick, idlePhase) {
     var c = COLORS[ci];
     ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,0.12)'; ctx.shadowBlur = 3 * S; ctx.shadowOffsetY = 1 * S;
-    ctx.globalAlpha = 0.45;
-    var grad = ctx.createLinearGradient(x, y, x, y + h);
-    grad.addColorStop(0, c.light); grad.addColorStop(1, c.dark);
-    ctx.fillStyle = grad;
+    ctx.shadowColor = 'rgba(0,0,0,0.15)'; ctx.shadowBlur = 4 * S; ctx.shadowOffsetY = 1 * S;
+
+    // Amber base — clearly different from any normal closed box
+    var amberGrad = ctx.createLinearGradient(x, y, x, y + h);
+    amberGrad.addColorStop(0, 'rgba(255,210,110,0.72)');
+    amberGrad.addColorStop(1, 'rgba(200,148,40,0.72)');
+    ctx.fillStyle = amberGrad;
     rRect(x, y, w, h, 6 * S); ctx.fill();
+
+    // Underlying box color hint (so players know which colour will spawn)
+    ctx.globalAlpha = 0.30;
+    var cGrad = ctx.createLinearGradient(x, y, x, y + h);
+    cGrad.addColorStop(0, c.light); cGrad.addColorStop(1, c.dark);
+    ctx.fillStyle = cGrad;
+    rRect(x, y, w, h, 6 * S); ctx.fill();
+
+    // Amber border
     ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-    // Desaturation overlay
-    ctx.globalAlpha = 0.25;
-    ctx.fillStyle = '#A09888';
-    rRect(x, y, w, h, 6 * S); ctx.fill();
-    ctx.globalAlpha = 0.5;
-    ctx.strokeStyle = '#E8A84C'; ctx.lineWidth = 1.5 * S;
+    ctx.globalAlpha = 0.90;
+    ctx.strokeStyle = '#C8800A'; ctx.lineWidth = 2 * S;
     rRect(x, y, w, h, 6 * S); ctx.stroke();
-    // Lock icon
-    ctx.globalAlpha = 0.28;
+
+    // Large prominent ↩ icon — the main visual cue
+    ctx.globalAlpha = 0.82;
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold ' + (h * 0.3) + 'px sans-serif';
+    ctx.font = 'bold ' + (h * 0.52) + 'px sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('\uD83D\uDD12', x + w / 2, y + h / 2);
-    // Gold ↩ badge
-    ctx.globalAlpha = 0.55;
-    ctx.fillStyle = '#FFD080';
-    ctx.font = 'bold ' + (h * 0.26) + 'px sans-serif';
-    ctx.fillText('\u21A9', x + w * 0.68, y + h * 0.28);
+    ctx.fillText('\u21A9', x + w / 2, y + h / 2);
+
     ctx.restore();
   },
 
