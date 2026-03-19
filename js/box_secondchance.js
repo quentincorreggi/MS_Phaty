@@ -112,12 +112,23 @@ function drawSecondChanceWaiting(ctx, x, y, w, h, S, tick, hoverT) {
   rRect(x, y, w, h, 6 * S); ctx.stroke();
   ctx.setLineDash([]);
 
-  // ↩ icon, pulsing opacity
-  ctx.globalAlpha = 0.38 + pulse * 0.28;
-  ctx.fillStyle = '#B8A070';
-  ctx.font = 'bold ' + (h * 0.42) + 'px sans-serif';
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('\u21A9', x + w / 2, y + h / 2);
+  // 3x3 grid of dark spots representing 9 empty marble slots
+  var spotR = Math.min(w, h) * 0.08;
+  var padX = w * 0.22;
+  var padY = h * 0.18;
+  var gapX = (w - 2 * padX) / 2;
+  var gapY = (h - 2 * padY) / 2;
+  ctx.globalAlpha = 0.32 + pulse * 0.12;
+  for (var row = 0; row < 3; row++) {
+    for (var col = 0; col < 3; col++) {
+      var sx = x + padX + col * gapX;
+      var sy = y + padY + row * gapY;
+      ctx.fillStyle = 'rgba(80,70,58,0.7)';
+      ctx.beginPath();
+      ctx.arc(sx, sy, spotR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
 
   // Hover highlight
   if (hoverT > 0.01) {
@@ -129,57 +140,52 @@ function drawSecondChanceWaiting(ctx, x, y, w, h, S, tick, hoverT) {
   ctx.restore();
 }
 
-// Loaded state: shows stored marble color tint + glowing border + ↩ + dot row
-function drawSecondChanceLoaded(ctx, x, y, w, h, ci, S, tick, hoverT) {
+// Absorbing state: silver shell with spots filling up as marbles arrive
+function drawSecondChanceAbsorbing(ctx, x, y, w, h, S, tick, ci, arrived, total) {
   var c = COLORS[ci];
   ctx.save();
-  var glow = Math.sin(tick * 0.08) * 0.5 + 0.5; // 0..1
+  var pulse = Math.sin(tick * 0.06) * 0.5 + 0.5;
 
-  // Silver base
+  // Silver-gray body
   var grad = ctx.createLinearGradient(x, y, x, y + h);
-  grad.addColorStop(0, 'rgba(218,212,204,0.92)');
-  grad.addColorStop(1, 'rgba(178,170,160,0.92)');
+  grad.addColorStop(0, 'rgba(218,212,204,0.88)');
+  grad.addColorStop(1, 'rgba(178,170,160,0.88)');
   ctx.fillStyle = grad;
-  ctx.shadowColor = c.glow; ctx.shadowBlur = (8 + glow * 10) * S;
+  ctx.shadowColor = 'rgba(0,0,0,0.10)'; ctx.shadowBlur = 4 * S; ctx.shadowOffsetY = 2 * S;
   rRect(x, y, w, h, 6 * S); ctx.fill();
-  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
 
-  // Color tint overlay (muted)
-  ctx.globalAlpha = 0.22 + glow * 0.10;
-  var tint = ctx.createLinearGradient(x, y, x, y + h);
-  tint.addColorStop(0, c.light); tint.addColorStop(1, c.fill);
-  ctx.fillStyle = tint;
-  rRect(x, y, w, h, 6 * S); ctx.fill();
-
-  // Glowing border
-  ctx.globalAlpha = 0.65 + glow * 0.35;
-  ctx.strokeStyle = c.dark; ctx.lineWidth = 2 * S;
+  // Pulsing amber border
+  ctx.strokeStyle = 'rgba(232,168,76,' + (0.5 + pulse * 0.4) + ')';
+  ctx.lineWidth = 1.5 * S;
   rRect(x, y, w, h, 6 * S); ctx.stroke();
 
-  // ↩ icon
-  ctx.globalAlpha = 0.85 + glow * 0.15;
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold ' + (h * 0.38) + 'px sans-serif';
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('\u21A9', x + w / 2, y + h * 0.36);
-
-  // Three marble dots at bottom row indicating stored color
-  var dotR = 3.5 * S;
-  var dotY = y + h * 0.74;
-  ctx.shadowColor = c.glow; ctx.shadowBlur = 5 * S;
-  for (var di = 0; di < 3; di++) {
-    var dotX = x + w * 0.22 + di * w * 0.28;
-    ctx.globalAlpha = 0.90;
-    ctx.fillStyle = c.fill;
-    ctx.beginPath(); ctx.arc(dotX, dotY, dotR, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
-
-  // Hover highlight
-  if (hoverT > 0.01) {
-    ctx.globalAlpha = hoverT * 0.18;
-    ctx.fillStyle = c.light;
-    rRect(x, y, w, h, 6 * S); ctx.fill();
+  // 3x3 grid of spots — filled ones get marble color, empty ones stay dark
+  var spotR = Math.min(w, h) * 0.08;
+  var padX = w * 0.22;
+  var padY = h * 0.18;
+  var gapX = (w - 2 * padX) / 2;
+  var gapY = (h - 2 * padY) / 2;
+  var spotIdx = 0;
+  for (var row = 0; row < 3; row++) {
+    for (var col = 0; col < 3; col++) {
+      var sx = x + padX + col * gapX;
+      var sy = y + padY + row * gapY;
+      if (spotIdx < arrived) {
+        // Filled spot — marble color with glow
+        ctx.globalAlpha = 0.9;
+        ctx.shadowColor = c.glow; ctx.shadowBlur = 4 * S;
+        ctx.fillStyle = c.fill;
+        ctx.beginPath(); ctx.arc(sx, sy, spotR * 1.1, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+      } else {
+        // Empty spot — dark placeholder
+        ctx.globalAlpha = 0.32 + pulse * 0.12;
+        ctx.fillStyle = 'rgba(80,70,58,0.7)';
+        ctx.beginPath(); ctx.arc(sx, sy, spotR, 0, Math.PI * 2); ctx.fill();
+      }
+      spotIdx++;
+    }
   }
 
   ctx.restore();
