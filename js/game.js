@@ -32,6 +32,7 @@ function initGame() {
   won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
+  glueChains = [];
   document.getElementById('win-screen').classList.remove('show');
   computeLayout(); initBeltSlots();
 
@@ -130,12 +131,15 @@ function initGame() {
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
+      var isBomb = (slot.boxType === 'bomb');
       stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
         revealed: isIce ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        bombCountdown: isBomb ? BOMB_COUNTDOWN : 0,
+        bombActive: false, bombExploded: false, bombPulseT: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
@@ -306,6 +310,141 @@ function isBoxTappable(idx) {
 
 function getSortBoxY(ci, vi) { return L.sTop + vi * (L.sBh + L.sGap); }
 
+// === TAP HELPER ===
+function tapBox(idx) {
+  var b = stock[idx];
+  if (!isBoxTappable(idx)) return;
+  b.popT = 1;
+  sfx.pop();
+  spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
+  spawnPhysMarbles(b);
+  damageAdjacentIce(idx);
+}
+
+// === BOMB / GLUE LOGIC ===
+function tickBombCountdowns() {
+  var explosions = [];
+  for (var i = 0; i < stock.length; i++) {
+    var b = stock[i];
+    if (b.boxType !== 'bomb' || !b.bombActive || b.bombExploded) continue;
+    if (b.used || b.spawning) continue;
+    b.bombCountdown--;
+    b.bombPulseT = 1.0;
+    if (b.bombCountdown <= 0) {
+      explosions.push(i);
+    }
+  }
+  for (var e = 0; e < explosions.length; e++) {
+    triggerBombExplosion(explosions[e]);
+  }
+}
+
+function triggerBombExplosion(idx) {
+  var b = stock[idx];
+  b.bombExploded = true;
+  b.bombActive = false;
+
+  // Auto-tap: spawn marbles like a normal tap
+  b.popT = 1;
+  sfx.pop();
+  spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
+  spawnPhysMarbles(b);
+  damageAdjacentIce(idx);
+
+  // Explosion particles (orange/yellow burst)
+  var bx = b.x + L.bw / 2, by = b.y + L.bh / 2;
+  for (var p = 0; p < 24; p++) {
+    var a = Math.PI * 2 * p / 24 + Math.random() * 0.3;
+    var sp = 4 + Math.random() * 6;
+    particles.push({
+      x: bx, y: by,
+      vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
+      r: (3 + Math.random() * 5) * S,
+      color: Math.random() > 0.5 ? '#FF8030' : '#FFD060',
+      life: 1, decay: 0.02 + Math.random() * 0.01, grav: false
+    });
+  }
+
+  // Boom sound
+  tone(150, 0.3, 'sawtooth', 0.15, 50);
+
+  // Form glue chain on adjacent boxes
+  formGlueChain(idx);
+}
+
+function formGlueChain(bombIdx) {
+  var row = Math.floor(bombIdx / L.cols), col = bombIdx % L.cols;
+
+  // Get orthogonal neighbors of the bomb
+  var neighbors = [];
+  if (row > 0)          neighbors.push((row - 1) * L.cols + col);
+  if (row < L.rows - 1) neighbors.push((row + 1) * L.cols + col);
+  if (col > 0)          neighbors.push(row * L.cols + (col - 1));
+  if (col < L.cols - 1) neighbors.push(row * L.cols + (col + 1));
+
+  // Filter to valid boxes
+  var valid = [];
+  for (var i = 0; i < neighbors.length; i++) {
+    var nb = stock[neighbors[i]];
+    if (nb.isTunnel || nb.isWall || nb.empty || nb.used || nb.spawning) continue;
+    if (isInGlueChain(neighbors[i])) continue;
+    valid.push(neighbors[i]);
+  }
+
+  if (valid.length === 0) return; // no impact
+
+  // Pick first box in the chain (random neighbor of bomb)
+  shuffle(valid);
+  var firstIdx = valid[0];
+
+  // Get neighbors of the first box
+  var fRow = Math.floor(firstIdx / L.cols), fCol = firstIdx % L.cols;
+  var fNeighbors = [];
+  if (fRow > 0)          fNeighbors.push((fRow - 1) * L.cols + fCol);
+  if (fRow < L.rows - 1) fNeighbors.push((fRow + 1) * L.cols + fCol);
+  if (fCol > 0)          fNeighbors.push(fRow * L.cols + (fCol - 1));
+  if (fCol < L.cols - 1) fNeighbors.push(fRow * L.cols + (fCol + 1));
+
+  // Filter valid (exclude bomb, already-chained, etc.)
+  var fValid = [];
+  for (var i = 0; i < fNeighbors.length; i++) {
+    var ni = fNeighbors[i];
+    if (ni === bombIdx || ni === firstIdx) continue;
+    var nb = stock[ni];
+    if (nb.isTunnel || nb.isWall || nb.empty || nb.used || nb.spawning) continue;
+    if (isInGlueChain(ni)) continue;
+    fValid.push(ni);
+  }
+
+  shuffle(fValid);
+  var chain = [firstIdx];
+  for (var i = 0; i < Math.min(2, fValid.length); i++) {
+    chain.push(fValid[i]);
+  }
+
+  glueChains.push(chain);
+
+  // Green splat particles on each glued box
+  for (var i = 0; i < chain.length; i++) {
+    var gb = stock[chain[i]];
+    var gx = gb.x + L.bw / 2, gy = gb.y + L.bh / 2;
+    for (var p = 0; p < 12; p++) {
+      var a = Math.PI * 2 * p / 12 + Math.random() * 0.3;
+      var sp = 2 + Math.random() * 3;
+      particles.push({
+        x: gx, y: gy,
+        vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
+        r: (2 + Math.random() * 4) * S,
+        color: Math.random() > 0.5 ? '#50C850' : '#80E080',
+        life: 1, decay: 0.02 + Math.random() * 0.015, grav: false
+      });
+    }
+  }
+
+  // Splat sound
+  tone(200, 0.15, 'sine', 0.08, 80);
+}
+
 // === INPUT ===
 function handleTap(px, py) {
   if (won || !gameActive) return;
@@ -313,15 +452,36 @@ function handleTap(px, py) {
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
+    if (b.isTunnel || b.isWall) continue;
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
-      b.popT = 1;
-      sfx.pop();
-      spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
-      spawnPhysMarbles(b);
-      damageAdjacentIce(i);
+
+      // Get all boxes to tap (glue chain)
+      var toTap = getGlueChainFor(i);
+
+      // Tap all tappable boxes in the chain
+      for (var t = 0; t < toTap.length; t++) {
+        var ti = toTap[t];
+        if (isBoxTappable(ti)) {
+          tapBox(ti);
+        } else if (!stock[ti].used && !stock[ti].empty) {
+          stock[ti].shakeT = 0.3;
+        }
+      }
+
+      // Defuse any bomb boxes that were tapped
+      for (var t = 0; t < toTap.length; t++) {
+        var tb = stock[toTap[t]];
+        if (tb.boxType === 'bomb' && tb.bombActive && !tb.bombExploded) {
+          tb.bombExploded = true;
+          tb.bombActive = false;
+        }
+      }
+
+      // Tick all remaining bomb countdowns
+      tickBombCountdowns();
+
       return;
     }
   }
@@ -450,7 +610,7 @@ function update() {
   // Stock animations
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;  // tunnels and walls don't need stock animations
+    if (b.isTunnel || b.isWall) continue;
     if (b.empty) continue;
     if (b.shakeT > 0) b.shakeT = Math.max(0, b.shakeT - 0.04);
     if (b.popT > 0) b.popT = Math.max(0, b.popT - 0.025);
@@ -458,8 +618,22 @@ function update() {
     if (b.emptyT > 0) b.emptyT = Math.max(0, b.emptyT - 0.025);
     if (b.iceCrackT > 0) b.iceCrackT = Math.max(0, b.iceCrackT - 0.03);
     if (b.iceShatterT > 0) b.iceShatterT = Math.max(0, b.iceShatterT - 0.025);
+    if (b.bombPulseT > 0) b.bombPulseT = Math.max(0, b.bombPulseT - 0.04);
+    // Activate bombs when they become revealed
+    if (b.boxType === 'bomb' && b.revealed && !b.bombActive && !b.bombExploded && !b.used) {
+      b.bombActive = true;
+    }
     var th = (i === hoverIdx && !b.used && isBoxTappable(i)) ? 1 : 0;
     b.hoverT += (th - b.hoverT) * 0.12;
+  }
+
+  // Clean up glue chains (remove used boxes, drop empty chains)
+  for (var g = glueChains.length - 1; g >= 0; g--) {
+    var chain = glueChains[g];
+    for (var ci2 = chain.length - 1; ci2 >= 0; ci2--) {
+      if (stock[chain[ci2]].used) chain.splice(ci2, 1);
+    }
+    if (chain.length <= 1) glueChains.splice(g, 1);
   }
 
   // Phys marble spawn bounce
@@ -528,6 +702,7 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    if (typeof drawGlueChains === 'function') drawGlueChains();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();

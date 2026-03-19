@@ -1,0 +1,20 @@
+{
+  "name": "Glue Bomb",
+  "description": "Boxes with glue bombs attached. Tap the bomb before the countdown runs out, or it explodes and glues nearby boxes together!",
+  "howToPlay": "Watch the countdown badge on bomb boxes. Each time you tap ANY box, bomb countdowns decrease by 1. Tap the bomb before it hits 0 to defuse it safely. If it explodes, nearby boxes get glued together with green goo \u2014 tapping one glued box taps them all at once!",
+  "showcaseLevel": {
+    "name": "Glue Bomb Demo",
+    "desc": "Defuse the bombs or deal with the glue!",
+    "mrbPerBox": 5,
+    "sortCap": 5,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, {"ci":0,"type":"default"}, {"ci":1,"type":"default"}, {"ci":2,"type":"default"}, {"ci":0,"type":"default"}, {"ci":1,"type":"default"}, null,
+      null, {"ci":2,"type":"default"}, {"ci":0,"type":"bomb"}, {"ci":1,"type":"default"}, {"ci":2,"type":"default"}, {"ci":0,"type":"default"}, null,
+      null, {"ci":1,"type":"default"}, {"ci":2,"type":"default"}, {"ci":0,"type":"default"}, {"ci":1,"type":"bomb"}, {"ci":2,"type":"default"}, null,
+      null, {"ci":0,"type":"default"}, {"ci":1,"type":"default"}, {"ci":2,"type":"default"}, {"ci":0,"type":"default"}, {"ci":1,"type":"default"}, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}

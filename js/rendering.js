@@ -237,6 +237,14 @@ function drawStock() {
         }
         drawBoxLip(b.ci);
       }
+
+      // Bomb countdown overlay
+      if (b.boxType === 'bomb' && b.bombActive && !b.bombExploded) {
+        var bombType = getBoxType('bomb');
+        if (bombType && bombType.drawBombOverlay) {
+          bombType.drawBombOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, b.bombCountdown, b.bombPulseT, tick);
+        }
+      }
     }
 
     if (b.iceHP > 0) {

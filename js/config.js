@@ -54,6 +54,10 @@ var blockerCollectSlots = [];
 var blockerCollectCleared = false;
 
 var MRB_PER_BOX = 9, SORT_CAP = 3;
+
+// Bomb / Glue chain state
+var BOMB_COUNTDOWN = 3;
+var glueChains = [];
 var SORT_VISIBLE_ROWS = 4;
 
 // Snake order for 3x3 grid
