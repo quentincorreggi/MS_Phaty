@@ -1,0 +1,22 @@
+{
+  "name": "2nd Chance Boxes",
+  "description": "A new box type that gives you a second shot. Tap it once to release marbles — then it waits. The next box you tap above it in the same column gets banked inside the shell instead of going to the belt. Tap the glowing shell to release those stored marbles at exactly the right moment.",
+  "howToPlay": "Tap a gold ↩ box to release its first batch. It turns silver — that means it's hungry. Now tap any box directly above it in the same column to bank those marbles inside. When the shell glows with colour, tap it again to release the stored marbles. After the second release, the box disappears.",
+  "author": "",
+  "showcaseLevel": {
+    "name": "Custom Level",
+    "desc": "My custom level",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      {"wall":true}, {"wall":true}, {"wall":true}, {"wall":true}, {"wall":true}, {"wall":true}, {"wall":true},
+      {"wall":true}, {"ci":5,"type":"default"}, {"ci":5,"type":"default"}, {"ci":5,"type":"default"}, {"ci":5,"type":"default"}, {"ci":5,"type":"default"}, {"wall":true},
+      {"wall":true}, {"ci":2,"type":"default"}, {"ci":4,"type":"default"}, {"ci":3,"type":"default"}, {"ci":6,"type":"default"}, {"ci":7,"type":"default"}, {"wall":true},
+      {"wall":true}, {"ci":0,"type":"secondchance"}, {"ci":1,"type":"secondchance"}, {"ci":0,"type":"secondchance"}, {"ci":1,"type":"secondchance"}, {"ci":0,"type":"secondchance"}, {"wall":true},
+      null, null, null, null, null, null, null
+    ]
+  }
+}
