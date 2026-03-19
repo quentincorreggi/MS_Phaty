@@ -3,19 +3,15 @@
 // A button outside the canvas that lets the player eliminate
 // every marble of one chosen colour from the entire game:
 // funnel, belt, jumpers, stock boxes, and sort columns.
-// Single use per game. Activated via a UI button + colour picker.
+// Unlimited uses. Activated via a UI button + colour picker.
 // ============================================================
-
-var boosterUsed = false;
 
 // Called by initGame() each time a level starts
 function boosterInit() {
-  boosterUsed = false;
   var container = document.getElementById('booster-container');
   var picker    = document.getElementById('booster-picker');
   if (container) container.style.display = 'flex';
   if (picker)    picker.style.display    = 'none';
-  boosterUpdateBtn();
 }
 
 // Called by showLevelSelect() when leaving the game
@@ -26,18 +22,9 @@ function boosterHide() {
   if (picker)    picker.style.display    = 'none';
 }
 
-function boosterUpdateBtn() {
-  var btn = document.getElementById('booster-btn');
-  if (!btn) return;
-  btn.disabled      = boosterUsed;
-  btn.style.opacity = boosterUsed ? '0.38' : '1';
-  btn.style.cursor  = boosterUsed ? 'default' : 'pointer';
-  btn.title         = boosterUsed ? 'Already used this game' : 'Wipe all marbles of one colour';
-}
-
 // Open the colour-picker popup
 function boosterShowPicker() {
-  if (boosterUsed || won || !gameActive) return;
+  if (won || !gameActive) return;
   var picker = document.getElementById('booster-picker');
   if (!picker) return;
 
@@ -106,10 +93,8 @@ function boosterClosePicker() {
 
 // ── The actual wipe ──
 function boosterRemoveColor(ci) {
-  if (boosterUsed || won || !gameActive) return;
-  boosterUsed = true;
+  if (won || !gameActive) return;
   boosterClosePicker();
-  boosterUpdateBtn();
 
   var fill = COLORS[ci].fill;
 
