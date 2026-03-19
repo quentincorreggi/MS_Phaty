@@ -1,0 +1,21 @@
+{
+  "name": "Colour Wipe Booster",
+  "description": "A one-shot power-up button outside the game. Tap it, pick a colour, and every marble of that colour vanishes from the belt, funnel, and remaining boxes in an instant.",
+  "howToPlay": "Tap the \u2736 Colour Wipe button in the top-left corner. A colour picker appears — choose the colour you want gone. All marbles of that colour disappear with a burst effect. One use per game, so pick your moment!",
+  "showcaseLevel": {
+    "name": "Colour Wipe",
+    "desc": "Four colours are flooding the belt — use the Colour Wipe booster to eliminate the trickiest one!",
+    "howToPlay": "Tap \u2736 Colour Wipe (top-left), pick a colour, and watch every marble of that colour vanish. One use only!",
+    "grid": [
+      {"ci":0,"type":"default"},{"ci":1,"type":"default"},{"ci":2,"type":"default"},{"ci":3,"type":"default"},null,null,null,
+      {"ci":0,"type":"default"},{"ci":1,"type":"default"},{"ci":2,"type":"default"},{"ci":3,"type":"default"},null,null,null,
+      {"ci":0,"type":"default"},{"ci":1,"type":"default"},{"ci":2,"type":"default"},{"ci":3,"type":"default"},null,null,null,
+      null,null,null,null,null,null,null,
+      null,null,null,null,null,null,null,
+      null,null,null,null,null,null,null,
+      null,null,null,null,null,null,null
+    ],
+    "mrbPerBox": 6,
+    "sortCap": 3
+  }
+}

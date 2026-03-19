@@ -7,6 +7,7 @@
 // === LEVEL SELECT ===
 function showLevelSelect() {
   gameActive = false;
+  if (typeof boosterHide === 'function') boosterHide();
   document.getElementById('win-screen').classList.remove('show');
   document.getElementById('cal-toggle').style.display = 'none';
   if (typeof editor !== 'undefined' && editor._testIdx !== undefined) {
@@ -32,6 +33,7 @@ function initGame() {
   won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
+  if (typeof boosterInit === 'function') boosterInit();
   document.getElementById('win-screen').classList.remove('show');
   computeLayout(); initBeltSlots();
 
