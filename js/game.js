@@ -349,8 +349,7 @@ function handleTap(px, py) {
           sc2Idx = cIdx2;
           break;
         }
-        // Stop if there's a solid non-transparent cell blocking the path
-        if (!isCellTrulyEmpty(cIdx2)) break;
+        // Keep searching — any box anywhere above the 2nd Chance box can be absorbed
       }
 
       if (sc2Idx >= 0) {
