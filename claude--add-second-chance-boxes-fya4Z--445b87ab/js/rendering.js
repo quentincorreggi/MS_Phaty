@@ -214,28 +214,35 @@ function drawStock() {
       ctx.rotate(idleWobble);
       bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase);
     } else if (b.sc2State === 'waiting') {
-      // 2nd Chance box — waiting to absorb (silver pulsing shell)
+      // 2nd Chance box — waiting to absorb (silver pulsing shell with empty spots)
       drawSecondChanceWaiting(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, tick, b.hoverT);
+    } else if (b.sc2State === 'absorbing') {
+      // 2nd Chance box — absorbing: show spots filling up as marbles arrive
+      drawSecondChanceAbsorbing(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, tick, b.sc2ci, b.sc2Arrived || 0, b.sc2count);
     } else if (b.sc2State === 'loaded') {
-      // 2nd Chance box — loaded with stored marbles, ready for second tap
-      drawSecondChanceLoaded(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.sc2ci, S, tick, b.hoverT);
+      // 2nd Chance box — loaded: looks like a regular box with gold border
+      var sc2c = COLORS[b.sc2ci];
+      if (isBoxTappable(i) && b.hoverT > 0.01) { ctx.shadowColor = sc2c.glow; ctx.shadowBlur = 20 * S * b.hoverT; }
+      drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.sc2ci);
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+      ctx.save();
+      ctx.strokeStyle = '#D4900A'; ctx.lineWidth = 2.5 * S;
+      rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.stroke();
+      ctx.restore();
+      if (b.sc2count > 0) {
+        drawBoxMarbles(b.sc2ci, b.sc2count);
+        drawBoxLip(b.sc2ci);
+      }
     } else {
       var c = COLORS[b.ci];
       if (isBoxTappable(i) && b.hoverT > 0.01) { ctx.shadowColor = c.glow; ctx.shadowBlur = 20 * S * b.hoverT; }
       drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci);
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
-      // 2nd Chance box (first life, marbles inside): gold frame + large ↩ watermark
+      // 2nd Chance box (first life, marbles inside): gold frame only
       if (b.boxType === 'secondchance') {
         ctx.save();
-        // Gold border frame to clearly distinguish from normal boxes
         ctx.strokeStyle = '#D4900A'; ctx.lineWidth = 2.5 * S;
         rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.stroke();
-        // Large semi-transparent ↩ as a stamp in the upper area
-        ctx.globalAlpha = 0.50;
-        ctx.fillStyle = '#FFD060';
-        ctx.font = 'bold ' + (L.bh * 0.50) + 'px sans-serif';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('\u21A9', 0, -L.bh * 0.14);
         ctx.restore();
       }
       if (b.boxType === 'blocker' && b.blockerCount > 0) {

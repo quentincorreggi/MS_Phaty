@@ -29,7 +29,7 @@ function startLevel(idx) {
 
 // === GAME INIT ===
 function initGame() {
-  won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
+  won = false; score = 0; particles = []; physMarbles = []; jumpers = []; sc2Flyers = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
   document.getElementById('win-screen').classList.remove('show');
@@ -199,8 +199,8 @@ function isCellTrulyEmpty(idx) {
   var s = stock[idx];
   if (!s) return false;
   if (s.isWall) return false;  // Walls are never empty
-  // 2nd Chance waiting/loaded: transparent for reveal propagation
-  if (s.sc2State === 'waiting' || s.sc2State === 'loaded') return true;
+  // 2nd Chance waiting/absorbing/loaded: transparent for reveal propagation
+  if (s.sc2State === 'waiting' || s.sc2State === 'absorbing' || s.sc2State === 'loaded') return true;
   if (s.isTunnel) {
     if (s.tunnelContents && s.tunnelContents.length > 0) return false;
     var exitIdx = getTunnelExitIdx(idx);
@@ -305,8 +305,8 @@ function isBoxTappable(idx) {
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
-  // 2nd Chance waiting state: not tappable (absorbing, not releasing)
-  if (b.sc2State === 'waiting') return false;
+  // 2nd Chance waiting/absorbing state: not tappable
+  if (b.sc2State === 'waiting' || b.sc2State === 'absorbing') return false;
   return b.revealed;
 }
 
@@ -353,13 +353,30 @@ function handleTap(px, py) {
       }
 
       if (sc2Idx >= 0) {
-        // Absorb marbles into the waiting 2nd Chance box (not the funnel)
+        // Absorb marbles: spawn flying marbles from source box to 2nd Chance box
         var sc2Box = stock[sc2Idx];
         sc2Box.sc2ci = b.ci;
         sc2Box.sc2count = b.remaining;
-        sc2Box.sc2State = 'loaded';
-        sc2Box.popT = 1;
-        spawnBurst(sc2Box.x + L.bw / 2, sc2Box.y + L.bh / 2, COLORS[b.ci].fill, 24);
+        sc2Box.sc2State = 'absorbing';
+        sc2Box.sc2Arrived = 0;
+
+        // Spawn one flyer per marble with staggered delays
+        var srcCx = b.x + L.bw / 2;
+        var srcCy = b.y + L.bh / 2;
+        var dstCx = sc2Box.x + L.bw / 2;
+        var dstCy = sc2Box.y + L.bh / 2;
+        for (var fi = 0; fi < b.remaining; fi++) {
+          sc2Flyers.push({
+            ci: b.ci,
+            sx: srcCx + (Math.random() - 0.5) * L.bw * 0.4,
+            sy: srcCy + (Math.random() - 0.5) * L.bh * 0.4,
+            dx: dstCx, dy: dstCy,
+            t: 0,
+            delay: fi * 0.08,
+            targetIdx: sc2Idx
+          });
+        }
+
         // Mark source box as used without spawning marbles into funnel
         b.emptyT = 1.0;
         var capturedBox = b;
@@ -517,6 +534,26 @@ function update() {
     b.hoverT += (th - b.hoverT) * 0.12;
   }
 
+  // 2nd Chance flyer animation
+  for (var fi = sc2Flyers.length - 1; fi >= 0; fi--) {
+    var f = sc2Flyers[fi];
+    if (f.delay > 0) { f.delay -= 0.016; continue; }
+    f.t += 0.04;
+    if (f.t >= 1) {
+      // Flyer arrived
+      var tgt = stock[f.targetIdx];
+      tgt.sc2Arrived = (tgt.sc2Arrived || 0) + 1;
+      spawnBurst(f.dx, f.dy, COLORS[f.ci].fill, 3);
+      sc2Flyers.splice(fi, 1);
+      // When all marbles arrived, transition to loaded
+      if (tgt.sc2Arrived >= tgt.sc2count) {
+        tgt.sc2State = 'loaded';
+        tgt.popT = 1;
+        sfx.pop();
+      }
+    }
+  }
+
   // Phys marble spawn bounce
   for (var i = 0; i < physMarbles.length; i++) {
     if (physMarbles[i].spawnT > 0) physMarbles[i].spawnT = Math.max(0, physMarbles[i].spawnT - 0.05);
@@ -575,6 +612,43 @@ function checkWin() {
   }
 }
 
+// === 2ND CHANCE FLYER DRAWING ===
+function drawSC2Flyers() {
+  var MR = getMR();
+  for (var i = 0; i < sc2Flyers.length; i++) {
+    var f = sc2Flyers[i];
+    if (f.delay > 0) continue;
+    var t = Math.min(f.t, 1);
+    // Ease-in-out curve
+    var ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    // Arc path: curve outward slightly for visual interest
+    var mx = f.sx + (f.dx - f.sx) * ease;
+    var my = f.sy + (f.dy - f.sy) * ease;
+    // Add a slight arc offset perpendicular to the travel direction
+    var arcOff = Math.sin(t * Math.PI) * 15 * S;
+    var dx = f.dx - f.sx, dy = f.dy - f.sy;
+    var len = Math.sqrt(dx * dx + dy * dy) || 1;
+    mx += (-dy / len) * arcOff;
+    my += (dx / len) * arcOff;
+
+    var c = COLORS[f.ci];
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.shadowColor = c.glow; ctx.shadowBlur = 6 * S;
+    ctx.fillStyle = c.fill;
+    ctx.beginPath();
+    ctx.arc(mx, my, MR * 0.8, 0, Math.PI * 2);
+    ctx.fill();
+    // Highlight
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = c.light;
+    ctx.beginPath();
+    ctx.arc(mx - MR * 0.2, my - MR * 0.2, MR * 0.35, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
 // === MAIN LOOP ===
 function frame() {
   if (gameActive) {
@@ -589,6 +663,7 @@ function frame() {
     drawJumpers();
     drawSortArea();
     drawBackButton();
+    drawSC2Flyers();
     drawParticles();
     drawDebugWalls();
   }
