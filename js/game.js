@@ -130,12 +130,14 @@ function initGame() {
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
+      var isSC2 = (slot.boxType === 'secondchance');
       stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
         revealed: isIce ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        sc2State: null, sc2ci: -1, sc2count: 0, sc2FirstUsed: false,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
@@ -197,6 +199,8 @@ function isCellTrulyEmpty(idx) {
   var s = stock[idx];
   if (!s) return false;
   if (s.isWall) return false;  // Walls are never empty
+  // 2nd Chance waiting/loaded: transparent for reveal propagation
+  if (s.sc2State === 'waiting' || s.sc2State === 'loaded') return true;
   if (s.isTunnel) {
     if (s.tunnelContents && s.tunnelContents.length > 0) return false;
     var exitIdx = getTunnelExitIdx(idx);
@@ -301,6 +305,8 @@ function isBoxTappable(idx) {
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
+  // 2nd Chance waiting state: not tappable (absorbing, not releasing)
+  if (b.sc2State === 'waiting') return false;
   return b.revealed;
 }
 
@@ -319,6 +325,56 @@ function handleTap(px, py) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
       b.popT = 1;
       sfx.pop();
+
+      // ── 2nd Chance loaded: second tap releases stored marbles ──
+      if (b.sc2State === 'loaded') {
+        spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.sc2ci].fill, 22);
+        b.ci = b.sc2ci;
+        b.remaining = b.sc2count;
+        b.sc2State = null; // sc2FirstUsed is already true → completion sets used=true
+        spawnPhysMarbles(b);
+        damageAdjacentIce(i);
+        return;
+      }
+
+      // ── Check if a waiting 2nd Chance box exists below in the same column ──
+      var tapCol = i % L.cols;
+      var tapRow = Math.floor(i / L.cols);
+      var sc2Idx = -1;
+      for (var r2 = tapRow + 1; r2 < L.rows; r2++) {
+        var cIdx2 = r2 * L.cols + tapCol;
+        var cand = stock[cIdx2];
+        if (!cand) break;
+        if (cand.boxType === 'secondchance' && cand.sc2State === 'waiting') {
+          sc2Idx = cIdx2;
+          break;
+        }
+        // Stop if there's a solid non-transparent cell blocking the path
+        if (!isCellTrulyEmpty(cIdx2)) break;
+      }
+
+      if (sc2Idx >= 0) {
+        // Absorb marbles into the waiting 2nd Chance box (not the funnel)
+        var sc2Box = stock[sc2Idx];
+        sc2Box.sc2ci = b.ci;
+        sc2Box.sc2count = b.remaining;
+        sc2Box.sc2State = 'loaded';
+        sc2Box.popT = 1;
+        spawnBurst(sc2Box.x + L.bw / 2, sc2Box.y + L.bh / 2, COLORS[b.ci].fill, 24);
+        // Mark source box as used without spawning marbles into funnel
+        b.emptyT = 1.0;
+        var capturedBox = b;
+        var capturedIdx = i;
+        setTimeout(function () {
+          capturedBox.used = true;
+          capturedBox.spawning = false;
+          revealAroundEmptyCell(capturedIdx);
+        }, 300);
+        damageAdjacentIce(i);
+        return;
+      }
+
+      // ── Normal tap: spawn marbles into funnel ──
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);

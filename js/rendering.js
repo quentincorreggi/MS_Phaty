@@ -213,11 +213,27 @@ function drawStock() {
       var idleWobble = Math.sin(tick * 0.02 + b.idlePhase) * 0.006;
       ctx.rotate(idleWobble);
       bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase);
+    } else if (b.sc2State === 'waiting') {
+      // 2nd Chance box — waiting to absorb (silver pulsing shell)
+      drawSecondChanceWaiting(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, tick, b.hoverT);
+    } else if (b.sc2State === 'loaded') {
+      // 2nd Chance box — loaded with stored marbles, ready for second tap
+      drawSecondChanceLoaded(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.sc2ci, S, tick, b.hoverT);
     } else {
       var c = COLORS[b.ci];
       if (isBoxTappable(i) && b.hoverT > 0.01) { ctx.shadowColor = c.glow; ctx.shadowBlur = 20 * S * b.hoverT; }
       drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci);
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+      // 2nd Chance box (first life, pre-tap): draw subtle ↩ badge on top of marbles
+      if (b.boxType === 'secondchance' && b.remaining > 0) {
+        ctx.save();
+        ctx.globalAlpha = 0.55;
+        ctx.fillStyle = '#FFD080';
+        ctx.font = 'bold ' + (L.bh * 0.24) + 'px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        ctx.fillText('\u21A9', 0, -L.bh * 0.46);
+        ctx.restore();
+      }
       if (b.boxType === 'blocker' && b.blockerCount > 0) {
         ctx.save();
         ctx.globalAlpha = 0.06;

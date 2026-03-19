@@ -121,11 +121,21 @@ function spawnPhysMarbles(box) {
         if (b.remaining <= 0) {
           b.emptyT = 1.0;
           setTimeout(function () {
-            b.used = true;
             b.spawning = false;
-            // Reveal adjacent boxes now that this cell is empty
-            for (var si = 0; si < stock.length; si++) {
-              if (stock[si] === b) { revealAroundEmptyCell(si); break; }
+            if (b.boxType === 'secondchance' && !b.sc2FirstUsed) {
+              // First use done — enter waiting state instead of disappearing
+              b.sc2FirstUsed = true;
+              b.sc2State = 'waiting';
+              // Treat as transparent for reveal purposes (neighbors now exposed)
+              for (var si = 0; si < stock.length; si++) {
+                if (stock[si] === b) { revealAroundEmptyCell(si); break; }
+              }
+            } else {
+              b.used = true;
+              // Reveal adjacent boxes now that this cell is truly gone
+              for (var si = 0; si < stock.length; si++) {
+                if (stock[si] === b) { revealAroundEmptyCell(si); break; }
+              }
             }
           }, 300);
         }
