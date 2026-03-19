@@ -220,15 +220,11 @@ function drawStock() {
       // 2nd Chance box — absorbing: show spots filling up as marbles arrive
       drawSecondChanceAbsorbing(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, tick, b.sc2ci, b.sc2Arrived || 0, b.sc2count);
     } else if (b.sc2State === 'loaded') {
-      // 2nd Chance box — loaded: looks like a regular box with gold border
+      // 2nd Chance box — loaded: looks like a regular box (no gold border)
       var sc2c = COLORS[b.sc2ci];
       if (isBoxTappable(i) && b.hoverT > 0.01) { ctx.shadowColor = sc2c.glow; ctx.shadowBlur = 20 * S * b.hoverT; }
       drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.sc2ci);
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
-      ctx.save();
-      ctx.strokeStyle = '#D4900A'; ctx.lineWidth = 2.5 * S;
-      rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.stroke();
-      ctx.restore();
       if (b.sc2count > 0) {
         drawBoxMarbles(b.sc2ci, b.sc2count);
         drawBoxLip(b.sc2ci);
