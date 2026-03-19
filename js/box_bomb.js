@@ -12,9 +12,28 @@ registerBoxType('bomb', {
   label: 'Bomb',
   editorColor: '#E87040',
 
-  // Closed state: looks like a default box (bomb is hidden until revealed)
+  // Closed state: default box look + bomb icon so the player can plan
   drawClosed: function (ctx, x, y, w, h, ci, S, tick, idlePhase) {
     BoxTypes['default'].drawClosed(ctx, x, y, w, h, ci, S, tick, idlePhase);
+    // Bomb icon overlay
+    var iconR = Math.min(w, h) * 0.18;
+    var ix = x + w - iconR * 0.8;
+    var iy = y + iconR * 0.8;
+    ctx.save();
+    ctx.globalAlpha = 0.7;
+    ctx.fillStyle = '#444';
+    ctx.shadowColor = 'rgba(0,0,0,0.3)';
+    ctx.shadowBlur = 3 * S;
+    ctx.beginPath();
+    ctx.arc(ix, iy, iconR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold ' + (iconR * 1.3) + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('\uD83D\uDCA3', ix, iy + 1 * S);
+    ctx.restore();
   },
 
   // Reveal animation: same as default

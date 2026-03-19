@@ -344,12 +344,28 @@ function triggerBombExplosion(idx) {
   b.bombExploded = true;
   b.bombActive = false;
 
-  // Auto-tap: spawn marbles like a normal tap
+  // Auto-tap the bomb box itself
   b.popT = 1;
   sfx.pop();
   spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
   spawnPhysMarbles(b);
   damageAdjacentIce(idx);
+
+  // If this bomb is part of a glue chain, tap all chain members too
+  var chainMembers = getGlueChainFor(idx);
+  for (var t = 0; t < chainMembers.length; t++) {
+    var ti = chainMembers[t];
+    if (ti === idx) continue; // already tapped above
+    var tb = stock[ti];
+    // Defuse any other bombs in the chain
+    if (tb.boxType === 'bomb' && tb.bombActive && !tb.bombExploded) {
+      tb.bombExploded = true;
+      tb.bombActive = false;
+    }
+    if (isBoxTappable(ti)) {
+      tapBox(ti);
+    }
+  }
 
   // Explosion particles (orange/yellow burst)
   var bx = b.x + L.bw / 2, by = b.y + L.bh / 2;
