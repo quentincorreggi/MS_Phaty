@@ -1,0 +1,19 @@
+{
+  "name": "2nd Chance Boxes",
+  "description": "A new box type that gives you a second shot. Tap it once to release marbles — then it waits. The next box you tap above it in the same column gets banked inside the shell instead of going to the belt. Tap the glowing shell to release those stored marbles at exactly the right moment.",
+  "howToPlay": "Tap a gold ↩ box to release its first batch. It turns silver — that means it's hungry. Now tap any box directly above it in the same column to bank those marbles inside. When the shell glows with colour, tap it again to release the stored marbles. After the second release, the box disappears.",
+  "showcaseLevel": {
+    "name": "2nd Chance Demo",
+    "mrbPerBox": 4,
+    "sortCap": 4,
+    "grid": [
+      null, null,                         null,                         null,                         null,                         null,                         null,
+      null, null,                         null,                         null,                         null,                         null,                         null,
+      null, {"ci":1,"type":"default"},    null,                         {"ci":2,"type":"default"},    null,                         {"ci":3,"type":"default"},    null,
+      null, {"ci":0,"type":"default"},    null,                         {"ci":0,"type":"default"},    null,                         {"ci":0,"type":"default"},    null,
+      null, null,                         null,                         null,                         null,                         null,                         null,
+      null, {"ci":1,"type":"secondchance"},null,                        {"ci":2,"type":"secondchance"},null,                        {"ci":3,"type":"secondchance"},null,
+      null, null,                         null,                         null,                         null,                         null,                         null
+    ]
+  }
+}
