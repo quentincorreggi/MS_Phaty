@@ -142,6 +142,9 @@ function initGame() {
     }
   }
 
+  // ── Init ice pillars ──
+  initPillars(lvl);
+
   // ── Initial reveal: lowest non-empty box per column ──
   for (var c = 0; c < L.cols; c++) {
     for (var r = L.rows - 1; r >= 0; r--) {
@@ -197,6 +200,7 @@ function isCellTrulyEmpty(idx) {
   var s = stock[idx];
   if (!s) return false;
   if (s.isWall) return false;  // Walls are never empty
+  if (typeof isCellCoveredByAnyPillar === 'function' && isCellCoveredByAnyPillar(idx) >= 0) return false;
   if (s.isTunnel) {
     if (s.tunnelContents && s.tunnelContents.length > 0) return false;
     var exitIdx = getTunnelExitIdx(idx);
@@ -227,6 +231,7 @@ function revealAroundEmptyCell(idx) {
   for (var ni = 0; ni < neighbors.length; ni++) {
     var nIdx = neighbors[ni];
     var nb = stock[nIdx];
+    if (typeof isCellCoveredByAnyPillar === 'function' && isCellCoveredByAnyPillar(nIdx) >= 0) continue;
     if (nb.isTunnel) {
       if (isCellTrulyEmpty(nIdx)) revealAroundEmptyCell(nIdx);
       continue;
@@ -301,6 +306,7 @@ function isBoxTappable(idx) {
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
+  if (typeof isCellCoveredByAnyPillar === 'function' && isCellCoveredByAnyPillar(idx) >= 0) return false;
   return b.revealed;
 }
 
@@ -315,6 +321,7 @@ function handleTap(px, py) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
+    if (typeof isCellCoveredByAnyPillar === 'function' && isCellCoveredByAnyPillar(i) >= 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
       b.popT = 1;
@@ -322,6 +329,7 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      if (typeof retractAdjacentPillars === 'function') retractAdjacentPillars(i);
       return;
     }
   }
@@ -356,6 +364,9 @@ function update() {
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
+
+  // ── Pillar animations ──
+  if (typeof updatePillars === 'function') updatePillars();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -528,6 +539,7 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    if (typeof drawPillars === 'function') drawPillars();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();

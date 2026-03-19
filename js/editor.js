@@ -17,6 +17,9 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  pillarMode: false,    // true when placing pillars
+  pillarDir: 'horizontal', // 'horizontal' or 'vertical'
+  pillars: [],          // [{ dir, index }]
   visible: false
 };
 
@@ -34,6 +37,9 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.pillarMode = false;
+  editor.pillarDir = 'horizontal';
+  editor.pillars = [];
 }
 
 function showEditor(fresh) {
@@ -95,6 +101,14 @@ function editorRenderGrid() {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
     }
+    // Pillar overlay
+    var pillarCover = editorIsCellPillarCovered(i);
+    if (pillarCover) {
+      cell.style.position = 'relative';
+      cell.innerHTML += '<div class="ed-pillar-overlay" title="' + pillarCover.dir + ' pillar">' +
+        (pillarCover.dir === 'horizontal' ? '\u2194' : '\u2195') + '</div>';
+    }
+
     cell.setAttribute('data-idx', i);
     cell.addEventListener('click', editorCellClick);
     cell.addEventListener('contextmenu', editorCellErase);
@@ -102,8 +116,41 @@ function editorRenderGrid() {
   }
 }
 
+function editorIsCellPillarCovered(idx) {
+  var row = Math.floor(idx / 7);
+  var col = idx % 7;
+  for (var p = 0; p < editor.pillars.length; p++) {
+    var pil = editor.pillars[p];
+    if (pil.dir === 'horizontal' && row === pil.index) return pil;
+    if (pil.dir === 'vertical' && col === pil.index) return pil;
+  }
+  return null;
+}
+
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.pillarMode) {
+    // Pillar placement mode: toggle pillar on this row or column
+    var row = Math.floor(idx / 7);
+    var col = idx % 7;
+    var targetIndex = editor.pillarDir === 'horizontal' ? row : col;
+    var existing = -1;
+    for (var pi = 0; pi < editor.pillars.length; pi++) {
+      if (editor.pillars[pi].dir === editor.pillarDir && editor.pillars[pi].index === targetIndex) {
+        existing = pi; break;
+      }
+    }
+    if (existing >= 0) {
+      editor.pillars.splice(existing, 1);
+    } else {
+      editor.pillars.push({ dir: editor.pillarDir, index: targetIndex });
+    }
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderTunnelPanel();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -178,13 +225,14 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.pillarMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.pillarMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -200,10 +248,26 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.pillarMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(wallBtn);
+
+  // Pillar mode button
+  var pillarBtn = document.createElement('button');
+  pillarBtn.className = 'ed-type-btn' + (editor.pillarMode ? ' active' : '');
+  pillarBtn.textContent = '\u2744 Pillar';
+  pillarBtn.style.borderColor = editor.pillarMode ? 'rgba(126,200,227,0.6)' : '';
+  pillarBtn.style.color = editor.pillarMode ? '#4A8DAA' : '';
+  pillarBtn.addEventListener('click', function () {
+    editor.pillarMode = true;
+    editor.wallMode = false;
+    editor.tunnelMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(pillarBtn);
 
   // Tunnel mode button
   var tunnelBtn = document.createElement('button');
@@ -214,6 +278,7 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.pillarMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -254,6 +319,38 @@ function editorRenderToolbar() {
       dirRow.appendChild(db);
     }
     el.appendChild(dirRow);
+  } else if (editor.pillarMode) {
+    // Pillar mode: direction selector + info
+    var pillarRow = document.createElement('div');
+    pillarRow.className = 'ed-color-row';
+
+    var hBtn = document.createElement('button');
+    hBtn.className = 'ed-tool' + (editor.pillarDir === 'horizontal' ? ' active' : '');
+    hBtn.style.background = 'linear-gradient(135deg,#7EC8E3,#5BA3D9)';
+    hBtn.style.width = 'auto';
+    hBtn.style.padding = '4px 10px';
+    hBtn.innerHTML = '\u2194 Row';
+    hBtn.title = 'Horizontal pillar (covers a row)';
+    hBtn.addEventListener('click', function () { editor.pillarDir = 'horizontal'; editorRenderToolbar(); });
+    pillarRow.appendChild(hBtn);
+
+    var vBtn = document.createElement('button');
+    vBtn.className = 'ed-tool' + (editor.pillarDir === 'vertical' ? ' active' : '');
+    vBtn.style.background = 'linear-gradient(135deg,#7EC8E3,#5BA3D9)';
+    vBtn.style.width = 'auto';
+    vBtn.style.padding = '4px 10px';
+    vBtn.innerHTML = '\u2195 Col';
+    vBtn.title = 'Vertical pillar (covers a column)';
+    vBtn.addEventListener('click', function () { editor.pillarDir = 'vertical'; editorRenderToolbar(); });
+    pillarRow.appendChild(vBtn);
+
+    el.appendChild(pillarRow);
+
+    var pillarInfo = document.createElement('div');
+    pillarInfo.className = 'ed-color-row';
+    pillarInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click a cell to toggle a pillar on its ' +
+      (editor.pillarDir === 'horizontal' ? 'row' : 'column') + '</span>';
+    el.appendChild(pillarInfo);
   } else if (editor.wallMode) {
     // Wall mode: just show info hint
     var wallInfo = document.createElement('div');
@@ -442,6 +539,7 @@ function editorFillRandom() {
 function editorClearAll() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
+  editor.pillars = [];
   editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
 }
 
@@ -503,6 +601,9 @@ function editorUpdateStats() {
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
   }
+  if (editor.pillars.length > 0) {
+    html += '<span class="ed-stat-chip" style="background:#5BA3D9">' + editor.pillars.length + ' pillar' + (editor.pillars.length > 1 ? 's' : '') + '</span>';
+  }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
   }
@@ -563,12 +664,19 @@ function editorRenderSettings() {
 
 // ── Build level definition ──
 function editorBuildLevel() {
-  return {
+  var lvl = {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
     grid: editor.grid.slice()
   };
+  if (editor.pillars.length > 0) {
+    lvl.pillars = [];
+    for (var i = 0; i < editor.pillars.length; i++) {
+      lvl.pillars.push({ dir: editor.pillars[i].dir, index: editor.pillars[i].index });
+    }
+  }
+  return lvl;
 }
 
 // ── Test play ──
@@ -625,6 +733,14 @@ function editorImportJSON() {
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
+      if (lvl.pillars) {
+        editor.pillars = [];
+        for (var pi = 0; pi < lvl.pillars.length; pi++) {
+          editor.pillars.push({ dir: lvl.pillars[pi].dir, index: lvl.pillars[pi].index });
+        }
+      } else {
+        editor.pillars = [];
+      }
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
       var nameEl = document.getElementById('ed-name');
