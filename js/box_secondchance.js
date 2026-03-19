@@ -112,12 +112,23 @@ function drawSecondChanceWaiting(ctx, x, y, w, h, S, tick, hoverT) {
   rRect(x, y, w, h, 6 * S); ctx.stroke();
   ctx.setLineDash([]);
 
-  // ↩ icon, pulsing opacity
-  ctx.globalAlpha = 0.38 + pulse * 0.28;
-  ctx.fillStyle = '#B8A070';
-  ctx.font = 'bold ' + (h * 0.42) + 'px sans-serif';
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('\u21A9', x + w / 2, y + h / 2);
+  // 3x3 grid of dark spots representing 9 empty marble slots
+  var spotR = Math.min(w, h) * 0.08;
+  var padX = w * 0.22;
+  var padY = h * 0.18;
+  var gapX = (w - 2 * padX) / 2;
+  var gapY = (h - 2 * padY) / 2;
+  ctx.globalAlpha = 0.32 + pulse * 0.12;
+  for (var row = 0; row < 3; row++) {
+    for (var col = 0; col < 3; col++) {
+      var sx = x + padX + col * gapX;
+      var sy = y + padY + row * gapY;
+      ctx.fillStyle = 'rgba(80,70,58,0.7)';
+      ctx.beginPath();
+      ctx.arc(sx, sy, spotR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
 
   // Hover highlight
   if (hoverT > 0.01) {
