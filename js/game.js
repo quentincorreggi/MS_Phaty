@@ -32,6 +32,8 @@ function initGame() {
   won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
+  var hasLineOpener = !!(LEVELS[currentLevel] && LEVELS[currentLevel].lineOpener);
+  lineOpenerReset(hasLineOpener);
   document.getElementById('win-screen').classList.remove('show');
   computeLayout(); initBeltSlots();
 
@@ -311,6 +313,7 @@ function handleTap(px, py) {
   if (won || !gameActive) return;
   ensureAudio();
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
+  if (lineOpenerHandleTap(px, py)) return;
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
@@ -333,6 +336,12 @@ canvas.addEventListener('mousemove', function (e) {
   hoverIdx = -1;
   if (!gameActive) return;
   if (e.clientX >= L.bkX && e.clientX <= L.bkX + L.bkSize && e.clientY >= L.bkY && e.clientY <= L.bkY + L.bkSize) { canvas.style.cursor = 'pointer'; return; }
+  // Line opener button hover
+  if (lineOpenerAvailable && !lineOpenerUsed) {
+    var lor = getLineOpenerBtnRect();
+    if (e.clientX >= lor.x && e.clientX <= lor.x + lor.w && e.clientY >= lor.y && e.clientY <= lor.y + lor.h) { canvas.style.cursor = 'pointer'; lineOpenerHandleMouseMove(e.clientX, e.clientY); return; }
+  }
+  if (lineOpenerHandleMouseMove(e.clientX, e.clientY)) { canvas.style.cursor = lineOpenerHoverRow >= 0 ? 'pointer' : 'default'; return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;
@@ -497,6 +506,9 @@ function update() {
     if (box.type === 'lock' && box.triggerT > 0) box.triggerT = Math.max(0, box.triggerT - 0.03);
   }
 
+  // Line opener booster
+  lineOpenerUpdate();
+
   tickParticles();
   updateRollingSound();
 }
@@ -527,12 +539,15 @@ function frame() {
     ctx.clearRect(0, 0, W, H);
     drawBackground();
     drawFunnel();
+    drawLineOpenerRowHighlight();
+    drawLineOpenerCascade();
     drawStock();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();
     drawJumpers();
     drawSortArea();
+    drawLineOpenerButton();
     drawBackButton();
     drawParticles();
     drawDebugWalls();

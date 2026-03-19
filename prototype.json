@@ -1,0 +1,23 @@
+{
+  "name": "Line Opener",
+  "description": "A one-use booster that reveals all hidden boxes in a chosen row with a satisfying cascading animation.",
+  "howToPlay": "Tap the golden lightning bolt button at the top of the grid, then tap a row to reveal all its hidden boxes left-to-right. The booster is single-use, so pick your row wisely!",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Line Opener Demo",
+    "desc": "Use the Line Opener booster to reveal a row of hidden boxes",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "lineOpener": 1,
+    "grid": [
+      {"ci":0,"type":"hidden"},{"ci":1,"type":"hidden"},{"ci":2,"type":"hidden"},{"ci":3,"type":"hidden"},{"ci":0,"type":"hidden"},{"ci":1,"type":"hidden"},{"ci":2,"type":"hidden"},
+      {"ci":3,"type":"hidden"},{"ci":0,"type":"hidden"},{"ci":1,"type":"hidden"},null,{"ci":2,"type":"hidden"},{"ci":3,"type":"hidden"},{"ci":0,"type":"hidden"},
+      {"ci":1,"type":"default"},{"ci":2,"type":"default"},null,null,null,{"ci":3,"type":"default"},{"ci":0,"type":"default"},
+      null,null,null,null,null,null,null,
+      {"ci":1,"type":"hidden"},{"ci":2,"type":"hidden"},{"ci":3,"type":"hidden"},null,{"ci":0,"type":"hidden"},{"ci":1,"type":"hidden"},{"ci":2,"type":"hidden"},
+      {"ci":3,"type":"hidden"},{"ci":0,"type":"hidden"},null,null,null,{"ci":1,"type":"hidden"},{"ci":2,"type":"hidden"},
+      {"ci":3,"type":"default"},{"ci":0,"type":"default"},{"ci":1,"type":"default"},null,{"ci":2,"type":"default"},{"ci":3,"type":"default"},{"ci":0,"type":"default"}
+    ]
+  }
+}

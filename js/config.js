@@ -74,5 +74,17 @@ var cal = {
 };
 
 // === HELPERS ===
+// === LINE OPENER BOOSTER ===
+var lineOpenerAvailable = false;   // true if level has the booster
+var lineOpenerUsed = false;        // true after the booster has been consumed
+var lineOpenerActive = false;      // true when in row-selection mode
+var lineOpenerHoverRow = -1;       // row being highlighted (-1 = none)
+var lineOpenerAnimating = false;   // true during the cascade animation
+var lineOpenerAnimRow = -1;        // row currently animating
+var lineOpenerAnimCol = 0;         // current column in the cascade
+var lineOpenerAnimTimer = 0;       // frame countdown between columns
+var lineOpenerBtnPulse = 0;        // idle pulse timer for the button
+
+// === HELPERS ===
 function getMR() { return MARBLE_R_BASE * S * cal.marble.s; }
 function shuffle(arr) { for (var i = arr.length - 1; i > 0; i--) { var j = ~~(Math.random() * (i + 1)); var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp; } }
