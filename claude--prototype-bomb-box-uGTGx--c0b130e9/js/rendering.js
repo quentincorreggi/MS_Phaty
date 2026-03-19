@@ -243,8 +243,6 @@ function drawStock() {
         if (bombType) {
           if (b.bombActive) {
             bombType.drawActiveOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, b.bombTicksLeft, b.bombFuse, tick);
-          } else {
-            bombType.drawIdleOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, tick);
           }
           if (b.bombDefuseT > 0) {
             bombType.drawDefuseOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, b.bombDefuseT);

@@ -149,7 +149,11 @@ function initGame() {
   for (var c = 0; c < L.cols; c++) {
     for (var r = L.rows - 1; r >= 0; r--) {
       var b = stock[r * L.cols + c];
-      if (!b.empty && !b.isTunnel && !b.isWall) { b.revealed = true; break; }
+      if (!b.empty && !b.isTunnel && !b.isWall) {
+        b.revealed = true;
+        if (b.boxType === 'bomb') { b.bombActive = true; b.bombTicksLeft = b.bombFuse; }
+        break;
+      }
     }
   }
 
@@ -169,6 +173,7 @@ function initGame() {
         var nb = stock[nbrs[ni]];
         if (nb.isTunnel || nb.isWall || nb.empty || nb.used || nb.revealed) continue;
         nb.revealed = true;
+        if (nb.boxType === 'bomb') { nb.bombActive = true; nb.bombTicksLeft = nb.bombFuse; }
         changed = true;
       }
     }
@@ -237,6 +242,7 @@ function revealAroundEmptyCell(idx) {
     if (nb.isWall || nb.empty || nb.used || nb.revealed || nb.spawning) continue;
     nb.revealed = true;
     nb.revealT = 1.0;
+    if (nb.boxType === 'bomb') { nb.bombActive = true; nb.bombTicksLeft = nb.bombFuse; }
     var bx = nb.x + L.bw / 2, by = nb.y + L.bh / 2;
     var burstColor = (nb.boxType === 'hidden') ? '#FFD700' : COLORS[nb.ci].fill;
     for (var p = 0; p < 12; p++) {
@@ -335,19 +341,8 @@ function handleTap(px, py) {
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
 
-      // ── Bomb box: first tap activates, second tap defuses ──
-      if (b.boxType === 'bomb' && !b.bombActive) {
-        // First tap: arm the bomb
-        b.bombActive = true;
-        b.bombTicksLeft = b.bombFuse;
-        b.popT = 1;
-        sfx.pop();
-        spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, '#FF4030', 12);
-        tickActiveBombs(i);
-        return;
-      }
+      // ── Bomb box: tapping defuses it ──
       if (b.boxType === 'bomb' && b.bombActive) {
-        // Second tap: defuse
         b.bombActive = false;
         b.bombDefuseT = 1.0;
         b.popT = 1;
