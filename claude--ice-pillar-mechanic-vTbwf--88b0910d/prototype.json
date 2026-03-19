@@ -1,0 +1,25 @@
+{
+  "name": "Ice Pillar",
+  "description": "A slab of ice slides out from a device and covers an entire row or column, hiding the boxes beneath it. Tap boxes next to the pillar to push it back one cell at a time, revealing hidden boxes.",
+  "howToPlay": "Tap any box that touches the ice pillar to push it back. Each tap retracts the pillar by one cell, revealing the box underneath. Work your way across to uncover the whole row!",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Ice Pillar Demo",
+    "desc": "Push back the ice pillar to reveal hidden boxes",
+    "mrbPerBox": 3,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "pillars": [
+      { "dir": "horizontal", "index": 3 }
+    ],
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, {"ci":0,"type":"default"}, null, {"ci":1,"type":"default"}, null, {"ci":2,"type":"default"}, null,
+      null, {"ci":0,"type":"default"}, {"ci":3,"type":"default"}, {"ci":1,"type":"default"}, {"ci":3,"type":"default"}, {"ci":2,"type":"default"}, null,
+      null, {"ci":0,"type":"default"}, {"ci":2,"type":"default"}, {"ci":1,"type":"default"}, {"ci":3,"type":"default"}, {"ci":2,"type":"default"}, null,
+      null, {"ci":3,"type":"default"}, {"ci":3,"type":"default"}, {"ci":1,"type":"default"}, {"ci":0,"type":"default"}, {"ci":0,"type":"default"}, null,
+      null, {"ci":2,"type":"default"}, null, {"ci":3,"type":"default"}, null, {"ci":1,"type":"default"}, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}
