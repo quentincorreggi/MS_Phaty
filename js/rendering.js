@@ -237,6 +237,23 @@ function drawStock() {
         }
         drawBoxLip(b.ci);
       }
+      // Bomb overlays
+      if (b.boxType === 'bomb') {
+        var bombType = getBoxType('bomb');
+        if (bombType) {
+          if (b.bombActive) {
+            bombType.drawActiveOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, b.bombTicksLeft, b.bombFuse, tick);
+          } else {
+            bombType.drawIdleOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, tick);
+          }
+          if (b.bombDefuseT > 0) {
+            bombType.drawDefuseOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, b.bombDefuseT);
+          }
+          if (b.bombExplodeT > 0) {
+            bombType.drawExplodeOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, b.bombExplodeT);
+          }
+        }
+      }
     }
 
     if (b.iceHP > 0) {

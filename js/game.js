@@ -130,12 +130,15 @@ function initGame() {
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
+      var isBomb = (slot.boxType === 'bomb');
       stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
         revealed: isIce ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        bombFuse: isBomb ? 4 : 0,
+        bombActive: false, bombTicksLeft: 0, bombExplodeT: 0, bombDefuseT: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
@@ -246,6 +249,20 @@ function revealAroundEmptyCell(idx) {
   _revealVisited[idx] = false;
 }
 
+// === BOMB HELPERS ===
+
+// Decrement all active bomb countdowns except the box at exceptIdx.
+// Called whenever any box is tapped (that index is passed as exceptIdx).
+function tickActiveBombs(exceptIdx) {
+  for (var i = 0; i < stock.length; i++) {
+    if (i === exceptIdx) continue;
+    var b = stock[i];
+    if (b.boxType !== 'bomb' || !b.bombActive || b.used || b.spawning) continue;
+    b.bombTicksLeft = Math.max(0, b.bombTicksLeft - 1);
+    b.shakeT = 0.25;
+  }
+}
+
 // === ICE DAMAGE ===
 function damageAdjacentIce(idx) {
   var row = Math.floor(idx / L.cols), col = idx % L.cols;
@@ -317,11 +334,37 @@ function handleTap(px, py) {
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
+
+      // ── Bomb box: first tap activates, second tap defuses ──
+      if (b.boxType === 'bomb' && !b.bombActive) {
+        // First tap: arm the bomb
+        b.bombActive = true;
+        b.bombTicksLeft = b.bombFuse;
+        b.popT = 1;
+        sfx.pop();
+        spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, '#FF4030', 12);
+        tickActiveBombs(i);
+        return;
+      }
+      if (b.boxType === 'bomb' && b.bombActive) {
+        // Second tap: defuse
+        b.bombActive = false;
+        b.bombDefuseT = 1.0;
+        b.popT = 1;
+        sfx.pop();
+        spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, '#50FF80', 20);
+        spawnPhysMarbles(b);
+        damageAdjacentIce(i);
+        tickActiveBombs(i);
+        return;
+      }
+
       b.popT = 1;
       sfx.pop();
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      tickActiveBombs(i);
       return;
     }
   }
@@ -447,6 +490,24 @@ function update() {
     }
   }
 
+  // ── Bomb explosion check ──
+  for (var i = 0; i < stock.length; i++) {
+    var b = stock[i];
+    if (b.boxType !== 'bomb' || !b.bombActive || b.used || b.spawning) continue;
+    if (b.bombTicksLeft <= 0) {
+      // BOOM
+      b.bombActive = false;
+      b.bombExplodeT = 1.0;
+      b.popT = 1;
+      var bx = b.x + L.bw / 2, by = b.y + L.bh / 2;
+      spawnBurst(bx, by, '#FF5010', 30);
+      spawnBurst(bx, by, '#FFD060', 15);
+      spawnConfetti(bx, by, 20);
+      sfx.complete();
+      spawnPhysMarbles(b);
+    }
+  }
+
   // Stock animations
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
@@ -458,6 +519,8 @@ function update() {
     if (b.emptyT > 0) b.emptyT = Math.max(0, b.emptyT - 0.025);
     if (b.iceCrackT > 0) b.iceCrackT = Math.max(0, b.iceCrackT - 0.03);
     if (b.iceShatterT > 0) b.iceShatterT = Math.max(0, b.iceShatterT - 0.025);
+    if (b.bombExplodeT > 0) b.bombExplodeT = Math.max(0, b.bombExplodeT - 0.022);
+    if (b.bombDefuseT > 0) b.bombDefuseT = Math.max(0, b.bombDefuseT - 0.025);
     var th = (i === hoverIdx && !b.used && isBoxTappable(i)) ? 1 : 0;
     b.hoverT += (th - b.hoverT) * 0.12;
   }
