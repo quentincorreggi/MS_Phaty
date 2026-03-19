@@ -1,17 +1,22 @@
 {
   "name": "Bomb Box",
-  "description": "A tense new box type: once opened, a bomb starts counting down. Defuse it by tapping it again before the counter hits zero — or watch it go off on its own!",
-  "howToPlay": "Tap a bomb box to open it and start the fuse. Each other box you tap ticks the counter down by 1. Tap the bomb box again before it hits 0 to defuse it. If you ignore it, it explodes automatically (releasing its marbles with a bang).",
+  "description": "A box type that arms a countdown the moment it's revealed. Tap it before the timer hits zero to defuse it and release the marbles — or let it explode and lose the box's contents.",
+  "howToPlay": "Bomb boxes arm automatically when they become visible. Watch the red countdown on each bomb. Tap a bomb box before it hits zero to defuse it and drop its marbles onto the belt. If a bomb reaches zero, it explodes — no marbles for you! Clear the blue sort columns to win.",
+  "author": "Quentin Correggi",
   "showcaseLevel": {
-    "name": "Bomb Test",
+    "name": "Custom Level",
+    "desc": "My custom level",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
     "grid": [
       null, null, null, null, null, null, null,
-      null, {"ci":0,"type":"default"}, null, {"ci":1,"type":"bomb"}, null, {"ci":2,"type":"default"}, null,
-      null, {"ci":0,"type":"default"}, null, {"ci":3,"type":"bomb"}, null, {"ci":2,"type":"default"}, null,
-      null, {"ci":1,"type":"default"}, null, {"ci":4,"type":"bomb"}, null, {"ci":3,"type":"default"}, null,
-      null, {"ci":1,"type":"default"}, null, null, null, {"ci":4,"type":"default"}, null,
-      null, {"ci":2,"type":"default"}, null, null, null, {"ci":0,"type":"default"}, null,
-      null, null, null, null, null, null, null
+      null, null, null, null, null, null, null,
+      null, { "wall": true }, { "wall": true }, { "wall": true }, { "wall": true }, { "wall": true }, { "wall": true },
+      null, { "wall": true }, { "wall": true }, { "ci": 1, "type": "bomb" }, { "ci": 1, "type": "bomb" }, { "wall": true }, { "wall": true },
+      null, { "wall": true }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "bomb" }, { "ci": 1, "type": "bomb" }, { "ci": 0, "type": "default" }, { "wall": true },
+      null, { "wall": true }, { "ci": 0, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 0, "type": "default" }, { "wall": true },
+      null, { "wall": true }, null, null, null, null, { "wall": true }
     ]
   }
 }
