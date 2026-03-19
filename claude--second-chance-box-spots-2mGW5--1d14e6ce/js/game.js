@@ -377,15 +377,24 @@ function handleTap(px, py) {
           });
         }
 
-        // Mark source box as used without spawning marbles into funnel
+        // Mark source box — if it's a second chance box, enter waiting state instead of disappearing
         b.emptyT = 1.0;
         var capturedBox = b;
         var capturedIdx = i;
-        setTimeout(function () {
-          capturedBox.used = true;
-          capturedBox.spawning = false;
-          revealAroundEmptyCell(capturedIdx);
-        }, 300);
+        if (b.boxType === 'secondchance' && !b.sc2FirstUsed) {
+          setTimeout(function () {
+            capturedBox.spawning = false;
+            capturedBox.sc2FirstUsed = true;
+            capturedBox.sc2State = 'waiting';
+            revealAroundEmptyCell(capturedIdx);
+          }, 300);
+        } else {
+          setTimeout(function () {
+            capturedBox.used = true;
+            capturedBox.spawning = false;
+            revealAroundEmptyCell(capturedIdx);
+          }, 300);
+        }
         damageAdjacentIce(i);
         return;
       }
