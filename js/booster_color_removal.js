@@ -139,6 +139,7 @@ function boosterRemoveColor(ci) {
   }
 
   // Wipe matching stock boxes (incl. currently spawning)
+  var wipedIndices = [];
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall || b.empty || b.used) continue;
@@ -148,7 +149,12 @@ function boosterRemoveColor(ci) {
     b.remaining = 0;
     b.spawning  = false;
     b.emptyT    = 1.0;
+    wipedIndices.push(i);
   }
+
+  // Reveal boxes adjacent to every wiped cell
+  for (var wi = 0; wi < wipedIndices.length; wi++)
+    revealAroundEmptyCell(wipedIndices[wi]);
 
   // Wipe matching items from tunnel queues
   for (var i = 0; i < stock.length; i++) {
