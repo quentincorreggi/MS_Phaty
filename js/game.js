@@ -294,6 +294,52 @@ function damageAdjacentIce(idx) {
   }
 }
 
+// === CLUSTER REVEAL ===
+// When a cluster box is tapped, reveal 1-3 hidden same-color boxes on the grid.
+function clusterReveal(idx) {
+  var b = stock[idx];
+  var ci = b.ci;
+
+  // Gather unrevealed same-color candidates (skip tunnels, walls, empty, used)
+  var candidates = [];
+  for (var i = 0; i < stock.length; i++) {
+    if (i === idx) continue;
+    var s = stock[i];
+    if (s.isTunnel || s.isWall || s.empty || s.used || s.revealed) continue;
+    if (s.ci === ci) candidates.push(i);
+  }
+  shuffle(candidates);
+
+  var count = Math.min(candidates.length, 1 + Math.floor(Math.random() * 3));
+  for (var k = 0; k < count; k++) {
+    var ni = candidates[k];
+    var nb = stock[ni];
+    nb.revealed = true;
+    nb.revealT = 1.0;
+    nb.popT = 0.8;
+
+    var bx = nb.x + L.bw / 2, by = nb.y + L.bh / 2;
+    var burstColor = COLORS[ci].fill;
+
+    // Color burst
+    for (var p = 0; p < 14; p++) {
+      var a = Math.PI * 2 * p / 14 + Math.random() * 0.3, sp = 3 + Math.random() * 5;
+      particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
+        r: (2 + Math.random() * 4) * S, color: burstColor,
+        life: 1, decay: 0.02 + Math.random() * 0.015, grav: false });
+    }
+    // Gold star sparkles
+    for (var p = 0; p < 6; p++) {
+      var a = Math.random() * Math.PI * 2, sp = 2 + Math.random() * 4;
+      particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S - 1.5 * S,
+        r: (2.5 + Math.random() * 3) * S, color: '#FFD700',
+        life: 0.9, decay: 0.025, grav: true });
+    }
+  }
+
+  if (count > 0) sfx.complete();
+}
+
 function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
@@ -322,6 +368,7 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      if (b.boxType === 'cluster') clusterReveal(i);
       return;
     }
   }
