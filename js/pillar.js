@@ -183,24 +183,23 @@ function drawPillarOverlay(pillar) {
     var firstStalk = stock[pillar.cells[1]];
     var lastIdx = Math.min(pillar.remaining, pillar.cells.length - 1);
     var lastStalk = stock[pillar.cells[lastIdx]];
-    var inset = 0.20; // narrow the stalk to 60% of cell size on cross-axis
     var sx, sy, sw, sh;
 
     if (isHoriz) {
       var minX = Math.min(firstStalk.x, lastStalk.x);
       var maxX = Math.max(firstStalk.x, lastStalk.x) + w;
       // Extend stalk into base cell to connect seamlessly
-      if (pillar.dir === 'right') { sx = baseCell.x + w * 0.5; sw = maxX - sx; }
-      else { sx = minX; sw = baseCell.x + w * 0.5 - minX; }
-      sy = firstStalk.y + h * inset;
-      sh = h * (1 - 2 * inset);
+      if (pillar.dir === 'right') { sx = baseCell.x + w; sw = maxX - sx; }
+      else { sx = minX; sw = baseCell.x - minX; }
+      sy = firstStalk.y;
+      sh = h;
     } else {
       var minY = Math.min(firstStalk.y, lastStalk.y);
       var maxY = Math.max(firstStalk.y, lastStalk.y) + h;
-      if (pillar.dir === 'down') { sy = baseCell.y + h * 0.5; sh = maxY - sy; }
-      else { sy = minY; sh = baseCell.y + h * 0.5 - minY; }
-      sx = firstStalk.x + w * inset;
-      sw = w * (1 - 2 * inset);
+      if (pillar.dir === 'down') { sy = baseCell.y + h; sh = maxY - sy; }
+      else { sy = minY; sh = baseCell.y - minY; }
+      sx = firstStalk.x;
+      sw = w;
     }
 
     ctx.save();
