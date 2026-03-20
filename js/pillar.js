@@ -167,135 +167,228 @@ function drawPillars() {
 
 function drawPillarOverlay(pillar) {
   var coveredCount = pillar.remaining + 1;
+  var baseCell = stock[pillar.cells[0]];
+  var w = L.bw, h = L.bh;
+  var isHoriz = (pillar.dir === 'right' || pillar.dir === 'left');
 
-  // Draw connectors first (behind cells)
-  for (var i = 0; i < coveredCount - 1 && i + 1 < pillar.cells.length; i++) {
-    var idx = pillar.cells[i];
-    var cell = stock[idx];
-    var x = cell.x, y = cell.y;
-    var w = L.bw, h = L.bh;
-    ctx.save();
-    ctx.fillStyle = '#B8984A';
-    if (pillar.dir === 'right') {
-      ctx.fillRect(x + w, y + 3 * S, L.bg, h - 6 * S);
-    } else if (pillar.dir === 'left') {
-      ctx.fillRect(x - L.bg, y + 3 * S, L.bg, h - 6 * S);
-    } else if (pillar.dir === 'down') {
-      ctx.fillRect(x + 3 * S, y + h, w - 6 * S, L.bg);
-    } else if (pillar.dir === 'up') {
-      ctx.fillRect(x + 3 * S, y - L.bg, w - 6 * S, L.bg);
-    }
-    ctx.restore();
+  // Shake animation
+  var ox = 0, oy = 0;
+  if (pillar.crumbleT > 0.7) {
+    var shake = Math.sin(pillar.crumbleT * 30) * 3 * S * (pillar.crumbleT - 0.7) / 0.3;
+    if (isHoriz) ox = shake; else oy = shake;
   }
 
-  // Draw each cell overlay
-  for (var i = 0; i < coveredCount && i < pillar.cells.length; i++) {
-    var idx = pillar.cells[i];
-    var cell = stock[idx];
-    var x = cell.x, y = cell.y;
-    var w = L.bw, h = L.bh;
-    var isBase = (i === 0);
+  // ── 1) Draw the stalk as one continuous bar ──
+  if (coveredCount > 1 && pillar.cells.length > 1) {
+    var firstStalk = stock[pillar.cells[1]];
+    var lastIdx = Math.min(pillar.remaining, pillar.cells.length - 1);
+    var lastStalk = stock[pillar.cells[lastIdx]];
+    var inset = 0.20; // narrow the stalk to 60% of cell size on cross-axis
+    var sx, sy, sw, sh;
+
+    if (isHoriz) {
+      var minX = Math.min(firstStalk.x, lastStalk.x);
+      var maxX = Math.max(firstStalk.x, lastStalk.x) + w;
+      // Extend stalk into base cell to connect seamlessly
+      if (pillar.dir === 'right') { sx = baseCell.x + w * 0.5; sw = maxX - sx; }
+      else { sx = minX; sw = baseCell.x + w * 0.5 - minX; }
+      sy = firstStalk.y + h * inset;
+      sh = h * (1 - 2 * inset);
+    } else {
+      var minY = Math.min(firstStalk.y, lastStalk.y);
+      var maxY = Math.max(firstStalk.y, lastStalk.y) + h;
+      if (pillar.dir === 'down') { sy = baseCell.y + h * 0.5; sh = maxY - sy; }
+      else { sy = minY; sh = baseCell.y + h * 0.5 - minY; }
+      sx = firstStalk.x + w * inset;
+      sw = w * (1 - 2 * inset);
+    }
 
     ctx.save();
 
-    // Shake on crumble
-    var ox = 0;
-    if (pillar.crumbleT > 0.7) {
-      ox = Math.sin(pillar.crumbleT * 30) * 3 * S * (pillar.crumbleT - 0.7) / 0.3;
-    }
-
-    // Sandstone fill
-    ctx.shadowColor = 'rgba(0,0,0,0.18)';
-    ctx.shadowBlur = 4 * S;
+    // Light tan stalk body
+    ctx.shadowColor = 'rgba(0,0,0,0.12)';
+    ctx.shadowBlur = 3 * S;
     ctx.shadowOffsetY = 2 * S;
-    var grad = ctx.createLinearGradient(x + ox, y, x + ox, y + h);
-    grad.addColorStop(0, '#D4B87A');
-    grad.addColorStop(0.3, '#C4A46C');
-    grad.addColorStop(0.7, '#A8894F');
-    grad.addColorStop(1, '#8B7345');
-    ctx.fillStyle = grad;
-    rRect(x + ox, y, w, h, 6 * S);
+    var stalkGrad;
+    if (isHoriz) {
+      stalkGrad = ctx.createLinearGradient(sx + ox, sy + oy, sx + ox, sy + oy + sh);
+    } else {
+      stalkGrad = ctx.createLinearGradient(sx + ox, sy + oy, sx + ox + sw, sy + oy);
+    }
+    stalkGrad.addColorStop(0, '#E8D5A8');
+    stalkGrad.addColorStop(0.4, '#DCCB98');
+    stalkGrad.addColorStop(0.6, '#D0C088');
+    stalkGrad.addColorStop(1, '#C4AA70');
+    ctx.fillStyle = stalkGrad;
+    rRect(sx + ox, sy + oy, sw, sh, 4 * S);
     ctx.fill();
     ctx.shadowColor = 'transparent';
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
 
-    // Stone texture
+    // Subtle grooves along the stalk
     ctx.save();
     ctx.beginPath();
-    rRect(x + ox, y, w, h, 6 * S);
+    rRect(sx + ox, sy + oy, sw, sh, 4 * S);
     ctx.clip();
-    ctx.strokeStyle = 'rgba(60,50,35,0.15)';
-    ctx.lineWidth = 1 * S;
-    var brickH = h / 3;
-    for (var r = 1; r < 3; r++) {
-      ctx.beginPath();
-      ctx.moveTo(x + ox, y + r * brickH);
-      ctx.lineTo(x + ox + w, y + r * brickH);
-      ctx.stroke();
-    }
-    for (var r = 0; r < 3; r++) {
-      var offX = (r % 2 === 0) ? w * 0.5 : w * 0.25;
-      ctx.beginPath();
-      ctx.moveTo(x + ox + offX, y + r * brickH);
-      ctx.lineTo(x + ox + offX, y + (r + 1) * brickH);
-      ctx.stroke();
-    }
-    // Random texture dots
-    ctx.fillStyle = 'rgba(0,0,0,0.04)';
-    var seed = (idx * 7 + 13) | 0;
-    for (var d = 0; d < 6; d++) {
-      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-      var dx2 = x + ox + (seed % 100) / 100 * w;
-      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-      var dy2 = y + (seed % 100) / 100 * h;
-      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-      var dr2 = (1 + (seed % 2)) * S;
-      ctx.beginPath(); ctx.arc(dx2, dy2, dr2, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(140,115,60,0.15)';
+    ctx.lineWidth = 0.8 * S;
+    if (isHoriz) {
+      // Horizontal lines along the stalk
+      var grooveN = 3;
+      for (var g = 1; g < grooveN; g++) {
+        var gy = sy + oy + sh * g / grooveN;
+        ctx.beginPath();
+        ctx.moveTo(sx + ox, gy);
+        ctx.lineTo(sx + ox + sw, gy);
+        ctx.stroke();
+      }
+      // Vertical notches at cell boundaries
+      ctx.strokeStyle = 'rgba(140,115,60,0.10)';
+      for (var ci3 = 1; ci3 < coveredCount && ci3 < pillar.cells.length; ci3++) {
+        var sc = stock[pillar.cells[ci3]];
+        ctx.beginPath();
+        ctx.moveTo(sc.x + ox + w * 0.5, sy + oy);
+        ctx.lineTo(sc.x + ox + w * 0.5, sy + oy + sh);
+        ctx.stroke();
+      }
+    } else {
+      // Vertical grooves
+      var grooveN = 3;
+      for (var g = 1; g < grooveN; g++) {
+        var gx = sx + ox + sw * g / grooveN;
+        ctx.beginPath();
+        ctx.moveTo(gx, sy + oy);
+        ctx.lineTo(gx, sy + oy + sh);
+        ctx.stroke();
+      }
+      // Horizontal notches at cell boundaries
+      ctx.strokeStyle = 'rgba(140,115,60,0.10)';
+      for (var ci3 = 1; ci3 < coveredCount && ci3 < pillar.cells.length; ci3++) {
+        var sc = stock[pillar.cells[ci3]];
+        ctx.beginPath();
+        ctx.moveTo(sx + ox, sc.y + oy + h * 0.5);
+        ctx.lineTo(sx + ox + sw, sc.y + oy + h * 0.5);
+        ctx.stroke();
+      }
     }
     ctx.restore();
 
-    // Border — thicker for base
-    ctx.strokeStyle = isBase ? 'rgba(100,70,30,0.6)' : 'rgba(80,60,35,0.45)';
-    ctx.lineWidth = isBase ? 2.5 * S : 1.5 * S;
-    rRect(x + ox, y, w, h, 6 * S);
+    // Stalk border
+    ctx.strokeStyle = 'rgba(160,130,70,0.45)';
+    ctx.lineWidth = 1.2 * S;
+    rRect(sx + ox, sy + oy, sw, sh, 4 * S);
     ctx.stroke();
 
-    // Base pedestal indicator
-    if (isBase) {
-      ctx.fillStyle = 'rgba(100,70,30,0.2)';
-      var pedH = h * 0.12;
-      ctx.beginPath();
-      ctx.rect(x + ox + 3 * S, y + h - pedH, w - 6 * S, pedH);
-      ctx.fill();
+    // Top-edge highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    if (isHoriz) {
+      rRect(sx + ox + 2 * S, sy + oy, sw - 4 * S, sh * 0.15, 2 * S);
+    } else {
+      rRect(sx + ox, sy + oy + 2 * S, sw * 0.15, sh - 4 * S, 2 * S);
     }
-
-    // Color hint circle
-    if (!cell.isTunnel && !cell.isWall && !cell.empty && !cell.used && cell.ci >= 0) {
-      ctx.globalAlpha = 0.3;
-      var cc = COLORS[cell.ci];
-      ctx.fillStyle = cc.fill;
-      ctx.beginPath();
-      ctx.arc(x + ox + w / 2, y + h / 2, w * 0.16, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-    }
-
-    // Top highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.08)';
-    ctx.beginPath();
-    ctx.moveTo(x + ox + 6 * S, y);
-    ctx.lineTo(x + ox + w - 6 * S, y);
-    ctx.quadraticCurveTo(x + ox + w, y, x + ox + w, y + 6 * S);
-    ctx.lineTo(x + ox + w - 4 * S, y + 4 * S);
-    ctx.lineTo(x + ox + 4 * S, y + 4 * S);
-    ctx.lineTo(x + ox + 4 * S, y + h * 0.3);
-    ctx.lineTo(x + ox, y + 6 * S);
-    ctx.quadraticCurveTo(x + ox, y, x + ox + 6 * S, y);
     ctx.fill();
+
+    // Color hint dots for each stalk cell
+    for (var i = 1; i < coveredCount && i < pillar.cells.length; i++) {
+      var sc2 = stock[pillar.cells[i]];
+      if (!sc2.isTunnel && !sc2.isWall && !sc2.empty && sc2.ci >= 0) {
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = COLORS[sc2.ci].fill;
+        ctx.beginPath();
+        ctx.arc(sc2.x + ox + w / 2, sc2.y + oy + h / 2, w * 0.13, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
 
     ctx.restore();
   }
+
+  // ── 2) Draw the base (dark brown, full cell, on top) ──
+  var bx = baseCell.x, by = baseCell.y;
+  ctx.save();
+
+  ctx.shadowColor = 'rgba(0,0,0,0.25)';
+  ctx.shadowBlur = 5 * S;
+  ctx.shadowOffsetY = 2 * S;
+  var baseGrad = ctx.createLinearGradient(bx + ox, by + oy, bx + ox, by + oy + h);
+  baseGrad.addColorStop(0, '#6B4E2A');
+  baseGrad.addColorStop(0.35, '#5C3D1E');
+  baseGrad.addColorStop(0.7, '#4A3018');
+  baseGrad.addColorStop(1, '#3A2510');
+  ctx.fillStyle = baseGrad;
+  rRect(bx + ox, by + oy, w, h, 6 * S);
+  ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+
+  // Stone brick texture on base
+  ctx.save();
+  ctx.beginPath();
+  rRect(bx + ox, by + oy, w, h, 6 * S);
+  ctx.clip();
+  ctx.strokeStyle = 'rgba(20,12,5,0.22)';
+  ctx.lineWidth = 1 * S;
+  var brickH = h / 3;
+  for (var r = 1; r < 3; r++) {
+    ctx.beginPath();
+    ctx.moveTo(bx + ox, by + oy + r * brickH);
+    ctx.lineTo(bx + ox + w, by + oy + r * brickH);
+    ctx.stroke();
+  }
+  for (var r = 0; r < 3; r++) {
+    var offX = (r % 2 === 0) ? w * 0.5 : w * 0.25;
+    ctx.beginPath();
+    ctx.moveTo(bx + ox + offX, by + oy + r * brickH);
+    ctx.lineTo(bx + ox + offX, by + oy + (r + 1) * brickH);
+    ctx.stroke();
+  }
+  // Random speckle
+  ctx.fillStyle = 'rgba(255,255,255,0.03)';
+  var seed = (pillar.cells[0] * 11 + 7) | 0;
+  for (var d = 0; d < 5; d++) {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    var dx2 = bx + ox + (seed % 100) / 100 * w;
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    var dy2 = by + oy + (seed % 100) / 100 * h;
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    var dr2 = (1 + (seed % 2)) * S;
+    ctx.beginPath(); ctx.arc(dx2, dy2, dr2, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+
+  // Base border
+  ctx.strokeStyle = 'rgba(30,18,8,0.6)';
+  ctx.lineWidth = 2 * S;
+  rRect(bx + ox, by + oy, w, h, 6 * S);
+  ctx.stroke();
+
+  // Color hint on base
+  if (!baseCell.isTunnel && !baseCell.isWall && !baseCell.empty && baseCell.ci >= 0) {
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = COLORS[baseCell.ci].fill;
+    ctx.beginPath();
+    ctx.arc(bx + ox + w / 2, by + oy + h / 2, w * 0.16, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // Top-left highlight
+  ctx.fillStyle = 'rgba(255,255,255,0.06)';
+  ctx.beginPath();
+  ctx.moveTo(bx + ox + 6 * S, by + oy);
+  ctx.lineTo(bx + ox + w - 6 * S, by + oy);
+  ctx.quadraticCurveTo(bx + ox + w, by + oy, bx + ox + w, by + oy + 6 * S);
+  ctx.lineTo(bx + ox + w - 4 * S, by + oy + 4 * S);
+  ctx.lineTo(bx + ox + 4 * S, by + oy + 4 * S);
+  ctx.lineTo(bx + ox + 4 * S, by + oy + h * 0.3);
+  ctx.lineTo(bx + ox, by + oy + 6 * S);
+  ctx.quadraticCurveTo(bx + ox, by + oy, bx + ox + 6 * S, by + oy);
+  ctx.fill();
+
+  ctx.restore();
 }
 
 // ── Editor helpers for pillar placement ──
