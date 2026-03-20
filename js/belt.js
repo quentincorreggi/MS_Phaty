@@ -4,8 +4,21 @@
 
 function initBeltSlots() {
   beltSlots = [];
-  for (var i = 0; i < BELT_SLOTS; i++) beltSlots.push({ marble: -1, arriveAnim: 0 });
+  for (var i = 0; i < BELT_SLOTS; i++) beltSlots.push({ marble: -1, arriveAnim: 0, isBlocker: false });
   beltOffset = 0;
+  blockerSlotsActive = false;
+  blockerSlotStart = -1;
+  blockerOpenT = 0;
+  blockerOpenCleared = false;
+}
+
+function setupBlockerSlots(count) {
+  if (count <= 0) return;
+  blockerSlotStart = Math.floor((BELT_SLOTS - count) / 2);
+  blockerSlotsActive = true;
+  for (var i = 0; i < count; i++) {
+    beltSlots[blockerSlotStart + i].isBlocker = true;
+  }
 }
 
 function getSlotPos(i) {

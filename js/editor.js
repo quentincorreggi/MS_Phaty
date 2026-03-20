@@ -17,6 +17,7 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  blockerMode: false,   // true when toggling blocker modifier on boxes
   visible: false
 };
 
@@ -34,6 +35,7 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.blockerMode = false;
 }
 
 function showEditor(fresh) {
@@ -90,7 +92,11 @@ function editorRenderGrid() {
       var st = bt.editorCellStyle(v.ci);
       cell.style.background = st.background;
       cell.style.borderColor = st.borderColor;
-      cell.innerHTML = bt.editorCellHTML(v.ci);
+      var cellHTML = bt.editorCellHTML(v.ci);
+      if (v.blocker) {
+        cellHTML += '<span style="position:absolute;top:-2px;right:-2px;background:linear-gradient(135deg,#FFD700,#B8960F);color:#1A1A0A;font-size:7px;font-weight:900;width:14px;height:14px;border-radius:7px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(0,0,0,0.3);pointer-events:none">!</span>';
+      }
+      cell.innerHTML = cellHTML;
     } else {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
@@ -104,6 +110,18 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.blockerMode) {
+    // Blocker modifier toggle mode: toggle blocker on existing boxes
+    var existing = editor.grid[idx];
+    if (existing && !existing.tunnel && !existing.wall && existing.ci >= 0) {
+      existing.blocker = !existing.blocker;
+    }
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderTunnelPanel();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -178,18 +196,34 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.blockerMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.blockerMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
     typeRow.appendChild(tb);
   }
+
+  // Blocker modifier toggle button
+  var blockerBtn = document.createElement('button');
+  blockerBtn.className = 'ed-type-btn' + (editor.blockerMode ? ' active' : '');
+  blockerBtn.textContent = '\u26A0 Blocker';
+  blockerBtn.style.borderColor = editor.blockerMode ? 'rgba(255,215,0,0.6)' : '';
+  blockerBtn.style.color = editor.blockerMode ? '#B8960F' : '';
+  blockerBtn.addEventListener('click', function () {
+    editor.blockerMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(blockerBtn);
 
   // Wall mode button
   var wallBtn = document.createElement('button');
@@ -200,6 +234,7 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.blockerMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -214,6 +249,7 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.blockerMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -254,6 +290,12 @@ function editorRenderToolbar() {
       dirRow.appendChild(db);
     }
     el.appendChild(dirRow);
+  } else if (editor.blockerMode) {
+    // Blocker mode: hint
+    var blockerInfo = document.createElement('div');
+    blockerInfo.className = 'ed-color-row';
+    blockerInfo.innerHTML = '<span style="font-size:11px;color:#B8960F">Click boxes to toggle blocker modifier (adds 3 hazard marbles)</span>';
+    el.appendChild(blockerInfo);
   } else if (editor.wallMode) {
     // Wall mode: just show info hint
     var wallInfo = document.createElement('div');
@@ -344,8 +386,9 @@ function editorRenderTunnelPanel() {
       var item = tunnel.contents[ci2];
       var c = COLORS[item.ci];
       var typeLabel = (BoxTypes[item.type] || BoxTypes[BoxTypeOrder[0]]).label;
-      html += '<span class="ed-tunnel-item" data-cidx="' + ci2 + '" title="' + CLR_NAMES[item.ci] + ' ' + typeLabel + ' — click to remove" style="background:' + c.fill + '">';
-      html += '<span style="font-size:8px;opacity:0.7">' + typeLabel[0] + '</span>';
+      var blockerTag = item.blocker ? '\u26A0' : '';
+      html += '<span class="ed-tunnel-item" data-cidx="' + ci2 + '" title="' + CLR_NAMES[item.ci] + ' ' + typeLabel + (item.blocker ? ' (Blocker)' : '') + ' — click to remove" style="background:' + c.fill + '">';
+      html += '<span style="font-size:8px;opacity:0.7">' + typeLabel[0] + blockerTag + '</span>';
       html += '</span>';
     }
   }
@@ -359,6 +402,7 @@ function editorRenderTunnelPanel() {
     html += '<option value="' + BoxTypeOrder[t] + '">' + BoxTypes[BoxTypeOrder[t]].label + '</option>';
   }
   html += '</select>';
+  html += '<label style="font-size:10px;color:#B8960F;display:flex;align-items:center;gap:3px;cursor:pointer"><input type="checkbox" id="ed-tunnel-add-blocker"> \u26A0 Blocker</label>';
   html += '</div>';
   html += '<div class="ed-tunnel-add-colors">';
   for (var ci3 = 0; ci3 < NUM_COLORS; ci3++) {
@@ -403,9 +447,13 @@ function editorRenderTunnelPanel() {
     addClrs[ac].addEventListener('click', function () {
       var ci4 = parseInt(this.getAttribute('data-ci'));
       var typeEl = document.getElementById('ed-tunnel-add-type');
+      var blockerEl = document.getElementById('ed-tunnel-add-blocker');
       var type = typeEl ? typeEl.value : 'default';
+      var isBlocker = blockerEl ? blockerEl.checked : false;
       if (editor.selectedTunnel >= 0 && editor.grid[editor.selectedTunnel]) {
-        editor.grid[editor.selectedTunnel].contents.push({ ci: ci4, type: type });
+        var item = { ci: ci4, type: type };
+        if (isBlocker) item.blocker = true;
+        editor.grid[editor.selectedTunnel].contents.push(item);
         editorRenderGrid();
         editorRenderTunnelPanel();
         editorUpdateStats();
@@ -467,7 +515,7 @@ function editorUpdateStats() {
         for (var tc = 0; tc < v.contents.length; tc++) {
           var tItem = v.contents[tc];
           counts[tItem.ci]++;
-          if (tItem.type === 'blocker') {
+          if (tItem.blocker || tItem.type === 'blocker') {
             regularMrb[tItem.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
             totalBlockers += BLOCKER_PER_BOX;
           } else {
@@ -481,7 +529,7 @@ function editorUpdateStats() {
       counts[v.ci]++;
       total++;
       typeCounts[v.type] = (typeCounts[v.type] || 0) + 1;
-      if (v.type === 'blocker') {
+      if (v.blocker) {
         regularMrb[v.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
         totalBlockers += BLOCKER_PER_BOX;
       } else {
@@ -619,7 +667,11 @@ function editorImportJSON() {
           else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
           else if (cell.wall) editor.grid[i] = { wall: true };
           else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
-          else editor.grid[i] = cell;
+          else {
+            // Backward compat: type 'blocker' → type 'default' + blocker flag
+            if (cell.type === 'blocker') { cell.type = 'default'; cell.blocker = true; }
+            editor.grid[i] = cell;
+          }
         }
       }
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;

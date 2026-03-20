@@ -94,8 +94,12 @@ function drawBoxMarblesWithBlockers(ci, remaining, blockerCount) {
   mrbsToDraw.sort(function (a, b) { return a.r - b.r; });
   for (var si = 0; si < mrbsToDraw.length; si++) {
     var sp = mrbsToDraw[si];
-    var mci = sp.isBlocker ? BLOCKER_CI : ci;
-    drawMarble((sp.c - 1) * mg, (sp.r - 1) * mgY - 2 * S, mr, mci);
+    var mx = (sp.c - 1) * mg, my = (sp.r - 1) * mgY - 2 * S;
+    if (sp.isBlocker) {
+      drawBlockerMarble(mx, my, mr);
+    } else {
+      drawMarble(mx, my, mr, ci);
+    }
   }
 }
 
@@ -209,28 +213,31 @@ function drawStock() {
     if (b.revealT > 0) {
       var phase = 1 - b.revealT;
       bt.drawReveal(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, phase, b.remaining, tick);
+      // Blocker overlay fades in during reveal
+      if (b.blocker && phase > 0.4) {
+        ctx.save();
+        ctx.globalAlpha = (phase - 0.4) / 0.6;
+        drawBlockerBoxOverlay(-L.bw / 2, -L.bh / 2, L.bw, L.bh, S);
+        ctx.restore();
+      }
     } else if (!b.revealed) {
       var idleWobble = Math.sin(tick * 0.02 + b.idlePhase) * 0.006;
       ctx.rotate(idleWobble);
       bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase);
+      // Blocker overlay on closed boxes (not hidden — player shouldn't see blocker on '?' boxes)
+      if (b.blocker && b.boxType !== 'hidden') {
+        drawBlockerBoxOverlay(-L.bw / 2, -L.bh / 2, L.bw, L.bh, S);
+      }
     } else {
       var c = COLORS[b.ci];
       if (isBoxTappable(i) && b.hoverT > 0.01) { ctx.shadowColor = c.glow; ctx.shadowBlur = 20 * S * b.hoverT; }
       drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci);
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
-      if (b.boxType === 'blocker' && b.blockerCount > 0) {
-        ctx.save();
-        ctx.globalAlpha = 0.06;
-        ctx.beginPath(); rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.clip();
-        ctx.strokeStyle = COLORS[BLOCKER_CI].fill; ctx.lineWidth = 2 * S;
-        var sg = 8 * S;
-        for (var d = -L.bw; d < L.bw + L.bh; d += sg) {
-          ctx.beginPath(); ctx.moveTo(-L.bw / 2 + d, -L.bh / 2); ctx.lineTo(-L.bw / 2 + d - L.bh, L.bh / 2); ctx.stroke();
-        }
-        ctx.restore();
+      if (b.blocker && b.blockerCount > 0) {
+        drawBlockerBoxOverlay(-L.bw / 2, -L.bh / 2, L.bw, L.bh, S);
       }
       if (b.remaining > 0) {
-        if (b.boxType === 'blocker' && b.blockerCount > 0) {
+        if (b.blocker && b.blockerCount > 0) {
           drawBoxMarblesWithBlockers(b.ci, b.remaining, b.blockerCount);
         } else {
           drawBoxMarbles(b.ci, b.remaining);
@@ -264,7 +271,11 @@ function drawPhysMarbles() {
   for (var i = 0; i < physMarbles.length; i++) {
     var m = physMarbles[i];
     var bounce = m.spawnT > 0 ? (1 + Math.sin(m.spawnT * Math.PI) * 0.4) : 1;
-    drawMarble(m.x, m.y, m.r, m.ci, bounce);
+    if (m.ci === BLOCKER_CI) {
+      drawBlockerMarble(m.x, m.y, m.r, bounce);
+    } else {
+      drawMarble(m.x, m.y, m.r, m.ci, bounce);
+    }
   }
 }
 
@@ -272,89 +283,55 @@ function drawPhysMarbles() {
 
 function drawBelt() {
   var slotR = 8 * S;
+  var openPhase = blockerOpenT;
   for (var i = 0; i < BELT_SLOTS; i++) {
     var pos = getSlotPos(i); var slot = beltSlots[i];
-    ctx.save();
-    ctx.fillStyle = 'rgba(180,165,145,0.35)';
-    ctx.shadowColor = 'rgba(0,0,0,0.15)'; ctx.shadowBlur = 3 * S; ctx.shadowOffsetY = 1 * S;
-    ctx.beginPath(); ctx.arc(pos.x, pos.y, slotR, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(160,140,120,0.25)'; ctx.lineWidth = 1 * S;
-    ctx.beginPath(); ctx.arc(pos.x, pos.y, slotR, 0, Math.PI * 2); ctx.stroke();
-    ctx.restore();
+
+    if (slot.isBlocker) {
+      // Blocker slot: yellow/black hazard stripes
+      var filled = (slot.marble >= 0);
+      drawBlockerBeltSlot(pos.x, pos.y, slotR, tick, filled, openPhase);
+    } else {
+      // Regular slot
+      ctx.save();
+      ctx.fillStyle = 'rgba(180,165,145,0.35)';
+      ctx.shadowColor = 'rgba(0,0,0,0.15)'; ctx.shadowBlur = 3 * S; ctx.shadowOffsetY = 1 * S;
+      ctx.beginPath(); ctx.arc(pos.x, pos.y, slotR, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(160,140,120,0.25)'; ctx.lineWidth = 1 * S;
+      ctx.beginPath(); ctx.arc(pos.x, pos.y, slotR, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+
     if (slot.marble >= 0) {
       var bs = 1;
       if (slot.arriveAnim > 0) { var t2 = 1 - slot.arriveAnim; bs = 1 + Math.sin(t2 * Math.PI * 3) * 0.3 * slot.arriveAnim; }
-      if (slot.marble === BLOCKER_CI && blockerCollecting && blockerCollectT > 0.5) {
-        var ct = (blockerCollectT - 0.5) * 2;
-        var pulse = 1 + Math.sin((1 - ct) * Math.PI * 8) * 0.2;
+
+      // During opening animation: blocker marbles shrink and fall
+      if (slot.isBlocker && openPhase > 0 && openPhase <= 0.5) {
+        var dropT = 1 - openPhase * 2; // 0→1 as openPhase goes 0.5→0
+        bs *= (1 - dropT);
+        var dropY = dropT * 30 * S;
+        ctx.save();
+        ctx.globalAlpha = 1 - dropT;
+        drawBlockerMarble(pos.x, pos.y + dropY, slotR * 0.8 * cal.marble.s, bs);
+        ctx.restore();
+      } else if (slot.isBlocker && openPhase > 0.5) {
+        // Shaking/glowing phase
+        var pulse = 1 + Math.sin(openPhase * 30) * 0.15;
         bs *= pulse;
         ctx.save();
-        ctx.globalAlpha = 0.3 + Math.sin((1 - ct) * Math.PI * 6) * 0.25;
+        ctx.globalAlpha = 0.3 + Math.sin(openPhase * 20) * 0.2;
         ctx.fillStyle = COLORS[BLOCKER_CI].glow;
-        ctx.beginPath(); ctx.arc(pos.x, pos.y, slotR * 1.6 * pulse, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(pos.x, pos.y, slotR * 1.5, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
+        drawBlockerMarble(pos.x, pos.y, slotR * 0.8 * cal.marble.s, bs);
+      } else if (slot.marble === BLOCKER_CI) {
+        drawBlockerMarble(pos.x, pos.y, slotR * 0.8 * cal.marble.s, bs);
+      } else {
+        drawMarble(pos.x, pos.y, slotR * 0.8 * cal.marble.s, slot.marble, bs);
       }
-      drawMarble(pos.x, pos.y, slotR * 0.8 * cal.marble.s, slot.marble, bs);
     }
   }
-}
-
-// ── Blocker progress indicator ──
-
-function drawBlockerProgress() {
-  if (totalBlockerMarbles <= 0) return;
-  var cx = L.beltCx;
-  var cy = (L.beltBotY + L.sTop) / 2;
-  var total = totalBlockerMarbles;
-  var filled = blockersOnBelt;
-  var dotR = 3.5 * S;
-  var gap = dotR * 3;
-  var startX = cx - (total - 1) * gap / 2;
-  var pillW = Math.max((total - 1) * gap + dotR * 5, dotR * 6);
-  var pillH = dotR * 3.2;
-  ctx.save();
-  ctx.fillStyle = 'rgba(122,112,104,0.10)';
-  rRect(cx - pillW / 2, cy - pillH / 2, pillW, pillH, pillH / 2); ctx.fill();
-  ctx.strokeStyle = 'rgba(122,112,104,0.18)'; ctx.lineWidth = 1 * S;
-  rRect(cx - pillW / 2, cy - pillH / 2, pillW, pillH, pillH / 2); ctx.stroke();
-  var iconX = cx - pillW / 2 - dotR * 2.5;
-  var bc = COLORS[BLOCKER_CI];
-  ctx.globalAlpha = 0.4;
-  var icGrd = ctx.createRadialGradient(iconX, cy, 0, iconX, cy, dotR * 1.1);
-  icGrd.addColorStop(0, bc.light); icGrd.addColorStop(1, bc.dark);
-  ctx.fillStyle = icGrd;
-  ctx.beginPath(); ctx.arc(iconX, cy, dotR * 1.1, 0, Math.PI * 2); ctx.fill();
-  ctx.globalAlpha = 1;
-  for (var i = 0; i < total; i++) {
-    var dx = startX + i * gap;
-    if (i < filled) {
-      var grd = ctx.createRadialGradient(dx - dotR * 0.15, cy - dotR * 0.15, dotR * 0.1, dx, cy, dotR);
-      grd.addColorStop(0, bc.light); grd.addColorStop(0.7, bc.fill); grd.addColorStop(1, bc.dark);
-      ctx.fillStyle = grd;
-      ctx.beginPath(); ctx.arc(dx, cy, dotR, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.25)';
-      ctx.beginPath(); ctx.arc(dx - dotR * 0.2, cy - dotR * 0.2, dotR * 0.35, 0, Math.PI * 2); ctx.fill();
-      if (blockerCollecting && blockerCollectT > 0.5) {
-        ctx.globalAlpha = 0.4 + Math.sin(tick * 0.2 + i * 0.5) * 0.3;
-        ctx.fillStyle = bc.glow;
-        ctx.beginPath(); ctx.arc(dx, cy, dotR * 2, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
-      }
-    } else {
-      ctx.strokeStyle = 'rgba(122,112,104,0.22)'; ctx.lineWidth = 1 * S;
-      ctx.setLineDash([2 * S, 2 * S]);
-      ctx.beginPath(); ctx.arc(dx, cy, dotR * 0.65, 0, Math.PI * 2); ctx.stroke();
-      ctx.setLineDash([]);
-    }
-  }
-  if (blockerCollecting && blockerCollectT <= 0.5 && blockerCollectT > 0) {
-    var flashAlpha = blockerCollectT * 2;
-    ctx.globalAlpha = flashAlpha * 0.6;
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    rRect(cx - pillW / 2, cy - pillH / 2, pillW, pillH, pillH / 2); ctx.fill();
-    ctx.globalAlpha = 1;
-  }
-  ctx.restore();
 }
 
 // ── Jumpers ──

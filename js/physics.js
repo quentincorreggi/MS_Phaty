@@ -75,9 +75,13 @@ function physicsStep() {
     var m = physMarbles[i];
     if (m.y + m.r >= exitY - 3 * S && m.x > exitL - m.r && m.x < exitR + m.r) {
       var entryT = getBeltEntryT();
+      var isBlockerMarble = (m.ci === BLOCKER_CI);
       var bestIdx = -1, bestDist = Infinity;
       for (var k = 0; k < BELT_SLOTS; k++) {
         if (beltSlots[k].marble >= 0) continue;
+        // Blocker marbles only land on blocker slots, regular only on regular
+        if (isBlockerMarble && !beltSlots[k].isBlocker) continue;
+        if (!isBlockerMarble && beltSlots[k].isBlocker) continue;
         var st = getSlotT(k);
         var diff = Math.abs(st - entryT);
         diff = Math.min(diff, 1 - diff);

@@ -1,126 +1,120 @@
 // ============================================================
-// box_blocker.js — Blocker box type
-// Contains MRB_PER_BOX - BLOCKER_PER_BOX regular marbles plus
-// BLOCKER_PER_BOX neutral blocker marbles. Visually distinct
-// with diagonal stripe pattern and stone marble indicators.
+// box_blocker.js — Blocker modifier drawing helpers
+// Blocker is a MODIFIER on any box type (default, hidden, ice),
+// not a separate type. Boxes with blocker: true contain
+// BLOCKER_PER_BOX yellow/black striped marbles that can only
+// land on dedicated blocker belt slots.
 // ============================================================
 
-registerBoxType('blocker', {
-  label: 'Blocker',
-  editorColor: '#7A7068',
+function drawBlockerMarble(x, y, r, es) {
+  var rs = r * (es || 1);
+  var bc = COLORS[BLOCKER_CI];
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.25)'; ctx.shadowBlur = rs * 0.6; ctx.shadowOffsetY = rs * 0.15;
+  var grad = ctx.createRadialGradient(x - rs * 0.25, y - rs * 0.25, rs * 0.1, x, y, rs);
+  grad.addColorStop(0, bc.light); grad.addColorStop(0.7, bc.fill); grad.addColorStop(1, bc.dark);
+  ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.arc(x, y, rs, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
 
-  drawClosed: function (ctx, x, y, w, h, ci, S, tick, idlePhase) {
-    var c = COLORS[ci];
-    var bc = COLORS[BLOCKER_CI];
-
-    ctx.save();
-
-    // Base colored box (slightly desaturated)
-    ctx.shadowColor = 'rgba(0,0,0,0.15)'; ctx.shadowBlur = 4 * S; ctx.shadowOffsetY = 2 * S;
-    ctx.globalAlpha = 0.55;
-    var grad = ctx.createLinearGradient(x, y, x, y + h);
-    grad.addColorStop(0, c.light); grad.addColorStop(1, c.dark);
-    ctx.fillStyle = grad;
-    rRect(x, y, w, h, 6 * S); ctx.fill();
-    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-
-    // Diagonal stripe overlay (blocker hazard indicator)
-    ctx.globalAlpha = 0.18;
-    ctx.save();
+  // Black diagonal stripes
+  ctx.save();
+  ctx.beginPath(); ctx.arc(x, y, rs * 0.92, 0, Math.PI * 2); ctx.clip();
+  ctx.strokeStyle = 'rgba(20,20,10,0.55)';
+  ctx.lineWidth = rs * 0.25;
+  var gap = rs * 0.6;
+  for (var d = -rs * 2; d < rs * 2; d += gap) {
     ctx.beginPath();
-    rRect(x, y, w, h, 6 * S);
-    ctx.clip();
-    ctx.strokeStyle = bc.fill;
-    ctx.lineWidth = 3 * S;
-    var stripeGap = 10 * S;
-    for (var d = -w; d < w + h; d += stripeGap) {
-      ctx.beginPath();
-      ctx.moveTo(x + d, y);
-      ctx.lineTo(x + d - h, y + h);
-      ctx.stroke();
-    }
-    ctx.restore();
-
-    // Border
-    ctx.globalAlpha = 0.6;
-    ctx.strokeStyle = c.dark; ctx.lineWidth = 1.5 * S;
-    rRect(x, y, w, h, 6 * S); ctx.stroke();
-
-    // Stone marble indicators (3 small gray circles)
-    ctx.globalAlpha = 0.55;
-    var dotR = w * 0.075;
-    var dotY = y + h * 0.75;
-    var dotGap = w * 0.22;
-    var dotCx = x + w / 2;
-    for (var d = -1; d <= 1; d++) {
-      var grd = ctx.createRadialGradient(dotCx + d * dotGap, dotY, 0, dotCx + d * dotGap, dotY, dotR);
-      grd.addColorStop(0, bc.light); grd.addColorStop(1, bc.dark);
-      ctx.fillStyle = grd;
-      ctx.beginPath(); ctx.arc(dotCx + d * dotGap, dotY, dotR, 0, Math.PI * 2); ctx.fill();
-    }
-
-    // Lock icon
-    ctx.globalAlpha = 0.3;
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold ' + (h * 0.28) + 'px sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('\uD83D\uDD12', x + w / 2, y + h * 0.38);
-
-    ctx.restore();
-  },
-
-  drawReveal: function (ctx, x, y, w, h, ci, S, phase, remaining, tick) {
-    var popScale = 1 + Math.sin(phase * Math.PI) * 0.1;
-    ctx.save();
-    ctx.scale(popScale, popScale);
-
-    if (phase < 0.5) {
-      ctx.globalAlpha = 1 - phase * 2;
-      this.drawClosed(ctx, x, y, w, h, ci, S, tick, 0);
-      ctx.globalAlpha = phase * 2;
-    }
-
-    // Draw the box body
-    drawBox(x, y, w, h, ci);
-
-    // Subtle stripe overlay on box body during reveal
-    if (phase < 0.7) {
-      var bc = COLORS[BLOCKER_CI];
-      ctx.globalAlpha = 0.08 * (1 - phase);
-      ctx.save();
-      ctx.beginPath();
-      rRect(x, y, w, h, 6 * S);
-      ctx.clip();
-      ctx.strokeStyle = bc.fill;
-      ctx.lineWidth = 2 * S;
-      var stripeGap = 10 * S;
-      for (var d = -w; d < w + h; d += stripeGap) {
-        ctx.beginPath(); ctx.moveTo(x + d, y); ctx.lineTo(x + d - h, y + h); ctx.stroke();
-      }
-      ctx.restore();
-    }
-
-    ctx.globalAlpha = 1;
-    if (remaining > 0 && phase > 0.3) {
-      ctx.globalAlpha = Math.min(1, (phase - 0.3) / 0.5);
-      var blockerCount = Math.min(BLOCKER_PER_BOX, remaining);
-      drawBoxMarblesWithBlockers(ci, remaining, blockerCount);
-      ctx.globalAlpha = 1;
-      drawBoxLip(ci);
-    }
-    ctx.restore();
-  },
-
-  editorCellStyle: function (ci) {
-    var c = COLORS[ci];
-    var bc = COLORS[BLOCKER_CI];
-    return {
-      background: 'linear-gradient(135deg,' + c.light + ' 60%,' + bc.fill + ')',
-      borderColor: bc.dark
-    };
-  },
-
-  editorCellHTML: function (ci) {
-    return '<span class="ed-cell-dot" style="font-size:9px">' + CLR_NAMES[ci][0].toUpperCase() + '<span style="color:#A89E94;font-size:7px">&#9679;</span></span>';
+    ctx.moveTo(x + d, y - rs);
+    ctx.lineTo(x + d - rs * 1.4, y + rs);
+    ctx.stroke();
   }
-});
+  ctx.restore();
+
+  // Highlight
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.beginPath(); ctx.arc(x - rs * 0.25, y - rs * 0.25, rs * 0.3, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+function drawBlockerBoxOverlay(x, y, w, h, S) {
+  // Yellow/black cross-hatch overlay on box
+  ctx.save();
+  ctx.globalAlpha = 0.14;
+  ctx.beginPath();
+  rRect(x, y, w, h, 6 * S);
+  ctx.clip();
+  ctx.strokeStyle = '#FFD700';
+  ctx.lineWidth = 2.5 * S;
+  var gap = 8 * S;
+  for (var d = -w; d < w + h; d += gap) {
+    ctx.beginPath();
+    ctx.moveTo(x + d, y);
+    ctx.lineTo(x + d - h, y + h);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 3 small yellow/black dot indicators at bottom
+  ctx.save();
+  ctx.globalAlpha = 0.7;
+  var dotR = w * 0.07;
+  var dotY2 = y + h * 0.78;
+  var dotGap = w * 0.22;
+  var dotCx = x + w / 2;
+  for (var d = -1; d <= 1; d++) {
+    var dx = dotCx + d * dotGap;
+    ctx.fillStyle = '#FFD700';
+    ctx.beginPath(); ctx.arc(dx, dotY2, dotR, 0, Math.PI * 2); ctx.fill();
+    ctx.save();
+    ctx.beginPath(); ctx.arc(dx, dotY2, dotR * 0.85, 0, Math.PI * 2); ctx.clip();
+    ctx.strokeStyle = 'rgba(20,20,10,0.5)';
+    ctx.lineWidth = dotR * 0.45;
+    ctx.beginPath();
+    ctx.moveTo(dx - dotR, dotY2 - dotR * 0.5);
+    ctx.lineTo(dx + dotR, dotY2 + dotR * 0.5);
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function drawBlockerBeltSlot(x, y, r, tick, filled, openPhase) {
+  ctx.save();
+
+  var displayR = r;
+  if (openPhase > 0 && openPhase < 1) {
+    // Shake during phase 1
+    if (openPhase > 0.5) {
+      var shake = Math.sin(openPhase * 40) * 2 * S * (openPhase - 0.5);
+      x += shake;
+    }
+  }
+
+  // Base yellow circle
+  ctx.fillStyle = filled ? 'rgba(255,215,0,0.45)' : 'rgba(255,215,0,0.2)';
+  ctx.shadowColor = 'rgba(0,0,0,0.15)'; ctx.shadowBlur = 3 * S; ctx.shadowOffsetY = 1 * S;
+  ctx.beginPath(); ctx.arc(x, y, displayR, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+
+  // Black/yellow hazard stripes inside slot
+  ctx.save();
+  ctx.beginPath(); ctx.arc(x, y, displayR * 0.92, 0, Math.PI * 2); ctx.clip();
+  ctx.strokeStyle = 'rgba(20,20,10,0.25)';
+  ctx.lineWidth = displayR * 0.35;
+  var gap = displayR * 0.7;
+  for (var d = -displayR * 2; d < displayR * 2; d += gap) {
+    ctx.beginPath();
+    ctx.moveTo(x + d, y - displayR);
+    ctx.lineTo(x + d - displayR * 1.2, y + displayR);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Border
+  ctx.strokeStyle = filled ? 'rgba(180,150,0,0.5)' : 'rgba(180,150,0,0.3)';
+  ctx.lineWidth = 1.5 * S;
+  ctx.beginPath(); ctx.arc(x, y, displayR, 0, Math.PI * 2); ctx.stroke();
+
+  ctx.restore();
+}
