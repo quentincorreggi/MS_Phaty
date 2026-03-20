@@ -1,25 +1,27 @@
 {
   "name": "Removable Pillar",
   "description": "A directional, multi-cell obstacle that hides boxes underneath. Tap adjacent boxes to shrink the pillar from its tip, progressively revealing hidden boxes. When the last stalk unit is removed, the base auto-removes too.",
-  "howToPlay": "Tap any box next to a pillar (the sandstone blocks) to chip away one unit from the far end. Each tap reveals the box underneath the removed piece. Clear the whole pillar to unlock all the boxes it was hiding. The colored dot on each pillar cell hints at what's underneath.",
+  "howToPlay": "Tap any box next to a pillar (the sandstone blocks) to chip away one unit from the far end. Each tap reveals the box underneath the removed piece. Clear the whole pillar to unlock all the boxes it was hiding. The gap down the center of each pillar hints at the colors hidden beneath.",
   "author": "Claude",
   "showcaseLevel": {
-    "name": "Pillar Demo",
-    "desc": "Shrink the pillars to reveal hidden boxes!",
-    "mrbPerBox": 3,
+    "name": "Custom Level",
+    "desc": "My custom level",
+    "mrbPerBox": 9,
     "sortCap": 3,
+    "lockButtons": 0,
     "grid": [
-      null, null, null, null, null, null, null,
-      null, {"ci":0,"type":"default"}, {"ci":1,"type":"default"}, {"ci":2,"type":"default"}, {"ci":3,"type":"default"}, {"ci":0,"type":"default"}, null,
-      null, {"ci":3,"type":"default"}, {"ci":0,"type":"default"}, {"ci":1,"type":"default"}, {"ci":2,"type":"default"}, {"ci":1,"type":"default"}, null,
-      null, {"ci":2,"type":"default"}, {"ci":3,"type":"default"}, null, {"ci":0,"type":"default"}, {"ci":2,"type":"default"}, null,
-      null, {"ci":1,"type":"default"}, {"ci":2,"type":"default"}, {"ci":3,"type":"default"}, {"ci":1,"type":"default"}, {"ci":3,"type":"default"}, null,
-      null, {"ci":0,"type":"default"}, {"ci":1,"type":"default"}, {"ci":2,"type":"default"}, {"ci":3,"type":"default"}, {"ci":0,"type":"default"}, null,
-      null, null, null, null, null, null, null
+      {"wall":true},{"wall":true},{"wall":true},{"wall":true},{"wall":true},{"wall":true},{"wall":true},
+      {"wall":true},{"ci":2,"type":"default"},{"ci":3,"type":"default"},{"ci":3,"type":"default"},{"ci":5,"type":"default"},{"ci":5,"type":"default"},{"wall":true},
+      {"wall":true},{"ci":5,"type":"hidden"},{"ci":5,"type":"ice"},{"ci":3,"type":"default"},{"ci":5,"type":"ice"},{"ci":5,"type":"default"},{"wall":true},
+      {"wall":true},{"ci":2,"type":"default"},{"ci":5,"type":"hidden"},{"ci":4,"type":"default"},{"ci":5,"type":"hidden"},{"ci":5,"type":"hidden"},{"wall":true},
+      {"wall":true},{"ci":5,"type":"hidden"},{"ci":4,"type":"default"},{"ci":0,"type":"default"},{"ci":4,"type":"default"},{"ci":0,"type":"default"},{"wall":true},
+      {"wall":true},{"ci":0,"type":"default"},{"ci":4,"type":"default"},{"ci":0,"type":"default"},{"ci":4,"type":"default"},{"ci":4,"type":"default"},{"wall":true},
+      null,null,null,null,null,null,null
     ],
     "pillars": [
-      {"row": 2, "col": 2, "dir": "right", "length": 2},
-      {"row": 4, "col": 2, "dir": "right", "length": 2}
+      {"row":1,"col":1,"dir":"right","length":3},
+      {"row":4,"col":1,"dir":"right","length":3},
+      {"row":1,"col":5,"dir":"down","length":4}
     ]
   }
 }
