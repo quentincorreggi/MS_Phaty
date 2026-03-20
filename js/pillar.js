@@ -178,17 +178,17 @@ function drawPillarOverlay(pillar) {
     if (isHoriz) ox = shake; else oy = shake;
   }
 
-  // ── 1) Draw the stalk as one continuous bar ──
+  // ── 1) Draw the stalk as two side rails with a central peek gap ──
   if (coveredCount > 1 && pillar.cells.length > 1) {
     var firstStalk = stock[pillar.cells[1]];
     var lastIdx = Math.min(pillar.remaining, pillar.cells.length - 1);
     var lastStalk = stock[pillar.cells[lastIdx]];
     var sx, sy, sw, sh;
+    var gapRatio = 0.22; // central gap = 22% of cross-axis, rails cover the rest
 
     if (isHoriz) {
       var minX = Math.min(firstStalk.x, lastStalk.x);
       var maxX = Math.max(firstStalk.x, lastStalk.x) + w;
-      // Extend stalk into base cell to connect seamlessly
       if (pillar.dir === 'right') { sx = baseCell.x + w; sw = maxX - sx; }
       else { sx = minX; sw = baseCell.x - minX; }
       sy = firstStalk.y;
@@ -202,93 +202,92 @@ function drawPillarOverlay(pillar) {
       sw = w;
     }
 
-    ctx.save();
-
-    // Light tan stalk body
-    ctx.shadowColor = 'rgba(0,0,0,0.12)';
-    ctx.shadowBlur = 3 * S;
-    ctx.shadowOffsetY = 2 * S;
-    var stalkGrad;
+    // Compute two rail rects with a gap in the middle
+    var rail1x, rail1y, rail1w, rail1h;
+    var rail2x, rail2y, rail2w, rail2h;
     if (isHoriz) {
-      stalkGrad = ctx.createLinearGradient(sx + ox, sy + oy, sx + ox, sy + oy + sh);
+      // Gap runs horizontally along the stalk center
+      var gapH = sh * gapRatio;
+      var railH = (sh - gapH) / 2;
+      rail1x = sx; rail1y = sy; rail1w = sw; rail1h = railH;
+      rail2x = sx; rail2y = sy + railH + gapH; rail2w = sw; rail2h = railH;
     } else {
-      stalkGrad = ctx.createLinearGradient(sx + ox, sy + oy, sx + ox + sw, sy + oy);
+      // Gap runs vertically along the stalk center
+      var gapW = sw * gapRatio;
+      var railW = (sw - gapW) / 2;
+      rail1x = sx; rail1y = sy; rail1w = railW; rail1h = sh;
+      rail2x = sx + railW + gapW; rail2y = sy; rail2w = railW; rail2h = sh;
     }
-    stalkGrad.addColorStop(0, '#E8D5A8');
-    stalkGrad.addColorStop(0.4, '#DCCB98');
-    stalkGrad.addColorStop(0.6, '#D0C088');
-    stalkGrad.addColorStop(1, '#C4AA70');
-    ctx.fillStyle = stalkGrad;
-    rRect(sx + ox, sy + oy, sw, sh, 4 * S);
-    ctx.fill();
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetY = 0;
 
-    // Subtle grooves along the stalk
-    ctx.save();
-    ctx.beginPath();
-    rRect(sx + ox, sy + oy, sw, sh, 4 * S);
-    ctx.clip();
-    ctx.strokeStyle = 'rgba(140,115,60,0.15)';
-    ctx.lineWidth = 0.8 * S;
-    if (isHoriz) {
-      // Horizontal lines along the stalk
-      var grooveN = 3;
-      for (var g = 1; g < grooveN; g++) {
-        var gy = sy + oy + sh * g / grooveN;
+    // Helper: draw one rail (body + grooves + border + highlight)
+    function drawRail(rx, ry, rw, rh) {
+      ctx.save();
+
+      // Light tan rail body
+      ctx.shadowColor = 'rgba(0,0,0,0.12)';
+      ctx.shadowBlur = 3 * S;
+      ctx.shadowOffsetY = 2 * S;
+      var stalkGrad;
+      if (isHoriz) {
+        stalkGrad = ctx.createLinearGradient(rx + ox, ry + oy, rx + ox, ry + oy + rh);
+      } else {
+        stalkGrad = ctx.createLinearGradient(rx + ox, ry + oy, rx + ox + rw, ry + oy);
+      }
+      stalkGrad.addColorStop(0, '#E8D5A8');
+      stalkGrad.addColorStop(0.4, '#DCCB98');
+      stalkGrad.addColorStop(0.6, '#D0C088');
+      stalkGrad.addColorStop(1, '#C4AA70');
+      ctx.fillStyle = stalkGrad;
+      rRect(rx + ox, ry + oy, rw, rh, 3 * S);
+      ctx.fill();
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
+
+      // Subtle grooves
+      ctx.save();
+      ctx.beginPath();
+      rRect(rx + ox, ry + oy, rw, rh, 3 * S);
+      ctx.clip();
+      ctx.strokeStyle = 'rgba(140,115,60,0.15)';
+      ctx.lineWidth = 0.8 * S;
+      if (isHoriz) {
+        var gy = ry + oy + rh * 0.5;
         ctx.beginPath();
-        ctx.moveTo(sx + ox, gy);
-        ctx.lineTo(sx + ox + sw, gy);
+        ctx.moveTo(rx + ox, gy);
+        ctx.lineTo(rx + ox + rw, gy);
+        ctx.stroke();
+      } else {
+        var gx = rx + ox + rw * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(gx, ry + oy);
+        ctx.lineTo(gx, ry + oy + rh);
         ctx.stroke();
       }
-      // Vertical notches at cell boundaries
-      ctx.strokeStyle = 'rgba(140,115,60,0.10)';
-      for (var ci3 = 1; ci3 < coveredCount && ci3 < pillar.cells.length; ci3++) {
-        var sc = stock[pillar.cells[ci3]];
-        ctx.beginPath();
-        ctx.moveTo(sc.x + ox + w * 0.5, sy + oy);
-        ctx.lineTo(sc.x + ox + w * 0.5, sy + oy + sh);
-        ctx.stroke();
+      ctx.restore();
+
+      // Rail border
+      ctx.strokeStyle = 'rgba(160,130,70,0.45)';
+      ctx.lineWidth = 1.2 * S;
+      rRect(rx + ox, ry + oy, rw, rh, 3 * S);
+      ctx.stroke();
+
+      // Top-edge highlight
+      ctx.fillStyle = 'rgba(255,255,255,0.10)';
+      if (isHoriz) {
+        rRect(rx + ox + 2 * S, ry + oy, rw - 4 * S, rh * 0.18, 2 * S);
+      } else {
+        rRect(rx + ox, ry + oy + 2 * S, rw * 0.18, rh - 4 * S, 2 * S);
       }
-    } else {
-      // Vertical grooves
-      var grooveN = 3;
-      for (var g = 1; g < grooveN; g++) {
-        var gx = sx + ox + sw * g / grooveN;
-        ctx.beginPath();
-        ctx.moveTo(gx, sy + oy);
-        ctx.lineTo(gx, sy + oy + sh);
-        ctx.stroke();
-      }
-      // Horizontal notches at cell boundaries
-      ctx.strokeStyle = 'rgba(140,115,60,0.10)';
-      for (var ci3 = 1; ci3 < coveredCount && ci3 < pillar.cells.length; ci3++) {
-        var sc = stock[pillar.cells[ci3]];
-        ctx.beginPath();
-        ctx.moveTo(sx + ox, sc.y + oy + h * 0.5);
-        ctx.lineTo(sx + ox + sw, sc.y + oy + h * 0.5);
-        ctx.stroke();
-      }
+      ctx.fill();
+
+      ctx.restore();
     }
-    ctx.restore();
 
-    // Stalk border
-    ctx.strokeStyle = 'rgba(160,130,70,0.45)';
-    ctx.lineWidth = 1.2 * S;
-    rRect(sx + ox, sy + oy, sw, sh, 4 * S);
-    ctx.stroke();
+    drawRail(rail1x, rail1y, rail1w, rail1h);
+    drawRail(rail2x, rail2y, rail2w, rail2h);
 
-    // Top-edge highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.10)';
-    if (isHoriz) {
-      rRect(sx + ox + 2 * S, sy + oy, sw - 4 * S, sh * 0.15, 2 * S);
-    } else {
-      rRect(sx + ox, sy + oy + 2 * S, sw * 0.15, sh - 4 * S, 2 * S);
-    }
-    ctx.fill();
-
-    // Color hint dots for each stalk cell
+    // Color hint dots for each stalk cell (visible through the gap)
     for (var i = 1; i < coveredCount && i < pillar.cells.length; i++) {
       var sc2 = stock[pillar.cells[i]];
       if (!sc2.isTunnel && !sc2.isWall && !sc2.empty && sc2.ci >= 0) {
