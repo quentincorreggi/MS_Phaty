@@ -151,6 +151,7 @@ function isTileAvailableForTunnel(idx) {
   // Must be an empty slot or a fully-used box (not a tunnel, not an active box, not a wall)
   if (s.isTunnel) return false;
   if (s.isWall) return false;  // walls block tunnel spawning
+  if (typeof isPillarCovered === 'function' && isPillarCovered(idx)) return false;
   return s.empty || s.used;
 }
 

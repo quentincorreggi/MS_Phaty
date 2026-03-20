@@ -17,6 +17,9 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  pillarMode: false,    // true when placing pillars
+  pillars: [],          // array of { row, col, dir, length }
+  selectedPillar: -1,   // index into editor.pillars
   visible: false
 };
 
@@ -34,6 +37,9 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.pillarMode = false;
+  editor.pillars = [];
+  editor.selectedPillar = -1;
 }
 
 function showEditor(fresh) {
@@ -60,6 +66,7 @@ function editorBuildUI() {
   editorRenderSettings();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderPillarPanel();
 }
 
 // ── Grid ──
@@ -95,6 +102,30 @@ function editorRenderGrid() {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
     }
+    // Pillar overlay
+    var pillarInfo = getEditorPillarAtCell(i);
+    if (pillarInfo) {
+      var overlay = document.createElement('div');
+      overlay.style.position = 'absolute';
+      overlay.style.inset = '0';
+      overlay.style.borderRadius = '4px';
+      overlay.style.background = pillarInfo.isBase
+        ? 'linear-gradient(135deg,rgba(196,164,108,0.88),rgba(139,115,69,0.88))'
+        : 'linear-gradient(135deg,rgba(196,164,108,0.72),rgba(139,115,69,0.72))';
+      overlay.style.border = pillarInfo.isBase ? '2px solid rgba(100,70,30,0.6)' : '1px solid rgba(100,70,30,0.3)';
+      overlay.style.display = 'flex';
+      overlay.style.alignItems = 'center';
+      overlay.style.justifyContent = 'center';
+      overlay.style.pointerEvents = 'none';
+      overlay.innerHTML = pillarInfo.isBase
+        ? '<span style="color:rgba(255,255,255,0.85);font-weight:700;font-size:12px">P</span>'
+        : '<span style="color:rgba(255,255,255,0.5);font-size:8px">\u25CF</span>';
+      cell.appendChild(overlay);
+      if (editor.selectedPillar === pillarInfo.pillarIdx) {
+        cell.style.boxShadow = '0 0 0 2px rgba(196,164,108,0.8)';
+      }
+    }
+
     cell.setAttribute('data-idx', i);
     cell.addEventListener('click', editorCellClick);
     cell.addEventListener('contextmenu', editorCellErase);
@@ -104,6 +135,24 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.pillarMode) {
+    // Pillar placement mode
+    var pillarInfo = getEditorPillarAtCell(idx);
+    if (pillarInfo) {
+      editor.selectedPillar = pillarInfo.pillarIdx;
+    } else {
+      // Place new pillar base
+      var row = Math.floor(idx / 7);
+      var col = idx % 7;
+      editor.pillars.push({ row: row, col: col, dir: 'right', length: 1 });
+      editor.selectedPillar = editor.pillars.length - 1;
+    }
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderPillarPanel();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -157,11 +206,19 @@ function editorCellClick(e) {
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+  // Also remove pillar if right-clicking a pillar cell
+  var pillarInfo = getEditorPillarAtCell(idx);
+  if (pillarInfo) {
+    editor.pillars.splice(pillarInfo.pillarIdx, 1);
+    if (editor.selectedPillar === pillarInfo.pillarIdx) editor.selectedPillar = -1;
+    else if (editor.selectedPillar > pillarInfo.pillarIdx) editor.selectedPillar--;
+  }
   editor.grid[idx] = null;
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
   editorRenderGrid();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderPillarPanel();
 }
 
 // ── Toolbar: mode toggle + type selector + color/direction palette ──
@@ -178,15 +235,17 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.pillarMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.pillarMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
+      editorRenderPillarPanel();
     });
     typeRow.appendChild(tb);
   }
@@ -200,8 +259,10 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.pillarMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
+    editorRenderPillarPanel();
   });
   typeRow.appendChild(wallBtn);
 
@@ -214,10 +275,28 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.pillarMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
+    editorRenderPillarPanel();
   });
   typeRow.appendChild(tunnelBtn);
+
+  // Pillar mode button
+  var pillarBtn = document.createElement('button');
+  pillarBtn.className = 'ed-type-btn' + (editor.pillarMode ? ' active' : '');
+  pillarBtn.textContent = '\uD83C\uDFDB Pillar';
+  pillarBtn.style.borderColor = editor.pillarMode ? 'rgba(196,164,108,0.6)' : '';
+  pillarBtn.style.color = editor.pillarMode ? '#8B7345' : '';
+  pillarBtn.addEventListener('click', function () {
+    editor.pillarMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+    editorRenderPillarPanel();
+  });
+  typeRow.appendChild(pillarBtn);
 
   el.appendChild(typeRow);
 
@@ -260,6 +339,12 @@ function editorRenderToolbar() {
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
+  } else if (editor.pillarMode) {
+    // Pillar mode: show info hint
+    var pillarInfo = document.createElement('div');
+    pillarInfo.className = 'ed-color-row';
+    pillarInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click to place pillar base \u00B7 right-click to remove \u00B7 configure in panel below</span>';
+    el.appendChild(pillarInfo);
   } else {
     // Color palette: eraser + 8 colors
     var colorRow = document.createElement('div');
@@ -426,23 +511,110 @@ function editorRenderTunnelPanel() {
   }
 }
 
+// ── Pillar editor panel ──
+function editorRenderPillarPanel() {
+  var container = document.getElementById('ed-pillar-panel');
+  if (!container) return;
+
+  if (editor.selectedPillar < 0 || editor.selectedPillar >= editor.pillars.length) {
+    container.style.display = 'none';
+    return;
+  }
+
+  container.style.display = 'block';
+  var pillar = editor.pillars[editor.selectedPillar];
+  var html = '';
+
+  html += '<div class="ed-section-title"><span class="icon">&#127963;</span> Pillar #' + (editor.selectedPillar + 1) + ' — Direction</div>';
+  html += '<div class="ed-tunnel-dir-row">';
+  var dirs = ['up', 'left', 'down', 'right'];
+  var dirLabels = ['\u25B2 Up', '\u25C0 Left', '\u25BC Down', '\u25B6 Right'];
+  for (var d = 0; d < dirs.length; d++) {
+    var active = pillar.dir === dirs[d] ? ' active' : '';
+    html += '<button class="ed-tunnel-dir-btn ed-pillar-dir-btn' + active + '" data-dir="' + dirs[d] + '">' + dirLabels[d] + '</button>';
+  }
+  html += '</div>';
+
+  html += '<div class="ed-setting-row" style="margin-top:8px"><label>Length</label>';
+  html += '<input type="range" id="ed-pillar-length" min="1" max="6" value="' + pillar.length + '">';
+  html += '<span class="ed-s-val" id="ed-pillar-length-v">' + pillar.length + '</span></div>';
+
+  var cells = getEditorPillarCells(pillar);
+  html += '<div style="font-size:11px;color:#9C8A70;text-align:center;margin:6px 0">';
+  html += 'Covers ' + cells.length + ' cell' + (cells.length > 1 ? 's' : '') + ' (1 base + ' + pillar.length + ' stalk)';
+  html += '</div>';
+
+  var warnings = getEditorPillarWarnings(editor.selectedPillar);
+  for (var w = 0; w < warnings.length; w++) {
+    html += '<div class="ed-stat-warn" style="margin:4px 0">' + warnings[w] + '</div>';
+  }
+
+  html += '<div style="text-align:center;margin-top:8px"><button class="ed-qbtn" id="ed-pillar-delete">\u2716 Delete Pillar</button></div>';
+
+  container.innerHTML = html;
+
+  // Bind events
+  var dirBtns = container.querySelectorAll('.ed-pillar-dir-btn');
+  for (var d2 = 0; d2 < dirBtns.length; d2++) {
+    dirBtns[d2].addEventListener('click', function () {
+      if (editor.selectedPillar >= 0) {
+        editor.pillars[editor.selectedPillar].dir = this.getAttribute('data-dir');
+        editorRenderGrid();
+        editorRenderPillarPanel();
+        editorUpdateStats();
+      }
+    });
+  }
+
+  var lenSlider = document.getElementById('ed-pillar-length');
+  var lenVal = document.getElementById('ed-pillar-length-v');
+  if (lenSlider) {
+    lenSlider.addEventListener('input', function () {
+      if (editor.selectedPillar >= 0) {
+        editor.pillars[editor.selectedPillar].length = parseInt(this.value);
+        lenVal.textContent = this.value;
+        editorRenderGrid();
+        editorRenderPillarPanel();
+        editorUpdateStats();
+      }
+    });
+  }
+
+  var deleteBtn = document.getElementById('ed-pillar-delete');
+  if (deleteBtn) {
+    deleteBtn.addEventListener('click', function () {
+      if (editor.selectedPillar >= 0) {
+        editor.pillars.splice(editor.selectedPillar, 1);
+        editor.selectedPillar = -1;
+        editorRenderGrid();
+        editorRenderPillarPanel();
+        editorUpdateStats();
+      }
+    });
+  }
+}
+
 // ── Quick actions ──
 function editorFillRandom() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
+  editor.pillars = [];
+  editor.selectedPillar = -1;
   var cl = [];
   for (var c = 0; c < 4; c++) for (var n = 0; n < 6; n++) cl.push(c);
   shuffle(cl);
   var indices = []; for (var i = 0; i < 49; i++) indices.push(i);
   shuffle(indices);
   for (var i = 0; i < cl.length; i++) editor.grid[indices[i]] = { ci: cl[i], type: 'default' };
-  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel(); editorRenderPillarPanel();
 }
 
 function editorClearAll() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
-  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+  editor.pillars = [];
+  editor.selectedPillar = -1;
+  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel(); editorRenderPillarPanel();
 }
 
 // ── Stats ──
@@ -502,6 +674,13 @@ function editorUpdateStats() {
   }
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
+  }
+  if (editor.pillars && editor.pillars.length > 0) {
+    var pillarCellCount = 0;
+    for (var pi = 0; pi < editor.pillars.length; pi++) {
+      pillarCellCount += getEditorPillarCells(editor.pillars[pi]).length;
+    }
+    html += '<span class="ed-stat-chip" style="background:#C4A46C">' + editor.pillars.length + ' pillar' + (editor.pillars.length > 1 ? 's' : '') + ' (' + pillarCellCount + ' cells)</span>';
   }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
@@ -563,12 +742,20 @@ function editorRenderSettings() {
 
 // ── Build level definition ──
 function editorBuildLevel() {
-  return {
+  var lvl = {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
     grid: editor.grid.slice()
   };
+  if (editor.pillars && editor.pillars.length > 0) {
+    lvl.pillars = [];
+    for (var p = 0; p < editor.pillars.length; p++) {
+      var def = editor.pillars[p];
+      lvl.pillars.push({ row: def.row, col: def.col, dir: def.dir, length: def.length });
+    }
+  }
+  return lvl;
 }
 
 // ── Test play ──
@@ -627,6 +814,16 @@ function editorImportJSON() {
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
+      if (lvl.pillars && Array.isArray(lvl.pillars)) {
+        editor.pillars = [];
+        for (var pi = 0; pi < lvl.pillars.length; pi++) {
+          var pdef = lvl.pillars[pi];
+          editor.pillars.push({ row: pdef.row, col: pdef.col, dir: pdef.dir, length: pdef.length });
+        }
+      } else {
+        editor.pillars = [];
+      }
+      editor.selectedPillar = -1;
       var nameEl = document.getElementById('ed-name');
       var descEl = document.getElementById('ed-desc');
       if (nameEl) nameEl.value = editor.name;

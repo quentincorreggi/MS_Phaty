@@ -32,6 +32,7 @@ function initGame() {
   won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
+  pillars = [];
   document.getElementById('win-screen').classList.remove('show');
   computeLayout(); initBeltSlots();
 
@@ -107,7 +108,7 @@ function initGame() {
         tunnelCooldown: 60,
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: false, boxType: 'default',
-        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0, pillarId: -1,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
@@ -117,14 +118,14 @@ function initGame() {
         isWall: true, isTunnel: false,
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: false, empty: false, boxType: 'default',
-        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0, pillarId: -1,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
     } else if (!slot) {
       stock.push({ ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
-        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0, pillarId: -1,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
     } else {
@@ -136,17 +137,21 @@ function initGame() {
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        pillarId: -1,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
     }
   }
 
+  // ── Initialize pillars (must come before reveal) ──
+  initPillars(lvl);
+
   // ── Initial reveal: lowest non-empty box per column ──
   for (var c = 0; c < L.cols; c++) {
     for (var r = L.rows - 1; r >= 0; r--) {
       var b = stock[r * L.cols + c];
-      if (!b.empty && !b.isTunnel && !b.isWall) { b.revealed = true; break; }
+      if (!b.empty && !b.isTunnel && !b.isWall && !isPillarCovered(r * L.cols + c)) { b.revealed = true; break; }
     }
   }
 
@@ -165,6 +170,7 @@ function initGame() {
       for (var ni = 0; ni < nbrs.length; ni++) {
         var nb = stock[nbrs[ni]];
         if (nb.isTunnel || nb.isWall || nb.empty || nb.used || nb.revealed) continue;
+        if (isPillarCovered(nbrs[ni])) continue;
         nb.revealed = true;
         changed = true;
       }
@@ -197,6 +203,7 @@ function isCellTrulyEmpty(idx) {
   var s = stock[idx];
   if (!s) return false;
   if (s.isWall) return false;  // Walls are never empty
+  if (isPillarCovered(idx)) return false;  // Pillar-covered cells are never empty
   if (s.isTunnel) {
     if (s.tunnelContents && s.tunnelContents.length > 0) return false;
     var exitIdx = getTunnelExitIdx(idx);
@@ -232,6 +239,7 @@ function revealAroundEmptyCell(idx) {
       continue;
     }
     if (nb.isWall || nb.empty || nb.used || nb.revealed || nb.spawning) continue;
+    if (isPillarCovered(nIdx)) continue;
     nb.revealed = true;
     nb.revealT = 1.0;
     var bx = nb.x + L.bw / 2, by = nb.y + L.bh / 2;
@@ -301,6 +309,7 @@ function isBoxTappable(idx) {
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
+  if (isPillarCovered(idx)) return false;
   return b.revealed;
 }
 
@@ -322,6 +331,7 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      damageAdjacentPillars(i);
       return;
     }
   }
@@ -356,6 +366,9 @@ function update() {
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
+
+  // ── Pillar animations ──
+  updatePillars();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -528,6 +541,7 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    drawPillars();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();
