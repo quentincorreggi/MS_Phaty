@@ -1,0 +1,22 @@
+{
+  "name": "Blocker Marbles (Hazard Slots)",
+  "description": "Blocker is now a modifier on any box type. Blocker boxes spawn yellow/black hazard marbles that only land on dedicated striped belt slots. Fill all hazard slots to clear them and free up belt space.",
+  "howToPlay": "Tap boxes to release marbles into the funnel. Regular marbles land on normal belt slots and sort into columns as usual. Yellow/black striped marbles from blocker boxes can ONLY land on the matching hazard slots on the belt. Once all hazard slots are filled, they open up — the blocker marbles drop away and those slots convert to regular belt slots, giving you more room. Sort all regular marbles to win!",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Custom Level",
+    "desc": "My custom level",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null, null, null, null, null, null, null,
+      {"wall": true}, {"wall": true}, {"wall": true}, {"wall": true}, {"wall": true}, {"wall": true}, null,
+      {"wall": true}, {"ci": 2, "type": "default"}, {"ci": 2, "type": "default"}, {"ci": 2, "type": "default"}, {"ci": 2, "type": "default"}, {"wall": true}, null,
+      {"wall": true}, {"ci": 0, "type": "default"}, {"ci": 0, "type": "default", "blocker": true}, {"ci": 0, "type": "default"}, {"ci": 0, "type": "default", "blocker": true}, {"wall": true}, null,
+      {"wall": true}, {"ci": 3, "type": "default", "blocker": true}, {"ci": 3, "type": "default"}, {"ci": 3, "type": "default", "blocker": true}, {"ci": 3, "type": "default"}, {"wall": true}, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}
