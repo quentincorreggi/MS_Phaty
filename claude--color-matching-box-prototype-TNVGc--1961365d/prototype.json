@@ -1,0 +1,68 @@
+{
+  "name": "Cluster Box",
+  "description": "A special box that reveals 1–3 hidden boxes of the same color when tapped.",
+  "howToPlay": "Tap the glowing star boxes — they'll uncover hidden boxes of the same color elsewhere on the grid!",
+  "showcaseLevel": {
+    "name": "Cluster Showcase",
+    "desc": "Tap the star boxes to reveal their hidden friends!",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "grid": [
+      { "ci": 0, "type": "cluster" },
+      null,
+      { "ci": 2, "type": "hidden" },
+      null,
+      { "ci": 4, "type": "hidden" },
+      null,
+      { "ci": 1, "type": "cluster" },
+
+      { "ci": 0, "type": "hidden" },
+      { "ci": 3, "type": "default" },
+      null,
+      { "ci": 3, "type": "default" },
+      null,
+      { "ci": 5, "type": "default" },
+      { "ci": 1, "type": "hidden" },
+
+      null,
+      { "ci": 2, "type": "cluster" },
+      { "ci": 3, "type": "hidden" },
+      { "ci": 0, "type": "hidden" },
+      { "ci": 3, "type": "hidden" },
+      { "ci": 4, "type": "cluster" },
+      null,
+
+      { "ci": 5, "type": "default" },
+      { "ci": 0, "type": "hidden" },
+      null,
+      { "ci": 2, "type": "default" },
+      null,
+      { "ci": 1, "type": "hidden" },
+      { "ci": 5, "type": "default" },
+
+      null,
+      { "ci": 4, "type": "hidden" },
+      { "ci": 1, "type": "default" },
+      { "ci": 4, "type": "default" },
+      { "ci": 2, "type": "default" },
+      { "ci": 0, "type": "cluster" },
+      null,
+
+      { "ci": 2, "type": "hidden" },
+      { "ci": 5, "type": "hidden" },
+      { "ci": 4, "type": "default" },
+      null,
+      { "ci": 1, "type": "default" },
+      { "ci": 5, "type": "hidden" },
+      { "ci": 2, "type": "hidden" },
+
+      { "ci": 1, "type": "cluster" },
+      null,
+      { "ci": 5, "type": "cluster" },
+      { "ci": 2, "type": "default" },
+      { "ci": 5, "type": "default" },
+      null,
+      { "ci": 4, "type": "default" }
+    ]
+  }
+}
