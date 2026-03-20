@@ -110,9 +110,9 @@ function editorRenderGrid() {
       overlay.style.inset = '0';
       overlay.style.borderRadius = '4px';
       overlay.style.background = pillarInfo.isBase
-        ? 'linear-gradient(135deg,rgba(196,164,108,0.88),rgba(139,115,69,0.88))'
-        : 'linear-gradient(135deg,rgba(196,164,108,0.72),rgba(139,115,69,0.72))';
-      overlay.style.border = pillarInfo.isBase ? '2px solid rgba(100,70,30,0.6)' : '1px solid rgba(100,70,30,0.3)';
+        ? 'linear-gradient(135deg,rgba(92,61,30,0.9),rgba(58,37,16,0.9))'
+        : 'linear-gradient(135deg,rgba(220,200,152,0.75),rgba(196,170,112,0.75))';
+      overlay.style.border = pillarInfo.isBase ? '2px solid rgba(40,25,10,0.6)' : '1px solid rgba(160,130,70,0.4)';
       overlay.style.display = 'flex';
       overlay.style.alignItems = 'center';
       overlay.style.justifyContent = 'center';
