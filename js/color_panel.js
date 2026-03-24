@@ -4,9 +4,12 @@
 // Opens when X sort boxes of the required color are filled.
 // ============================================================
 
+var cpTracers = [];  // flying particles from sort box → panel
+
 // ── Init from level data ──
 function initColorPanels() {
   colorPanels = [];
+  cpTracers = [];
   var lvl = LEVELS[currentLevel];
   if (!lvl || !lvl.colorPanels) return;
   for (var i = 0; i < lvl.colorPanels.length; i++) {
@@ -33,6 +36,8 @@ function initColorPanels() {
       openT: 0,
       pulseT: 0,
       shakeT: 0,
+      counterBounceT: 0,
+      ringT: 0,
       cells: cells
     });
   }
@@ -50,13 +55,45 @@ function isUnderClosedColorPanel(idx) {
   return false;
 }
 
+// ── Get panel center position ──
+function getPanelCenter(p) {
+  var tl = stock[p.topLeft];
+  if (!tl) return null;
+  var pw = L.bw * 3 + L.bg * 2;
+  var ph = L.bh * 3 + L.bg * 2;
+  return { x: tl.x + pw / 2, y: tl.y + ph / 2, w: pw, h: ph };
+}
+
 // ── Called when a sort box of color ci is completed ──
-function onColorSortFilled(ci) {
+// srcX, srcY = position of the completed sort box
+function onColorSortFilled(ci, srcX, srcY) {
   for (var i = 0; i < colorPanels.length; i++) {
     var p = colorPanels[i];
     if (p.opened || p.ci !== ci) continue;
+
+    var center = getPanelCenter(p);
+    if (!center) continue;
+
+    // Spawn tracer particles from sort box to panel
+    for (var t = 0; t < 10; t++) {
+      cpTracers.push({
+        sx: srcX + (Math.random() - 0.5) * 20 * S,
+        sy: srcY + (Math.random() - 0.5) * 10 * S,
+        tx: center.x + (Math.random() - 0.5) * 30 * S,
+        ty: center.y + (Math.random() - 0.5) * 30 * S,
+        t: -(t * 0.035),  // stagger start
+        ci: ci,
+        panelIdx: i,
+        speed: 0.02 + Math.random() * 0.012,
+        arcH: (40 + Math.random() * 50) * S
+      });
+    }
+
     p.counter--;
     p.pulseT = 1.0;
+    p.counterBounceT = 1.0;
+    p.ringT = 1.0;
+
     if (p.counter <= 0) {
       p.counter = 0;
       p.opened = true;
@@ -75,13 +112,8 @@ function onColorSortFilled(ci) {
         }
       }
       // Confetti at panel center
-      var tlBox = stock[p.topLeft];
-      if (tlBox) {
-        var cx = tlBox.x + (L.bw * 3 + L.bg * 2) / 2;
-        var cy = tlBox.y + (L.bh * 3 + L.bg * 2) / 2;
-        spawnConfetti(cx, cy, 30);
-        spawnBurst(cx, cy, COLORS[p.ci].fill, 25);
-      }
+      spawnConfetti(center.x, center.y, 30);
+      spawnBurst(center.x, center.y, COLORS[p.ci].fill, 25);
       // Trigger adjacency reveals after panel opens
       (function(panel) {
         setTimeout(function() {
@@ -93,12 +125,6 @@ function onColorSortFilled(ci) {
       })(p);
     } else {
       sfx.pop();
-      var tlBox = stock[p.topLeft];
-      if (tlBox) {
-        var cx = tlBox.x + (L.bw * 3 + L.bg * 2) / 2;
-        var cy = tlBox.y + (L.bh * 3 + L.bg * 2) / 2;
-        spawnBurst(cx, cy, COLORS[p.ci].fill, 12);
-      }
     }
   }
 }
@@ -124,14 +150,73 @@ function tapColorPanel(px, py) {
 function updateColorPanels() {
   for (var i = 0; i < colorPanels.length; i++) {
     var p = colorPanels[i];
-    if (p.pulseT > 0) p.pulseT = Math.max(0, p.pulseT - 0.04);
+    if (p.pulseT > 0) p.pulseT = Math.max(0, p.pulseT - 0.03);
     if (p.openT > 0) p.openT = Math.max(0, p.openT - 0.025);
     if (p.shakeT > 0) p.shakeT = Math.max(0, p.shakeT - 0.04);
+    if (p.counterBounceT > 0) p.counterBounceT = Math.max(0, p.counterBounceT - 0.04);
+    if (p.ringT > 0) p.ringT = Math.max(0, p.ringT - 0.025);
+  }
+
+  // Update tracers
+  for (var i = cpTracers.length - 1; i >= 0; i--) {
+    var tr = cpTracers[i];
+    tr.t += tr.speed;
+    if (tr.t >= 1) {
+      // Arrival burst at panel
+      spawnBurst(tr.tx, tr.ty, COLORS[tr.ci].light, 3);
+      cpTracers.splice(i, 1);
+    }
+  }
+}
+
+// ── Draw tracer particles ──
+function drawColorPanelTracers() {
+  for (var i = 0; i < cpTracers.length; i++) {
+    var tr = cpTracers[i];
+    if (tr.t < 0) continue;  // staggered, not started yet
+
+    var t = tr.t;
+    // Ease in-out for smooth motion
+    var et = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    var x = tr.sx + (tr.tx - tr.sx) * et;
+    var y = tr.sy + (tr.ty - tr.sy) * et - Math.sin(t * Math.PI) * tr.arcH;
+
+    var r = (3 + Math.sin(t * Math.PI) * 4) * S;
+    var alpha = t < 0.1 ? t * 10 : (t > 0.85 ? (1 - t) / 0.15 : 1);
+
+    ctx.save();
+    // Glow halo
+    ctx.globalAlpha = alpha * 0.35;
+    ctx.fillStyle = COLORS[tr.ci].glow;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 3, 0, Math.PI * 2);
+    ctx.fill();
+    // Core marble
+    ctx.globalAlpha = alpha;
+    drawMarble(x, y, r, tr.ci);
+    ctx.restore();
+
+    // Trail particles (every other frame)
+    if (tick % 2 === 0) {
+      particles.push({
+        x: x, y: y,
+        vx: (Math.random() - 0.5) * 1.5 * S,
+        vy: (Math.random() - 0.5) * 1.5 * S,
+        r: (1.5 + Math.random() * 2) * S,
+        color: COLORS[tr.ci].light,
+        life: 0.5,
+        decay: 0.04 + Math.random() * 0.02,
+        grav: false
+      });
+    }
   }
 }
 
 // ── Draw panels on top of stock grid ──
 function drawColorPanels() {
+  // Draw tracers first (behind panels)
+  drawColorPanelTracers();
+
   for (var i = 0; i < colorPanels.length; i++) {
     var p = colorPanels[i];
     if (p.opened && p.openT <= 0) continue;
@@ -145,17 +230,37 @@ function drawColorPanels() {
     var py = tl.y;
     var c = COLORS[p.ci];
 
-    ctx.save();
-
     var cx = px + pw / 2;
     var cy = py + ph / 2;
+
+    // ── Expanding ring effect (drawn behind panel) ──
+    if (p.ringT > 0 && !p.opened) {
+      var ringProgress = 1 - p.ringT;
+      var ringR = Math.max(pw, ph) * (0.5 + ringProgress * 0.4);
+      ctx.save();
+      ctx.globalAlpha = p.ringT * 0.5;
+      ctx.strokeStyle = c.fill;
+      ctx.lineWidth = (4 * S) * p.ringT;
+      ctx.beginPath();
+      ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+      ctx.stroke();
+      // Second thinner ring, slightly delayed
+      var ringR2 = Math.max(pw, ph) * (0.4 + ringProgress * 0.5);
+      ctx.globalAlpha = p.ringT * 0.25;
+      ctx.lineWidth = (2 * S) * p.ringT;
+      ctx.beginPath();
+      ctx.arc(cx, cy, ringR2, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    ctx.save();
 
     // Shake
     var ox = 0;
     if (p.shakeT > 0) ox = Math.sin(p.shakeT * 28) * 4 * S * p.shakeT;
 
     if (p.opened && p.openT > 0) {
-      // Fade-out + scale-up animation
       ctx.globalAlpha = p.openT;
       var s = 1 + (1 - p.openT) * 0.08;
       ctx.translate(cx + ox, cy);
@@ -165,13 +270,25 @@ function drawColorPanels() {
       ctx.translate(ox, 0);
     }
 
-    // Pulse animation on counter change
+    // Pulse scale
     var pulse = p.pulseT > 0 ? Math.sin(p.pulseT * Math.PI) * 0.04 : 0;
     if (pulse > 0) {
       var s2 = 1 + pulse;
       ctx.translate(cx, cy);
       ctx.scale(s2, s2);
       ctx.translate(-cx, -cy);
+    }
+
+    // Glow border during pulse
+    if (p.pulseT > 0 && !p.opened) {
+      ctx.save();
+      ctx.shadowColor = c.glow;
+      ctx.shadowBlur = 25 * S * p.pulseT;
+      ctx.strokeStyle = c.fill;
+      ctx.lineWidth = 3 * S;
+      rRect(px - 2 * S, py - 2 * S, pw + 4 * S, ph + 4 * S, 12 * S);
+      ctx.stroke();
+      ctx.restore();
     }
 
     // Shadow
@@ -221,18 +338,35 @@ function drawColorPanels() {
     }
     ctx.restore();
 
+    // Flash overlay during pulse
+    if (p.pulseT > 0.7 && !p.opened) {
+      ctx.save();
+      ctx.globalAlpha = (p.pulseT - 0.7) / 0.3 * 0.25;
+      ctx.fillStyle = '#fff';
+      rRect(px, py, pw, ph, 10 * S);
+      ctx.fill();
+      ctx.restore();
+    }
+
     // Counter + color indicator
     if (!p.opened) {
       var fontSize = Math.min(pw, ph) * 0.38;
 
+      // Counter bounce: scale up then back
+      var counterScale = 1;
+      if (p.counterBounceT > 0) {
+        counterScale = 1 + Math.sin(p.counterBounceT * Math.PI) * 0.35;
+      }
+
       // Color indicator marble above counter
-      var indicatorR = 10 * S;
+      var indicatorR = 10 * S * counterScale;
       var indicatorY = cy - fontSize * 0.55;
       drawMarble(cx, indicatorY, indicatorR, p.ci);
 
       // Counter number below marble
       var textY = cy + fontSize * 0.45;
-      ctx.font = 'bold ' + fontSize + 'px Fredoka, sans-serif';
+      var scaledFontSize = fontSize * counterScale;
+      ctx.font = 'bold ' + scaledFontSize + 'px Fredoka, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
@@ -240,8 +374,12 @@ function drawColorPanels() {
       ctx.fillStyle = 'rgba(0,0,0,0.3)';
       ctx.fillText(p.counter, cx + 2 * S, textY + 3 * S);
 
-      // Main text
-      ctx.fillStyle = 'rgba(255,255,255,0.95)';
+      // Main text — flash white during bounce
+      if (p.counterBounceT > 0.6) {
+        ctx.fillStyle = '#fff';
+      } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.95)';
+      }
       ctx.fillText(p.counter, cx, textY);
     }
 
