@@ -407,7 +407,7 @@ function update() {
           var by2 = getSortBoxY(j.targetCol, 0) + L.sBh / 2;
           spawnBurst(bx2, by2, COLORS[j.ci].fill, 20);
           spawnConfetti(bx2, by2, 15);
-          onColorSortFilled(j.ci);
+          onColorSortFilled(j.ci, bx2, by2);
           (function (box) { setTimeout(function () { box.vis = false; checkWin(); }, 600); })(col[tv]);
         }
       }
