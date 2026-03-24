@@ -142,11 +142,17 @@ function initGame() {
     }
   }
 
+  // ── Color panels ──
+  initColorPanels();
+
   // ── Initial reveal: lowest non-empty box per column ──
   for (var c = 0; c < L.cols; c++) {
     for (var r = L.rows - 1; r >= 0; r--) {
       var b = stock[r * L.cols + c];
-      if (!b.empty && !b.isTunnel && !b.isWall) { b.revealed = true; break; }
+      if (!b.empty && !b.isTunnel && !b.isWall) {
+        if (!isUnderClosedColorPanel(r * L.cols + c)) b.revealed = true;
+        break;
+      }
     }
   }
 
@@ -165,6 +171,7 @@ function initGame() {
       for (var ni = 0; ni < nbrs.length; ni++) {
         var nb = stock[nbrs[ni]];
         if (nb.isTunnel || nb.isWall || nb.empty || nb.used || nb.revealed) continue;
+        if (isUnderClosedColorPanel(nbrs[ni])) continue;
         nb.revealed = true;
         changed = true;
       }
@@ -232,6 +239,7 @@ function revealAroundEmptyCell(idx) {
       continue;
     }
     if (nb.isWall || nb.empty || nb.used || nb.revealed || nb.spawning) continue;
+    if (isUnderClosedColorPanel(nIdx)) continue;
     nb.revealed = true;
     nb.revealT = 1.0;
     var bx = nb.x + L.bw / 2, by = nb.y + L.bh / 2;
@@ -301,6 +309,7 @@ function isBoxTappable(idx) {
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
+  if (isUnderClosedColorPanel(idx)) return false;
   return b.revealed;
 }
 
@@ -311,6 +320,7 @@ function handleTap(px, py) {
   if (won || !gameActive) return;
   ensureAudio();
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
+  if (tapColorPanel(px, py)) return;
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
@@ -397,6 +407,7 @@ function update() {
           var by2 = getSortBoxY(j.targetCol, 0) + L.sBh / 2;
           spawnBurst(bx2, by2, COLORS[j.ci].fill, 20);
           spawnConfetti(bx2, by2, 15);
+          onColorSortFilled(j.ci);
           (function (box) { setTimeout(function () { box.vis = false; checkWin(); }, 600); })(col[tv]);
         }
       }
@@ -497,6 +508,7 @@ function update() {
     if (box.type === 'lock' && box.triggerT > 0) box.triggerT = Math.max(0, box.triggerT - 0.03);
   }
 
+  updateColorPanels();
   tickParticles();
   updateRollingSound();
 }
@@ -528,6 +540,7 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    drawColorPanels();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();
