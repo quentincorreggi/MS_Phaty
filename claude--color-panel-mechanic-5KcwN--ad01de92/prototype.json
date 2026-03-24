@@ -1,0 +1,68 @@
+{
+  "name": "Color Panel",
+  "description": "Colored panels block a 3\u00d73 area of boxes. Fill sort column customers of the panel's required color to open it. Each panel shows a marble of its required color and a counter.",
+  "howToPlay": "Tap the pink and blue boxes at the bottom to send marbles into the funnel. When marbles fill matching sort column boxes, the color panel's counter decreases. Open both panels to access the boxes underneath and complete the level!",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Color Panel Demo",
+    "desc": "Open two color panels by filling the right customers",
+    "mrbPerBox": 3,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      {"ci": 2, "type": "default"},
+      {"ci": 2, "type": "default"},
+      {"ci": 2, "type": "default"},
+      null,
+      {"ci": 3, "type": "default"},
+      {"ci": 3, "type": "default"},
+      {"ci": 3, "type": "default"},
+
+      {"ci": 2, "type": "default"},
+      {"ci": 2, "type": "default"},
+      {"ci": 2, "type": "default"},
+      null,
+      {"ci": 3, "type": "default"},
+      {"ci": 3, "type": "default"},
+      {"ci": 3, "type": "default"},
+
+      {"ci": 2, "type": "default"},
+      {"ci": 2, "type": "default"},
+      {"ci": 2, "type": "default"},
+      null,
+      {"ci": 3, "type": "default"},
+      {"ci": 3, "type": "default"},
+      {"ci": 3, "type": "default"},
+
+      null, null, null, null, null, null, null,
+
+      null,
+      {"ci": 0, "type": "default"},
+      null,
+      null,
+      null,
+      {"ci": 1, "type": "default"},
+      null,
+
+      null,
+      {"ci": 0, "type": "default"},
+      null,
+      null,
+      null,
+      {"ci": 1, "type": "default"},
+      null,
+
+      null,
+      {"ci": 0, "type": "default"},
+      null,
+      null,
+      null,
+      {"ci": 1, "type": "default"},
+      null
+    ],
+    "colorPanels": [
+      {"topLeft": 0, "ci": 0, "counter": 2},
+      {"topLeft": 4, "ci": 1, "counter": 2}
+    ]
+  }
+}
