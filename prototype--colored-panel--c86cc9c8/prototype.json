@@ -1,0 +1,73 @@
+{
+  "name": "Colored Panel",
+  "description": "A colored panel covers a 3x3 area on the grid, hiding the boxes underneath. Sort marbles of the matching color to count it down and reveal what's hidden!",
+  "howToPlay": "Tap the green boxes first and sort all their marbles. Each time a green sort box clears, the green panel's number decreases. When it reaches 0, the panel shatters and reveals the hidden boxes underneath. Then tap those to finish the level!",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Panel Demo",
+    "desc": "Clear the green panel to reveal hidden boxes",
+    "mrbPerBox": 6,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null,
+      {"ci": 2, "type": "default"},
+      null,
+      null,
+      null,
+      {"ci": 2, "type": "default"},
+      null,
+
+      {"ci": 0, "type": "default"},
+      null,
+      null,
+      null,
+      null,
+      null,
+      {"ci": 1, "type": "default"},
+
+      null,
+      null,
+      {"ci": 0, "type": "default"},
+      {"ci": 1, "type": "default"},
+      {"ci": 0, "type": "default"},
+      null,
+      null,
+
+      null,
+      null,
+      {"ci": 1, "type": "default"},
+      null,
+      {"ci": 1, "type": "default"},
+      null,
+      null,
+
+      null,
+      null,
+      {"ci": 0, "type": "default"},
+      {"ci": 1, "type": "default"},
+      {"ci": 0, "type": "default"},
+      null,
+      null,
+
+      {"ci": 1, "type": "default"},
+      null,
+      null,
+      null,
+      null,
+      null,
+      {"ci": 0, "type": "default"},
+
+      null,
+      {"ci": 2, "type": "default"},
+      null,
+      null,
+      null,
+      {"ci": 2, "type": "default"},
+      null
+    ],
+    "panels": [
+      {"row": 2, "col": 2, "ci": 2, "count": 2}
+    ]
+  }
+}
