@@ -410,11 +410,11 @@ function update() {
           var by2 = getSortBoxY(j.targetCol, 0) + L.sBh / 2;
           spawnBurst(bx2, by2, COLORS[j.ci].fill, 20);
           spawnConfetti(bx2, by2, 15);
-          (function (box, sortedCi) { setTimeout(function () {
+          (function (box, sortedCi, sx, sy) { setTimeout(function () {
             box.vis = false;
-            if (typeof onSortBoxCompleted === 'function') onSortBoxCompleted(sortedCi);
+            if (typeof onSortBoxCompleted === 'function') onSortBoxCompleted(sortedCi, sx, sy);
             checkWin();
-          }, 600); })(col[tv], col[tv].ci);
+          }, 600); })(col[tv], col[tv].ci, bx2, by2);
         }
       }
       jumpers.splice(i, 1);
@@ -546,6 +546,8 @@ function frame() {
     drawFunnel();
     drawStock();
     if (typeof drawPanels === 'function') drawPanels();
+    if (typeof drawPanelTravelers === 'function') drawPanelTravelers();
+    if (typeof drawPanelFloatTexts === 'function') drawPanelFloatTexts();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();
