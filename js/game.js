@@ -142,11 +142,17 @@ function initGame() {
     }
   }
 
+  // ── Initialize panels ──
+  if (typeof initPanels === 'function') initPanels(lvl);
+
   // ── Initial reveal: lowest non-empty box per column ──
   for (var c = 0; c < L.cols; c++) {
     for (var r = L.rows - 1; r >= 0; r--) {
       var b = stock[r * L.cols + c];
-      if (!b.empty && !b.isTunnel && !b.isWall) { b.revealed = true; break; }
+      if (!b.empty && !b.isTunnel && !b.isWall) {
+        if (typeof isCellCoveredByPanel === 'function' && isCellCoveredByPanel(r * L.cols + c)) continue;
+        b.revealed = true; break;
+      }
     }
   }
 
@@ -165,6 +171,7 @@ function initGame() {
       for (var ni = 0; ni < nbrs.length; ni++) {
         var nb = stock[nbrs[ni]];
         if (nb.isTunnel || nb.isWall || nb.empty || nb.used || nb.revealed) continue;
+        if (typeof isCellCoveredByPanel === 'function' && isCellCoveredByPanel(nbrs[ni])) continue;
         nb.revealed = true;
         changed = true;
       }
@@ -197,6 +204,7 @@ function isCellTrulyEmpty(idx) {
   var s = stock[idx];
   if (!s) return false;
   if (s.isWall) return false;  // Walls are never empty
+  if (typeof isCellCoveredByPanel === 'function' && isCellCoveredByPanel(idx)) return false;
   if (s.isTunnel) {
     if (s.tunnelContents && s.tunnelContents.length > 0) return false;
     var exitIdx = getTunnelExitIdx(idx);
@@ -232,6 +240,7 @@ function revealAroundEmptyCell(idx) {
       continue;
     }
     if (nb.isWall || nb.empty || nb.used || nb.revealed || nb.spawning) continue;
+    if (typeof isCellCoveredByPanel === 'function' && isCellCoveredByPanel(nIdx)) continue;
     nb.revealed = true;
     nb.revealT = 1.0;
     var bx = nb.x + L.bw / 2, by = nb.y + L.bh / 2;
@@ -301,6 +310,7 @@ function isBoxTappable(idx) {
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
+  if (typeof isCellCoveredByPanel === 'function' && isCellCoveredByPanel(idx)) return false;
   return b.revealed;
 }
 
@@ -357,6 +367,9 @@ function update() {
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
 
+  // ── Panel countdown ──
+  if (typeof updatePanels === 'function') updatePanels();
+
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
     var slot = beltSlots[si]; if (slot.marble < 0) continue;
@@ -397,7 +410,11 @@ function update() {
           var by2 = getSortBoxY(j.targetCol, 0) + L.sBh / 2;
           spawnBurst(bx2, by2, COLORS[j.ci].fill, 20);
           spawnConfetti(bx2, by2, 15);
-          (function (box) { setTimeout(function () { box.vis = false; checkWin(); }, 600); })(col[tv]);
+          (function (box, sortedCi) { setTimeout(function () {
+            box.vis = false;
+            if (typeof onSortBoxCompleted === 'function') onSortBoxCompleted(sortedCi);
+            checkWin();
+          }, 600); })(col[tv], col[tv].ci);
         }
       }
       jumpers.splice(i, 1);
@@ -528,6 +545,7 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    if (typeof drawPanels === 'function') drawPanels();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();

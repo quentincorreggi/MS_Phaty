@@ -17,6 +17,9 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  panelMode: false,     // true when placing panels
+  panels: [],           // [{row, col, ci, count}]
+  panelCount: 3,        // default count for new panels
   visible: false
 };
 
@@ -34,6 +37,9 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.panelMode = false;
+  editor.panels = [];
+  editor.panelCount = 3;
 }
 
 function showEditor(fresh) {
@@ -100,10 +106,76 @@ function editorRenderGrid() {
     cell.addEventListener('contextmenu', editorCellErase);
     el.appendChild(cell);
   }
+
+  // Panel overlays
+  for (var pi = 0; pi < editor.panels.length; pi++) {
+    var p = editor.panels[pi];
+    for (var dr = 0; dr < 3; dr++) {
+      for (var dc = 0; dc < 3; dc++) {
+        var ci2 = (p.row + dr) * 7 + (p.col + dc);
+        if (ci2 >= 49) continue;
+        var cellEl = el.children[ci2];
+        if (!cellEl) continue;
+        var overlay = document.createElement('div');
+        overlay.style.cssText = 'position:absolute;inset:-1px;border-radius:4px;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:2;';
+        overlay.style.background = COLORS[p.ci].fill;
+        overlay.style.opacity = '0.65';
+        // Borders on panel edges
+        overlay.style.borderTop = (dr === 0) ? '2.5px solid ' + COLORS[p.ci].dark : 'none';
+        overlay.style.borderBottom = (dr === 2) ? '2.5px solid ' + COLORS[p.ci].dark : 'none';
+        overlay.style.borderLeft = (dc === 0) ? '2.5px solid ' + COLORS[p.ci].dark : 'none';
+        overlay.style.borderRight = (dc === 2) ? '2.5px solid ' + COLORS[p.ci].dark : 'none';
+        if (dr === 1 && dc === 1) {
+          overlay.innerHTML = '<span style="color:white;font-weight:700;font-size:16px;text-shadow:0 1px 3px rgba(0,0,0,0.4)">' + p.count + '</span>';
+        }
+        cellEl.appendChild(overlay);
+      }
+    }
+  }
+}
+
+function editorGetPanelAt(idx) {
+  var row = Math.floor(idx / 7);
+  var col = idx % 7;
+  for (var i = 0; i < editor.panels.length; i++) {
+    var p = editor.panels[i];
+    if (row >= p.row && row < p.row + 3 && col >= p.col && col < p.col + 3) return i;
+  }
+  return -1;
 }
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.panelMode) {
+    var existingIdx = editorGetPanelAt(idx);
+    if (existingIdx >= 0) {
+      editor.panels.splice(existingIdx, 1);
+    } else if (editor.activeColor >= 0) {
+      var row = Math.floor(idx / 7);
+      var col = idx % 7;
+      if (row <= 4 && col <= 4) {
+        var overlap = false;
+        for (var pi = 0; pi < editor.panels.length; pi++) {
+          var ep = editor.panels[pi];
+          if (!(row + 3 <= ep.row || row >= ep.row + 3 || col + 3 <= ep.col || col >= ep.col + 3)) {
+            overlap = true;
+            break;
+          }
+        }
+        if (!overlap) {
+          editor.panels.push({ row: row, col: col, ci: editor.activeColor, count: editor.panelCount });
+        } else {
+          editorShowToast('Panels cannot overlap');
+        }
+      } else {
+        editorShowToast('Panel must fit in grid (max row 4, col 4)');
+      }
+    }
+    editorRenderGrid();
+    editorUpdateStats();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -157,6 +229,14 @@ function editorCellClick(e) {
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+  var panelIdx = editorGetPanelAt(idx);
+  if (panelIdx >= 0) {
+    editor.panels.splice(panelIdx, 1);
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderTunnelPanel();
+    return;
+  }
   editor.grid[idx] = null;
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
   editorRenderGrid();
@@ -178,13 +258,14 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.panelMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.panelMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -205,6 +286,21 @@ function editorRenderToolbar() {
   });
   typeRow.appendChild(wallBtn);
 
+  // Panel mode button
+  var panelBtn = document.createElement('button');
+  panelBtn.className = 'ed-type-btn' + (editor.panelMode ? ' active' : '');
+  panelBtn.textContent = '\u25A3 Panel';
+  panelBtn.style.borderColor = editor.panelMode ? 'rgba(166,109,212,0.6)' : '';
+  panelBtn.style.color = editor.panelMode ? '#A66DD4' : '';
+  panelBtn.addEventListener('click', function () {
+    editor.panelMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(panelBtn);
+
   // Tunnel mode button
   var tunnelBtn = document.createElement('button');
   tunnelBtn.className = 'ed-type-btn' + (editor.tunnelMode ? ' active' : '');
@@ -214,6 +310,7 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.panelMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -221,7 +318,55 @@ function editorRenderToolbar() {
 
   el.appendChild(typeRow);
 
-  if (editor.tunnelMode) {
+  if (editor.panelMode) {
+    // Color palette for panels
+    var colorRow = document.createElement('div');
+    colorRow.className = 'ed-color-row';
+    for (var ci = 0; ci < NUM_COLORS; ci++) {
+      var cb = document.createElement('button');
+      cb.className = 'ed-tool' + (editor.activeColor === ci ? ' active' : '');
+      cb.style.background = COLORS[ci].fill;
+      cb.innerHTML = CLR_NAMES[ci][0].toUpperCase();
+      cb.title = CLR_NAMES[ci];
+      cb.setAttribute('data-ci', ci);
+      cb.addEventListener('click', function () {
+        editor.activeColor = parseInt(this.getAttribute('data-ci'));
+        editorRenderToolbar();
+      });
+      colorRow.appendChild(cb);
+    }
+    el.appendChild(colorRow);
+
+    // Count selector
+    var countRow = document.createElement('div');
+    countRow.className = 'ed-color-row';
+    countRow.style.alignItems = 'center';
+    var countLabel = document.createElement('span');
+    countLabel.style.cssText = 'font-size:11px;color:#9C8A70;margin-right:4px';
+    countLabel.textContent = 'Count:';
+    countRow.appendChild(countLabel);
+    for (var n = 1; n <= 6; n++) {
+      var nb2 = document.createElement('button');
+      nb2.className = 'ed-tool' + (editor.panelCount === n ? ' active' : '');
+      nb2.style.background = 'rgba(180,165,145,0.5)';
+      nb2.style.width = '28px';
+      nb2.style.height = '28px';
+      nb2.textContent = n.toString();
+      nb2.setAttribute('data-count', n);
+      nb2.addEventListener('click', function () {
+        editor.panelCount = parseInt(this.getAttribute('data-count'));
+        editorRenderToolbar();
+      });
+      countRow.appendChild(nb2);
+    }
+    el.appendChild(countRow);
+
+    var panelInfo = document.createElement('div');
+    panelInfo.className = 'ed-color-row';
+    panelInfo.innerHTML = '<span style="font-size:10px;color:#9C8A70">Click a cell to place 3\u00d73 panel (top-left corner). Click existing panel to remove.</span>';
+    el.appendChild(panelInfo);
+
+  } else if (editor.tunnelMode) {
     // Direction selector row
     var dirRow = document.createElement('div');
     dirRow.className = 'ed-color-row';
@@ -442,6 +587,7 @@ function editorFillRandom() {
 function editorClearAll() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
+  editor.panels = [];
   editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
 }
 
@@ -503,6 +649,9 @@ function editorUpdateStats() {
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
   }
+  if (editor.panels.length > 0) {
+    html += '<span class="ed-stat-chip" style="background:rgba(120,100,80,0.6)">' + editor.panels.length + ' panel' + (editor.panels.length > 1 ? 's' : '') + '</span>';
+  }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
   }
@@ -563,12 +712,20 @@ function editorRenderSettings() {
 
 // ── Build level definition ──
 function editorBuildLevel() {
-  return {
+  var lvl = {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
     grid: editor.grid.slice()
   };
+  if (editor.panels.length > 0) {
+    lvl.panels = [];
+    for (var i = 0; i < editor.panels.length; i++) {
+      var p = editor.panels[i];
+      lvl.panels.push({ row: p.row, col: p.col, ci: p.ci, count: p.count });
+    }
+  }
+  return lvl;
 }
 
 // ── Test play ──
@@ -627,6 +784,15 @@ function editorImportJSON() {
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
+      if (lvl.panels && lvl.panels.length) {
+        editor.panels = [];
+        for (var pi2 = 0; pi2 < lvl.panels.length; pi2++) {
+          var pp = lvl.panels[pi2];
+          editor.panels.push({ row: pp.row, col: pp.col, ci: pp.ci, count: pp.count });
+        }
+      } else {
+        editor.panels = [];
+      }
       var nameEl = document.getElementById('ed-name');
       var descEl = document.getElementById('ed-desc');
       if (nameEl) nameEl.value = editor.name;
