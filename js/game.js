@@ -55,7 +55,10 @@ function initGame() {
       } else if (typeof cell === 'number') {
         if (cell >= 0) boxSlots[i] = { ci: cell, boxType: 'default' };
       } else if (typeof cell === 'object' && cell.ci >= 0) {
-        boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default' };
+        var bSlot = { ci: cell.ci, boxType: cell.type || 'default' };
+        if (cell.ci2 !== undefined) bSlot.ci2 = cell.ci2;
+        if (cell.ci3 !== undefined) bSlot.ci3 = cell.ci3;
+        boxSlots[i] = bSlot;
       }
     }
   }
@@ -68,8 +71,16 @@ function initGame() {
   for (var k in boxSlots) {
     var bs = boxSlots[k];
     var isBlockerBox = (bs.boxType === 'blocker');
-    var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
-    colorMarblesTotal[bs.ci] += regularPerBox;
+    var isTriColor = (bs.boxType === 'tricolor');
+    if (isTriColor) {
+      var perClr = Math.floor(MRB_PER_BOX / 3);
+      colorMarblesTotal[bs.ci] += perClr;
+      colorMarblesTotal[bs.ci2 !== undefined ? bs.ci2 : bs.ci] += perClr;
+      colorMarblesTotal[bs.ci3 !== undefined ? bs.ci3 : bs.ci] += MRB_PER_BOX - perClr * 2;
+    } else {
+      var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
+      colorMarblesTotal[bs.ci] += regularPerBox;
+    }
     if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
   }
   // Count marbles from tunnel contents
@@ -78,8 +89,16 @@ function initGame() {
     for (var tc = 0; tc < ts.contents.length; tc++) {
       var tItem = ts.contents[tc];
       var isBlockerBox = (tItem.type === 'blocker');
-      var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
-      colorMarblesTotal[tItem.ci] += regularPerBox;
+      var isTriColor = (tItem.type === 'tricolor');
+      if (isTriColor) {
+        var perClr2 = Math.floor(MRB_PER_BOX / 3);
+        colorMarblesTotal[tItem.ci] += perClr2;
+        colorMarblesTotal[tItem.ci2 !== undefined ? tItem.ci2 : tItem.ci] += perClr2;
+        colorMarblesTotal[tItem.ci3 !== undefined ? tItem.ci3 : tItem.ci] += MRB_PER_BOX - perClr2 * 2;
+      } else {
+        var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
+        colorMarblesTotal[tItem.ci] += regularPerBox;
+      }
       if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
     }
   }
@@ -101,7 +120,12 @@ function initGame() {
       stock.push({
         isTunnel: true, isWall: false,
         tunnelDir: tSlot.dir,
-        tunnelContents: tSlot.contents.map(function (item) { return { ci: item.ci, type: item.type || 'default' }; }),
+        tunnelContents: tSlot.contents.map(function (item) {
+          var mapped = { ci: item.ci, type: item.type || 'default' };
+          if (item.ci2 !== undefined) mapped.ci2 = item.ci2;
+          if (item.ci3 !== undefined) mapped.ci3 = item.ci3;
+          return mapped;
+        }),
         tunnelTotal: tSlot.contents.length,
         tunnelSpawning: false,
         tunnelCooldown: 60,
@@ -136,6 +160,8 @@ function initGame() {
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        ci2: slot.ci2 !== undefined ? slot.ci2 : slot.ci,
+        ci3: slot.ci3 !== undefined ? slot.ci3 : slot.ci,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
@@ -319,7 +345,13 @@ function handleTap(px, py) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
       b.popT = 1;
       sfx.pop();
-      spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
+      if (b.boxType === 'tricolor') {
+        spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 6);
+        spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci2].fill, 6);
+        spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci3].fill, 6);
+      } else {
+        spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
+      }
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
       return;

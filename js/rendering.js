@@ -99,6 +99,59 @@ function drawBoxMarblesWithBlockers(ci, remaining, blockerCount) {
   }
 }
 
+// ── Tri-Color box drawing helpers ──
+
+function drawTriColorBox(x, y, w, h, ci1, ci2, ci3, alpha) {
+  var colors = [ci1, ci2, ci3];
+  ctx.save();
+  if (alpha !== undefined) ctx.globalAlpha = alpha;
+  ctx.shadowColor = 'rgba(0,0,0,0.2)'; ctx.shadowBlur = 5 * S; ctx.shadowOffsetY = 2 * S;
+  rRect(x, y, w, h, 6 * S);
+  ctx.save();
+  ctx.clip();
+  var bandH = h / 3;
+  for (var i = 0; i < 3; i++) {
+    var c = COLORS[colors[i]];
+    var grad = ctx.createLinearGradient(x, y + i * bandH, x, y + (i + 1) * bandH);
+    grad.addColorStop(0, c.light); grad.addColorStop(1, c.fill);
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, y + i * bandH, w, bandH + 1);
+  }
+  ctx.restore();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 1.5 * S;
+  rRect(x, y, w, h, 6 * S); ctx.stroke();
+  ctx.restore();
+}
+
+function drawBoxMarblesTriColor(ci1, ci2, ci3, remaining) {
+  if (remaining <= 0) return;
+  var mr = Math.min(7 * S, L.bw / 8.5);
+  var mg = Math.min(14 * S, L.bw / 4.2);
+  var mgY = mg * MRB_GAP_FACTOR;
+  var gone = MRB_PER_BOX - remaining;
+  var perColor = Math.floor(MRB_PER_BOX / 3);
+  var colors = [ci1, ci2, ci3];
+  var mrbsToDraw = [];
+  for (var si = gone; si < MRB_PER_BOX; si++) {
+    var colorIdx = Math.min(2, Math.floor(si / perColor));
+    mrbsToDraw.push({ r: SNAKE_ORDER[si].r, c: SNAKE_ORDER[si].c, ci: colors[colorIdx] });
+  }
+  mrbsToDraw.sort(function (a, b) { return a.r - b.r; });
+  for (var si = 0; si < mrbsToDraw.length; si++) {
+    var sp = mrbsToDraw[si];
+    drawMarble((sp.c - 1) * mg, (sp.r - 1) * mgY - 2 * S, mr, sp.ci);
+  }
+}
+
+function drawTriColorBoxLip(ci1, ci2, ci3) {
+  ctx.save();
+  var lipH = L.bh * LIP_PCT;
+  ctx.beginPath(); ctx.rect(-L.bw / 2, L.bh / 2 - lipH, L.bw, lipH); ctx.clip();
+  drawTriColorBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, ci1, ci2, ci3);
+  ctx.restore();
+}
+
 function drawBoxLip(ci) {
   ctx.save();
   var lipH = L.bh * LIP_PCT;
@@ -208,15 +261,19 @@ function drawStock() {
 
     if (b.revealT > 0) {
       var phase = 1 - b.revealT;
-      bt.drawReveal(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, phase, b.remaining, tick);
+      bt.drawReveal(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, phase, b.remaining, tick, b);
     } else if (!b.revealed) {
       var idleWobble = Math.sin(tick * 0.02 + b.idlePhase) * 0.006;
       ctx.rotate(idleWobble);
-      bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase);
+      bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase, b);
     } else {
       var c = COLORS[b.ci];
       if (isBoxTappable(i) && b.hoverT > 0.01) { ctx.shadowColor = c.glow; ctx.shadowBlur = 20 * S * b.hoverT; }
-      drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci);
+      if (b.boxType === 'tricolor') {
+        drawTriColorBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, b.ci2, b.ci3);
+      } else {
+        drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci);
+      }
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
       if (b.boxType === 'blocker' && b.blockerCount > 0) {
         ctx.save();
@@ -230,12 +287,18 @@ function drawStock() {
         ctx.restore();
       }
       if (b.remaining > 0) {
-        if (b.boxType === 'blocker' && b.blockerCount > 0) {
+        if (b.boxType === 'tricolor') {
+          drawBoxMarblesTriColor(b.ci, b.ci2, b.ci3, b.remaining);
+        } else if (b.boxType === 'blocker' && b.blockerCount > 0) {
           drawBoxMarblesWithBlockers(b.ci, b.remaining, b.blockerCount);
         } else {
           drawBoxMarbles(b.ci, b.remaining);
         }
-        drawBoxLip(b.ci);
+        if (b.boxType === 'tricolor') {
+          drawTriColorBoxLip(b.ci, b.ci2, b.ci3);
+        } else {
+          drawBoxLip(b.ci);
+        }
       }
     }
 

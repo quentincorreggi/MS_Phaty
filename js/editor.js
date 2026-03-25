@@ -17,6 +17,7 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  tricolorColors: [0, 1, 2],  // 3 selected colors for tri-color box
   visible: false
 };
 
@@ -34,6 +35,7 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.tricolorColors = [0, 1, 2];
 }
 
 function showEditor(fresh) {
@@ -85,6 +87,11 @@ function editorRenderGrid() {
       var count = v.contents ? v.contents.length : 0;
       cell.innerHTML = '<span class="ed-cell-dot" style="color:#FFD080;font-size:13px">' + arrow +
         '</span><span class="ed-tunnel-badge">' + count + '</span>';
+    } else if (v && v.type === 'tricolor' && v.ci2 !== undefined && v.ci3 !== undefined) {
+      var tc1 = COLORS[v.ci], tc2 = COLORS[v.ci2], tc3 = COLORS[v.ci3];
+      cell.style.background = 'linear-gradient(to bottom,' + tc1.fill + ' 33%,' + tc2.fill + ' 33%,' + tc2.fill + ' 67%,' + tc3.fill + ' 67%)';
+      cell.style.borderColor = 'rgba(0,0,0,0.3)';
+      cell.innerHTML = '<span class="ed-cell-dot">T</span>';
     } else if (v && v.ci >= 0) {
       var bt = getBoxType(v.type);
       var st = bt.editorCellStyle(v.ci);
@@ -136,8 +143,19 @@ function editorCellClick(e) {
     }
   } else {
     // Normal box painting mode
-    if (editor.activeColor === -1) {
+    if (editor.activeColor === -1 && editor.activeType !== 'tricolor') {
       editor.grid[idx] = null;
+      if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+    } else if (editor.activeType === 'tricolor') {
+      var existing = editor.grid[idx];
+      if (existing && existing.type === 'tricolor' &&
+          existing.ci === editor.tricolorColors[0] &&
+          existing.ci2 === editor.tricolorColors[1] &&
+          existing.ci3 === editor.tricolorColors[2]) {
+        editor.grid[idx] = null;
+      } else {
+        editor.grid[idx] = { ci: editor.tricolorColors[0], type: 'tricolor', ci2: editor.tricolorColors[1], ci3: editor.tricolorColors[2] };
+      }
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     } else {
       var existing = editor.grid[idx];
@@ -260,6 +278,55 @@ function editorRenderToolbar() {
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
+  } else if (editor.activeType === 'tricolor') {
+    // Tri-Color picker: 3 rows, one per color slot
+    var eraserRow = document.createElement('div');
+    eraserRow.className = 'ed-color-row';
+    var eraser = document.createElement('button');
+    eraser.className = 'ed-tool';
+    eraser.style.background = 'rgba(180,165,145,0.5)';
+    eraser.innerHTML = '\u2716';
+    eraser.title = 'Eraser — right-click a cell to erase';
+    eraser.addEventListener('click', function () {
+      editor.activeType = BoxTypeOrder[0];
+      editor.activeColor = -1;
+      editorRenderToolbar();
+    });
+    eraserRow.appendChild(eraser);
+    var hint = document.createElement('span');
+    hint.style.cssText = 'font-size:11px;color:#9C8A70;margin-left:4px';
+    hint.textContent = 'Pick 3 colors, then tap cells to place';
+    eraserRow.appendChild(hint);
+    el.appendChild(eraserRow);
+
+    for (var slot = 0; slot < 3; slot++) {
+      var triRow = document.createElement('div');
+      triRow.className = 'ed-color-row';
+      triRow.style.alignItems = 'center';
+      var label = document.createElement('span');
+      label.style.cssText = 'font-size:11px;font-weight:600;color:#5A4A38;width:16px;text-align:center;flex-shrink:0';
+      label.textContent = (slot + 1) + ':';
+      triRow.appendChild(label);
+      for (var ci = 0; ci < NUM_COLORS; ci++) {
+        var cb = document.createElement('button');
+        cb.className = 'ed-tool' + (editor.tricolorColors[slot] === ci ? ' active' : '');
+        cb.style.background = COLORS[ci].fill;
+        cb.style.width = '26px';
+        cb.style.height = '26px';
+        cb.innerHTML = CLR_NAMES[ci][0].toUpperCase();
+        cb.title = CLR_NAMES[ci];
+        cb.setAttribute('data-ci', ci);
+        cb.setAttribute('data-slot', slot);
+        cb.addEventListener('click', function () {
+          var s = parseInt(this.getAttribute('data-slot'));
+          var c = parseInt(this.getAttribute('data-ci'));
+          editor.tricolorColors[s] = c;
+          editorRenderToolbar();
+        });
+        triRow.appendChild(cb);
+      }
+      el.appendChild(triRow);
+    }
   } else {
     // Color palette: eraser + 8 colors
     var colorRow = document.createElement('div');
@@ -356,6 +423,7 @@ function editorRenderTunnelPanel() {
   html += '<div class="ed-tunnel-add-row">';
   html += '<select id="ed-tunnel-add-type" class="ed-tunnel-select">';
   for (var t = 0; t < BoxTypeOrder.length; t++) {
+    if (BoxTypeOrder[t] === 'tricolor') continue;
     html += '<option value="' + BoxTypeOrder[t] + '">' + BoxTypes[BoxTypeOrder[t]].label + '</option>';
   }
   html += '</select>';
@@ -467,7 +535,12 @@ function editorUpdateStats() {
         for (var tc = 0; tc < v.contents.length; tc++) {
           var tItem = v.contents[tc];
           counts[tItem.ci]++;
-          if (tItem.type === 'blocker') {
+          if (tItem.type === 'tricolor') {
+            var perClr = Math.floor(editor.mrbPerBox / 3);
+            regularMrb[tItem.ci] += perClr;
+            if (tItem.ci2 !== undefined) regularMrb[tItem.ci2] += perClr;
+            if (tItem.ci3 !== undefined) regularMrb[tItem.ci3] += (editor.mrbPerBox - perClr * 2);
+          } else if (tItem.type === 'blocker') {
             regularMrb[tItem.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
             totalBlockers += BLOCKER_PER_BOX;
           } else {
@@ -481,7 +554,12 @@ function editorUpdateStats() {
       counts[v.ci]++;
       total++;
       typeCounts[v.type] = (typeCounts[v.type] || 0) + 1;
-      if (v.type === 'blocker') {
+      if (v.type === 'tricolor') {
+        var perClr = Math.floor(editor.mrbPerBox / 3);
+        regularMrb[v.ci] += perClr;
+        if (v.ci2 !== undefined) regularMrb[v.ci2] += perClr;
+        if (v.ci3 !== undefined) regularMrb[v.ci3] += (editor.mrbPerBox - perClr * 2);
+      } else if (v.type === 'blocker') {
         regularMrb[v.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
         totalBlockers += BLOCKER_PER_BOX;
       } else {
