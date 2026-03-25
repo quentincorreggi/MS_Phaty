@@ -1,0 +1,22 @@
+{
+  "name": "Tri-Color Box",
+  "description": "A box that holds 9 marbles across 3 different colors (3 of each). All 3 colors are visible on the box before tapping.",
+  "howToPlay": "Tap a tri-color box to release all 9 marbles (3 of each color). The three colored bands on the box show which colors are inside. Plan ahead \u2014 one tap feeds three sort columns at once!",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Tri-Color Demo",
+    "desc": "Try the new tri-color boxes",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, null, {"ci":0,"type":"tricolor","ci2":3,"ci3":6}, null, {"ci":1,"type":"tricolor","ci2":4,"ci3":6}, null, null,
+      null, null, {"ci":0,"type":"tricolor","ci2":1,"ci3":2}, null, {"ci":0,"type":"tricolor","ci2":1,"ci3":2}, null, null,
+      null, null, null, null, null, null, null,
+      null, null, {"ci":3,"type":"tricolor","ci2":4,"ci3":5}, null, {"ci":3,"type":"tricolor","ci2":4,"ci3":5}, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}
