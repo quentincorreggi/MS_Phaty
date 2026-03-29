@@ -254,6 +254,20 @@ function drawStock() {
       ctx.restore();
     }
 
+    if (b.crateHP > 0) {
+      var crateType = getBoxType('crate');
+      if (crateType && crateType.drawCrateOverlay) {
+        crateType.drawCrateOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, tick);
+      }
+    }
+    if (b.crateBreakT > 0) {
+      ctx.save();
+      ctx.globalAlpha = b.crateBreakT * 0.5;
+      ctx.fillStyle = 'rgba(210, 148, 60, 1)';
+      rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.fill();
+      ctx.restore();
+    }
+
     ctx.restore();
   }
 }

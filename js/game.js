@@ -108,6 +108,7 @@ function initGame() {
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        crateHP: 0, crateBreakT: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
@@ -118,6 +119,7 @@ function initGame() {
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: false, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        crateHP: 0, crateBreakT: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
@@ -125,17 +127,20 @@ function initGame() {
       stock.push({ ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        crateHP: 0, crateBreakT: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
+      var isCrate = (slot.boxType === 'crate');
       stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
-        revealed: isIce ? true : false, empty: false,
+        revealed: (isIce || isCrate) ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        crateHP: isCrate ? 1 : 0, crateBreakT: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
@@ -294,6 +299,43 @@ function damageAdjacentIce(idx) {
   }
 }
 
+function damageAdjacentCrates(idx) {
+  var row = Math.floor(idx / L.cols), col = idx % L.cols;
+  var neighbors = [];
+  if (row > 0)          neighbors.push((row - 1) * L.cols + col);
+  if (row < L.rows - 1) neighbors.push((row + 1) * L.cols + col);
+  if (col > 0)          neighbors.push(row * L.cols + (col - 1));
+  if (col < L.cols - 1) neighbors.push(row * L.cols + (col + 1));
+  for (var ni = 0; ni < neighbors.length; ni++) {
+    var nb = stock[neighbors[ni]];
+    if (nb.isTunnel || nb.isWall) continue;
+    if (nb.empty || nb.used || nb.crateHP <= 0) continue;
+
+    nb.crateHP = 0;
+    nb.crateBreakT = 1.0;
+    nb.popT = 0.8;
+    nb.boxType = 'default';
+
+    var bx = nb.x + L.bw / 2, by = nb.y + L.bh / 2;
+    sfx.crack();
+    for (var p = 0; p < 18; p++) {
+      var a = Math.PI * 2 * p / 18 + Math.random() * 0.4, sp = 2 + Math.random() * 4.5;
+      particles.push({ x: bx, y: by,
+        vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S - 1.5 * S,
+        r: (1.5 + Math.random() * 3) * S,
+        color: Math.random() > 0.45 ? '#A0723C' : '#CE9850',
+        life: 1, decay: 0.02 + Math.random() * 0.02, grav: true });
+    }
+    for (var p = 0; p < 6; p++) {
+      var a = Math.random() * Math.PI * 2, sp = 0.8 + Math.random() * 2;
+      particles.push({ x: bx, y: by,
+        vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
+        r: (3 + Math.random() * 4) * S, color: '#8B5E3C',
+        life: 0.65, decay: 0.045, grav: false });
+    }
+  }
+}
+
 function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
@@ -301,6 +343,7 @@ function isBoxTappable(idx) {
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
+  if (b.crateHP > 0) return false;
   return b.revealed;
 }
 
@@ -322,6 +365,7 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      if (b.boxType !== 'blocker') damageAdjacentCrates(i);
       return;
     }
   }
@@ -458,6 +502,7 @@ function update() {
     if (b.emptyT > 0) b.emptyT = Math.max(0, b.emptyT - 0.025);
     if (b.iceCrackT > 0) b.iceCrackT = Math.max(0, b.iceCrackT - 0.03);
     if (b.iceShatterT > 0) b.iceShatterT = Math.max(0, b.iceShatterT - 0.025);
+    if (b.crateBreakT > 0) b.crateBreakT = Math.max(0, b.crateBreakT - 0.025);
     var th = (i === hoverIdx && !b.used && isBoxTappable(i)) ? 1 : 0;
     b.hoverT += (th - b.hoverT) * 0.12;
   }
