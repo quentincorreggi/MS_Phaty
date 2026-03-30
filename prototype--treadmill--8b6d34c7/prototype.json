@@ -1,0 +1,26 @@
+{
+  "name": "Treadmill",
+  "description": "A circular loop of grid cells that shifts boxes one position forward each time the player taps any box. Each position is fixed as open or closed — boxes adopt the revealed/hidden state of their current position. Empty slots persist and move along with everything else.",
+  "howToPlay": "Open the Level Editor and use the Treadmill tool to draw a loop of cells on the grid. Click cells to add them to the path, click existing path cells to toggle open/closed, right-click to remove. Place boxes on treadmill cells and non-treadmill cells, then hit Test Play. Every tap shifts the treadmill one step forward.",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Treadmill Demo",
+    "desc": "A simple treadmill loop with alternating open/closed positions",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, null, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 0, "type": "default" }, null, null,
+      null, null, { "ci": 1, "type": "default" }, null, { "ci": 1, "type": "default" }, null, null,
+      null, null, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 0, "type": "default" }, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, { "ci": 0, "type": "default" }, null, null, null,
+      null, null, null, { "ci": 1, "type": "default" }, null, null, null
+    ],
+    "treadmill": {
+      "path": [16, 17, 18, 25, 32, 31, 30, 23],
+      "openSlots": [0, 2, 4, 6]
+    }
+  }
+}
