@@ -142,10 +142,15 @@ function initGame() {
     }
   }
 
+  // ── Treadmill init (before reveals, so treadmillCellSet is ready) ──
+  initTreadmill(lvl);
+
   // ── Initial reveal: lowest non-empty box per column ──
   for (var c = 0; c < L.cols; c++) {
     for (var r = L.rows - 1; r >= 0; r--) {
-      var b = stock[r * L.cols + c];
+      var bidx = r * L.cols + c;
+      if (treadmillCellSet[bidx]) continue;
+      var b = stock[bidx];
       if (!b.empty && !b.isTunnel && !b.isWall) { b.revealed = true; break; }
     }
   }
@@ -163,6 +168,7 @@ function initGame() {
       if (col2 > 0)          nbrs.push(row2 * L.cols + (col2 - 1));
       if (col2 < L.cols - 1) nbrs.push(row2 * L.cols + (col2 + 1));
       for (var ni = 0; ni < nbrs.length; ni++) {
+        if (treadmillCellSet[nbrs[ni]]) continue;
         var nb = stock[nbrs[ni]];
         if (nb.isTunnel || nb.isWall || nb.empty || nb.used || nb.revealed) continue;
         nb.revealed = true;
@@ -170,6 +176,9 @@ function initGame() {
       }
     }
   }
+
+  // ── Apply treadmill open/closed reveals ──
+  applyTreadmillReveals();
 
   // ── Sort columns ──
   var allBoxes = [];
@@ -231,6 +240,7 @@ function revealAroundEmptyCell(idx) {
       if (isCellTrulyEmpty(nIdx)) revealAroundEmptyCell(nIdx);
       continue;
     }
+    if (treadmillCellSet[nIdx]) continue;
     if (nb.isWall || nb.empty || nb.used || nb.revealed || nb.spawning) continue;
     nb.revealed = true;
     nb.revealT = 1.0;
@@ -322,6 +332,7 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      queueTreadmillShift();
       return;
     }
   }
@@ -353,6 +364,9 @@ function update() {
   for (var i = 0; i < BELT_SLOTS; i++) {
     if (beltSlots[i].arriveAnim > 0) beltSlots[i].arriveAnim = Math.max(0, beltSlots[i].arriveAnim - 0.025);
   }
+
+  // ── Treadmill ──
+  updateTreadmill();
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
@@ -527,6 +541,7 @@ function frame() {
     ctx.clearRect(0, 0, W, H);
     drawBackground();
     drawFunnel();
+    drawTreadmillTrack();
     drawStock();
     drawPhysMarbles();
     drawBelt();

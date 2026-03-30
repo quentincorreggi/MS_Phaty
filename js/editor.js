@@ -17,6 +17,9 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  treadmillMode: false, // true when editing treadmill path
+  treadmillPath: [],    // ordered array of grid indices
+  treadmillOpenArr: [], // boolean array, same length as path
   visible: false
 };
 
@@ -34,6 +37,9 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.treadmillMode = false;
+  editor.treadmillPath = [];
+  editor.treadmillOpenArr = [];
 }
 
 function showEditor(fresh) {
@@ -95,6 +101,17 @@ function editorRenderGrid() {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
     }
+    // Treadmill overlay (always shown if cell is on treadmill path)
+    var tmIdx = editor.treadmillPath.indexOf(i);
+    if (tmIdx >= 0) {
+      var tmOpen = editor.treadmillOpenArr[tmIdx] || false;
+      var overlay = document.createElement('div');
+      overlay.style.cssText = 'position:absolute;inset:0;border-radius:4px;display:flex;align-items:center;justify-content:center;pointer-events:none;';
+      overlay.style.background = tmOpen ? 'rgba(255,190,80,0.2)' : 'rgba(55,48,42,0.2)';
+      overlay.style.border = tmOpen ? '2px solid rgba(255,190,80,0.6)' : '2px solid rgba(100,90,80,0.4)';
+      overlay.innerHTML = '<span style="font-size:9px;font-weight:700;color:' + (tmOpen ? '#FFD080' : '#8A8078') + ';text-shadow:0 1px 2px rgba(0,0,0,0.5)">' + (tmIdx + 1) + '</span>';
+      cell.appendChild(overlay);
+    }
     cell.setAttribute('data-idx', i);
     cell.addEventListener('click', editorCellClick);
     cell.addEventListener('contextmenu', editorCellErase);
@@ -104,6 +121,21 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.treadmillMode) {
+    var tmIdx = editor.treadmillPath.indexOf(idx);
+    if (tmIdx >= 0) {
+      // Toggle open/closed
+      editor.treadmillOpenArr[tmIdx] = !editor.treadmillOpenArr[tmIdx];
+    } else {
+      // Add to path
+      editor.treadmillPath.push(idx);
+      editor.treadmillOpenArr.push(false);
+    }
+    editorRenderGrid();
+    editorUpdateStats();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -157,6 +189,16 @@ function editorCellClick(e) {
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+  if (editor.treadmillMode) {
+    var tmIdx = editor.treadmillPath.indexOf(idx);
+    if (tmIdx >= 0) {
+      editor.treadmillPath.splice(tmIdx, 1);
+      editor.treadmillOpenArr.splice(tmIdx, 1);
+    }
+    editorRenderGrid();
+    editorUpdateStats();
+    return;
+  }
   editor.grid[idx] = null;
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
   editorRenderGrid();
@@ -178,13 +220,14 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.treadmillMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.treadmillMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -200,10 +243,26 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.treadmillMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(wallBtn);
+
+  // Treadmill mode button
+  var treadmillBtn = document.createElement('button');
+  treadmillBtn.className = 'ed-type-btn' + (editor.treadmillMode ? ' active' : '');
+  treadmillBtn.textContent = '\u27F3 Treadmill';
+  treadmillBtn.style.borderColor = editor.treadmillMode ? 'rgba(255,190,80,0.6)' : '';
+  treadmillBtn.style.color = editor.treadmillMode ? '#C88A20' : '';
+  treadmillBtn.addEventListener('click', function () {
+    editor.treadmillMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(treadmillBtn);
 
   // Tunnel mode button
   var tunnelBtn = document.createElement('button');
@@ -214,6 +273,7 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.treadmillMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -260,6 +320,12 @@ function editorRenderToolbar() {
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
+  } else if (editor.treadmillMode) {
+    // Treadmill mode: show instructions
+    var tmInfo = document.createElement('div');
+    tmInfo.className = 'ed-color-row';
+    tmInfo.innerHTML = '<span style="font-size:11px;color:#C88A20">Click cells to build path. Click existing to toggle open/closed. Right-click to remove.</span>';
+    el.appendChild(tmInfo);
   } else {
     // Color palette: eraser + 8 colors
     var colorRow = document.createElement('div');
@@ -442,6 +508,8 @@ function editorFillRandom() {
 function editorClearAll() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
+  editor.treadmillPath = [];
+  editor.treadmillOpenArr = [];
   editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
 }
 
@@ -503,6 +571,11 @@ function editorUpdateStats() {
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
   }
+  if (editor.treadmillPath.length > 0) {
+    var tmOpenCount = 0;
+    for (var ti = 0; ti < editor.treadmillOpenArr.length; ti++) { if (editor.treadmillOpenArr[ti]) tmOpenCount++; }
+    html += '<span class="ed-stat-chip" style="background:#37302A;border:1px solid rgba(255,190,80,0.4);color:#FFD080">' + editor.treadmillPath.length + ' treadmill (' + tmOpenCount + ' open)</span>';
+  }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
   }
@@ -563,12 +636,20 @@ function editorRenderSettings() {
 
 // ── Build level definition ──
 function editorBuildLevel() {
-  return {
+  var lvl = {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
     grid: editor.grid.slice()
   };
+  if (editor.treadmillPath.length >= 2) {
+    var openSlots = [];
+    for (var i = 0; i < editor.treadmillOpenArr.length; i++) {
+      if (editor.treadmillOpenArr[i]) openSlots.push(i);
+    }
+    lvl.treadmill = { path: editor.treadmillPath.slice(), openSlots: openSlots };
+  }
+  return lvl;
 }
 
 // ── Test play ──
@@ -632,6 +713,19 @@ function editorImportJSON() {
       if (nameEl) nameEl.value = editor.name;
       if (descEl) descEl.value = editor.desc;
       editor.selectedTunnel = -1;
+      // Import treadmill data
+      editor.treadmillPath = [];
+      editor.treadmillOpenArr = [];
+      if (lvl.treadmill && lvl.treadmill.path && lvl.treadmill.path.length >= 2) {
+        editor.treadmillPath = lvl.treadmill.path.slice();
+        var openSet = {};
+        if (lvl.treadmill.openSlots) {
+          for (var oi = 0; oi < lvl.treadmill.openSlots.length; oi++) openSet[lvl.treadmill.openSlots[oi]] = true;
+        }
+        for (var pi = 0; pi < editor.treadmillPath.length; pi++) {
+          editor.treadmillOpenArr.push(!!openSet[pi]);
+        }
+      }
       ta.style.display = 'none';
       editorBuildUI();
       editorShowToast('Imported!');
