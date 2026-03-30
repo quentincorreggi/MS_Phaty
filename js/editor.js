@@ -72,12 +72,7 @@ function editorRenderGrid() {
     var cell = document.createElement('div');
     cell.className = 'ed-cell';
     var v = editor.grid[i];
-    if (v && v.water) {
-      // Water cell
-      cell.style.background = 'linear-gradient(135deg,#5BC0EB,#2176AE)';
-      cell.style.borderColor = '#3BA3D9';
-      cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,255,255,0.6);font-size:15px">\u223C</span>';
-    } else if (v && v.wall) {
+    if (v && v.wall) {
       // Wall cell
       cell.style.background = 'linear-gradient(135deg,#9A8D7B,#6F6355)';
       cell.style.borderColor = '#8A7D6B';
@@ -95,9 +90,16 @@ function editorRenderGrid() {
     } else if (v && v.ci >= 0) {
       var bt = getBoxType(v.type);
       var st = bt.editorCellStyle(v.ci);
-      cell.style.background = st.background;
-      cell.style.borderColor = st.borderColor;
-      cell.innerHTML = bt.editorCellHTML(v.ci);
+      if (v.water) {
+        // Water overlay: tint the box blue
+        cell.style.background = 'linear-gradient(180deg, rgba(91,192,235,0.6), rgba(33,118,174,0.6)), ' + st.background;
+        cell.style.borderColor = '#3BA3D9';
+        cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,255,255,0.8);font-size:13px">\u223C</span>';
+      } else {
+        cell.style.background = st.background;
+        cell.style.borderColor = st.borderColor;
+        cell.innerHTML = bt.editorCellHTML(v.ci);
+      }
     } else {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
@@ -113,14 +115,15 @@ function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
 
   if (editor.waterMode) {
-    // Water block placement mode
+    // Water overlay: toggle water on existing boxes
     var existing = editor.grid[idx];
-    if (existing && existing.water) {
+    if (existing && !existing.tunnel && !existing.wall && existing.ci >= 0) {
+      existing.water = !existing.water;
+    } else if (editor.activeColor === -1) {
+      // Eraser in water mode removes the cell
       editor.grid[idx] = null;
-    } else {
-      editor.grid[idx] = { water: true };
+      if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     }
-    if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     editorRenderGrid();
     editorUpdateStats();
     editorRenderTunnelPanel();
@@ -298,7 +301,7 @@ function editorRenderToolbar() {
     // Water mode: info hint
     var waterInfo = document.createElement('div');
     waterInfo.className = 'ed-color-row';
-    waterInfo.innerHTML = '<span style="font-size:11px;color:#3BA3D9">Click cells to place/remove water blocks</span>';
+    waterInfo.innerHTML = '<span style="font-size:11px;color:#3BA3D9">Click boxes to toggle water overlay on/off</span>';
     el.appendChild(waterInfo);
   } else if (editor.wallMode) {
     // Wall mode: just show info hint
