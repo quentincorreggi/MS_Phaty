@@ -1,35 +1,28 @@
 // ============================================================
-// water.js — Water block mechanic
-// Water blocks occupy grid cells and block boxes directly below
-// them from being tapped. When a connected path of empty cells
-// is created from the bottom row to a water block cluster,
-// all connected water blocks drain away together.
+// water.js — Water overlay mechanic
+// Water covers a marble box, preventing it from being tapped.
+// Connected water-covered boxes form a group. When a path of
+// empty cells connects from the bottom row to any cell adjacent
+// to a water group, the entire group drains away together.
 // ============================================================
 
-function drawWaterOnGrid(ctx, x, y, w, h, S, tick, drainT) {
+// ── Draw water overlay on top of a box (like ice overlay) ──
+// Called in transformed coordinates (centered on box)
+function drawWaterOverlay(ctx, x, y, w, h, S, tick, drainT) {
   ctx.save();
 
   var alpha = (drainT !== undefined) ? drainT : 1;
-  var offsetY = (drainT !== undefined) ? (1 - drainT) * h * 1.5 : 0;
+  var offsetY = (drainT !== undefined) ? (1 - drainT) * h * 0.5 : 0;
 
-  ctx.globalAlpha = alpha;
+  ctx.globalAlpha = alpha * 0.65;
 
-  // Shadow
-  ctx.shadowColor = 'rgba(0,80,160,0.25)';
-  ctx.shadowBlur = 6 * S;
-  ctx.shadowOffsetY = 2 * S;
-
-  // Base water gradient
+  // Base water fill
   var grad = ctx.createLinearGradient(x, y + offsetY, x, y + h + offsetY);
-  grad.addColorStop(0, '#5BC0EB');
-  grad.addColorStop(0.45, '#3BA3D9');
-  grad.addColorStop(1, '#2176AE');
+  grad.addColorStop(0, 'rgba(91,192,235,0.7)');
+  grad.addColorStop(0.45, 'rgba(59,163,217,0.75)');
+  grad.addColorStop(1, 'rgba(33,118,174,0.8)');
   ctx.fillStyle = grad;
   rRect(x, y + offsetY, w, h, 6 * S); ctx.fill();
-
-  ctx.shadowColor = 'transparent';
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
 
   // Clip for wave effects
   ctx.save();
@@ -38,7 +31,8 @@ function drawWaterOnGrid(ctx, x, y, w, h, S, tick, drainT) {
   ctx.clip();
 
   // Wave line 1
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.globalAlpha = alpha * 0.5;
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)';
   ctx.lineWidth = 2 * S;
   ctx.beginPath();
   var waveY1 = y + offsetY + h * 0.28;
@@ -50,7 +44,7 @@ function drawWaterOnGrid(ctx, x, y, w, h, S, tick, drainT) {
   ctx.stroke();
 
   // Wave line 2
-  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
   ctx.lineWidth = 1.5 * S;
   ctx.beginPath();
   var waveY2 = y + offsetY + h * 0.58;
@@ -62,15 +56,16 @@ function drawWaterOnGrid(ctx, x, y, w, h, S, tick, drainT) {
   ctx.stroke();
 
   // Shimmer highlight
-  ctx.fillStyle = 'rgba(255,255,255,0.1)';
+  ctx.globalAlpha = alpha * 0.3;
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
   var shimX = x + w * 0.3 + Math.sin(tick * 0.025) * w * 0.15;
   var shimY = y + offsetY + h * 0.3;
   ctx.beginPath();
-  ctx.ellipse(shimX, shimY, 10 * S, 5 * S, 0.2, 0, Math.PI * 2);
+  ctx.ellipse(shimX, shimY, 8 * S, 4 * S, 0.2, 0, Math.PI * 2);
   ctx.fill();
 
   // Bubble dots
-  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
   var bphase = tick * 0.04;
   for (var bi = 0; bi < 3; bi++) {
     var bx = x + w * (0.2 + bi * 0.3) + Math.sin(bphase + bi * 2.1) * 4 * S;
@@ -82,12 +77,14 @@ function drawWaterOnGrid(ctx, x, y, w, h, S, tick, drainT) {
   ctx.restore(); // unclip
 
   // Border
-  ctx.strokeStyle = 'rgba(33,118,174,0.5)';
+  ctx.globalAlpha = alpha * 0.6;
+  ctx.strokeStyle = 'rgba(33,118,174,0.7)';
   ctx.lineWidth = 1.5 * S;
   rRect(x, y + offsetY, w, h, 6 * S); ctx.stroke();
 
   // ~ symbol in center
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.globalAlpha = alpha * 0.5;
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
   ctx.font = 'bold ' + Math.round(18 * S) + 'px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -96,7 +93,7 @@ function drawWaterOnGrid(ctx, x, y, w, h, S, tick, drainT) {
   ctx.restore();
 }
 
-// ── Find connected water block group via flood fill ──
+// ── Find connected water group via flood fill ──
 function getWaterGroup(startIdx) {
   var group = [];
   var visited = {};
@@ -113,7 +110,7 @@ function getWaterGroup(startIdx) {
     if (col < L.cols - 1) nbrs.push(row * L.cols + (col + 1));
     for (var i = 0; i < nbrs.length; i++) {
       var ni = nbrs[i];
-      if (!visited[ni] && stock[ni] && stock[ni].isWater && !stock[ni].waterDraining) {
+      if (!visited[ni] && stock[ni] && stock[ni].hasWater && !stock[ni].waterDraining) {
         visited[ni] = true;
         queue.push(ni);
       }
@@ -122,7 +119,7 @@ function getWaterGroup(startIdx) {
   return group;
 }
 
-// ── Check if any water block clusters should drain ──
+// ── Check if any water groups should drain ──
 function checkWaterDrain() {
   if (!stock || stock.length === 0) return;
 
@@ -153,10 +150,10 @@ function checkWaterDrain() {
     }
   }
 
-  // For each undrained water block, check if any adjacent cell is reachable
+  // For each undrained water-covered box, check if any adjacent cell is reachable
   var processed = {};
   for (var i = 0; i < stock.length; i++) {
-    if (!stock[i].isWater || stock[i].waterDraining || processed[i]) continue;
+    if (!stock[i].hasWater || stock[i].waterDraining || processed[i]) continue;
 
     var row = Math.floor(i / L.cols), col = i % L.cols;
     var nbrs = [];
@@ -195,7 +192,6 @@ function checkWaterDrain() {
             life: 1, decay: 0.018 + Math.random() * 0.012, grav: true
           });
         }
-        // Splash drops
         for (var p = 0; p < 6; p++) {
           var a = -Math.PI * 0.5 + (Math.random() - 0.5) * 1.2;
           var sp = 3 + Math.random() * 3;
@@ -217,25 +213,13 @@ function checkWaterDrain() {
 function updateWaterDrain() {
   for (var i = 0; i < stock.length; i++) {
     var s = stock[i];
-    if (!s.isWater || !s.waterDraining) continue;
+    if (!s.hasWater || !s.waterDraining) continue;
     s.waterDrainT = Math.max(0, s.waterDrainT - 0.018);
     if (s.waterDrainT <= 0) {
-      // Convert to empty cell
-      s.isWater = false;
+      // Water gone — box is now accessible
+      s.hasWater = false;
       s.waterDraining = false;
-      s.empty = true;
-      s.used = false;
-      s.revealed = true;
-      // Reveal adjacent hidden boxes
-      revealAroundEmptyCell(i);
+      s.waterDrainT = 0;
     }
   }
-}
-
-// ── Check if a box is blocked by a water block above it ──
-function isBlockedByWater(idx) {
-  var row = Math.floor(idx / L.cols), col = idx % L.cols;
-  if (row <= 0) return false;
-  var aboveIdx = (row - 1) * L.cols + col;
-  return stock[aboveIdx] && stock[aboveIdx].isWater && !stock[aboveIdx].waterDraining;
 }

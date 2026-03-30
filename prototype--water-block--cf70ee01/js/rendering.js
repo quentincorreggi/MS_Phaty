@@ -177,12 +177,6 @@ function drawStock() {
       continue;
     }
 
-    // ── Water ──
-    if (b.isWater) {
-      drawWaterOnGrid(ctx, b.x, b.y, L.bw, L.bh, S, tick,
-        b.waterDraining ? b.waterDrainT : undefined);
-      continue;
-    }
 
     var ox = 0;
     if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
@@ -259,6 +253,12 @@ function drawStock() {
       ctx.fillStyle = 'rgba(200,235,255,1)';
       rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.fill();
       ctx.restore();
+    }
+
+    // Water overlay
+    if (b.hasWater) {
+      drawWaterOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, tick,
+        b.waterDraining ? b.waterDrainT : undefined);
     }
 
     ctx.restore();

@@ -1,0 +1,21 @@
+{
+  "name": "Water Block",
+  "description": "Water covers marble boxes, preventing them from being tapped. Clear a path of empty cells from the bottom row up to a water-covered group, and all connected water blocks drain away — like water finding its way through pipes!",
+  "howToPlay": "Water-covered boxes (blue ~ overlay) can't be tapped. Clear surrounding boxes to build a connected path of empty spaces from the bottom row to any cell next to the water. The path can zigzag! Once it connects, the whole water group drains, and the boxes underneath become playable.",
+  "showcaseLevel": {
+    "name": "Water Demo",
+    "desc": "Clear a path to drain the water!",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      {"ci":0,"type":"default"}, {"ci":1,"type":"default"}, null,                          {"ci":2,"type":"default"}, null,                          {"ci":3,"type":"default"}, {"ci":4,"type":"default"},
+      null,                       {"ci":5,"type":"default"}, {"ci":0,"type":"default"},     {"ci":1,"type":"default"}, {"ci":2,"type":"default"},     null,                       null,
+      {"ci":6,"type":"default"}, null,                       {"ci":3,"type":"default","water":true}, {"ci":4,"type":"default","water":true}, {"ci":5,"type":"default","water":true}, null,  {"ci":7,"type":"default"},
+      null,                       {"ci":6,"type":"default"}, {"ci":7,"type":"default"},     {"ci":0,"type":"default"}, {"ci":1,"type":"default"},     {"ci":2,"type":"default"}, null,
+      {"ci":3,"type":"default"}, null,                       {"ci":4,"type":"default"},     null,                      {"ci":5,"type":"default"},     null,                       {"ci":6,"type":"default"},
+      null,                       {"ci":7,"type":"default"}, null,                          {"ci":0,"type":"default"}, null,                          {"ci":1,"type":"default"}, null,
+      {"ci":2,"type":"default"}, null,                       {"ci":3,"type":"default"},     null,                      {"ci":4,"type":"default"},     null,                       {"ci":5,"type":"default"}
+    ]
+  }
+}
