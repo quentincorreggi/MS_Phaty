@@ -1,0 +1,21 @@
+{
+  "name": "Water Block",
+  "description": "Water blocks sit on the grid and block boxes below them. Clear a path of empty cells from the bottom row up to a water cluster, and all connected water blocks drain away — like water finding its way through pipes!",
+  "howToPlay": "Tap boxes to clear them and create empty cells. Build a connected path of empty spaces from the bottom row up to the water blocks (the blue ~ cells). The path can zigzag — it doesn't need to be straight. Once a path reaches any water block in a connected group, the whole group drains away, unblocking the boxes underneath.",
+  "showcaseLevel": {
+    "name": "Water Demo",
+    "desc": "Clear a path to drain the water!",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      {"ci":0,"type":"default"}, {"ci":1,"type":"default"}, null,                          {"ci":2,"type":"default"}, null,                          {"ci":3,"type":"default"}, {"ci":4,"type":"default"},
+      null,                       {"ci":5,"type":"default"}, {"ci":0,"type":"default"},     {"ci":1,"type":"default"}, {"ci":2,"type":"default"},     null,                       null,
+      {"ci":6,"type":"default"}, null,                       {"water":true},                {"water":true},            {"water":true},                null,                       {"ci":7,"type":"default"},
+      null,                       {"ci":0,"type":"default"}, {"ci":3,"type":"default"},     {"ci":4,"type":"default"}, {"ci":5,"type":"default"},     {"ci":6,"type":"default"}, null,
+      {"ci":1,"type":"default"}, null,                       {"ci":7,"type":"default"},     null,                      {"ci":2,"type":"default"},     null,                       {"ci":3,"type":"default"},
+      null,                       {"ci":4,"type":"default"}, null,                          {"ci":5,"type":"default"}, null,                          {"ci":6,"type":"default"}, null,
+      {"ci":7,"type":"default"}, null,                       {"ci":0,"type":"default"},     null,                      {"ci":1,"type":"default"},     null,                       {"ci":2,"type":"default"}
+    ]
+  }
+}

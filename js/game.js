@@ -42,12 +42,17 @@ function initGame() {
   var boxSlots = {};
   var tunnelSlots = {};
   var wallSlots = {};
+  var waterSlots = {};
   if (lvl.grid) {
     for (var i = 0; i < Math.min(lvl.grid.length, totalSlots); i++) {
       var cell = lvl.grid[i];
       if (cell === null || cell === undefined) continue;
       if (cell.wall) {
         wallSlots[i] = true;
+        continue;
+      }
+      if (cell.water) {
+        waterSlots[i] = true;
         continue;
       }
       if (cell.tunnel) {
@@ -95,6 +100,7 @@ function initGame() {
     var slot = boxSlots[idx];
     var tSlot = tunnelSlots[idx];
     var wSlot = wallSlots[idx];
+    var waterSlot = waterSlots[idx];
 
     if (tSlot) {
       // Tunnel entry
@@ -107,6 +113,17 @@ function initGame() {
         tunnelCooldown: 60,
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: false, boxType: 'default',
+        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
+      });
+    } else if (waterSlot) {
+      // Water block — blocks boxes below, drains when path created
+      stock.push({
+        isWater: true, isWall: false, isTunnel: false,
+        waterDraining: false, waterDrainT: 0,
+        ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
+        revealed: false, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
@@ -146,7 +163,7 @@ function initGame() {
   for (var c = 0; c < L.cols; c++) {
     for (var r = L.rows - 1; r >= 0; r--) {
       var b = stock[r * L.cols + c];
-      if (!b.empty && !b.isTunnel && !b.isWall) { b.revealed = true; break; }
+      if (!b.empty && !b.isTunnel && !b.isWall && !b.isWater) { b.revealed = true; break; }
     }
   }
 
@@ -164,7 +181,7 @@ function initGame() {
       if (col2 < L.cols - 1) nbrs.push(row2 * L.cols + (col2 + 1));
       for (var ni = 0; ni < nbrs.length; ni++) {
         var nb = stock[nbrs[ni]];
-        if (nb.isTunnel || nb.isWall || nb.empty || nb.used || nb.revealed) continue;
+        if (nb.isTunnel || nb.isWall || nb.isWater || nb.empty || nb.used || nb.revealed) continue;
         nb.revealed = true;
         changed = true;
       }
@@ -197,6 +214,7 @@ function isCellTrulyEmpty(idx) {
   var s = stock[idx];
   if (!s) return false;
   if (s.isWall) return false;  // Walls are never empty
+  if (s.isWater) return false; // Water blocks are never empty
   if (s.isTunnel) {
     if (s.tunnelContents && s.tunnelContents.length > 0) return false;
     var exitIdx = getTunnelExitIdx(idx);
@@ -231,7 +249,7 @@ function revealAroundEmptyCell(idx) {
       if (isCellTrulyEmpty(nIdx)) revealAroundEmptyCell(nIdx);
       continue;
     }
-    if (nb.isWall || nb.empty || nb.used || nb.revealed || nb.spawning) continue;
+    if (nb.isWall || nb.isWater || nb.empty || nb.used || nb.revealed || nb.spawning) continue;
     nb.revealed = true;
     nb.revealT = 1.0;
     var bx = nb.x + L.bw / 2, by = nb.y + L.bh / 2;
@@ -256,7 +274,7 @@ function damageAdjacentIce(idx) {
   if (col < L.cols - 1) neighbors.push(row * L.cols + (col + 1));
   for (var ni = 0; ni < neighbors.length; ni++) {
     var nb = stock[neighbors[ni]];
-    if (nb.isTunnel || nb.isWall) continue;  // tunnels and walls don't have ice
+    if (nb.isTunnel || nb.isWall || nb.isWater) continue;  // tunnels, walls, water don't have ice
     if (nb.empty || nb.used || nb.iceHP <= 0) continue;
 
     nb.iceHP--;
@@ -298,9 +316,11 @@ function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
   if (b.isWall) return false;      // walls are not tappable
+  if (b.isWater) return false;     // water blocks are not tappable
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
+  if (isBlockedByWater(idx)) return false;  // blocked by water above
   return b.revealed;
 }
 
@@ -313,7 +333,7 @@ function handleTap(px, py) {
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
+    if (b.isTunnel || b.isWall || b.isWater) continue;  // skip tunnels, walls, water in tap handler
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
@@ -335,7 +355,7 @@ canvas.addEventListener('mousemove', function (e) {
   if (e.clientX >= L.bkX && e.clientX <= L.bkX + L.bkSize && e.clientY >= L.bkY && e.clientY <= L.bkY + L.bkSize) { canvas.style.cursor = 'pointer'; return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;
+    if (b.isTunnel || b.isWall || b.isWater) continue;
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (!isBoxTappable(i)) continue;
     if (e.clientX >= b.x && e.clientX <= b.x + L.bw && e.clientY >= b.y && e.clientY <= b.y + L.bh) { hoverIdx = i; break; }
@@ -356,6 +376,10 @@ function update() {
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
+
+  // ── Water drain check + animation ──
+  checkWaterDrain();
+  updateWaterDrain();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -450,7 +474,7 @@ function update() {
   // Stock animations
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;  // tunnels and walls don't need stock animations
+    if (b.isTunnel || b.isWall || b.isWater) continue;  // tunnels, walls, water don't need stock animations
     if (b.empty) continue;
     if (b.shakeT > 0) b.shakeT = Math.max(0, b.shakeT - 0.04);
     if (b.popT > 0) b.popT = Math.max(0, b.popT - 0.025);

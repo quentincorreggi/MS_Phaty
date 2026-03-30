@@ -17,6 +17,7 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  waterMode: false,     // true when placing water blocks
   visible: false
 };
 
@@ -34,6 +35,7 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.waterMode = false;
 }
 
 function showEditor(fresh) {
@@ -70,7 +72,12 @@ function editorRenderGrid() {
     var cell = document.createElement('div');
     cell.className = 'ed-cell';
     var v = editor.grid[i];
-    if (v && v.wall) {
+    if (v && v.water) {
+      // Water cell
+      cell.style.background = 'linear-gradient(135deg,#5BC0EB,#2176AE)';
+      cell.style.borderColor = '#3BA3D9';
+      cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,255,255,0.6);font-size:15px">\u223C</span>';
+    } else if (v && v.wall) {
       // Wall cell
       cell.style.background = 'linear-gradient(135deg,#9A8D7B,#6F6355)';
       cell.style.borderColor = '#8A7D6B';
@@ -104,6 +111,21 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.waterMode) {
+    // Water block placement mode
+    var existing = editor.grid[idx];
+    if (existing && existing.water) {
+      editor.grid[idx] = null;
+    } else {
+      editor.grid[idx] = { water: true };
+    }
+    if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderTunnelPanel();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -178,18 +200,34 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.waterMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.waterMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
     typeRow.appendChild(tb);
   }
+
+  // Water mode button
+  var waterBtn = document.createElement('button');
+  waterBtn.className = 'ed-type-btn' + (editor.waterMode ? ' active' : '');
+  waterBtn.textContent = '\u223C Water';
+  waterBtn.style.borderColor = editor.waterMode ? 'rgba(59,163,217,0.6)' : '';
+  waterBtn.style.color = editor.waterMode ? '#3BA3D9' : '';
+  waterBtn.addEventListener('click', function () {
+    editor.waterMode = true;
+    editor.wallMode = false;
+    editor.tunnelMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(waterBtn);
 
   // Wall mode button
   var wallBtn = document.createElement('button');
@@ -200,6 +238,7 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.waterMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -214,6 +253,7 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.waterMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -254,6 +294,12 @@ function editorRenderToolbar() {
       dirRow.appendChild(db);
     }
     el.appendChild(dirRow);
+  } else if (editor.waterMode) {
+    // Water mode: info hint
+    var waterInfo = document.createElement('div');
+    waterInfo.className = 'ed-color-row';
+    waterInfo.innerHTML = '<span style="font-size:11px;color:#3BA3D9">Click cells to place/remove water blocks</span>';
+    el.appendChild(waterInfo);
   } else if (editor.wallMode) {
     // Wall mode: just show info hint
     var wallInfo = document.createElement('div');

@@ -177,6 +177,13 @@ function drawStock() {
       continue;
     }
 
+    // ── Water ──
+    if (b.isWater) {
+      drawWaterOnGrid(ctx, b.x, b.y, L.bw, L.bh, S, tick,
+        b.waterDraining ? b.waterDrainT : undefined);
+      continue;
+    }
+
     var ox = 0;
     if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
     var breathe = 0;
