@@ -56,6 +56,8 @@ function initGame() {
         if (cell >= 0) boxSlots[i] = { ci: cell, boxType: 'default' };
       } else if (typeof cell === 'object' && cell.ci >= 0) {
         boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default' };
+        if (cell.rail) boxSlots[i].rail = true;
+        if (cell.drill) { boxSlots[i].drill = true; boxSlots[i].drillDir = cell.drillDir || 'up'; }
       }
     }
   }
@@ -136,11 +138,15 @@ function initGame() {
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        isRail: slot.rail || false, isDrill: slot.drill || false, drillDir: slot.drillDir || 'up',
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
     }
   }
+
+  // ── Initialize drill/rail system ──
+  if (typeof initDrill === 'function') initDrill();
 
   // ── Initial reveal: lowest non-empty box per column ──
   for (var c = 0; c < L.cols; c++) {
@@ -322,6 +328,14 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      // Drill v2: tapping any rail box activates the drill at its current position
+      if (typeof drillState !== 'undefined' && drillState && drillState.active) {
+        if (stock[i].isRail) {
+          drillActivate();
+        } else {
+          drillMove();
+        }
+      }
       return;
     }
   }
@@ -497,6 +511,9 @@ function update() {
     if (box.type === 'lock' && box.triggerT > 0) box.triggerT = Math.max(0, box.triggerT - 0.03);
   }
 
+  // Drill animation
+  if (typeof updateDrill === 'function') updateDrill();
+
   tickParticles();
   updateRollingSound();
 }
@@ -528,6 +545,7 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    if (typeof drawRailAndDrill === 'function') drawRailAndDrill();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();
