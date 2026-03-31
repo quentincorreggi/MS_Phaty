@@ -17,6 +17,8 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  railMode: false,      // true when toggling rail on boxes
+  drillMode: false,     // true when placing/rotating drill
   visible: false
 };
 
@@ -34,6 +36,8 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.railMode = false;
+  editor.drillMode = false;
 }
 
 function showEditor(fresh) {
@@ -91,6 +95,16 @@ function editorRenderGrid() {
       cell.style.background = st.background;
       cell.style.borderColor = st.borderColor;
       cell.innerHTML = bt.editorCellHTML(v.ci);
+      if (v.rail) {
+        cell.style.borderColor = '#8A8078';
+        cell.style.boxShadow = 'inset 0 0 0 2px rgba(138,128,120,0.5)';
+        if (v.drill) {
+          var drillArrows = { up: '\u25B2', right: '\u25B6', down: '\u25BC', left: '\u25C0' };
+          cell.innerHTML += '<span style="position:absolute;top:-1px;right:-1px;background:#D44;color:white;font-size:9px;line-height:1;border-radius:0 4px 0 4px;padding:1px 3px">' + (drillArrows[v.drillDir] || '\u25B6') + '</span>';
+        } else {
+          cell.innerHTML += '<span style="position:absolute;bottom:0;right:1px;font-size:8px;color:rgba(138,128,120,0.8)">\u2550</span>';
+        }
+      }
     } else {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
@@ -104,6 +118,43 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.railMode) {
+    var existing = editor.grid[idx];
+    if (existing && !existing.tunnel && !existing.wall && existing.ci >= 0) {
+      existing.rail = !existing.rail;
+      if (!existing.rail && existing.drill) {
+        existing.drill = false;
+        delete existing.drillDir;
+      }
+    }
+    editorRenderGrid();
+    editorUpdateStats();
+    return;
+  }
+
+  if (editor.drillMode) {
+    var existing = editor.grid[idx];
+    if (existing && existing.rail) {
+      if (existing.drill) {
+        var dirs = ['up', 'right', 'down', 'left'];
+        var di = dirs.indexOf(existing.drillDir || 'up');
+        existing.drillDir = dirs[(di + 1) % 4];
+      } else {
+        for (var j = 0; j < 49; j++) {
+          if (editor.grid[j] && editor.grid[j].drill) {
+            editor.grid[j].drill = false;
+            delete editor.grid[j].drillDir;
+          }
+        }
+        existing.drill = true;
+        existing.drillDir = 'up';
+      }
+    }
+    editorRenderGrid();
+    editorUpdateStats();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -144,7 +195,14 @@ function editorCellClick(e) {
       if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
         editor.grid[idx] = null;
       } else {
+        var prevRail = existing && existing.rail;
+        var prevDrill = existing && existing.drill;
+        var prevDrillDir = existing && existing.drillDir;
         editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
+        if (prevRail) {
+          editor.grid[idx].rail = true;
+          if (prevDrill) { editor.grid[idx].drill = true; editor.grid[idx].drillDir = prevDrillDir; }
+        }
       }
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     }
@@ -178,18 +236,52 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.railMode && !editor.drillMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.railMode = false;
+      editor.drillMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
     typeRow.appendChild(tb);
   }
+
+  // Rail mode button
+  var railBtn = document.createElement('button');
+  railBtn.className = 'ed-type-btn' + (editor.railMode ? ' active' : '');
+  railBtn.textContent = '\u2550 Rail';
+  railBtn.style.borderColor = editor.railMode ? 'rgba(138,128,120,0.6)' : '';
+  railBtn.style.color = editor.railMode ? '#6A6260' : '';
+  railBtn.addEventListener('click', function () {
+    editor.railMode = true;
+    editor.drillMode = false;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(railBtn);
+
+  // Drill mode button
+  var drillBtn = document.createElement('button');
+  drillBtn.className = 'ed-type-btn' + (editor.drillMode ? ' active' : '');
+  drillBtn.textContent = '\u25B6 Drill';
+  drillBtn.style.borderColor = editor.drillMode ? 'rgba(221,68,68,0.6)' : '';
+  drillBtn.style.color = editor.drillMode ? '#D44' : '';
+  drillBtn.addEventListener('click', function () {
+    editor.drillMode = true;
+    editor.railMode = false;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(drillBtn);
 
   // Wall mode button
   var wallBtn = document.createElement('button');
@@ -200,6 +292,8 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.railMode = false;
+    editor.drillMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -214,6 +308,8 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.railMode = false;
+    editor.drillMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -260,6 +356,16 @@ function editorRenderToolbar() {
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
+  } else if (editor.railMode) {
+    var railInfo = document.createElement('div');
+    railInfo.className = 'ed-color-row';
+    railInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click box cells to toggle rail on/off</span>';
+    el.appendChild(railInfo);
+  } else if (editor.drillMode) {
+    var drillInfo = document.createElement('div');
+    drillInfo.className = 'ed-color-row';
+    drillInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click rail cell to place drill \u2014 click again to rotate</span>';
+    el.appendChild(drillInfo);
   } else {
     // Color palette: eraser + 8 colors
     var colorRow = document.createElement('div');
@@ -502,6 +608,15 @@ function editorUpdateStats() {
   }
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
+  }
+  var railCount = 0, hasDrill = false;
+  for (var ri = 0; ri < 49; ri++) {
+    var rv = editor.grid[ri];
+    if (rv && rv.rail) railCount++;
+    if (rv && rv.drill) hasDrill = true;
+  }
+  if (railCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#8A8078">' + railCount + ' rail' + (hasDrill ? ' + drill' : '') + '</span>';
   }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';

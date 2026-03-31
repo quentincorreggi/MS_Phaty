@@ -1,0 +1,40 @@
+{
+  "name": "Drill",
+  "description": "A drill on a rail that can smash through walls. Time your taps to position the drill, then play the box under it to fire!",
+  "howToPlay": "The drill moves one step along the rail each time you play any box. Play boxes to position the drill over the wall, then tap that box to fire the drill and break through. Be careful: playing a box under the rail destroys that rail slot!",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Drill Demo",
+    "desc": "Break the wall with the drill",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null,
+      {"ci":2,"type":"default","rail":true},
+      {"ci":2,"type":"default","rail":true},
+      {"ci":2,"type":"default","rail":true,"drill":true,"drillDir":"down"},
+      {"ci":2,"type":"default","rail":true},
+      null,
+      null, null, null,
+      {"wall":true},
+      null, null, null,
+      null,
+      {"ci":1,"type":"default"},
+      {"ci":1,"type":"default"},
+      {"ci":1,"type":"hidden"},
+      {"ci":1,"type":"default"},
+      {"ci":1,"type":"default"},
+      null,
+      null, null,
+      {"ci":0,"type":"default"},
+      {"ci":0,"type":"default"},
+      {"ci":0,"type":"default"},
+      {"ci":0,"type":"default"},
+      null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}
