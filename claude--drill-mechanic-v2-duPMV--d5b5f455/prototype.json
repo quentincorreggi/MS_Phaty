@@ -1,0 +1,70 @@
+{
+  "name": "Drill v2 — Activate from Any Rail",
+  "description": "Tapping any box on the rail activates the drill at its current position. Non-rail taps still move the drill along the track.",
+  "howToPlay": "The drill rides along the rail track (moves each time you tap a non-rail box). To fire the drill and destroy a wall, tap ANY box that sits on the rail. The drill fires from wherever it currently is, so time your taps carefully!",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Drill v2 Demo",
+    "desc": "Activate the drill from any rail box",
+    "mrbPerBox": 3,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null,
+      {"ci": 0, "type": "default"},
+      {"ci": 0, "type": "default"},
+      {"ci": 1, "type": "default"},
+      {"ci": 1, "type": "default"},
+      {"ci": 2, "type": "default"},
+      null,
+
+      null,
+      {"ci": 2, "type": "default"},
+      null,
+      {"wall": true},
+      null,
+      {"ci": 3, "type": "default"},
+      null,
+
+      {"ci": 0, "type": "default", "rail": true},
+      {"ci": 1, "type": "default", "rail": true},
+      {"ci": 2, "type": "default", "rail": true, "drill": true, "drillDir": "right"},
+      {"ci": 3, "type": "default", "rail": true},
+      {"ci": 0, "type": "default", "rail": true},
+      null,
+      null,
+
+      null,
+      {"ci": 3, "type": "default"},
+      null,
+      {"wall": true},
+      null,
+      {"ci": 1, "type": "default"},
+      null,
+
+      null,
+      null,
+      {"ci": 2, "type": "default"},
+      {"ci": 3, "type": "default"},
+      null,
+      null,
+      null,
+
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  }
+}
