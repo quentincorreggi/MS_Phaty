@@ -1,0 +1,18 @@
+{
+  "name": "Toggle Box",
+  "description": "Special boxes locked behind a secret rhythm.",
+  "howToPlay": "Tap any regular box to unlock all toggle boxes. Tap a toggle box before your next move — or it locks again!",
+  "showcaseLevel": {
+    "mrbPerBox": 3,
+    "sortCap": 3,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, {"ci":0,"type":"default"}, null, {"ci":1,"type":"default"}, null, {"ci":2,"type":"default"}, null,
+      null, {"ci":0,"type":"toggle"},  null, {"ci":1,"type":"toggle"},  null, {"ci":2,"type":"toggle"},  null,
+      null, null, null, null, null, null, null,
+      null, {"ci":0,"type":"toggle"},  null, {"ci":1,"type":"toggle"},  null, {"ci":2,"type":"toggle"},  null,
+      null, {"ci":0,"type":"default"}, null, {"ci":1,"type":"default"}, null, {"ci":2,"type":"default"}, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}

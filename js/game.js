@@ -130,12 +130,15 @@ function initGame() {
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
+      var isToggle = (slot.boxType === 'toggle');
       stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
-        revealed: isIce ? true : false, empty: false,
+        revealed: (isIce || isToggle) ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        toggleLocked: isToggle ? true : false,
+        toggleUnlockT: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
@@ -246,6 +249,18 @@ function revealAroundEmptyCell(idx) {
   _revealVisited[idx] = false;
 }
 
+// === TOGGLE BOX FLIP ===
+function flipToggleBoxes() {
+  for (var j = 0; j < stock.length; j++) {
+    var tb = stock[j];
+    if (tb.boxType !== 'toggle' || tb.used || tb.empty) continue;
+    tb.toggleLocked = !tb.toggleLocked;
+    if (!tb.toggleLocked) {
+      tb.toggleUnlockT = 1.0;
+    }
+  }
+}
+
 // === ICE DAMAGE ===
 function damageAdjacentIce(idx) {
   var row = Math.floor(idx / L.cols), col = idx % L.cols;
@@ -301,6 +316,7 @@ function isBoxTappable(idx) {
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
+  if (b.boxType === 'toggle' && b.toggleLocked) return false;
   return b.revealed;
 }
 
@@ -322,6 +338,7 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      if (b.boxType !== 'toggle') { flipToggleBoxes(); }
       return;
     }
   }
@@ -458,6 +475,7 @@ function update() {
     if (b.emptyT > 0) b.emptyT = Math.max(0, b.emptyT - 0.025);
     if (b.iceCrackT > 0) b.iceCrackT = Math.max(0, b.iceCrackT - 0.03);
     if (b.iceShatterT > 0) b.iceShatterT = Math.max(0, b.iceShatterT - 0.025);
+    if (b.toggleUnlockT > 0) b.toggleUnlockT = Math.max(0, b.toggleUnlockT - 0.04);
     var th = (i === hoverIdx && !b.used && isBoxTappable(i)) ? 1 : 0;
     b.hoverT += (th - b.hoverT) * 0.12;
   }

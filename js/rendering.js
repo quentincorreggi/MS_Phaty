@@ -254,6 +254,14 @@ function drawStock() {
       ctx.restore();
     }
 
+    // ── Toggle box overlay (locked / unlocked state) ──
+    if (b.boxType === 'toggle' && !b.used) {
+      var tgt = getBoxType('toggle');
+      if (tgt && tgt.drawToggleOverlay) {
+        tgt.drawToggleOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, b.toggleLocked, b.toggleUnlockT || 0, tick);
+      }
+    }
+
     ctx.restore();
   }
 }
