@@ -208,11 +208,11 @@ function drawStock() {
 
     if (b.revealT > 0) {
       var phase = 1 - b.revealT;
-      bt.drawReveal(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, phase, b.remaining, tick);
+      bt.drawReveal(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, phase, b.remaining, tick, b);
     } else if (!b.revealed) {
       var idleWobble = Math.sin(tick * 0.02 + b.idlePhase) * 0.006;
       ctx.rotate(idleWobble);
-      bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase);
+      bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase, b);
     } else {
       var c = COLORS[b.ci];
       if (isBoxTappable(i) && b.hoverT > 0.01) { ctx.shadowColor = c.glow; ctx.shadowBlur = 20 * S * b.hoverT; }
@@ -230,10 +230,11 @@ function drawStock() {
         ctx.restore();
       }
       if (b.remaining > 0) {
+        var openMarbleCi = (b.ci2 !== undefined && b.ci2 >= 0) ? b.ci2 : b.ci;
         if (b.boxType === 'blocker' && b.blockerCount > 0) {
           drawBoxMarblesWithBlockers(b.ci, b.remaining, b.blockerCount);
         } else {
-          drawBoxMarbles(b.ci, b.remaining);
+          drawBoxMarbles(openMarbleCi, b.remaining);
         }
         drawBoxLip(b.ci);
       }
