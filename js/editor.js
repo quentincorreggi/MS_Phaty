@@ -11,7 +11,8 @@ var editor = {
   mrbPerBox: 9,
   sortCap: 3,
   lockButtons: 0,
-  activeColor: 0,      // -1=eraser, 0-7=color
+  activeColor: 0,      // -1=eraser, 0-7=color (box color)
+  activeColor2: 1,     // 0-7=color (marble color, used by costume box)
   activeType: BoxTypeOrder[0],
   tunnelMode: false,    // true when placing tunnels
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
@@ -29,6 +30,7 @@ function editorInit() {
   editor.sortCap = 3;
   editor.lockButtons = 0;
   editor.activeColor = 0;
+  editor.activeColor2 = 1;
   editor.activeType = BoxTypeOrder[0];
   editor.tunnelMode = false;
   editor.tunnelDir = 'bottom';
@@ -87,10 +89,10 @@ function editorRenderGrid() {
         '</span><span class="ed-tunnel-badge">' + count + '</span>';
     } else if (v && v.ci >= 0) {
       var bt = getBoxType(v.type);
-      var st = bt.editorCellStyle(v.ci);
+      var st = bt.editorCellStyle(v.ci, v);
       cell.style.background = st.background;
       cell.style.borderColor = st.borderColor;
-      cell.innerHTML = bt.editorCellHTML(v.ci);
+      cell.innerHTML = bt.editorCellHTML(v.ci, v);
     } else {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
@@ -143,6 +145,8 @@ function editorCellClick(e) {
       var existing = editor.grid[idx];
       if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
         editor.grid[idx] = null;
+      } else if (editor.activeType === 'costume') {
+        editor.grid[idx] = { ci: editor.activeColor, ci2: editor.activeColor2, type: editor.activeType };
       } else {
         editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
       }
@@ -260,6 +264,58 @@ function editorRenderToolbar() {
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
+  } else if (editor.activeType === 'costume') {
+    // Costume box: two color rows — box color and marble color
+    var labelBox = document.createElement('div');
+    labelBox.style.cssText = 'font-size:10px;color:#9C8A70;padding:2px 0 1px 2px';
+    labelBox.textContent = 'Box color';
+    el.appendChild(labelBox);
+
+    var colorRow1 = document.createElement('div');
+    colorRow1.className = 'ed-color-row';
+    var eraser1 = document.createElement('button');
+    eraser1.className = 'ed-tool' + (editor.activeColor === -1 ? ' active' : '');
+    eraser1.style.background = 'rgba(180,165,145,0.5)';
+    eraser1.innerHTML = '\u2716';
+    eraser1.title = 'Eraser';
+    eraser1.addEventListener('click', function () { editor.activeColor = -1; editorRenderToolbar(); });
+    colorRow1.appendChild(eraser1);
+    for (var ci = 0; ci < NUM_COLORS; ci++) {
+      var cb1 = document.createElement('button');
+      cb1.className = 'ed-tool' + (editor.activeColor === ci ? ' active' : '');
+      cb1.style.background = COLORS[ci].fill;
+      cb1.innerHTML = CLR_NAMES[ci][0].toUpperCase();
+      cb1.title = CLR_NAMES[ci];
+      cb1.setAttribute('data-ci', ci);
+      cb1.addEventListener('click', function () {
+        editor.activeColor = parseInt(this.getAttribute('data-ci'));
+        editorRenderToolbar();
+      });
+      colorRow1.appendChild(cb1);
+    }
+    el.appendChild(colorRow1);
+
+    var labelMarble = document.createElement('div');
+    labelMarble.style.cssText = 'font-size:10px;color:#9C8A70;padding:4px 0 1px 2px';
+    labelMarble.textContent = 'Marble color';
+    el.appendChild(labelMarble);
+
+    var colorRow2 = document.createElement('div');
+    colorRow2.className = 'ed-color-row';
+    for (var ci2 = 0; ci2 < NUM_COLORS; ci2++) {
+      var cb2 = document.createElement('button');
+      cb2.className = 'ed-tool' + (editor.activeColor2 === ci2 ? ' active' : '');
+      cb2.style.background = COLORS[ci2].fill;
+      cb2.innerHTML = CLR_NAMES[ci2][0].toUpperCase();
+      cb2.title = CLR_NAMES[ci2];
+      cb2.setAttribute('data-ci2', ci2);
+      cb2.addEventListener('click', function () {
+        editor.activeColor2 = parseInt(this.getAttribute('data-ci2'));
+        editorRenderToolbar();
+      });
+      colorRow2.appendChild(cb2);
+    }
+    el.appendChild(colorRow2);
   } else {
     // Color palette: eraser + 8 colors
     var colorRow = document.createElement('div');
