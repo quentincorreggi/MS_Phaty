@@ -114,18 +114,34 @@ function spawnPhysMarbles(box) {
         var my = b.y + L.bh / 2 + (si.r - 1) * mgY - 2 * S;
         var vx = (Math.random() - 0.5) * 2 * S;
         var vy = -(2 + Math.random() * 2) * S;
-        var marbleCi = (blockerCount > 0 && spawnIdx >= bStart) ? BLOCKER_CI : (b.ci2 !== undefined && b.ci2 >= 0 ? b.ci2 : b.ci);
+        // Costume box: phase 1 uses ci, phase 2 uses ci2; all others use ci
+        var phaseColor = (b.boxType === 'costume' && b.costumePhase === 2 && b.ci2 !== undefined && b.ci2 >= 0)
+          ? b.ci2 : b.ci;
+        var marbleCi = (blockerCount > 0 && spawnIdx >= bStart) ? BLOCKER_CI : phaseColor;
         physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR, spawnT: 1.0 });
         sfx.drop();
         spawnBurst(mx, my, COLORS[marbleCi].fill, 4);
         if (b.remaining <= 0) {
           b.emptyT = 1.0;
           setTimeout(function () {
-            b.used = true;
-            b.spawning = false;
-            // Reveal adjacent boxes now that this cell is empty
-            for (var si = 0; si < stock.length; si++) {
-              if (stock[si] === b) { revealAroundEmptyCell(si); break; }
+            if (b.boxType === 'costume' && b.costumePhase === 1 && b.ci2 !== undefined && b.ci2 >= 0) {
+              // Transition to phase 2 — reset the box in the second color
+              var bx2 = b.x + L.bw / 2, by2 = b.y + L.bh / 2;
+              spawnBurst(bx2, by2, COLORS[b.ci2].fill, 14);
+              sfx.complete();
+              b.costumePhase = 2;
+              b.remaining = MRB_PER_BOX;
+              b.spawnIdx = 0;
+              b.spawning = false;
+              b.emptyT = 0;
+              b.popT = 0.8;
+            } else {
+              b.used = true;
+              b.spawning = false;
+              // Reveal adjacent boxes now that this cell is empty
+              for (var si = 0; si < stock.length; si++) {
+                if (stock[si] === b) { revealAroundEmptyCell(si); break; }
+              }
             }
           }, 300);
         }
