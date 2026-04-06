@@ -13,7 +13,23 @@ var audioCtx = null;
 
 // === LEVEL SYSTEM ===
 var currentLevel = 0;
-var LEVELS = [];
+var LEVELS = [
+  {
+    name: 'Costume Box Showcase',
+    desc: 'Each box has two colors — tap twice!',
+    mrbPerBox: 9,
+    sortCap: 3,
+    grid: [
+      null, null, null, null, null, null, null,
+      null, { ci: 2, ci2: 0, type: 'costume' }, null, { ci: 1, ci2: 3, type: 'costume' }, null, { ci: 4, ci2: 5, type: 'costume' }, null,
+      null, null, null, null, null, null, null,
+      null, { ci: 0, ci2: 2, type: 'costume' }, null, { ci: 3, ci2: 1, type: 'costume' }, null, { ci: 5, ci2: 4, type: 'costume' }, null,
+      null, null, null, null, null, null, null,
+      null, { ci: 6, ci2: 7, type: 'costume' }, null, { ci: 7, ci2: 6, type: 'costume' }, null, null, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+];
 var levelStars = [];
 var unlockedLevels = 0;
 var gameActive = false;
