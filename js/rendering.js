@@ -214,10 +214,30 @@ function drawStock() {
       ctx.rotate(idleWobble);
       bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase, b);
     } else {
-      var c = COLORS[b.ci];
+      // For costume boxes: phase 1 uses ci exterior + ci2 interior hint + ci marbles
+      //                    phase 2 uses ci2 exterior + ci2 marbles (normal)
+      var openCi = b.ci;
+      if (b.boxType === 'costume' && b.costumePhase === 2 && b.ci2 !== undefined && b.ci2 >= 0) {
+        openCi = b.ci2;
+      }
+      var c = COLORS[openCi];
       if (isBoxTappable(i) && b.hoverT > 0.01) { ctx.shadowColor = c.glow; ctx.shadowBlur = 20 * S * b.hoverT; }
-      drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci);
+      drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, openCi);
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+
+      // Costume phase 1: paint ci2 interior tint so player sees both colors
+      if (b.boxType === 'costume' && b.costumePhase === 1 && b.ci2 !== undefined && b.ci2 >= 0) {
+        ctx.save();
+        var ins = 4 * S;
+        var c2r = COLORS[b.ci2];
+        var inGrad = ctx.createLinearGradient(-L.bw / 2 + ins, -L.bh / 2 + ins, -L.bw / 2 + ins, L.bh / 2 - ins);
+        inGrad.addColorStop(0, c2r.light); inGrad.addColorStop(1, c2r.dark);
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = inGrad;
+        rRect(-L.bw / 2 + ins, -L.bh / 2 + ins, L.bw - ins * 2, L.bh - ins * 2, 3 * S); ctx.fill();
+        ctx.restore();
+      }
+
       if (b.boxType === 'blocker' && b.blockerCount > 0) {
         ctx.save();
         ctx.globalAlpha = 0.06;
@@ -230,13 +250,12 @@ function drawStock() {
         ctx.restore();
       }
       if (b.remaining > 0) {
-        var openMarbleCi = (b.ci2 !== undefined && b.ci2 >= 0) ? b.ci2 : b.ci;
         if (b.boxType === 'blocker' && b.blockerCount > 0) {
           drawBoxMarblesWithBlockers(b.ci, b.remaining, b.blockerCount);
         } else {
-          drawBoxMarbles(openMarbleCi, b.remaining);
+          drawBoxMarbles(openCi, b.remaining);
         }
-        drawBoxLip(b.ci);
+        drawBoxLip(openCi);
       }
     }
 
