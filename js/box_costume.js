@@ -32,33 +32,22 @@ registerBoxType('costume', {
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,0.15)'; ctx.shadowBlur = 3 * S; ctx.shadowOffsetY = 1 * S;
 
-    // ── Interior fill in ci2 (greyed) ──
-    ctx.globalAlpha = 0.45;
+    // ── Interior fill in ci2 (full color) ──
     var gradIn = ctx.createLinearGradient(x, y, x, y + h);
     gradIn.addColorStop(0, c2.light); gradIn.addColorStop(1, c2.dark);
     ctx.fillStyle = gradIn;
     rRect(x, y, w, h, 6 * S); ctx.fill();
 
-    // Desaturation on interior
-    ctx.globalAlpha = 0.28;
-    ctx.fillStyle = '#A09888';
-    rRect(x, y, w, h, 6 * S); ctx.fill();
-
     ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
 
-    // ── Outer frame in ci color ──
-    // Draw a thick stroke border in ci color so both colors are clearly visible
-    ctx.globalAlpha = 0.5;
+    // ── Outer frame in ci color (full color, thick border) ──
     ctx.strokeStyle = c.dark; ctx.lineWidth = 5 * S;
     rRect(x, y, w, h, 6 * S); ctx.stroke();
-    // Thin inner highlight stroke in ci light
-    ctx.globalAlpha = 0.25;
     ctx.strokeStyle = c.light; ctx.lineWidth = 2 * S;
     rRect(x + 2.5 * S, y + 2.5 * S, w - 5 * S, h - 5 * S, 4 * S); ctx.stroke();
 
     // ── Marble dots inside in ci color ──
     ctx.save();
-    // Clip to interior so dots stay inside
     rRect(x + 4 * S, y + 4 * S, w - 8 * S, h - 8 * S, 3 * S);
     ctx.clip();
 
@@ -78,12 +67,9 @@ registerBoxType('costume', {
         var py = cy0 + pt.dr * mg * 0.75;
         var g2 = ctx.createRadialGradient(px - mr * 0.25, py - mr * 0.25, mr * 0.1, px, py, mr);
         g2.addColorStop(0, c.light); g2.addColorStop(0.7, c.fill); g2.addColorStop(1, c.dark);
-        ctx.globalAlpha = 0.7;
         ctx.fillStyle = g2;
         ctx.beginPath(); ctx.arc(px, py, mr, 0, Math.PI * 2); ctx.fill();
-        // Highlight
-        ctx.globalAlpha = 0.3;
-        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
         ctx.beginPath(); ctx.arc(px - mr * 0.25, py - mr * 0.25, mr * 0.3, 0, Math.PI * 2); ctx.fill();
       }
     }
@@ -100,9 +86,9 @@ registerBoxType('costume', {
     ctx.scale(popScale, popScale);
 
     if (phase < 0.5) {
-      ctx.globalAlpha = 1 - phase * 2;
+      ctx.globalAlpha = 1;
       this.drawClosed(ctx, x, y, w, h, ci, S, tick, 0, b);
-      ctx.globalAlpha = phase * 2;
+      ctx.globalAlpha = 1;
     }
 
     // Revealed phase 1: ci box exterior, ci2 interior tint, ci marble dots
