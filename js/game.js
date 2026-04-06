@@ -68,9 +68,15 @@ function initGame() {
   for (var k in boxSlots) {
     var bs = boxSlots[k];
     var isBlockerBox = (bs.boxType === 'blocker');
+    var isCostumeBox = (bs.boxType === 'costume' && bs.ci2 !== undefined && bs.ci2 >= 0);
     var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
-    var effectiveCi = (bs.boxType === 'costume' && bs.ci2 !== undefined && bs.ci2 >= 0) ? bs.ci2 : bs.ci;
-    colorMarblesTotal[effectiveCi] += regularPerBox;
+    if (isCostumeBox) {
+      // Costume: contributes one batch of ci marbles AND one batch of ci2 marbles
+      colorMarblesTotal[bs.ci] += regularPerBox;
+      colorMarblesTotal[bs.ci2] += regularPerBox;
+    } else {
+      colorMarblesTotal[bs.ci] += regularPerBox;
+    }
     if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
   }
   // Count marbles from tunnel contents
@@ -131,7 +137,9 @@ function initGame() {
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
+      var isCostume = (slot.boxType === 'costume');
       stock.push({ ci: slot.ci, ci2: (slot.ci2 !== undefined ? slot.ci2 : -1),
+        costumePhase: isCostume ? 1 : 0,
         used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
         revealed: isIce ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
@@ -321,7 +329,8 @@ function handleTap(px, py) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
       b.popT = 1;
       sfx.pop();
-      spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
+      var tapCi = (b.boxType === 'costume' && b.costumePhase === 2 && b.ci2 !== undefined && b.ci2 >= 0) ? b.ci2 : b.ci;
+      spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[tapCi].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
       return;
