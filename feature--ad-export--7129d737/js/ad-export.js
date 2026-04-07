@@ -14,15 +14,17 @@ function adExportCollectScriptUrls() {
   var list = [];
   var nodes = document.querySelectorAll('script[src]');
   for (var i = 0; i < nodes.length; i++) {
-    var src = nodes[i].getAttribute('src');
-    if (!src) continue;
-    var base = adExportScriptBasename(src);
+    var node = nodes[i];
+    var attr = node.getAttribute('src');
+    if (!attr) continue;
+    var base = adExportScriptBasename(attr);
     if (AD_EXPORT_SKIP[base]) continue;
-    try {
-      list.push(new URL(src, document.baseURI).href);
-    } catch (e) {
-      list.push(src);
-    }
+    // Use the browser-resolved URL (HTMLScriptElement.src), not new URL(attr, baseURI).
+    // On GitHub Pages, baseURI can omit a trailing slash or index.html, which makes
+    // relative paths resolve one directory too high and fetch() returns 404.
+    var abs = node.src;
+    if (!abs) continue;
+    list.push(abs);
   }
   return list;
 }
@@ -118,6 +120,15 @@ function editorExportPlayableAd() {
     return;
   }
 
+  if (location.protocol === 'file:') {
+    editorShowToast('Export needs http(s): use GitHub Pages or a local server');
+    return;
+  }
+  if (location.hostname === 'raw.githubusercontent.com') {
+    editorShowToast('Open the game via the github.io preview, not raw GitHub files');
+    return;
+  }
+
   var bakedLevel = editorBuildLevel();
   var urls = adExportCollectScriptUrls();
   if (urls.length === 0) {
@@ -142,7 +153,9 @@ function editorExportPlayableAd() {
       editorShowToast('Downloaded ad-playable.html');
     })
     .catch(function (err) {
-      editorShowToast('Export failed (use a local server or GitHub Pages)');
+      var msg = err && err.message ? err.message : String(err);
+      if (msg.length > 96) msg = msg.slice(0, 93) + '…';
+      editorShowToast('Export failed: ' + msg);
       if (typeof console !== 'undefined' && console.error) console.error(err);
     });
 }
