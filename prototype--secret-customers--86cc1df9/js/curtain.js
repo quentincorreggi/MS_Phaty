@@ -18,10 +18,13 @@ function initCurtain(lvl) {
     var depth = Math.max(1, Math.min(5, cfg.depth));
     var colorIdx = Math.max(0, Math.min(NUM_COLORS - 1, cfg.colorIdx || 0));
 
+    var startRow = cfg.startRow !== undefined ? Math.max(0, cfg.startRow) : -1;
+
     var curtain = {
       col: col,
       depth: depth,
       colorIdx: colorIdx,
+      startRow: startRow,
       active: true,
       liftT: 0,
       keyAnim: null
@@ -29,11 +32,20 @@ function initCurtain(lvl) {
     var cIdx = curtains.length;
     curtains.push(curtain);
 
-    // Mark the deepest N sort boxes in this column as curtained
+    // Mark sort boxes in this column as curtained
     var sortCol = sortCols[col];
     if (!sortCol) continue;
-    var startRow = Math.max(0, sortCol.length - depth);
-    for (var r = startRow; r < sortCol.length; r++) {
+    var from, to;
+    if (startRow >= 0) {
+      // Explicit start row: cover [startRow .. startRow+depth-1]
+      from = Math.min(startRow, sortCol.length);
+      to = Math.min(startRow + depth, sortCol.length);
+    } else {
+      // Legacy: cover the deepest (bottom) N rows
+      from = Math.max(0, sortCol.length - depth);
+      to = sortCol.length;
+    }
+    for (var r = from; r < to; r++) {
       sortCol[r].curtained = true;
       sortCol[r].curtainIdx = cIdx;
     }
