@@ -142,34 +142,8 @@ function initGame() {
     }
   }
 
-  // ── Initial reveal: lowest non-empty box per column ──
-  for (var c = 0; c < L.cols; c++) {
-    for (var r = L.rows - 1; r >= 0; r--) {
-      var b = stock[r * L.cols + c];
-      if (!b.empty && !b.isTunnel && !b.isWall) { b.revealed = true; break; }
-    }
-  }
-
-  // ── Reveal boxes adjacent to initially empty/tunnel cells ──
-  var changed = true;
-  while (changed) {
-    changed = false;
-    for (var i = 0; i < stock.length; i++) {
-      if (!isCellTrulyEmpty(i)) continue;
-      var row2 = Math.floor(i / L.cols), col2 = i % L.cols;
-      var nbrs = [];
-      if (row2 > 0)          nbrs.push((row2 - 1) * L.cols + col2);
-      if (row2 < L.rows - 1) nbrs.push((row2 + 1) * L.cols + col2);
-      if (col2 > 0)          nbrs.push(row2 * L.cols + (col2 - 1));
-      if (col2 < L.cols - 1) nbrs.push(row2 * L.cols + (col2 + 1));
-      for (var ni = 0; ni < nbrs.length; ni++) {
-        var nb = stock[nbrs[ni]];
-        if (nb.isTunnel || nb.isWall || nb.empty || nb.used || nb.revealed) continue;
-        nb.revealed = true;
-        changed = true;
-      }
-    }
-  }
+  // ── Reveal boxes that currently have an open path to the bottom ──
+  updateBoxReveals(false);
 
   // ── Sort columns ──
   var allBoxes = [];
@@ -188,62 +162,105 @@ function initGame() {
   }
 }
 
-// === EMPTY-CELL REVEAL ===
-// A cell is "truly empty" when:
-//  • it's an empty slot or a used-up box, AND no tunnel will spawn onto it
-//  • OR it's a depleted tunnel (0 contents left, exit tile also free)
-//  • Walls are NEVER truly empty
-function isCellTrulyEmpty(idx) {
-  var s = stock[idx];
-  if (!s) return false;
-  if (s.isWall) return false;  // Walls are never empty
-  if (s.isTunnel) {
-    if (s.tunnelContents && s.tunnelContents.length > 0) return false;
-    var exitIdx = getTunnelExitIdx(idx);
-    if (exitIdx >= 0 && stock[exitIdx] && !stock[exitIdx].isTunnel
-        && !stock[exitIdx].empty && !stock[exitIdx].used) return false;
-    return true;
-  }
-  if (!s.empty && !s.used) return false;
-  for (var i = 0; i < stock.length; i++) {
-    if (stock[i].isTunnel && stock[i].tunnelContents && stock[i].tunnelContents.length > 0) {
-      if (getTunnelExitIdx(i) === idx) return false;
-    }
-  }
-  return true;
-}
+// === REVEAL — PATH TO BOTTOM ===
+// A box is "open" (revealed and interactable) only when there is a
+// chain of passable grid cells from its position to below the bottom
+// edge of the grid. Passable cells are:
+//   • empty slots
+//   • used-up boxes
+// Walls, active (non-used) boxes, and tunnels (even depleted ones)
+// all block the path. If the path closes, the box closes itself.
+function updateBoxReveals(animate) {
+  if (!stock || stock.length === 0) return;
+  if (!L || !L.rows || !L.cols) return;
+  var total = stock.length;
 
-var _revealVisited = {};
-function revealAroundEmptyCell(idx) {
-  if (!isCellTrulyEmpty(idx)) return;
-  if (_revealVisited[idx]) return;
-  _revealVisited[idx] = true;
-  var row = Math.floor(idx / L.cols), col = idx % L.cols;
-  var neighbors = [];
-  if (row > 0)          neighbors.push((row - 1) * L.cols + col);
-  if (row < L.rows - 1) neighbors.push((row + 1) * L.cols + col);
-  if (col > 0)          neighbors.push(row * L.cols + (col - 1));
-  if (col < L.cols - 1) neighbors.push(row * L.cols + (col + 1));
-  for (var ni = 0; ni < neighbors.length; ni++) {
-    var nIdx = neighbors[ni];
-    var nb = stock[nIdx];
-    if (nb.isTunnel) {
-      if (isCellTrulyEmpty(nIdx)) revealAroundEmptyCell(nIdx);
-      continue;
-    }
-    if (nb.isWall || nb.empty || nb.used || nb.revealed || nb.spawning) continue;
-    nb.revealed = true;
-    nb.revealT = 1.0;
-    var bx = nb.x + L.bw / 2, by = nb.y + L.bh / 2;
-    var burstColor = (nb.boxType === 'hidden') ? '#FFD700' : COLORS[nb.ci].fill;
-    for (var p = 0; p < 12; p++) {
-      var a = Math.PI * 2 * p / 12 + Math.random() * 0.3, sp = 3 + Math.random() * 4;
-      particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
-        r: (2 + Math.random() * 4) * S, color: burstColor, life: 1, decay: 0.02 + Math.random() * 0.015, grav: false });
-    }
-    sfx.pop();
+  // 1. Mark which cells are passable.
+  var passable = new Array(total);
+  for (var i = 0; i < total; i++) {
+    var s = stock[i];
+    if (!s) { passable[i] = false; continue; }
+    if (s.isWall) { passable[i] = false; continue; }
+    if (s.isTunnel) { passable[i] = false; continue; }
+    passable[i] = !!(s.empty || s.used);
   }
-  _revealVisited[idx] = false;
+
+  // 2. Flood-fill from the bottom row. Passable cells in the bottom
+  //    row sit directly on the grid's lower edge, so they connect to
+  //    "below the grid" which is the path's destination.
+  var reachable = new Array(total);
+  for (var j = 0; j < total; j++) reachable[j] = false;
+  var queue = [];
+  var bottomRow = L.rows - 1;
+  for (var bc = 0; bc < L.cols; bc++) {
+    var bIdx = bottomRow * L.cols + bc;
+    if (passable[bIdx]) { reachable[bIdx] = true; queue.push(bIdx); }
+  }
+  var head = 0;
+  while (head < queue.length) {
+    var cur = queue[head++];
+    var cr = Math.floor(cur / L.cols), cc = cur % L.cols;
+    var nbrs = [];
+    if (cr > 0)            nbrs.push((cr - 1) * L.cols + cc);
+    if (cr < L.rows - 1)   nbrs.push((cr + 1) * L.cols + cc);
+    if (cc > 0)            nbrs.push(cr * L.cols + (cc - 1));
+    if (cc < L.cols - 1)   nbrs.push(cr * L.cols + (cc + 1));
+    for (var n = 0; n < nbrs.length; n++) {
+      var ni = nbrs[n];
+      if (!reachable[ni] && passable[ni]) {
+        reachable[ni] = true;
+        queue.push(ni);
+      }
+    }
+  }
+
+  // 3. For each active box, open it iff a passable neighbor reaches
+  //    the bottom (or the box is itself in the bottom row, sitting
+  //    on the lower edge). Close boxes whose path is now blocked.
+  for (var k = 0; k < total; k++) {
+    var b = stock[k];
+    if (!b) continue;
+    if (b.isWall || b.isTunnel || b.empty || b.used) continue;
+    if (b.spawning) continue;
+
+    var br = Math.floor(k / L.cols), bcol = k % L.cols;
+    var hasPath = false;
+    if (br === L.rows - 1) {
+      hasPath = true;
+    } else {
+      var bnbrs = [];
+      if (br > 0)          bnbrs.push((br - 1) * L.cols + bcol);
+      if (br < L.rows - 1) bnbrs.push((br + 1) * L.cols + bcol);
+      if (bcol > 0)        bnbrs.push(br * L.cols + (bcol - 1));
+      if (bcol < L.cols - 1) bnbrs.push(br * L.cols + (bcol + 1));
+      for (var m = 0; m < bnbrs.length; m++) {
+        if (reachable[bnbrs[m]]) { hasPath = true; break; }
+      }
+    }
+
+    if (hasPath && !b.revealed) {
+      b.revealed = true;
+      if (animate) {
+        b.revealT = 1.0;
+        var bx = b.x + L.bw / 2, by = b.y + L.bh / 2;
+        var burstColor = (b.boxType === 'hidden') ? '#FFD700' : COLORS[b.ci].fill;
+        for (var p = 0; p < 12; p++) {
+          var ang = Math.PI * 2 * p / 12 + Math.random() * 0.3;
+          var sp = 3 + Math.random() * 4;
+          particles.push({
+            x: bx, y: by,
+            vx: Math.cos(ang) * sp * S, vy: Math.sin(ang) * sp * S,
+            r: (2 + Math.random() * 4) * S, color: burstColor,
+            life: 1, decay: 0.02 + Math.random() * 0.015, grav: false
+          });
+        }
+        if (typeof sfx !== 'undefined' && sfx.pop) sfx.pop();
+      }
+    } else if (!hasPath && b.revealed) {
+      b.revealed = false;
+      b.revealT = 0;
+    }
+  }
 }
 
 // === ICE DAMAGE ===

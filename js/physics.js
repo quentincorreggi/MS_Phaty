@@ -123,10 +123,9 @@ function spawnPhysMarbles(box) {
           setTimeout(function () {
             b.used = true;
             b.spawning = false;
-            // Reveal adjacent boxes now that this cell is empty
-            for (var si = 0; si < stock.length; si++) {
-              if (stock[si] === b) { revealAroundEmptyCell(si); break; }
-            }
+            // Re-evaluate which boxes have an open path to the bottom
+            // now that this cell is passable.
+            updateBoxReveals(true);
           }, 300);
         }
       }, i * 120);
