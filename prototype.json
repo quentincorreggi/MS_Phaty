@@ -10,8 +10,8 @@
     "sortCap": 3,
     "lockButtons": 0,
     "curtains": [
-      { "col": 1, "depth": 2, "colorIdx": 0 },
-      { "col": 2, "depth": 2, "colorIdx": 1 }
+      { "col": 1, "depth": 2, "colorIdx": 0, "startRow": 1 },
+      { "col": 2, "depth": 2, "colorIdx": 1, "startRow": 1 }
     ],
     "grid": [
       null, null, {"ci": 2, "type": "default"}, null, {"ci": 3, "type": "default"}, null, null,

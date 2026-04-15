@@ -14,9 +14,11 @@ var editor = {
   curtain1Col: 0,
   curtain1Depth: 0,    // 0 = disabled
   curtain1Color: 0,
+  curtain1Start: 0,    // 0-based row from top
   curtain2Col: 1,
   curtain2Depth: 0,    // 0 = disabled
   curtain2Color: 1,
+  curtain2Start: 0,
   activeColor: 0,      // -1=eraser, 0-7=color
   activeType: BoxTypeOrder[0],
   keyColor: 0,          // scissors color for key boxes (independent of box ci)
@@ -38,9 +40,11 @@ function editorInit() {
   editor.curtain1Col = 0;
   editor.curtain1Depth = 0;
   editor.curtain1Color = 0;
+  editor.curtain1Start = 0;
   editor.curtain2Col = 1;
   editor.curtain2Depth = 0;
   editor.curtain2Color = 1;
+  editor.curtain2Start = 0;
   editor.activeColor = 0;
   editor.activeType = BoxTypeOrder[0];
   editor.keyColor = 0;
@@ -556,11 +560,11 @@ function editorUpdateStats() {
   }
   if (editor.curtain1Depth > 0) {
     var c1c = COLORS[editor.curtain1Color];
-    html += '<span class="ed-stat-chip" style="background:' + c1c.dark + ';border:1px solid ' + c1c.fill + '">\u2702 C1: ' + CLR_NAMES[editor.curtain1Color] + ' col ' + (editor.curtain1Col + 1) + ', ' + editor.curtain1Depth + ' rows</span>';
+    html += '<span class="ed-stat-chip" style="background:' + c1c.dark + ';border:1px solid ' + c1c.fill + '">\u2702 C1: ' + CLR_NAMES[editor.curtain1Color] + ' col ' + (editor.curtain1Col + 1) + ' rows ' + (editor.curtain1Start + 1) + '\u2013' + (editor.curtain1Start + editor.curtain1Depth) + '</span>';
   }
   if (editor.curtain2Depth > 0) {
     var c2c = COLORS[editor.curtain2Color];
-    html += '<span class="ed-stat-chip" style="background:' + c2c.dark + ';border:1px solid ' + c2c.fill + '">\u2702 C2: ' + CLR_NAMES[editor.curtain2Color] + ' col ' + (editor.curtain2Col + 1) + ', ' + editor.curtain2Depth + ' rows</span>';
+    html += '<span class="ed-stat-chip" style="background:' + c2c.dark + ';border:1px solid ' + c2c.fill + '">\u2702 C2: ' + CLR_NAMES[editor.curtain2Color] + ' col ' + (editor.curtain2Col + 1) + ' rows ' + (editor.curtain2Start + 1) + '\u2013' + (editor.curtain2Start + editor.curtain2Depth) + '</span>';
   }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
@@ -615,7 +619,7 @@ function editorRenderSettings() {
   el.innerHTML = '';
   var fields = [
     { label: 'Marbles/Box', key: 'mrbPerBox', min: 1, max: 25, step: 1 },
-    { label: 'Sort Cap', key: 'sortCap', min: 1, max: 9, step: 1 },
+    { label: 'Sort Cap', key: 'sortCap', min: 1, max: 20, step: 1 },
     { label: 'Lock Btns', key: 'lockButtons', min: 0, max: 5, step: 1 }
   ];
   for (var i = 0; i < fields.length; i++) {
@@ -647,8 +651,8 @@ function editorRenderCurtains() {
   el.innerHTML = '';
 
   var slots = [
-    { idx: 1, colKey: 'curtain1Col', depthKey: 'curtain1Depth', colorKey: 'curtain1Color' },
-    { idx: 2, colKey: 'curtain2Col', depthKey: 'curtain2Depth', colorKey: 'curtain2Color' }
+    { idx: 1, colKey: 'curtain1Col', depthKey: 'curtain1Depth', colorKey: 'curtain1Color', startKey: 'curtain1Start' },
+    { idx: 2, colKey: 'curtain2Col', depthKey: 'curtain2Depth', colorKey: 'curtain2Color', startKey: 'curtain2Start' }
   ];
 
   for (var si = 0; si < slots.length; si++) {
@@ -681,7 +685,9 @@ function editorRenderCurtains() {
         var colName = COLORS[editor[s.colorKey]];
         var preview = document.createElement('span');
         preview.style.cssText = 'margin-left:auto;font-size:10px;font-weight:600;color:' + colName.fill;
-        preview.textContent = CLR_NAMES[editor[s.colorKey]] + ' \u2022 col ' + (editor[s.colKey] + 1) + ' \u2022 ' + editor[s.depthKey] + ' rows';
+        var fromRow = editor[s.startKey] + 1;
+        var toRow = editor[s.startKey] + editor[s.depthKey];
+        preview.textContent = CLR_NAMES[editor[s.colorKey]] + ' \u2022 col ' + (editor[s.colKey] + 1) + ' \u2022 rows ' + fromRow + '\u2013' + toRow;
         header.appendChild(preview);
       }
       slot.appendChild(header);
@@ -718,11 +724,19 @@ function editorRenderCurtains() {
           '<span class="ed-s-val" id="ed-curt' + s.idx + '-col-v">' + (editor[s.colKey] + 1) + '</span>';
         slot.appendChild(colRow);
 
-        // Rows slider
+        // Start row slider (1-based display, 0-based storage)
+        var startRow = document.createElement('div');
+        startRow.className = 'ed-setting-row';
+        startRow.innerHTML = '<label>Start Row</label>' +
+          '<input type="range" id="ed-curt' + s.idx + '-start" min="0" max="19" step="1" value="' + editor[s.startKey] + '">' +
+          '<span class="ed-s-val" id="ed-curt' + s.idx + '-start-v">' + (editor[s.startKey] + 1) + '</span>';
+        slot.appendChild(startRow);
+
+        // Rows (depth) slider
         var rowRow = document.createElement('div');
         rowRow.className = 'ed-setting-row';
         rowRow.innerHTML = '<label>Rows</label>' +
-          '<input type="range" id="ed-curt' + s.idx + '-depth" min="1" max="5" step="1" value="' + editor[s.depthKey] + '">' +
+          '<input type="range" id="ed-curt' + s.idx + '-depth" min="1" max="10" step="1" value="' + editor[s.depthKey] + '">' +
           '<span class="ed-s-val" id="ed-curt' + s.idx + '-depth-v">' + editor[s.depthKey] + '</span>';
         slot.appendChild(rowRow);
       }
@@ -736,6 +750,14 @@ function editorRenderCurtains() {
         colSl.addEventListener('input', function () {
           editor[s.colKey] = parseInt(colSl.value);
           colVl.textContent = parseInt(colSl.value) + 1;
+          editorRenderCurtains();
+          editorUpdateStats();
+        });
+        var startSl = document.getElementById('ed-curt' + s.idx + '-start');
+        var startVl = document.getElementById('ed-curt' + s.idx + '-start-v');
+        startSl.addEventListener('input', function () {
+          editor[s.startKey] = parseInt(startSl.value);
+          startVl.textContent = parseInt(startSl.value) + 1;
           editorRenderCurtains();
           editorUpdateStats();
         });
@@ -768,10 +790,10 @@ function editorBuildLevel() {
   };
   var curtainsArr = [];
   if (editor.curtain1Depth > 0) {
-    curtainsArr.push({ col: editor.curtain1Col, depth: editor.curtain1Depth, colorIdx: editor.curtain1Color });
+    curtainsArr.push({ col: editor.curtain1Col, depth: editor.curtain1Depth, colorIdx: editor.curtain1Color, startRow: editor.curtain1Start });
   }
   if (editor.curtain2Depth > 0) {
-    curtainsArr.push({ col: editor.curtain2Col, depth: editor.curtain2Depth, colorIdx: editor.curtain2Color });
+    curtainsArr.push({ col: editor.curtain2Col, depth: editor.curtain2Depth, colorIdx: editor.curtain2Color, startRow: editor.curtain2Start });
   }
   if (curtainsArr.length > 0) {
     lvl.curtains = curtainsArr;
@@ -838,17 +860,19 @@ function editorImportJSON() {
         editor.curtain1Col = ci1.col || 0;
         editor.curtain1Depth = ci1.depth || 0;
         editor.curtain1Color = ci1.colorIdx || 0;
+        editor.curtain1Start = ci1.startRow || 0;
         if (lvl.curtains.length > 1) {
           var ci2 = lvl.curtains[1];
           editor.curtain2Col = ci2.col || 0;
           editor.curtain2Depth = ci2.depth || 0;
           editor.curtain2Color = ci2.colorIdx || 0;
+          editor.curtain2Start = ci2.startRow || 0;
         } else {
-          editor.curtain2Col = 1; editor.curtain2Depth = 0; editor.curtain2Color = 1;
+          editor.curtain2Col = 1; editor.curtain2Depth = 0; editor.curtain2Color = 1; editor.curtain2Start = 0;
         }
       } else {
-        editor.curtain1Col = 0; editor.curtain1Depth = 0; editor.curtain1Color = 0;
-        editor.curtain2Col = 1; editor.curtain2Depth = 0; editor.curtain2Color = 1;
+        editor.curtain1Col = 0; editor.curtain1Depth = 0; editor.curtain1Color = 0; editor.curtain1Start = 0;
+        editor.curtain2Col = 1; editor.curtain2Depth = 0; editor.curtain2Color = 1; editor.curtain2Start = 0;
       }
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
