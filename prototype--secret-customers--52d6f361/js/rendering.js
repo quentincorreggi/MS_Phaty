@@ -237,8 +237,8 @@ function drawStock() {
         }
         drawBoxLip(b.ci);
       }
-      // Key box badge — golden scissors corner badge on revealed key boxes
-      if (b.boxType === 'key' && curtainActive) {
+      // Key box badge — scissors corner badge on revealed key boxes (matching curtain color)
+      if (b.boxType === 'key' && isCurtainActiveForColor(b.ci)) {
         var badgeR = Math.min(L.bw, L.bh) * 0.16;
         ctx.save();
         ctx.fillStyle = 'rgba(255,200,50,0.9)';
@@ -432,14 +432,21 @@ function drawSortArea() {
           ctx.beginPath(); ctx.moveTo(-iconS * 0.5, 0); ctx.lineTo(-iconS * 0.1, iconS * 0.4); ctx.lineTo(iconS * 0.5, -iconS * 0.3); ctx.stroke();
         }
       } else if (isSortBoxCurtained(b)) {
-        // Curtained sort box — dark silhouette with "?"
+        // Curtained sort box — dark silhouette tinted with curtain color
+        var ccIdx = getCurtainColorIdx(b);
+        var ccCol = ccIdx >= 0 ? COLORS[ccIdx] : { fill: '#6B4FA8', dark: '#3D2E5E', light: '#8B6FC0' };
         ctx.shadowColor = 'rgba(0,0,0,0.25)'; ctx.shadowBlur = 5 * S; ctx.shadowOffsetY = 3 * S;
         var cGrad = ctx.createLinearGradient(-L.sBw / 2, -L.sBh / 2, -L.sBw / 2, L.sBh / 2);
-        cGrad.addColorStop(0, '#4A3D5E'); cGrad.addColorStop(1, '#2D2440');
+        cGrad.addColorStop(0, '#3A2D4E'); cGrad.addColorStop(1, '#221A33');
         ctx.fillStyle = cGrad;
         rRect(-L.sBw / 2, -L.sBh / 2, L.sBw, L.sBh, 8 * S); ctx.fill();
+        // Color tint
+        ctx.globalAlpha = Math.max(0, Math.min(1, al)) * 0.3;
+        ctx.fillStyle = ccCol.fill;
+        rRect(-L.sBw / 2, -L.sBh / 2, L.sBw, L.sBh, 8 * S); ctx.fill();
+        ctx.globalAlpha = Math.max(0, Math.min(1, al));
         ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-        ctx.strokeStyle = '#5A4A6E'; ctx.lineWidth = 1 * S;
+        ctx.strokeStyle = ccCol.dark; ctx.lineWidth = 1 * S;
         rRect(-L.sBw / 2, -L.sBh / 2, L.sBw, L.sBh, 8 * S); ctx.stroke();
         ctx.fillStyle = 'rgba(255,255,255,0.35)';
         ctx.font = 'bold ' + (L.sBh * 0.45) + 'px sans-serif';

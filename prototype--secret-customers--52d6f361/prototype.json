@@ -1,0 +1,26 @@
+{
+  "name": "Secret Customers",
+  "description": "Two colored curtains hide sort boxes in different columns. Each curtain has a matching Key box (scissors) of the same color \u2014 tap the right key to lift its curtain!",
+  "howToPlay": "Fill the uncovered sort boxes first. Look for the two Key boxes on the grid \u2014 one pink, one blue. Each Key lifts its matching colored curtain. Tap them when the hidden boxes reach the front!",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Two Curtains",
+    "desc": "Match each Key to its colored curtain",
+    "mrbPerBox": 6,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "curtains": [
+      { "col": 1, "depth": 2, "colorIdx": 0 },
+      { "col": 2, "depth": 2, "colorIdx": 1 }
+    ],
+    "grid": [
+      null, null, {"ci": 2, "type": "default"}, null, {"ci": 3, "type": "default"}, null, null,
+      null, {"ci": 0, "type": "key"}, null, null, null, {"ci": 1, "type": "key"}, null,
+      null, null, null, null, null, null, null,
+      {"ci": 3, "type": "default"}, null, null, null, null, null, {"ci": 2, "type": "default"},
+      null, null, {"ci": 0, "type": "default"}, null, {"ci": 1, "type": "default"}, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}
