@@ -28,6 +28,7 @@ function editorInit() {
   editor.mrbPerBox = 9;
   editor.sortCap = 3;
   editor.lockButtons = 0;
+  editor.tiltControls = false;
   editor.activeColor = 0;
   editor.activeType = BoxTypeOrder[0];
   editor.tunnelMode = false;
@@ -559,6 +560,17 @@ function editorRenderSettings() {
       });
     })(fields[i]);
   }
+  // Tilt controls toggle (per-level opt-in for accelerometer gravity)
+  var tiltRow = document.createElement('div');
+  tiltRow.className = 'ed-setting-row';
+  tiltRow.style.cssText = 'margin-top:6px';
+  tiltRow.innerHTML = '<label>Tilt Ctrl</label>' +
+    '<input type="checkbox" id="ed-s-tiltControls"' + (editor.tiltControls ? ' checked' : '') + '>' +
+    '<span class="ed-s-val" style="font-size:10px;color:#7B52A0">phone tilt</span>';
+  el.appendChild(tiltRow);
+  document.getElementById('ed-s-tiltControls').addEventListener('change', function (e) {
+    editor.tiltControls = e.target.checked;
+  });
 }
 
 // ── Build level definition ──
@@ -567,6 +579,7 @@ function editorBuildLevel() {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
+    tiltControls: editor.tiltControls,
     grid: editor.grid.slice()
   };
 }
@@ -625,6 +638,7 @@ function editorImportJSON() {
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
+      if (lvl.tiltControls !== undefined) editor.tiltControls = !!lvl.tiltControls;
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
       var nameEl = document.getElementById('ed-name');

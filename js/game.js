@@ -37,6 +37,8 @@ function initGame() {
 
   var totalSlots = L.rows * L.cols;
   var lvl = LEVELS[currentLevel];
+  tiltEnabled = !!lvl.tiltControls;
+  resetTiltForLevel();
 
   // ── Build boxSlots, tunnelSlots, wallSlots from grid or legacy random ──
   var boxSlots = {};
@@ -347,6 +349,7 @@ canvas.addEventListener('mousemove', function (e) {
 function update() {
   if (!gameActive) return;
   tick++;
+  updateTiltInput();
   physicsStep();
 
   beltOffset = (beltOffset + BELT_SPEED * S) % 1;
@@ -527,6 +530,7 @@ function frame() {
     ctx.clearRect(0, 0, W, H);
     drawBackground();
     drawFunnel();
+    drawTiltFunnelGlow();
     drawStock();
     drawPhysMarbles();
     drawBelt();
@@ -534,8 +538,12 @@ function frame() {
     drawJumpers();
     drawSortArea();
     drawBackButton();
+    drawTiltIndicator();
     drawParticles();
     drawDebugWalls();
+    ensureEnableTiltButton();
+  } else {
+    ensureEnableTiltButton();
   }
   requestAnimationFrame(frame);
 }
@@ -587,6 +595,7 @@ function updateShowcaseUI() {
 
 // === BOOT ===
 resize();
+initTiltControls();
 loadPrototypeJSON(function() {
   updateShowcaseUI();
   showLevelSelect();

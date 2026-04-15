@@ -32,10 +32,18 @@ function resolveWallCollision(m, col) {
 
 function physicsStep() {
   var subSteps = 3;
+  // Resolve per-frame gravity vector once (tilt can modulate horizontal pull
+  // and lightly vary vertical pull).
+  var gx = 0, gy = PHYS_GRAVITY;
+  if (typeof tiltEnabled !== 'undefined' && tiltEnabled) {
+    gx = getTiltGravityX();
+    gy = PHYS_GRAVITY * getTiltGravityYMul();
+  }
   for (var sub = 0; sub < subSteps; sub++) {
     for (var i = 0; i < physMarbles.length; i++) {
       var m = physMarbles[i];
-      m.vy += PHYS_GRAVITY * S / subSteps;
+      m.vx += gx * S / subSteps;
+      m.vy += gy * S / subSteps;
       m.vx *= PHYS_DAMPING; m.vy *= PHYS_DAMPING;
       m.x += m.vx / subSteps; m.y += m.vy / subSteps;
     }

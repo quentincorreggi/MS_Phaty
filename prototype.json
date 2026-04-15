@@ -1,0 +1,22 @@
+{
+  "name": "Tilt Gravity",
+  "description": "Tilt your phone to steer the falling marbles in the funnel.",
+  "howToPlay": "Tap boxes to release marbles like usual. While they bounce through the funnel, tilt your phone left or right to pull them that way — the entire level's gravity follows your tilt. On desktop, hold the left/right arrow keys to simulate tilt. A tilt indicator in the top-left shows the current direction and strength.",
+  "showcaseLevel": {
+    "name": "Tilt Showcase",
+    "desc": "Tilt to guide the marbles!",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "tiltControls": true,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, {"ci": 0, "type": "default"}, null, null, null, {"ci": 1, "type": "default"}, null,
+      null, null, null, {"ci": 0, "type": "default"}, null, null, null,
+      {"ci": 2, "type": "default"}, null, null, null, null, null, {"ci": 3, "type": "default"},
+      null, null, null, {"ci": 1, "type": "default"}, null, null, null,
+      null, {"ci": 3, "type": "default"}, null, null, null, {"ci": 2, "type": "default"}, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}
