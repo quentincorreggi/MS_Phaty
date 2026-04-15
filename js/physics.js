@@ -35,7 +35,8 @@ function physicsStep() {
   for (var sub = 0; sub < subSteps; sub++) {
     for (var i = 0; i < physMarbles.length; i++) {
       var m = physMarbles[i];
-      m.vy += PHYS_GRAVITY * S / subSteps;
+      var g = m.lowGrav ? PHYS_LOW_GRAVITY : PHYS_GRAVITY;
+      m.vy += g * S / subSteps;
       m.vx *= PHYS_DAMPING; m.vy *= PHYS_DAMPING;
       m.x += m.vx / subSteps; m.y += m.vy / subSteps;
     }
@@ -68,6 +69,23 @@ function physicsStep() {
     }
   }
 
+  // Low-gravity marbles leave a soft cyan sparkle trail while airborne.
+  // One sparkle every few frames per marble keeps it cheap.
+  for (var ti = 0; ti < physMarbles.length; ti++) {
+    var tm = physMarbles[ti];
+    if (!tm.lowGrav) continue;
+    if ((tick + ti) % 3 !== 0) continue;
+    particles.push({
+      x: tm.x + (Math.random() - 0.5) * tm.r * 0.8,
+      y: tm.y + (Math.random() - 0.5) * tm.r * 0.8,
+      vx: (Math.random() - 0.5) * 0.4 * S,
+      vy: (Math.random() - 0.5) * 0.4 * S,
+      r: (1.2 + Math.random() * 1.4) * S,
+      color: Math.random() < 0.5 ? 'rgba(188,231,255,0.75)' : 'rgba(255,255,255,0.7)',
+      life: 0.55, decay: 0.04, grav: false
+    });
+  }
+
   var exitY = L.funnelBot;
   var exitL = L.funnelCx - L.funnelOpenW / 2;
   var exitR = L.funnelCx + L.funnelOpenW / 2;
@@ -88,6 +106,16 @@ function physicsStep() {
         beltSlots[bestIdx].arriveAnim = 0.6;
         sfx.drop();
         spawnBurst(m.x, m.y, COLORS[m.ci].fill, 6);
+        // Low-grav marble "lands" — gravity snaps back, small cyan puff
+        if (m.lowGrav) {
+          for (var pp = 0; pp < 6; pp++) {
+            var aa = Math.random() * Math.PI * 2, ss = 1 + Math.random() * 1.5;
+            particles.push({ x: m.x, y: m.y,
+              vx: Math.cos(aa) * ss * S, vy: Math.sin(aa) * ss * S - 0.5 * S,
+              r: (1.5 + Math.random() * 2) * S, color: 'rgba(188,231,255,0.9)',
+              life: 0.6, decay: 0.04, grav: false });
+          }
+        }
         physMarbles.splice(i, 1);
       }
     }
@@ -99,8 +127,9 @@ function spawnPhysMarbles(box) {
   var count = box.remaining;
   var blockerCount = box.blockerCount || 0;
   var blockerStart = MRB_PER_BOX - blockerCount;
+  var isLowGrav = (box.boxType === 'lowgrav');
   for (var idx = 0; idx < count; idx++) {
-    (function (i, b, bStart) {
+    (function (i, b, bStart, lowG) {
       setTimeout(function () {
         if (b.remaining <= 0) return;
         var spawnIdx = MRB_PER_BOX - b.remaining;
@@ -112,10 +141,16 @@ function spawnPhysMarbles(box) {
         var mgY = mg * MRB_GAP_FACTOR;
         var mx = b.x + L.bw / 2 + (si.c - 1) * mg;
         var my = b.y + L.bh / 2 + (si.r - 1) * mgY - 2 * S;
-        var vx = (Math.random() - 0.5) * 2 * S;
-        var vy = -(2 + Math.random() * 2) * S;
+        // Low-grav marbles pop out with a bigger upward nudge + a bit more
+        // sideways jitter so they feel "helium-y".
+        var vx = (Math.random() - 0.5) * (lowG ? 2.6 : 2) * S;
+        var vy = lowG ? -(3 + Math.random() * 2.5) * S
+                      : -(2 + Math.random() * 2) * S;
         var marbleCi = (blockerCount > 0 && spawnIdx >= bStart) ? BLOCKER_CI : b.ci;
-        physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR, spawnT: 1.0 });
+        physMarbles.push({
+          x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR,
+          spawnT: 1.0, lowGrav: lowG
+        });
         sfx.drop();
         spawnBurst(mx, my, COLORS[marbleCi].fill, 4);
         if (b.remaining <= 0) {
@@ -130,6 +165,6 @@ function spawnPhysMarbles(box) {
           }, 300);
         }
       }, i * 120);
-    })(idx, box, blockerStart);
+    })(idx, box, blockerStart, isLowGrav);
   }
 }

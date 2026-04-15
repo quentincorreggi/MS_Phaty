@@ -1,0 +1,22 @@
+{
+  "name": "Low Gravity Boxes",
+  "description": "Cyan moon-marked boxes release 9 marbles that fall in floaty slow-motion, opening up cool chain-tap combos with regular boxes.",
+  "howToPlay": "Tap a cyan \"low gravity\" box to release 9 floaty marbles — while they drift down, quickly tap the regular boxes below to weave fast marbles through the slow ones. Open the gear menu (top right) and drag the \"LowGrav\" slider to tweak how floaty they feel.",
+  "author": "prototype",
+  "showcaseLevel": {
+    "name": "Low Gravity Showcase",
+    "desc": "Tap floaty cyan boxes on top, then chain regular boxes below for combos",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null, {"ci": 0, "type": "lowgrav"}, null, {"ci": 1, "type": "lowgrav"}, null, {"ci": 2, "type": "lowgrav"}, null,
+      null, null, {"ci": 3, "type": "lowgrav"}, null, {"ci": 0, "type": "lowgrav"}, null, null,
+      null, {"ci": 1, "type": "default"}, null, {"ci": 2, "type": "default"}, null, {"ci": 3, "type": "default"}, null,
+      {"ci": 0, "type": "default"}, null, {"ci": 1, "type": "lowgrav"}, null, {"ci": 2, "type": "lowgrav"}, null, {"ci": 3, "type": "default"},
+      null, {"ci": 2, "type": "default"}, null, {"ci": 3, "type": "default"}, null, {"ci": 0, "type": "default"}, null,
+      null, null, {"ci": 1, "type": "default"}, null, {"ci": 0, "type": "default"}, null, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}

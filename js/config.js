@@ -20,6 +20,9 @@ var gameActive = false;
 
 // === PHYSICS ===
 var PHYS_GRAVITY = 0.67, PHYS_DAMPING = 0.997, PHYS_BOUNCE = 0.45, PHYS_FRICTION = 0.995;
+// Low-gravity boxes: marbles from these boxes fall at this gravity until they
+// land on the belt. Tweak live via the debug panel (slider "LowGrav").
+var PHYS_LOW_GRAVITY = 0.22;
 var MARBLE_R_BASE = 7;
 var funnelWalls = [];
 var BELT_SLOTS = 30, beltSlots = [], beltOffset = 0, BELT_SPEED = 0.0031;

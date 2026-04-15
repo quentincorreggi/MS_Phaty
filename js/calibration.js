@@ -15,6 +15,10 @@ document.getElementById('gravSlider').addEventListener('input', function () {
   PHYS_GRAVITY = parseInt(this.value) / 100;
   document.getElementById('gravVal').textContent = this.value;
 });
+document.getElementById('lowGravSlider').addEventListener('input', function () {
+  PHYS_LOW_GRAVITY = parseInt(this.value) / 100;
+  document.getElementById('lowGravVal').textContent = this.value;
+});
 document.getElementById('beltSlider').addEventListener('input', function () {
   BELT_SPEED = parseInt(this.value) / 10000;
   document.getElementById('beltVal').textContent = this.value;
