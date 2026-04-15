@@ -11,9 +11,12 @@ var editor = {
   mrbPerBox: 9,
   sortCap: 3,
   lockButtons: 0,
-  curtainStartCol: 0,
-  curtainWidth: 0,     // 0 = no curtain
-  curtainDepth: 0,     // 0 = no curtain
+  curtain1Col: 0,
+  curtain1Depth: 0,    // 0 = disabled
+  curtain1Color: 0,
+  curtain2Col: 1,
+  curtain2Depth: 0,    // 0 = disabled
+  curtain2Color: 1,
   activeColor: 0,      // -1=eraser, 0-7=color
   activeType: BoxTypeOrder[0],
   tunnelMode: false,    // true when placing tunnels
@@ -31,9 +34,12 @@ function editorInit() {
   editor.mrbPerBox = 9;
   editor.sortCap = 3;
   editor.lockButtons = 0;
-  editor.curtainStartCol = 0;
-  editor.curtainWidth = 0;
-  editor.curtainDepth = 0;
+  editor.curtain1Col = 0;
+  editor.curtain1Depth = 0;
+  editor.curtain1Color = 0;
+  editor.curtain2Col = 1;
+  editor.curtain2Depth = 0;
+  editor.curtain2Color = 1;
   editor.activeColor = 0;
   editor.activeType = BoxTypeOrder[0];
   editor.tunnelMode = false;
@@ -509,8 +515,13 @@ function editorUpdateStats() {
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
   }
-  if (editor.curtainWidth > 0 && editor.curtainDepth > 0) {
-    html += '<span class="ed-stat-chip" style="background:#4A3D5E;border:1px solid #6B4FA8">\u2702 Curtain ' + editor.curtainWidth + 'x' + editor.curtainDepth + '</span>';
+  if (editor.curtain1Depth > 0) {
+    var c1c = COLORS[editor.curtain1Color];
+    html += '<span class="ed-stat-chip" style="background:' + c1c.dark + ';border:1px solid ' + c1c.fill + '">\u2702 C1: col' + editor.curtain1Col + ' d' + editor.curtain1Depth + '</span>';
+  }
+  if (editor.curtain2Depth > 0) {
+    var c2c = COLORS[editor.curtain2Color];
+    html += '<span class="ed-stat-chip" style="background:' + c2c.dark + ';border:1px solid ' + c2c.fill + '">\u2702 C2: col' + editor.curtain2Col + ' d' + editor.curtain2Depth + '</span>';
   }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
@@ -534,14 +545,22 @@ function editorUpdateStats() {
     if (!warn && totalBlockers > 0 && totalBlockers % 3 !== 0) {
       warn = 'Total blocker marbles (' + totalBlockers + ') must be a multiple of 3';
     }
-    // Curtain validation
-    if (!warn && editor.curtainWidth > 0 && editor.curtainDepth > 0) {
-      var hasKey = false;
+    // Curtain validation — each curtain needs a key box with matching color
+    var curtainSlots = [];
+    if (editor.curtain1Depth > 0) curtainSlots.push({ color: editor.curtain1Color, label: 'Curtain 1' });
+    if (editor.curtain2Depth > 0) curtainSlots.push({ color: editor.curtain2Color, label: 'Curtain 2' });
+    if (!warn && curtainSlots.length > 0) {
+      var keyColors = {};
       for (var ki = 0; ki < 49; ki++) {
         var kv = editor.grid[ki];
-        if (kv && !kv.tunnel && !kv.wall && kv.type === 'key') { hasKey = true; break; }
+        if (kv && !kv.tunnel && !kv.wall && kv.type === 'key') keyColors[kv.ci] = true;
       }
-      if (!hasKey) warn = 'Curtain configured but no Key box placed!';
+      for (var cs = 0; cs < curtainSlots.length; cs++) {
+        if (!keyColors[curtainSlots[cs].color]) {
+          warn = curtainSlots[cs].label + ' needs a ' + CLR_NAMES[curtainSlots[cs].color] + ' Key box!';
+          break;
+        }
+      }
     }
   }
   if (warn) html += '<span class="ed-stat-warn">' + warn + '</span>';
@@ -556,9 +575,12 @@ function editorRenderSettings() {
     { label: 'Marbles/Box', key: 'mrbPerBox', min: 1, max: 25, step: 1 },
     { label: 'Sort Cap', key: 'sortCap', min: 1, max: 9, step: 1 },
     { label: 'Lock Btns', key: 'lockButtons', min: 0, max: 5, step: 1 },
-    { label: 'Curtain Col', key: 'curtainStartCol', min: 0, max: 3, step: 1 },
-    { label: 'Curtain W', key: 'curtainWidth', min: 0, max: 4, step: 1 },
-    { label: 'Curtain D', key: 'curtainDepth', min: 0, max: 5, step: 1 }
+    { label: 'C1 Col', key: 'curtain1Col', min: 0, max: 3, step: 1 },
+    { label: 'C1 Depth', key: 'curtain1Depth', min: 0, max: 5, step: 1 },
+    { label: 'C1 Color', key: 'curtain1Color', min: 0, max: 7, step: 1 },
+    { label: 'C2 Col', key: 'curtain2Col', min: 0, max: 3, step: 1 },
+    { label: 'C2 Depth', key: 'curtain2Depth', min: 0, max: 5, step: 1 },
+    { label: 'C2 Color', key: 'curtain2Color', min: 0, max: 7, step: 1 }
   ];
   for (var i = 0; i < fields.length; i++) {
     var f = fields[i];
@@ -590,12 +612,15 @@ function editorBuildLevel() {
     lockButtons: editor.lockButtons,
     grid: editor.grid.slice()
   };
-  if (editor.curtainWidth > 0 && editor.curtainDepth > 0) {
-    lvl.curtain = {
-      startCol: editor.curtainStartCol,
-      width: editor.curtainWidth,
-      depth: editor.curtainDepth
-    };
+  var curtainsArr = [];
+  if (editor.curtain1Depth > 0) {
+    curtainsArr.push({ col: editor.curtain1Col, depth: editor.curtain1Depth, colorIdx: editor.curtain1Color });
+  }
+  if (editor.curtain2Depth > 0) {
+    curtainsArr.push({ col: editor.curtain2Col, depth: editor.curtain2Depth, colorIdx: editor.curtain2Color });
+  }
+  if (curtainsArr.length > 0) {
+    lvl.curtains = curtainsArr;
   }
   return lvl;
 }
@@ -654,12 +679,22 @@ function editorImportJSON() {
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
-      if (lvl.curtain) {
-        editor.curtainStartCol = lvl.curtain.startCol || 0;
-        editor.curtainWidth = lvl.curtain.width || 0;
-        editor.curtainDepth = lvl.curtain.depth || 0;
+      if (lvl.curtains && lvl.curtains.length > 0) {
+        var ci1 = lvl.curtains[0];
+        editor.curtain1Col = ci1.col || 0;
+        editor.curtain1Depth = ci1.depth || 0;
+        editor.curtain1Color = ci1.colorIdx || 0;
+        if (lvl.curtains.length > 1) {
+          var ci2 = lvl.curtains[1];
+          editor.curtain2Col = ci2.col || 0;
+          editor.curtain2Depth = ci2.depth || 0;
+          editor.curtain2Color = ci2.colorIdx || 0;
+        } else {
+          editor.curtain2Col = 1; editor.curtain2Depth = 0; editor.curtain2Color = 1;
+        }
       } else {
-        editor.curtainStartCol = 0; editor.curtainWidth = 0; editor.curtainDepth = 0;
+        editor.curtain1Col = 0; editor.curtain1Depth = 0; editor.curtain1Color = 0;
+        editor.curtain2Col = 1; editor.curtain2Depth = 0; editor.curtain2Color = 1;
       }
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;

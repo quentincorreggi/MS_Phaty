@@ -57,10 +57,7 @@ var MRB_PER_BOX = 9, SORT_CAP = 3;
 var SORT_VISIBLE_ROWS = 4;
 
 // === SECRET CUSTOMERS (CURTAIN) ===
-var curtainActive = false;
-var curtainConfig = null;  // { startCol, width, depth }
-var curtainLiftT = 0;
-var curtainKeyAnim = null; // { startX, startY, targetX, targetY, t }
+var curtains = [];  // array of { col, depth, colorIdx, active, liftT, keyAnim }
 
 // Snake order for 3x3 grid
 var SNAKE_ORDER = [
