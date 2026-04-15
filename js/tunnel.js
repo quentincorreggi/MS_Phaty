@@ -184,7 +184,9 @@ function trySpawnFromTunnels() {
       remaining: MRB_PER_BOX,
       spawning: false,
       spawnIdx: 0,
-      revealed: true,
+      // Start closed; updateBoxReveals will open it if the exit cell
+      // still has a passable path to the bottom of the grid.
+      revealed: false,
       empty: false,
       boxType: nextBox.type || 'default',
       iceHP: isIce ? 2 : 0,
@@ -198,7 +200,7 @@ function trySpawnFromTunnels() {
       shakeT: 0,
       hoverT: 0,
       popT: 0.8,
-      revealT: 1.0,
+      revealT: 0,
       emptyT: 0,
       idlePhase: Math.random() * Math.PI * 2
     };
@@ -209,6 +211,11 @@ function trySpawnFromTunnels() {
     spawnBurst(tx, ty, '#FFD080', 8);
     spawnBurst(ex, ey, '#FFD080', 10);
     sfx.pop();
+
+    // Re-evaluate reveals: the new box may itself be open (path below),
+    // and any boxes that relied on the now-occupied exit cell as their
+    // path to the bottom must close.
+    if (typeof updateBoxReveals === 'function') updateBoxReveals(true);
 
     // End spawning animation after a short delay
     (function (tunnel) {

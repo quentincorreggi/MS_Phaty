@@ -136,7 +136,12 @@ Drawing helpers available: `drawBox()`, `drawMarble()`, `drawBoxMarbles()`,
 2. Calls `spawnPhysMarbles(box)` — spawns `MRB_PER_BOX` marbles with physics
 3. Calls `damageAdjacentIce(i)` — ice mechanic interaction
 4. Box becomes `used=true` after all marbles spawn
-5. `revealAroundEmptyCell()` reveals adjacent hidden boxes
+5. `updateBoxReveals(true)` re-evaluates every box's revealed state — a box is
+   open iff there is a path of passable cells (empty, used, or depleted
+   tunnels) from its position to below the bottom edge of the grid. Boxes
+   whose path just opened become revealed; boxes whose path just closed
+   (e.g. from a tunnel spawning a new box into a previously-empty cell)
+   close themselves.
 
 #### Level Data Format
 
