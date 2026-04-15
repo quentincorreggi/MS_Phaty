@@ -71,11 +71,12 @@ function isCurtainActiveForColor(colorIdx) {
   return false;
 }
 
-// Start the curtain lift sequence for the curtain matching this box's color
+// Start the curtain lift sequence for the curtain matching this box's keyColor
 function triggerCurtainLift(box) {
+  var matchColor = box.keyColor !== undefined ? box.keyColor : box.ci;
   for (var i = 0; i < curtains.length; i++) {
     var c = curtains[i];
-    if (c.colorIdx === box.ci && c.active && !c.keyAnim) {
+    if (c.colorIdx === matchColor && c.active && !c.keyAnim) {
       var startX = box.x + L.bw / 2;
       var startY = box.y + L.bh / 2;
       var targetX = L.sSx + c.col * (L.sBw + L.sColGap) + L.sBw / 2;

@@ -209,10 +209,34 @@ function drawStock() {
     if (b.revealT > 0) {
       var phase = 1 - b.revealT;
       bt.drawReveal(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, phase, b.remaining, tick);
+      // Key box: scissors in keyColor during reveal
+      if (b.boxType === 'key') {
+        var kci = b.keyColor !== undefined ? b.keyColor : b.ci;
+        var kc = COLORS[kci];
+        if (phase < 0.6) {
+          ctx.globalAlpha = 1 - phase * 1.5;
+          ctx.fillStyle = kc.fill;
+          var iconS = Math.min(L.bw, L.bh) * 0.22;
+          ctx.font = 'bold ' + (iconS * 2) + 'px sans-serif';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText('\u2702', 0, 0);
+          ctx.globalAlpha = 1;
+        }
+      }
     } else if (!b.revealed) {
       var idleWobble = Math.sin(tick * 0.02 + b.idlePhase) * 0.006;
       ctx.rotate(idleWobble);
       bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase);
+      // Key box: scissors icon in keyColor on top of golden shell
+      if (b.boxType === 'key') {
+        var kci = b.keyColor !== undefined ? b.keyColor : b.ci;
+        var kc = COLORS[kci];
+        ctx.fillStyle = kc.fill;
+        var iconS = Math.min(L.bw, L.bh) * 0.22;
+        ctx.font = 'bold ' + (iconS * 2) + 'px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('\u2702', 0, 0);
+      }
     } else {
       var c = COLORS[b.ci];
       if (isBoxTappable(i) && b.hoverT > 0.01) { ctx.shadowColor = c.glow; ctx.shadowBlur = 20 * S * b.hoverT; }
@@ -237,19 +261,25 @@ function drawStock() {
         }
         drawBoxLip(b.ci);
       }
-      // Key box badge — scissors corner badge on revealed key boxes (matching curtain color)
-      if (b.boxType === 'key' && isCurtainActiveForColor(b.ci)) {
-        var badgeR = Math.min(L.bw, L.bh) * 0.16;
-        ctx.save();
-        ctx.fillStyle = 'rgba(255,200,50,0.9)';
-        ctx.shadowColor = 'rgba(255,180,0,0.4)'; ctx.shadowBlur = 6 * S;
-        ctx.beginPath(); ctx.arc(L.bw / 2 - badgeR * 0.7, -L.bh / 2 + badgeR * 0.7, badgeR, 0, Math.PI * 2); ctx.fill();
-        ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
-        ctx.fillStyle = 'rgba(255,255,255,0.95)';
-        ctx.font = 'bold ' + (badgeR * 1.3) + 'px sans-serif';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('\u2702', L.bw / 2 - badgeR * 0.7, -L.bh / 2 + badgeR * 0.7);
-        ctx.restore();
+      // Key box badge — scissors corner badge in keyColor on revealed key boxes
+      if (b.boxType === 'key') {
+        var kci = b.keyColor !== undefined ? b.keyColor : b.ci;
+        if (isCurtainActiveForColor(kci)) {
+          var kc = COLORS[kci];
+          var badgeR = Math.min(L.bw, L.bh) * 0.16;
+          ctx.save();
+          ctx.fillStyle = kc.fill;
+          ctx.globalAlpha = 0.92;
+          ctx.shadowColor = kc.glow; ctx.shadowBlur = 6 * S;
+          ctx.beginPath(); ctx.arc(L.bw / 2 - badgeR * 0.7, -L.bh / 2 + badgeR * 0.7, badgeR, 0, Math.PI * 2); ctx.fill();
+          ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = 'rgba(255,255,255,0.95)';
+          ctx.font = 'bold ' + (badgeR * 1.3) + 'px sans-serif';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText('\u2702', L.bw / 2 - badgeR * 0.7, -L.bh / 2 + badgeR * 0.7);
+          ctx.restore();
+        }
       }
     }
 
