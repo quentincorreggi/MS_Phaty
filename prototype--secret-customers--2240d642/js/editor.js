@@ -72,6 +72,7 @@ function editorBuildUI() {
   editorRenderGrid();
   editorRenderToolbar();
   editorRenderSettings();
+  editorRenderCurtains();
   editorUpdateStats();
   editorRenderTunnelPanel();
 }
@@ -555,11 +556,11 @@ function editorUpdateStats() {
   }
   if (editor.curtain1Depth > 0) {
     var c1c = COLORS[editor.curtain1Color];
-    html += '<span class="ed-stat-chip" style="background:' + c1c.dark + ';border:1px solid ' + c1c.fill + '">\u2702 C1: col' + editor.curtain1Col + ' d' + editor.curtain1Depth + '</span>';
+    html += '<span class="ed-stat-chip" style="background:' + c1c.dark + ';border:1px solid ' + c1c.fill + '">\u2702 C1: ' + CLR_NAMES[editor.curtain1Color] + ' col ' + (editor.curtain1Col + 1) + ', ' + editor.curtain1Depth + ' rows</span>';
   }
   if (editor.curtain2Depth > 0) {
     var c2c = COLORS[editor.curtain2Color];
-    html += '<span class="ed-stat-chip" style="background:' + c2c.dark + ';border:1px solid ' + c2c.fill + '">\u2702 C2: col' + editor.curtain2Col + ' d' + editor.curtain2Depth + '</span>';
+    html += '<span class="ed-stat-chip" style="background:' + c2c.dark + ';border:1px solid ' + c2c.fill + '">\u2702 C2: ' + CLR_NAMES[editor.curtain2Color] + ' col ' + (editor.curtain2Col + 1) + ', ' + editor.curtain2Depth + ' rows</span>';
   }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
@@ -615,13 +616,7 @@ function editorRenderSettings() {
   var fields = [
     { label: 'Marbles/Box', key: 'mrbPerBox', min: 1, max: 25, step: 1 },
     { label: 'Sort Cap', key: 'sortCap', min: 1, max: 9, step: 1 },
-    { label: 'Lock Btns', key: 'lockButtons', min: 0, max: 5, step: 1 },
-    { label: 'C1 Col', key: 'curtain1Col', min: 0, max: 3, step: 1 },
-    { label: 'C1 Depth', key: 'curtain1Depth', min: 0, max: 5, step: 1 },
-    { label: 'C1 Color', key: 'curtain1Color', min: 0, max: 7, step: 1 },
-    { label: 'C2 Col', key: 'curtain2Col', min: 0, max: 3, step: 1 },
-    { label: 'C2 Depth', key: 'curtain2Depth', min: 0, max: 5, step: 1 },
-    { label: 'C2 Color', key: 'curtain2Color', min: 0, max: 7, step: 1 }
+    { label: 'Lock Btns', key: 'lockButtons', min: 0, max: 5, step: 1 }
   ];
   for (var i = 0; i < fields.length; i++) {
     var f = fields[i];
@@ -643,6 +638,124 @@ function editorRenderSettings() {
       });
     })(fields[i]);
   }
+}
+
+// ── Curtain config panel ──
+function editorRenderCurtains() {
+  var el = document.getElementById('ed-curtain-body');
+  if (!el) return;
+  el.innerHTML = '';
+
+  var slots = [
+    { idx: 1, colKey: 'curtain1Col', depthKey: 'curtain1Depth', colorKey: 'curtain1Color' },
+    { idx: 2, colKey: 'curtain2Col', depthKey: 'curtain2Depth', colorKey: 'curtain2Color' }
+  ];
+
+  for (var si = 0; si < slots.length; si++) {
+    (function (s) {
+      var enabled = editor[s.depthKey] > 0;
+      var slot = document.createElement('div');
+      slot.className = 'ed-curtain-slot' + (enabled ? '' : ' disabled');
+
+      // Header with toggle
+      var header = document.createElement('div');
+      header.className = 'ed-curtain-header';
+      var title = document.createElement('span');
+      title.className = 'ed-curtain-title';
+      title.textContent = 'Curtain ' + s.idx;
+      var toggle = document.createElement('button');
+      toggle.className = 'ed-curtain-toggle' + (enabled ? ' on' : '');
+      toggle.textContent = enabled ? 'ON' : 'OFF';
+      toggle.addEventListener('click', function () {
+        if (editor[s.depthKey] > 0) {
+          editor[s.depthKey] = 0;
+        } else {
+          editor[s.depthKey] = 2;
+        }
+        editorRenderCurtains();
+        editorUpdateStats();
+      });
+      header.appendChild(title);
+      header.appendChild(toggle);
+      if (enabled) {
+        var colName = COLORS[editor[s.colorKey]];
+        var preview = document.createElement('span');
+        preview.style.cssText = 'margin-left:auto;font-size:10px;font-weight:600;color:' + colName.fill;
+        preview.textContent = CLR_NAMES[editor[s.colorKey]] + ' \u2022 col ' + (editor[s.colKey] + 1) + ' \u2022 ' + editor[s.depthKey] + ' rows';
+        header.appendChild(preview);
+      }
+      slot.appendChild(header);
+
+      if (enabled) {
+        // Color picker row
+        var colorRow = document.createElement('div');
+        colorRow.className = 'ed-curtain-colors';
+        var colorLabel = document.createElement('label');
+        colorLabel.textContent = 'Color';
+        colorRow.appendChild(colorLabel);
+        for (var ci = 0; ci < NUM_COLORS; ci++) {
+          (function (colorIdx) {
+            var btn = document.createElement('button');
+            btn.className = 'ed-curtain-cbtn' + (editor[s.colorKey] === colorIdx ? ' active' : '');
+            btn.style.background = COLORS[colorIdx].fill;
+            btn.title = CLR_NAMES[colorIdx];
+            btn.textContent = '\u2702';
+            btn.addEventListener('click', function () {
+              editor[s.colorKey] = colorIdx;
+              editorRenderCurtains();
+              editorUpdateStats();
+            });
+            colorRow.appendChild(btn);
+          })(ci);
+        }
+        slot.appendChild(colorRow);
+
+        // Column slider
+        var colRow = document.createElement('div');
+        colRow.className = 'ed-setting-row';
+        colRow.innerHTML = '<label>Column</label>' +
+          '<input type="range" id="ed-curt' + s.idx + '-col" min="0" max="3" step="1" value="' + editor[s.colKey] + '">' +
+          '<span class="ed-s-val" id="ed-curt' + s.idx + '-col-v">' + (editor[s.colKey] + 1) + '</span>';
+        slot.appendChild(colRow);
+
+        // Rows slider
+        var rowRow = document.createElement('div');
+        rowRow.className = 'ed-setting-row';
+        rowRow.innerHTML = '<label>Rows</label>' +
+          '<input type="range" id="ed-curt' + s.idx + '-depth" min="1" max="5" step="1" value="' + editor[s.depthKey] + '">' +
+          '<span class="ed-s-val" id="ed-curt' + s.idx + '-depth-v">' + editor[s.depthKey] + '</span>';
+        slot.appendChild(rowRow);
+      }
+
+      el.appendChild(slot);
+
+      // Bind slider events after DOM insertion
+      if (enabled) {
+        var colSl = document.getElementById('ed-curt' + s.idx + '-col');
+        var colVl = document.getElementById('ed-curt' + s.idx + '-col-v');
+        colSl.addEventListener('input', function () {
+          editor[s.colKey] = parseInt(colSl.value);
+          colVl.textContent = parseInt(colSl.value) + 1;
+          editorRenderCurtains();
+          editorUpdateStats();
+        });
+        var depthSl = document.getElementById('ed-curt' + s.idx + '-depth');
+        var depthVl = document.getElementById('ed-curt' + s.idx + '-depth-v');
+        depthSl.addEventListener('input', function () {
+          editor[s.depthKey] = parseInt(depthSl.value);
+          depthVl.textContent = depthSl.value;
+          editorRenderCurtains();
+          editorUpdateStats();
+        });
+      }
+    })(slots[si]);
+  }
+
+  // Hint
+  var hint = document.createElement('div');
+  hint.className = 'ed-curtain-hint';
+  hint.textContent = 'Each curtain hides rows in a sort column. Place a Key box with matching scissors color to unlock it.';
+  el.appendChild(hint);
 }
 
 // ── Build level definition ──
