@@ -237,6 +237,20 @@ function drawStock() {
         }
         drawBoxLip(b.ci);
       }
+      // Key box badge — golden scissors corner badge on revealed key boxes
+      if (b.boxType === 'key' && curtainActive) {
+        var badgeR = Math.min(L.bw, L.bh) * 0.16;
+        ctx.save();
+        ctx.fillStyle = 'rgba(255,200,50,0.9)';
+        ctx.shadowColor = 'rgba(255,180,0,0.4)'; ctx.shadowBlur = 6 * S;
+        ctx.beginPath(); ctx.arc(L.bw / 2 - badgeR * 0.7, -L.bh / 2 + badgeR * 0.7, badgeR, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+        ctx.fillStyle = 'rgba(255,255,255,0.95)';
+        ctx.font = 'bold ' + (badgeR * 1.3) + 'px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('\u2702', L.bw / 2 - badgeR * 0.7, -L.bh / 2 + badgeR * 0.7);
+        ctx.restore();
+      }
     }
 
     if (b.iceHP > 0) {
@@ -417,6 +431,20 @@ function drawSortArea() {
           ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 3 * S; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
           ctx.beginPath(); ctx.moveTo(-iconS * 0.5, 0); ctx.lineTo(-iconS * 0.1, iconS * 0.4); ctx.lineTo(iconS * 0.5, -iconS * 0.3); ctx.stroke();
         }
+      } else if (isSortBoxCurtained(b)) {
+        // Curtained sort box — dark silhouette with "?"
+        ctx.shadowColor = 'rgba(0,0,0,0.25)'; ctx.shadowBlur = 5 * S; ctx.shadowOffsetY = 3 * S;
+        var cGrad = ctx.createLinearGradient(-L.sBw / 2, -L.sBh / 2, -L.sBw / 2, L.sBh / 2);
+        cGrad.addColorStop(0, '#4A3D5E'); cGrad.addColorStop(1, '#2D2440');
+        ctx.fillStyle = cGrad;
+        rRect(-L.sBw / 2, -L.sBh / 2, L.sBw, L.sBh, 8 * S); ctx.fill();
+        ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+        ctx.strokeStyle = '#5A4A6E'; ctx.lineWidth = 1 * S;
+        rRect(-L.sBw / 2, -L.sBh / 2, L.sBw, L.sBh, 8 * S); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.font = 'bold ' + (L.sBh * 0.45) + 'px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('?', 0, 0);
       } else {
         ctx.shadowColor = 'rgba(0,0,0,0.22)'; ctx.shadowBlur = 5 * S; ctx.shadowOffsetY = 3 * S;
         var sc = COLORS[b.ci];

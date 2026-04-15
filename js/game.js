@@ -129,9 +129,10 @@ function initGame() {
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
     } else {
       var isIce = (slot.boxType === 'ice');
+      var isKey = (slot.boxType === 'key');
       var isBlocker = (slot.boxType === 'blocker');
       stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
-        revealed: isIce ? true : false, empty: false,
+        revealed: (isIce || isKey) ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
@@ -186,6 +187,9 @@ function initGame() {
     var lockRow = Math.min(2 + Math.floor(Math.random() * 4), sortCols[lockCol].length);
     sortCols[lockCol].splice(lockRow, 0, { type: 'lock', ci: -1, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0, triggerT: 0, triggered: false });
   }
+
+  // Secret Customers curtain
+  initCurtain(lvl);
 }
 
 // === EMPTY-CELL REVEAL ===
@@ -322,6 +326,10 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      // Key box triggers curtain lift
+      if (b.boxType === 'key' && curtainActive && !curtainKeyAnim) {
+        triggerCurtainLift(b);
+      }
       return;
     }
   }
@@ -365,6 +373,7 @@ function update() {
       var col = sortCols[c]; var tv = -1;
       for (var r = 0; r < col.length; r++) { if (col[r].vis) { tv = r; break; } }
       if (tv < 0 || col[tv].ci !== slot.marble) continue;
+      if (isSortBoxCurtained(col[tv])) continue;
       var inFlight = 0;
       for (var j = 0; j < jumpers.length; j++) if (jumpers[j].targetCol === c) inFlight++;
       if (col[tv].filled + inFlight >= SORT_CAP) continue;
@@ -497,6 +506,9 @@ function update() {
     if (box.type === 'lock' && box.triggerT > 0) box.triggerT = Math.max(0, box.triggerT - 0.03);
   }
 
+  // Secret Customers curtain update
+  updateCurtain();
+
   tickParticles();
   updateRollingSound();
 }
@@ -533,8 +545,10 @@ function frame() {
     drawBlockerProgress();
     drawJumpers();
     drawSortArea();
+    drawCurtainOverlay();
     drawBackButton();
     drawParticles();
+    drawCurtainKeyAnim();
     drawDebugWalls();
   }
   requestAnimationFrame(frame);
