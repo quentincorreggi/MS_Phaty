@@ -56,7 +56,9 @@ function initGame() {
       } else if (typeof cell === 'number') {
         if (cell >= 0) boxSlots[i] = { ci: cell, boxType: 'default' };
       } else if (typeof cell === 'object' && cell.ci >= 0) {
-        boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default' };
+        var bs2 = { ci: cell.ci, boxType: cell.type || 'default' };
+        if (cell.type === 'key' && cell.keyColor !== undefined) bs2.keyColor = cell.keyColor;
+        boxSlots[i] = bs2;
       }
     }
   }
@@ -132,7 +134,7 @@ function initGame() {
       var isIce = (slot.boxType === 'ice');
       var isKey = (slot.boxType === 'key');
       var isBlocker = (slot.boxType === 'blocker');
-      stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
+      var stockObj = { ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
         revealed: (isIce || isKey) ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
@@ -140,7 +142,9 @@ function initGame() {
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
-        idlePhase: Math.random() * Math.PI * 2 });
+        idlePhase: Math.random() * Math.PI * 2 };
+      if (isKey) stockObj.keyColor = slot.keyColor !== undefined ? slot.keyColor : slot.ci;
+      stock.push(stockObj);
     }
   }
 

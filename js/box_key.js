@@ -1,8 +1,9 @@
 // ============================================================
 // box_key.js — Key box type (Secret Customers)
-// Closed: golden/amber box with scissors icon
+// Closed: golden/amber box shell (scissors drawn by rendering.js
+//   using the box's keyColor, which is independent of ci)
 // Reveal: transition from golden shell to colored box
-// When tapped: spawns marbles AND lifts the curtain
+// When tapped: spawns marbles AND lifts the matching curtain
 // ============================================================
 
 registerBoxType('key', {
@@ -25,13 +26,7 @@ registerBoxType('key', {
     ctx.fillStyle = '#fff';
     rRect(x + w * 0.1, y + h * 0.08, w * 0.35, h * 0.2, 3 * S); ctx.fill();
     ctx.globalAlpha = 1;
-    // Scissors icon
-    var iconS = Math.min(w, h) * 0.22;
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    ctx.font = 'bold ' + (iconS * 2) + 'px sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('\u2702', x + w / 2, y + h / 2);
-    // Subtle sparkle
+    // Sparkle (scissors drawn externally via keyColor)
     ctx.fillStyle = 'rgba(255,220,100,0.15)';
     var sparkleX = x + w * 0.75 + Math.sin(tick * 0.04) * w * 0.05;
     var sparkleY = y + h * 0.2 + Math.cos(tick * 0.05) * h * 0.05;
@@ -44,12 +39,10 @@ registerBoxType('key', {
     ctx.save();
     ctx.scale(popScale, popScale);
     if (phase < 0.5) {
-      // Golden shell fading out
       ctx.globalAlpha = 1 - phase * 2;
       this.drawClosed(ctx, x, y, w, h, ci, S, tick, 0);
       ctx.globalAlpha = phase * 2;
     }
-    // Colored box fading in
     drawBox(x, y, w, h, ci);
     ctx.globalAlpha = 1;
     if (remaining > 0 && phase > 0.3) {
@@ -57,18 +50,6 @@ registerBoxType('key', {
       drawBoxMarbles(ci, remaining);
       ctx.globalAlpha = 1;
       drawBoxLip(ci);
-    }
-    // Key badge persists during reveal
-    if (phase > 0.4) {
-      ctx.globalAlpha = Math.min(0.7, (phase - 0.4) / 0.3 * 0.7);
-      var badgeR = Math.min(w, h) * 0.15;
-      ctx.fillStyle = 'rgba(255,200,50,0.85)';
-      ctx.beginPath(); ctx.arc(x + w - badgeR * 0.8, y + badgeR * 0.8, badgeR, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.9)';
-      ctx.font = 'bold ' + (badgeR * 1.2) + 'px sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('\u2702', x + w - badgeR * 0.8, y + badgeR * 0.8);
-      ctx.globalAlpha = 1;
     }
     ctx.restore();
   },
@@ -81,8 +62,6 @@ registerBoxType('key', {
   },
 
   editorCellHTML: function (ci) {
-    var c = COLORS[ci];
-    return '<span class="ed-cell-dot" style="font-size:13px;text-shadow:0 1px 2px rgba(0,0,0,0.3)">\u2702</span>' +
-      '<span style="position:absolute;bottom:1px;right:2px;width:8px;height:8px;border-radius:50%;background:' + c.fill + ';border:1px solid rgba(255,255,255,0.5)"></span>';
+    return '<span class="ed-cell-dot" style="font-size:13px;text-shadow:0 1px 2px rgba(0,0,0,0.3)">\u2702</span>';
   }
 });

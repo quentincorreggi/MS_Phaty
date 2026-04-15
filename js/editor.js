@@ -19,6 +19,7 @@ var editor = {
   curtain2Color: 1,
   activeColor: 0,      // -1=eraser, 0-7=color
   activeType: BoxTypeOrder[0],
+  keyColor: 0,          // scissors color for key boxes (independent of box ci)
   tunnelMode: false,    // true when placing tunnels
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
@@ -42,6 +43,7 @@ function editorInit() {
   editor.curtain2Color = 1;
   editor.activeColor = 0;
   editor.activeType = BoxTypeOrder[0];
+  editor.keyColor = 0;
   editor.tunnelMode = false;
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
@@ -97,6 +99,14 @@ function editorRenderGrid() {
       var count = v.contents ? v.contents.length : 0;
       cell.innerHTML = '<span class="ed-cell-dot" style="color:#FFD080;font-size:13px">' + arrow +
         '</span><span class="ed-tunnel-badge">' + count + '</span>';
+    } else if (v && v.ci >= 0 && v.type === 'key') {
+      // Key box: box color background + scissors in keyColor
+      var kBoxC = COLORS[v.ci];
+      var kScC = COLORS[v.keyColor !== undefined ? v.keyColor : v.ci];
+      cell.style.background = 'linear-gradient(135deg,' + kBoxC.light + ',' + kBoxC.dark + ')';
+      cell.style.borderColor = kScC.fill;
+      cell.style.borderWidth = '3px';
+      cell.innerHTML = '<span class="ed-cell-dot" style="color:' + kScC.light + ';text-shadow:0 1px 3px ' + kScC.dark + ';font-size:14px">\u2702</span>';
     } else if (v && v.ci >= 0) {
       var bt = getBoxType(v.type);
       var st = bt.editorCellStyle(v.ci);
@@ -153,10 +163,14 @@ function editorCellClick(e) {
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     } else {
       var existing = editor.grid[idx];
-      if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
+      var sameAsExisting = existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType;
+      if (sameAsExisting && editor.activeType === 'key' && existing.keyColor !== editor.keyColor) sameAsExisting = false;
+      if (sameAsExisting) {
         editor.grid[idx] = null;
       } else {
-        editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
+        var newCell = { ci: editor.activeColor, type: editor.activeType };
+        if (editor.activeType === 'key') newCell.keyColor = editor.keyColor;
+        editor.grid[idx] = newCell;
       }
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     }
@@ -297,6 +311,30 @@ function editorRenderToolbar() {
       colorRow.appendChild(cb);
     }
     el.appendChild(colorRow);
+
+    // Scissors color row — shown when Key type is active
+    if (editor.activeType === 'key') {
+      var keyRow = document.createElement('div');
+      keyRow.className = 'ed-color-row';
+      var keyLabel = document.createElement('span');
+      keyLabel.style.cssText = 'font-size:10px;color:#9C8A70;margin-right:4px;display:flex;align-items:center';
+      keyLabel.textContent = '\u2702';
+      keyRow.appendChild(keyLabel);
+      for (var kci = 0; kci < NUM_COLORS; kci++) {
+        var kb = document.createElement('button');
+        kb.className = 'ed-tool' + (editor.keyColor === kci ? ' active' : '');
+        kb.style.background = COLORS[kci].fill;
+        kb.innerHTML = '\u2702';
+        kb.title = CLR_NAMES[kci] + ' scissors';
+        kb.setAttribute('data-kci', kci);
+        kb.addEventListener('click', function () {
+          editor.keyColor = parseInt(this.getAttribute('data-kci'));
+          editorRenderToolbar();
+        });
+        keyRow.appendChild(kb);
+      }
+      el.appendChild(keyRow);
+    }
   }
 }
 
@@ -553,7 +591,10 @@ function editorUpdateStats() {
       var keyColors = {};
       for (var ki = 0; ki < 49; ki++) {
         var kv = editor.grid[ki];
-        if (kv && !kv.tunnel && !kv.wall && kv.type === 'key') keyColors[kv.ci] = true;
+        if (kv && !kv.tunnel && !kv.wall && kv.type === 'key') {
+          var kc2 = kv.keyColor !== undefined ? kv.keyColor : kv.ci;
+          keyColors[kc2] = true;
+        }
       }
       for (var cs = 0; cs < curtainSlots.length; cs++) {
         if (!keyColors[curtainSlots[cs].color]) {

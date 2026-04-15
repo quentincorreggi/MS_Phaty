@@ -15,7 +15,7 @@
     ],
     "grid": [
       null, null, {"ci": 2, "type": "default"}, null, {"ci": 3, "type": "default"}, null, null,
-      null, {"ci": 0, "type": "key"}, null, null, null, {"ci": 1, "type": "key"}, null,
+      null, {"ci": 0, "type": "key", "keyColor": 0}, null, null, null, {"ci": 1, "type": "key", "keyColor": 1}, null,
       null, null, null, null, null, null, null,
       {"ci": 3, "type": "default"}, null, null, null, null, null, {"ci": 2, "type": "default"},
       null, null, {"ci": 0, "type": "default"}, null, {"ci": 1, "type": "default"}, null, null,
