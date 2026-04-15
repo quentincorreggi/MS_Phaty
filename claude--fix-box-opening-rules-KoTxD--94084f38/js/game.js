@@ -168,9 +168,8 @@ function initGame() {
 // edge of the grid. Passable cells are:
 //   • empty slots
 //   • used-up boxes
-//   • depleted tunnels (no remaining contents)
-// Walls, active (non-used) boxes, and tunnels with contents all block
-// the path. If the path closes, the box closes itself.
+// Walls, active (non-used) boxes, and tunnels (even depleted ones)
+// all block the path. If the path closes, the box closes itself.
 function updateBoxReveals(animate) {
   if (!stock || stock.length === 0) return;
   if (!L || !L.rows || !L.cols) return;
@@ -182,10 +181,7 @@ function updateBoxReveals(animate) {
     var s = stock[i];
     if (!s) { passable[i] = false; continue; }
     if (s.isWall) { passable[i] = false; continue; }
-    if (s.isTunnel) {
-      passable[i] = !s.tunnelContents || s.tunnelContents.length === 0;
-      continue;
-    }
+    if (s.isTunnel) { passable[i] = false; continue; }
     passable[i] = !!(s.empty || s.used);
   }
 
