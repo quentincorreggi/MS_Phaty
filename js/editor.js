@@ -1,39 +1,139 @@
 // ============================================================
-// editor.js — Level Editor (reads box types from registry)
-//             + Tunnel placement, orientation, contents editing
-//             + Wall placement
+// editor.js — Level Editor (Pixel Art Sorter version)
+//             Paint a 20x20 pixel art image, auto-generate stock
 // ============================================================
 
 var editor = {
-  grid: [],            // 7x7: null = empty, { ci, type } or { tunnel: true, ... } or { wall: true }
-  name: 'Custom Level',
-  desc: 'My custom level',
-  mrbPerBox: 9,
-  sortCap: 3,
-  lockButtons: 0,
-  activeColor: 0,      // -1=eraser, 0-7=color
-  activeType: BoxTypeOrder[0],
-  tunnelMode: false,    // true when placing tunnels
-  tunnelDir: 'bottom',  // current tunnel direction for new tunnels
-  selectedTunnel: -1,   // index of selected tunnel for content editing
-  wallMode: false,      // true when placing walls
-  visible: false
+  pixelArt: [],      // 20*20 flat: null or ci (0-7)
+  grid: [],          // 7*7 flat: auto-generated { ci, type } or null
+  name: 'Pixel Art Level',
+  desc: 'Paint and play!',
+  mrbPerBox: 8,
+  activeColor: 0,    // -1=eraser, 0-7=color
+  visible: false,
+  painting: false,
+  paintColor: null
 };
 
+// ── Pixel art presets (generated at load time) ──
+var PIXEL_PRESETS = {};
+
+PIXEL_PRESETS.heart = (function () {
+  var a = [];
+  for (var i = 0; i < 400; i++) a.push(null);
+  for (var r = 0; r < 20; r++) {
+    for (var c = 0; c < 20; c++) {
+      var x = (c - 9.5) / 7.5;
+      var y = -(r - 10) / 8;
+      var v = Math.pow(x * x + y * y - 1, 3) - x * x * y * y * y;
+      if (v < 0) a[r * 20 + c] = 0; // pink
+    }
+  }
+  return a;
+})();
+
+PIXEL_PRESETS.star = (function () {
+  var a = [];
+  for (var i = 0; i < 400; i++) a.push(null);
+  var cx = 9.5, cy = 9.5;
+  for (var r = 0; r < 20; r++) {
+    for (var c = 0; c < 20; c++) {
+      var dx = c - cx, dy = r - cy;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      var ang = Math.atan2(dy, dx) + Math.PI / 2;
+      var a2 = ((ang % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+      var sector = a2 / (Math.PI * 2 / 5);
+      var frac = sector - Math.floor(sector);
+      var t = Math.abs(frac - 0.5) * 2;
+      var threshold = 3.5 + t * 5.5;
+      if (dist < threshold) {
+        a[r * 20 + c] = dist < threshold - 1.5 ? 3 : 5; // yellow inner, orange outline
+      }
+    }
+  }
+  return a;
+})();
+
+PIXEL_PRESETS.mushroom = (function () {
+  var a = [];
+  for (var i = 0; i < 400; i++) a.push(null);
+  var cx = 9.5;
+  // Cap
+  for (var r = 2; r <= 10; r++) {
+    for (var c = 0; c < 20; c++) {
+      var ddx = (c - cx) / 8;
+      var ddy = (r - 10) / 6;
+      if (ddx * ddx + ddy * ddy < 1) a[r * 20 + c] = 0; // pink cap
+    }
+  }
+  // Spots (transparent holes in cap)
+  var spots = [[6, 5, 1.8], [13, 5, 1.8], [9.5, 3, 1.4], [4, 8, 1.2], [15, 8, 1.2]];
+  for (var s = 0; s < spots.length; s++) {
+    for (var r = 0; r < 20; r++) {
+      for (var c = 0; c < 20; c++) {
+        var ddx = c - spots[s][0], ddy = r - spots[s][1];
+        if (ddx * ddx + ddy * ddy < spots[s][2] * spots[s][2] && a[r * 20 + c] === 0) {
+          a[r * 20 + c] = null;
+        }
+      }
+    }
+  }
+  // Stem
+  for (var r = 11; r <= 16; r++) {
+    for (var c = 7; c <= 12; c++) a[r * 20 + c] = 6; // teal
+  }
+  // Ground
+  for (var r = 17; r <= 19; r++) {
+    for (var c = 0; c < 20; c++) a[r * 20 + c] = 2; // green
+  }
+  return a;
+})();
+
+PIXEL_PRESETS.smiley = (function () {
+  var a = [];
+  for (var i = 0; i < 400; i++) a.push(null);
+  var cx = 9.5, cy = 9.5, R = 8.5;
+  // Face
+  for (var r = 0; r < 20; r++) {
+    for (var c = 0; c < 20; c++) {
+      var ddx = c - cx, ddy = r - cy;
+      if (ddx * ddx + ddy * ddy < R * R) a[r * 20 + c] = 3; // yellow
+    }
+  }
+  // Eyes
+  var eyes = [[7, 7], [12, 7]];
+  for (var e = 0; e < eyes.length; e++) {
+    for (var r = 0; r < 20; r++) {
+      for (var c = 0; c < 20; c++) {
+        var ddx = c - eyes[e][0], ddy = r - eyes[e][1];
+        if (ddx * ddx + ddy * ddy < 2.8) a[r * 20 + c] = 1; // blue
+      }
+    }
+  }
+  // Mouth arc
+  for (var c = 5; c <= 14; c++) {
+    var mt = (c - 9.5) / 5;
+    var mouthY = Math.round(12.5 + mt * mt * 2);
+    for (var dy = 0; dy <= 1; dy++) {
+      var mr = mouthY + dy;
+      if (mr >= 0 && mr < 20 && a[mr * 20 + c] === 3) a[mr * 20 + c] = 0; // pink
+    }
+  }
+  return a;
+})();
+
+// ── Init ──
 function editorInit() {
+  editor.pixelArt = [];
+  for (var i = 0; i < PIXEL_ROWS * PIXEL_COLS; i++) editor.pixelArt.push(null);
   editor.grid = [];
   for (var i = 0; i < 49; i++) editor.grid.push(null);
-  editor.name = 'Custom Level';
-  editor.desc = 'My custom level';
-  editor.mrbPerBox = 9;
-  editor.sortCap = 3;
-  editor.lockButtons = 0;
+  editor.name = 'Pixel Art Level';
+  editor.desc = 'Paint and play!';
+  editor.mrbPerBox = 8;
   editor.activeColor = 0;
-  editor.activeType = BoxTypeOrder[0];
-  editor.tunnelMode = false;
-  editor.tunnelDir = 'bottom';
-  editor.selectedTunnel = -1;
-  editor.wallMode = false;
+  editor.painting = false;
+  editor.paintColor = null;
 }
 
 function showEditor(fresh) {
@@ -55,476 +155,229 @@ function hideEditor() {
 function editorBack() { hideEditor(); showLevelSelect(); }
 
 function editorBuildUI() {
-  editorRenderGrid();
   editorRenderToolbar();
+  editorRenderPixelGrid();
   editorRenderSettings();
+  editorAutoGenStock();
   editorUpdateStats();
-  editorRenderTunnelPanel();
+  editorRenderStockPreview();
 }
 
-// ── Grid ──
-function editorRenderGrid() {
+// ── Pixel art grid (20x20) ──
+function editorRenderPixelGrid() {
   var el = document.getElementById('ed-grid');
   el.innerHTML = '';
-  for (var i = 0; i < 49; i++) {
+  el.style.gridTemplateColumns = 'repeat(' + PIXEL_COLS + ', 1fr)';
+
+  for (var i = 0; i < PIXEL_ROWS * PIXEL_COLS; i++) {
     var cell = document.createElement('div');
-    cell.className = 'ed-cell';
-    var v = editor.grid[i];
-    if (v && v.wall) {
-      // Wall cell
-      cell.style.background = 'linear-gradient(135deg,#9A8D7B,#6F6355)';
-      cell.style.borderColor = '#8A7D6B';
-      cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,255,255,0.5);font-size:14px">&#9632;</span>';
-    } else if (v && v.tunnel) {
-      // Tunnel cell
-      var isSelected = (editor.selectedTunnel === i);
-      cell.style.background = 'linear-gradient(135deg,#3D3548,#252030)';
-      cell.style.borderColor = isSelected ? '#FFD080' : '#6A6070';
-      if (isSelected) cell.style.boxShadow = '0 0 0 2px rgba(255,208,128,0.5)';
-      var arrow = TUNNEL_DIR_ARROWS[v.dir] || '\u25BC';
-      var count = v.contents ? v.contents.length : 0;
-      cell.innerHTML = '<span class="ed-cell-dot" style="color:#FFD080;font-size:13px">' + arrow +
-        '</span><span class="ed-tunnel-badge">' + count + '</span>';
-    } else if (v && v.ci >= 0) {
-      var bt = getBoxType(v.type);
-      var st = bt.editorCellStyle(v.ci);
-      cell.style.background = st.background;
-      cell.style.borderColor = st.borderColor;
-      cell.innerHTML = bt.editorCellHTML(v.ci);
+    cell.className = 'ed-px-cell';
+    var ci = editor.pixelArt[i];
+    if (ci !== null && ci >= 0) {
+      cell.style.background = COLORS[ci].fill;
+      cell.style.borderColor = COLORS[ci].dark;
     } else {
-      cell.style.background = 'rgba(180,165,145,0.25)';
-      cell.style.borderColor = 'rgba(160,140,120,0.3)';
+      cell.style.background = 'rgba(180,165,145,0.15)';
+      cell.style.borderColor = 'rgba(160,140,120,0.15)';
     }
     cell.setAttribute('data-idx', i);
-    cell.addEventListener('click', editorCellClick);
-    cell.addEventListener('contextmenu', editorCellErase);
+    cell.addEventListener('mousedown', editorPixelDown);
+    cell.addEventListener('mouseover', editorPixelDrag);
+    cell.addEventListener('contextmenu', editorPixelCtx);
+    cell.addEventListener('touchstart', editorPixelTouchStart, { passive: false });
+    cell.addEventListener('touchmove', editorPixelTouchMove, { passive: false });
+    cell.addEventListener('touchend', editorPixelTouchEnd, { passive: false });
     el.appendChild(cell);
   }
+  document.removeEventListener('mouseup', editorPixelUp);
+  document.addEventListener('mouseup', editorPixelUp);
 }
 
-function editorCellClick(e) {
-  var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
-
-  if (editor.wallMode) {
-    // Wall placement mode
-    var existing = editor.grid[idx];
-    if (existing && existing.wall) {
-      // Toggle off: clicking existing wall removes it
-      editor.grid[idx] = null;
-    } else {
-      // Place wall
-      editor.grid[idx] = { wall: true };
-    }
-    if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
-    editorRenderGrid();
-    editorUpdateStats();
-    editorRenderTunnelPanel();
-    return;
-  }
-
-  if (editor.tunnelMode) {
-    // In tunnel mode: place or select tunnel
-    var existing = editor.grid[idx];
-    if (existing && existing.tunnel) {
-      editor.selectedTunnel = idx;
-    } else if (editor.activeColor === -1) {
-      editor.grid[idx] = null;
-      if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
-    } else {
-      editor.grid[idx] = { tunnel: true, dir: editor.tunnelDir, contents: [] };
-      editor.selectedTunnel = idx;
-    }
-  } else {
-    // Normal box painting mode
-    if (editor.activeColor === -1) {
-      editor.grid[idx] = null;
-      if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
-    } else {
-      var existing = editor.grid[idx];
-      if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
-        editor.grid[idx] = null;
-      } else {
-        editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
-      }
-      if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
-    }
-  }
-  editorRenderGrid();
-  editorUpdateStats();
-  editorRenderTunnelPanel();
-}
-
-function editorCellErase(e) {
+function editorPixelDown(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
-  editor.grid[idx] = null;
-  if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
-  editorRenderGrid();
-  editorUpdateStats();
-  editorRenderTunnelPanel();
+  editor.painting = true;
+  if (e.button === 2 || editor.activeColor === -1) {
+    editor.paintColor = null;
+    editor.pixelArt[idx] = null;
+  } else {
+    editor.paintColor = editor.activeColor;
+    editor.pixelArt[idx] = editor.activeColor;
+  }
+  editorRefreshPixelCell(idx, e.currentTarget);
 }
 
-// ── Toolbar: mode toggle + type selector + color/direction palette ──
+function editorPixelDrag(e) {
+  if (!editor.painting) return;
+  var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+  editor.pixelArt[idx] = editor.paintColor;
+  editorRefreshPixelCell(idx, e.currentTarget);
+}
+
+function editorPixelCtx(e) {
+  e.preventDefault();
+  var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+  editor.painting = true;
+  editor.paintColor = null;
+  editor.pixelArt[idx] = null;
+  editorRefreshPixelCell(idx, e.currentTarget);
+}
+
+function editorPixelUp() {
+  if (editor.painting) {
+    editor.painting = false;
+    editorAutoGenStock();
+    editorUpdateStats();
+    editorRenderStockPreview();
+  }
+}
+
+function editorPixelTouchStart(e) {
+  e.preventDefault();
+  var touch = e.touches[0];
+  var el = document.elementFromPoint(touch.clientX, touch.clientY);
+  if (el && el.classList.contains('ed-px-cell') && el.getAttribute('data-idx') !== null) {
+    var idx = parseInt(el.getAttribute('data-idx'));
+    editor.painting = true;
+    if (editor.activeColor === -1) {
+      editor.paintColor = null;
+      editor.pixelArt[idx] = null;
+    } else {
+      editor.paintColor = editor.activeColor;
+      editor.pixelArt[idx] = editor.activeColor;
+    }
+    editorRefreshPixelCell(idx, el);
+  }
+}
+
+function editorPixelTouchMove(e) {
+  e.preventDefault();
+  if (!editor.painting) return;
+  var touch = e.touches[0];
+  var el = document.elementFromPoint(touch.clientX, touch.clientY);
+  if (el && el.classList.contains('ed-px-cell') && el.getAttribute('data-idx') !== null) {
+    var idx = parseInt(el.getAttribute('data-idx'));
+    editor.pixelArt[idx] = editor.paintColor;
+    editorRefreshPixelCell(idx, el);
+  }
+}
+
+function editorPixelTouchEnd(e) {
+  e.preventDefault();
+  editorPixelUp();
+}
+
+function editorRefreshPixelCell(idx, el) {
+  var ci = editor.pixelArt[idx];
+  if (ci !== null && ci >= 0) {
+    el.style.background = COLORS[ci].fill;
+    el.style.borderColor = COLORS[ci].dark;
+  } else {
+    el.style.background = 'rgba(180,165,145,0.15)';
+    el.style.borderColor = 'rgba(160,140,120,0.15)';
+  }
+}
+
+// ── Toolbar: color palette ──
 function editorRenderToolbar() {
   var el = document.getElementById('ed-toolbar');
   el.innerHTML = '';
 
-  // Mode row: Box types + Wall + Tunnel toggle
-  var typeRow = document.createElement('div');
-  typeRow.className = 'ed-type-row';
+  var colorRow = document.createElement('div');
+  colorRow.className = 'ed-color-row';
 
-  // Box type buttons
-  for (var t = 0; t < BoxTypeOrder.length; t++) {
-    var id = BoxTypeOrder[t];
-    var bt = BoxTypes[id];
-    var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
-    tb.textContent = bt.label;
-    tb.setAttribute('data-type', id);
-    tb.addEventListener('click', function () {
-      editor.activeType = this.getAttribute('data-type');
-      editor.tunnelMode = false;
-      editor.wallMode = false;
+  var eraser = document.createElement('button');
+  eraser.className = 'ed-tool' + (editor.activeColor === -1 ? ' active' : '');
+  eraser.style.background = 'rgba(180,165,145,0.5)';
+  eraser.innerHTML = '\u2716';
+  eraser.title = 'Eraser';
+  eraser.addEventListener('click', function () { editor.activeColor = -1; editorRenderToolbar(); });
+  colorRow.appendChild(eraser);
+
+  for (var ci = 0; ci < NUM_COLORS; ci++) {
+    var cb = document.createElement('button');
+    cb.className = 'ed-tool' + (editor.activeColor === ci ? ' active' : '');
+    cb.style.background = COLORS[ci].fill;
+    cb.innerHTML = CLR_NAMES[ci][0].toUpperCase();
+    cb.title = CLR_NAMES[ci];
+    cb.setAttribute('data-ci', ci);
+    cb.addEventListener('click', function () {
+      editor.activeColor = parseInt(this.getAttribute('data-ci'));
       editorRenderToolbar();
-      editorRenderTunnelPanel();
     });
-    typeRow.appendChild(tb);
+    colorRow.appendChild(cb);
   }
 
-  // Wall mode button
-  var wallBtn = document.createElement('button');
-  wallBtn.className = 'ed-type-btn' + (editor.wallMode ? ' active' : '');
-  wallBtn.textContent = '\u25A0 Wall';
-  wallBtn.style.borderColor = editor.wallMode ? 'rgba(138,125,107,0.6)' : '';
-  wallBtn.style.color = editor.wallMode ? '#6F6355' : '';
-  wallBtn.addEventListener('click', function () {
-    editor.wallMode = true;
-    editor.tunnelMode = false;
-    editorRenderToolbar();
-    editorRenderTunnelPanel();
-  });
-  typeRow.appendChild(wallBtn);
-
-  // Tunnel mode button
-  var tunnelBtn = document.createElement('button');
-  tunnelBtn.className = 'ed-type-btn' + (editor.tunnelMode ? ' active' : '');
-  tunnelBtn.textContent = '\uD83D\uDD73 Tunnel';
-  tunnelBtn.style.borderColor = editor.tunnelMode ? 'rgba(255,190,80,0.6)' : '';
-  tunnelBtn.style.color = editor.tunnelMode ? '#E8A84C' : '';
-  tunnelBtn.addEventListener('click', function () {
-    editor.tunnelMode = true;
-    editor.wallMode = false;
-    editorRenderToolbar();
-    editorRenderTunnelPanel();
-  });
-  typeRow.appendChild(tunnelBtn);
-
-  el.appendChild(typeRow);
-
-  if (editor.tunnelMode) {
-    // Direction selector row
-    var dirRow = document.createElement('div');
-    dirRow.className = 'ed-color-row';
-
-    // Eraser
-    var eraser = document.createElement('button');
-    eraser.className = 'ed-tool' + (editor.activeColor === -1 ? ' active' : '');
-    eraser.style.background = 'rgba(180,165,145,0.5)';
-    eraser.innerHTML = '\u2716';
-    eraser.title = 'Eraser';
-    eraser.addEventListener('click', function () { editor.activeColor = -1; editorRenderToolbar(); });
-    dirRow.appendChild(eraser);
-
-    var dirs = ['top', 'left', 'bottom', 'right'];
-    var dirLabels = ['\u25B2', '\u25C0', '\u25BC', '\u25B6'];
-    for (var d = 0; d < dirs.length; d++) {
-      var db = document.createElement('button');
-      db.className = 'ed-tool' + (editor.tunnelDir === dirs[d] && editor.activeColor !== -1 ? ' active' : '');
-      db.style.background = 'linear-gradient(135deg,#3D3548,#252030)';
-      db.style.color = '#FFD080';
-      db.style.fontSize = '16px';
-      db.innerHTML = dirLabels[d];
-      db.title = dirs[d];
-      db.setAttribute('data-dir', dirs[d]);
-      db.addEventListener('click', function () {
-        editor.tunnelDir = this.getAttribute('data-dir');
-        editor.activeColor = 0;
-        editorRenderToolbar();
-      });
-      dirRow.appendChild(db);
-    }
-    el.appendChild(dirRow);
-  } else if (editor.wallMode) {
-    // Wall mode: just show info hint
-    var wallInfo = document.createElement('div');
-    wallInfo.className = 'ed-color-row';
-    wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
-    el.appendChild(wallInfo);
-  } else {
-    // Color palette: eraser + 8 colors
-    var colorRow = document.createElement('div');
-    colorRow.className = 'ed-color-row';
-    var eraser = document.createElement('button');
-    eraser.className = 'ed-tool' + (editor.activeColor === -1 ? ' active' : '');
-    eraser.style.background = 'rgba(180,165,145,0.5)';
-    eraser.innerHTML = '\u2716';
-    eraser.title = 'Eraser';
-    eraser.addEventListener('click', function () { editor.activeColor = -1; editorRenderToolbar(); });
-    colorRow.appendChild(eraser);
-    for (var ci = 0; ci < NUM_COLORS; ci++) {
-      var cb = document.createElement('button');
-      cb.className = 'ed-tool' + (editor.activeColor === ci ? ' active' : '');
-      cb.style.background = COLORS[ci].fill;
-      cb.innerHTML = CLR_NAMES[ci][0].toUpperCase();
-      cb.title = CLR_NAMES[ci];
-      cb.setAttribute('data-ci', ci);
-      cb.addEventListener('click', function () {
-        editor.activeColor = parseInt(this.getAttribute('data-ci'));
-        editorRenderToolbar();
-      });
-      colorRow.appendChild(cb);
-    }
-    el.appendChild(colorRow);
-  }
+  el.appendChild(colorRow);
 }
 
-// ── Tunnel contents editor panel ──
-function editorRenderTunnelPanel() {
-  var container = document.getElementById('ed-tunnel-panel');
-  if (!container) return;
-
-  if (editor.selectedTunnel < 0 || !editor.grid[editor.selectedTunnel] || !editor.grid[editor.selectedTunnel].tunnel) {
-    container.style.display = 'none';
-    return;
+// ── Auto-generate stock from pixel art ──
+function editorAutoGenStock() {
+  var counts = [];
+  for (var c = 0; c < NUM_COLORS; c++) counts.push(0);
+  for (var i = 0; i < editor.pixelArt.length; i++) {
+    var pa = editor.pixelArt[i];
+    if (pa !== null && pa >= 0 && pa < NUM_COLORS) counts[pa]++;
   }
 
-  container.style.display = 'block';
-  var tunnel = editor.grid[editor.selectedTunnel];
-  var html = '';
-
-  // Direction selector
-  html += '<div class="ed-section-title"><span class="icon">\uD83D\uDD73</span> Tunnel #' + (editor.selectedTunnel + 1) + ' — Direction</div>';
-  html += '<div class="ed-tunnel-dir-row">';
-  var dirs = ['top', 'left', 'bottom', 'right'];
-  var dirLabels = ['\u25B2 Up', '\u25C0 Left', '\u25BC Down', '\u25B6 Right'];
-  for (var d = 0; d < dirs.length; d++) {
-    var active = tunnel.dir === dirs[d] ? ' active' : '';
-    html += '<button class="ed-tunnel-dir-btn' + active + '" data-dir="' + dirs[d] + '">' + dirLabels[d] + '</button>';
+  var boxes = [];
+  for (var c = 0; c < NUM_COLORS; c++) {
+    var needed = Math.ceil(counts[c] / editor.mrbPerBox);
+    for (var n = 0; n < needed; n++) boxes.push({ ci: c, type: 'default' });
   }
-  html += '</div>';
+  shuffle(boxes);
 
-  // Exit tile info
-  var row = Math.floor(editor.selectedTunnel / 7);
-  var col = editor.selectedTunnel % 7;
-  var er = row, ec = col;
-  if (tunnel.dir === 'top') er = row - 1;
-  else if (tunnel.dir === 'bottom') er = row + 1;
-  else if (tunnel.dir === 'left') ec = col - 1;
-  else if (tunnel.dir === 'right') ec = col + 1;
-  var exitValid = (er >= 0 && er < 7 && ec >= 0 && ec < 7);
-  if (!exitValid) {
-    html += '<div class="ed-stat-warn" style="margin:4px 0">Exit points outside the grid!</div>';
-  } else {
-    var exitIdx = er * 7 + ec;
-    var exitCell = editor.grid[exitIdx];
-    if (exitCell && !exitCell.tunnel) {
-      html += '<div class="ed-stat-warn" style="margin:4px 0">Exit tile is occupied by a box</div>';
-    } else if (exitCell && exitCell.tunnel) {
-      html += '<div class="ed-stat-warn" style="margin:4px 0">Exit tile is another tunnel</div>';
-    }
-  }
-
-  // Contents list
-  html += '<div class="ed-section-title" style="margin-top:8px"><span class="icon">\uD83D\uDCE6</span> Stored Boxes (' + tunnel.contents.length + ')</div>';
-  html += '<div class="ed-tunnel-contents">';
-  if (tunnel.contents.length === 0) {
-    html += '<span style="font-size:11px;color:#9C8A70;font-style:italic">Empty — add boxes below</span>';
-  } else {
-    for (var ci2 = 0; ci2 < tunnel.contents.length; ci2++) {
-      var item = tunnel.contents[ci2];
-      var c = COLORS[item.ci];
-      var typeLabel = (BoxTypes[item.type] || BoxTypes[BoxTypeOrder[0]]).label;
-      html += '<span class="ed-tunnel-item" data-cidx="' + ci2 + '" title="' + CLR_NAMES[item.ci] + ' ' + typeLabel + ' — click to remove" style="background:' + c.fill + '">';
-      html += '<span style="font-size:8px;opacity:0.7">' + typeLabel[0] + '</span>';
-      html += '</span>';
-    }
-  }
-  html += '</div>';
-
-  // Add box controls
-  html += '<div class="ed-section-title" style="margin-top:8px"><span class="icon">&#10133;</span> Add Box to Tunnel</div>';
-  html += '<div class="ed-tunnel-add-row">';
-  html += '<select id="ed-tunnel-add-type" class="ed-tunnel-select">';
-  for (var t = 0; t < BoxTypeOrder.length; t++) {
-    html += '<option value="' + BoxTypeOrder[t] + '">' + BoxTypes[BoxTypeOrder[t]].label + '</option>';
-  }
-  html += '</select>';
-  html += '</div>';
-  html += '<div class="ed-tunnel-add-colors">';
-  for (var ci3 = 0; ci3 < NUM_COLORS; ci3++) {
-    html += '<button class="ed-tunnel-add-clr" data-ci="' + ci3 + '" style="background:' + COLORS[ci3].fill + '" title="Add ' + CLR_NAMES[ci3] + '">' + CLR_NAMES[ci3][0].toUpperCase() + '</button>';
-  }
-  html += '</div>';
-
-  if (tunnel.contents.length > 0) {
-    html += '<div style="text-align:center;margin-top:6px"><button class="ed-qbtn" id="ed-tunnel-clear">Clear All</button></div>';
-  }
-
-  container.innerHTML = html;
-
-  // Bind events
-  var dirBtns = container.querySelectorAll('.ed-tunnel-dir-btn');
-  for (var d2 = 0; d2 < dirBtns.length; d2++) {
-    dirBtns[d2].addEventListener('click', function () {
-      if (editor.selectedTunnel >= 0 && editor.grid[editor.selectedTunnel]) {
-        editor.grid[editor.selectedTunnel].dir = this.getAttribute('data-dir');
-        editorRenderGrid();
-        editorRenderTunnelPanel();
-        editorUpdateStats();
-      }
-    });
-  }
-
-  var items = container.querySelectorAll('.ed-tunnel-item');
-  for (var it = 0; it < items.length; it++) {
-    items[it].addEventListener('click', function () {
-      var cidx = parseInt(this.getAttribute('data-cidx'));
-      if (editor.selectedTunnel >= 0 && editor.grid[editor.selectedTunnel]) {
-        editor.grid[editor.selectedTunnel].contents.splice(cidx, 1);
-        editorRenderGrid();
-        editorRenderTunnelPanel();
-        editorUpdateStats();
-      }
-    });
-  }
-
-  var addClrs = container.querySelectorAll('.ed-tunnel-add-clr');
-  for (var ac = 0; ac < addClrs.length; ac++) {
-    addClrs[ac].addEventListener('click', function () {
-      var ci4 = parseInt(this.getAttribute('data-ci'));
-      var typeEl = document.getElementById('ed-tunnel-add-type');
-      var type = typeEl ? typeEl.value : 'default';
-      if (editor.selectedTunnel >= 0 && editor.grid[editor.selectedTunnel]) {
-        editor.grid[editor.selectedTunnel].contents.push({ ci: ci4, type: type });
-        editorRenderGrid();
-        editorRenderTunnelPanel();
-        editorUpdateStats();
-      }
-    });
-  }
-
-  var clearBtn = document.getElementById('ed-tunnel-clear');
-  if (clearBtn) {
-    clearBtn.addEventListener('click', function () {
-      if (editor.selectedTunnel >= 0 && editor.grid[editor.selectedTunnel]) {
-        editor.grid[editor.selectedTunnel].contents = [];
-        editorRenderGrid();
-        editorRenderTunnelPanel();
-        editorUpdateStats();
-      }
-    });
-  }
+  editor.grid = [];
+  for (var i = 0; i < 49; i++) editor.grid.push(i < boxes.length ? boxes[i] : null);
 }
 
-// ── Quick actions ──
-function editorFillRandom() {
-  for (var i = 0; i < 49; i++) editor.grid[i] = null;
-  editor.selectedTunnel = -1;
-  var cl = [];
-  for (var c = 0; c < 4; c++) for (var n = 0; n < 6; n++) cl.push(c);
-  shuffle(cl);
-  var indices = []; for (var i = 0; i < 49; i++) indices.push(i);
-  shuffle(indices);
-  for (var i = 0; i < cl.length; i++) editor.grid[indices[i]] = { ci: cl[i], type: 'default' };
-  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
-}
+// ── Stock preview ──
+function editorRenderStockPreview() {
+  var el = document.getElementById('ed-stock-grid');
+  if (!el) return;
+  el.innerHTML = '';
 
-function editorClearAll() {
-  for (var i = 0; i < 49; i++) editor.grid[i] = null;
-  editor.selectedTunnel = -1;
-  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+  for (var i = 0; i < 49; i++) {
+    var cell = document.createElement('div');
+    cell.className = 'ed-stock-cell';
+    var v = editor.grid[i];
+    if (v && v.ci >= 0) {
+      cell.style.background = COLORS[v.ci].fill;
+      cell.style.borderColor = COLORS[v.ci].dark;
+    } else {
+      cell.style.background = 'rgba(180,165,145,0.15)';
+      cell.style.borderColor = 'rgba(160,140,120,0.15)';
+    }
+    el.appendChild(cell);
+  }
 }
 
 // ── Stats ──
 function editorUpdateStats() {
   var counts = [];
-  var regularMrb = [];
-  for (var c = 0; c < NUM_COLORS; c++) { counts.push(0); regularMrb.push(0); }
-  var total = 0, typeCounts = {}, totalBlockers = 0;
-  var tunnelCount = 0, tunnelBoxCount = 0;
-  var wallCount = 0;
-  for (var i = 0; i < 49; i++) {
-    var v = editor.grid[i];
-    if (!v) continue;
-    if (v.wall) {
-      wallCount++;
-      continue;
-    }
-    if (v.tunnel) {
-      tunnelCount++;
-      if (v.contents) {
-        tunnelBoxCount += v.contents.length;
-        for (var tc = 0; tc < v.contents.length; tc++) {
-          var tItem = v.contents[tc];
-          counts[tItem.ci]++;
-          if (tItem.type === 'blocker') {
-            regularMrb[tItem.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
-            totalBlockers += BLOCKER_PER_BOX;
-          } else {
-            regularMrb[tItem.ci] += editor.mrbPerBox;
-          }
-        }
-      }
-      continue;
-    }
-    if (v.ci >= 0) {
-      counts[v.ci]++;
-      total++;
-      typeCounts[v.type] = (typeCounts[v.type] || 0) + 1;
-      if (v.type === 'blocker') {
-        regularMrb[v.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
-        totalBlockers += BLOCKER_PER_BOX;
-      } else {
-        regularMrb[v.ci] += editor.mrbPerBox;
-      }
-    }
+  for (var c = 0; c < NUM_COLORS; c++) counts.push(0);
+  var totalPixels = 0;
+  for (var i = 0; i < editor.pixelArt.length; i++) {
+    var pa = editor.pixelArt[i];
+    if (pa !== null && pa >= 0 && pa < NUM_COLORS) { counts[pa]++; totalPixels++; }
   }
+
+  var totalBoxes = 0;
+  for (var c = 0; c < NUM_COLORS; c++) totalBoxes += Math.ceil(counts[c] / editor.mrbPerBox);
+
   var el = document.getElementById('ed-stats');
-  var html = '<span class="ed-stat-total">' + total + ' boxes</span>';
-  for (var t = 0; t < BoxTypeOrder.length; t++) {
-    var tid = BoxTypeOrder[t];
-    if (typeCounts[tid]) {
-      html += '<span class="ed-stat-chip" style="background:' + BoxTypes[tid].editorColor + '">' + typeCounts[tid] + ' ' + BoxTypes[tid].label.toLowerCase() + '</span>';
-    }
-  }
-  if (wallCount > 0) {
-    html += '<span class="ed-stat-chip" style="background:#8A7D6B">' + wallCount + ' wall' + (wallCount > 1 ? 's' : '') + '</span>';
-  }
-  if (tunnelCount > 0) {
-    html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
-  }
-  if (totalBlockers > 0) {
-    html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
-  }
+  var html = '<span class="ed-stat-total">' + totalPixels + ' pixels \u2022 ' + totalBoxes + ' boxes</span>';
   for (var c = 0; c < NUM_COLORS; c++) {
-    if (counts[c] > 0) html += '<span class="ed-stat-chip" style="background:' + COLORS[c].fill + '">' + counts[c] + '</span>';
+    if (counts[c] > 0) {
+      html += '<span class="ed-stat-chip" style="background:' + COLORS[c].fill + '">' + counts[c] + 'px</span>';
+    }
   }
+
   var warn = '';
-  var totalAll = total + tunnelBoxCount;
-  if (totalAll === 0) {
-    warn = 'Place some boxes to create a level';
-  } else {
-    for (var c = 0; c < NUM_COLORS; c++) {
-      if (regularMrb[c] > 0) {
-        if (regularMrb[c] % editor.sortCap !== 0) {
-          warn = CLR_NAMES[c] + ' regular marbles (' + regularMrb[c] + ') not divisible by sort cap (' + editor.sortCap + ')';
-          break;
-        }
-      }
-    }
-    if (!warn && totalBlockers > 0 && totalBlockers % 3 !== 0) {
-      warn = 'Total blocker marbles (' + totalBlockers + ') must be a multiple of 3';
-    }
+  if (totalPixels === 0) {
+    warn = 'Paint some pixels or pick a preset to get started';
+  } else if (totalBoxes > 49) {
+    warn = 'Too many pixels! Need ' + totalBoxes + ' boxes but grid fits 49. Increase Marbles/Box or reduce pixels.';
   }
   if (warn) html += '<span class="ed-stat-warn">' + warn + '</span>';
   el.innerHTML = html;
@@ -534,48 +387,80 @@ function editorUpdateStats() {
 function editorRenderSettings() {
   var el = document.getElementById('ed-settings-body');
   el.innerHTML = '';
-  var fields = [
-    { label: 'Marbles/Box', key: 'mrbPerBox', min: 1, max: 25, step: 1 },
-    { label: 'Sort Cap', key: 'sortCap', min: 1, max: 9, step: 1 },
-    { label: 'Lock Btns', key: 'lockButtons', min: 0, max: 5, step: 1 }
-  ];
-  for (var i = 0; i < fields.length; i++) {
-    var f = fields[i];
-    var row = document.createElement('div');
-    row.className = 'ed-setting-row';
-    row.innerHTML = '<label>' + f.label + '</label>' +
-      '<input type="range" id="ed-s-' + f.key + '" min="' + f.min + '" max="' + f.max + '" step="' + f.step + '" value="' + editor[f.key] + '">' +
-      '<span class="ed-s-val" id="ed-s-' + f.key + '-v">' + editor[f.key] + '</span>';
-    el.appendChild(row);
+
+  var row = document.createElement('div');
+  row.className = 'ed-setting-row';
+  row.innerHTML = '<label>Marbles/Box</label>' +
+    '<input type="range" id="ed-s-mrbPerBox" min="1" max="25" step="1" value="' + editor.mrbPerBox + '">' +
+    '<span class="ed-s-val" id="ed-s-mrbPerBox-v">' + editor.mrbPerBox + '</span>';
+  el.appendChild(row);
+
+  var sl = document.getElementById('ed-s-mrbPerBox');
+  var vl = document.getElementById('ed-s-mrbPerBox-v');
+  sl.addEventListener('input', function () {
+    editor.mrbPerBox = parseInt(sl.value);
+    vl.textContent = sl.value;
+    editorAutoGenStock();
+    editorUpdateStats();
+    editorRenderStockPreview();
+  });
+}
+
+// ── Presets ──
+function editorLoadPreset(name) {
+  var preset = PIXEL_PRESETS[name];
+  if (!preset) return;
+  editor.pixelArt = preset.slice();
+  editorRenderPixelGrid();
+  editorAutoGenStock();
+  editorUpdateStats();
+  editorRenderStockPreview();
+}
+
+// ── Quick actions ──
+function editorClearAll() {
+  for (var i = 0; i < editor.pixelArt.length; i++) editor.pixelArt[i] = null;
+  editorRenderPixelGrid();
+  editorAutoGenStock();
+  editorUpdateStats();
+  editorRenderStockPreview();
+}
+
+function editorFillRandom() {
+  var numClrs = 3 + Math.floor(Math.random() * 3);
+  var palette = [];
+  var indices = []; for (var i = 0; i < NUM_COLORS; i++) indices.push(i);
+  shuffle(indices);
+  for (var i = 0; i < numClrs; i++) palette.push(indices[i]);
+  for (var i = 0; i < editor.pixelArt.length; i++) {
+    if (Math.random() < 0.55) {
+      editor.pixelArt[i] = palette[Math.floor(Math.random() * palette.length)];
+    } else {
+      editor.pixelArt[i] = null;
+    }
   }
-  for (var i = 0; i < fields.length; i++) {
-    (function (f) {
-      var sl = document.getElementById('ed-s-' + f.key);
-      var vl = document.getElementById('ed-s-' + f.key + '-v');
-      sl.addEventListener('input', function () {
-        editor[f.key] = parseInt(sl.value);
-        vl.textContent = sl.value;
-        editorUpdateStats();
-      });
-    })(fields[i]);
-  }
+  editorRenderPixelGrid();
+  editorAutoGenStock();
+  editorUpdateStats();
+  editorRenderStockPreview();
 }
 
 // ── Build level definition ──
 function editorBuildLevel() {
+  editorAutoGenStock();
   return {
     name: editor.name, desc: editor.desc,
-    mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
-    lockButtons: editor.lockButtons,
-    grid: editor.grid.slice()
+    mrbPerBox: editor.mrbPerBox, sortCap: 1, lockButtons: 0,
+    grid: editor.grid.slice(),
+    pixelArt: editor.pixelArt.slice()
   };
 }
 
 // ── Test play ──
 function editorTestPlay() {
   var total = 0;
-  for (var i = 0; i < 49; i++) if (editor.grid[i]) total++;
-  if (total === 0) { editorShowToast('Place some boxes first!'); return; }
+  for (var i = 0; i < editor.pixelArt.length; i++) if (editor.pixelArt[i] !== null) total++;
+  if (total === 0) { editorShowToast('Paint some pixels first!'); return; }
   hideEditor();
   var lvl = editorBuildLevel();
   var testIdx = LEVELS.length;
@@ -612,26 +497,18 @@ function editorImportJSON() {
   if (ta.style.display === 'block' && ta.value.trim()) {
     try {
       var lvl = JSON.parse(ta.value);
-      if (lvl.grid && lvl.grid.length === 49) {
-        for (var i = 0; i < 49; i++) {
-          var cell = lvl.grid[i];
-          if (cell === null || cell === undefined || cell === -1) editor.grid[i] = null;
-          else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
-          else if (cell.wall) editor.grid[i] = { wall: true };
-          else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
-          else editor.grid[i] = cell;
+      if (lvl.pixelArt && lvl.pixelArt.length === PIXEL_ROWS * PIXEL_COLS) {
+        for (var i = 0; i < lvl.pixelArt.length; i++) {
+          editor.pixelArt[i] = (lvl.pixelArt[i] !== null && lvl.pixelArt[i] >= 0) ? lvl.pixelArt[i] : null;
         }
       }
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
-      if (lvl.sortCap) editor.sortCap = lvl.sortCap;
-      if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
       var nameEl = document.getElementById('ed-name');
       var descEl = document.getElementById('ed-desc');
       if (nameEl) nameEl.value = editor.name;
       if (descEl) descEl.value = editor.desc;
-      editor.selectedTunnel = -1;
       ta.style.display = 'none';
       editorBuildUI();
       editorShowToast('Imported!');
@@ -649,34 +526,28 @@ function editorShowToast(msg) {
   setTimeout(function () { el.classList.remove('show'); }, 2000);
 }
 
-// ── Save as Showcase (generates prototype.json content) ──
+// ── Save as Showcase ──
 function editorSaveShowcase() {
   var total = 0;
-  for (var i = 0; i < 49; i++) if (editor.grid[i]) total++;
-  if (total === 0) { editorShowToast('Place some boxes first!'); return; }
+  for (var i = 0; i < editor.pixelArt.length; i++) if (editor.pixelArt[i] !== null) total++;
+  if (total === 0) { editorShowToast('Paint some pixels first!'); return; }
 
   var level = editorBuildLevel();
   var proto = {
-    name: '',
-    description: '',
-    howToPlay: '',
-    author: '',
+    name: '', description: '', howToPlay: '', author: '',
     showcaseLevel: level
   };
-
-  // Pre-fill from existing prototype.json if loaded
   if (typeof prototypeInfo !== 'undefined' && prototypeInfo) {
     if (prototypeInfo.name) proto.name = prototypeInfo.name;
     if (prototypeInfo.description) proto.description = prototypeInfo.description;
     if (prototypeInfo.howToPlay) proto.howToPlay = prototypeInfo.howToPlay;
     if (prototypeInfo.author) proto.author = prototypeInfo.author;
   }
-
   var json = JSON.stringify(proto, null, 2);
   if (navigator.clipboard) {
-    navigator.clipboard.writeText(json).then(function() {
+    navigator.clipboard.writeText(json).then(function () {
       editorShowToast('prototype.json copied to clipboard!');
-    }).catch(function() {
+    }).catch(function () {
       editorShowExportFallback(json);
       editorShowToast('Select all and copy the prototype.json');
     });

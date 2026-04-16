@@ -83,7 +83,8 @@
     background:rgba(255,255,255,0.7);font-family:'Fredoka',sans-serif;font-size:13px;color:#5A4A38;outline:none}
   .ed-text-row input:focus{border-color:rgba(123,82,160,0.5)}
   .ed-text-row label{font-size:11px;color:#9C8A70;width:42px;text-align:right;display:flex;align-items:center;justify-content:flex-end;flex-shrink:0}
-  #ed-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;max-width:320px;margin:0 auto}
+  #ed-grid{display:grid;gap:1px;max-width:380px;margin:0 auto;touch-action:none;user-select:none;-webkit-user-select:none}
+  .ed-px-cell{aspect-ratio:1;border-radius:2px;cursor:crosshair;border:1px solid rgba(160,140,120,0.15);box-sizing:border-box}
   .ed-cell{aspect-ratio:1;border-radius:6px;cursor:pointer;border:2px solid rgba(160,140,120,0.3);
     display:flex;align-items:center;justify-content:center;transition:transform 0.12s;-webkit-tap-highlight-color:transparent;
     position:relative}
@@ -162,6 +163,14 @@
     display:flex;align-items:center;justify-content:center}
   .ed-tunnel-add-clr:hover{transform:scale(1.15);border-color:rgba(255,255,255,0.7)}
   .ed-tunnel-add-clr:active{transform:scale(0.9)}
+
+  /* ═══ PIXEL ART EDITOR ═══ */
+  #ed-stock-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;max-width:200px;margin:0 auto}
+  .ed-stock-cell{aspect-ratio:1;border-radius:3px;border:1px solid rgba(160,140,120,0.2);box-sizing:border-box}
+  .ed-preset-row{display:flex;gap:5px;flex-wrap:wrap;justify-content:center}
+  .ed-preset-btn{padding:5px 10px;border:none;border-radius:8px;font-family:'Fredoka',sans-serif;font-size:11px;font-weight:600;
+    cursor:pointer;color:#5A4A38;background:rgba(180,165,145,0.35);transition:transform 0.12s;display:flex;align-items:center;gap:3px}
+  .ed-preset-btn:hover{background:rgba(180,165,145,0.55);transform:scale(1.05)}.ed-preset-btn:active{transform:scale(0.94)}
 </style>
 </head>
 <body>
@@ -211,7 +220,7 @@
   <div class="ed-header">
     <button class="ed-back" onclick="editorBack()">&#8592;</button>
     <div class="ed-header-title">Level Editor</div>
-    <div class="ed-header-sub">Design your own marble challenge</div>
+    <div class="ed-header-sub">Paint pixel art, sort marbles to reveal it</div>
   </div>
   <div class="ed-body">
     <div class="ed-section">
@@ -220,17 +229,26 @@
       <div class="ed-text-row"><label>Desc</label><input id="ed-desc" type="text" value="My custom level" maxlength="50" oninput="editorSetDesc(this.value)"></div>
     </div>
     <div class="ed-section">
-      <div class="ed-section-title"><span class="icon">&#128230;</span> Box Grid <span style="font-weight:400;font-size:10px;color:#9C8A70;margin-left:auto">tap = paint &middot; right-click = erase</span></div>
+      <div class="ed-section-title"><span class="icon">&#127912;</span> Pixel Art <span style="font-weight:400;font-size:10px;color:#9C8A70;margin-left:auto">drag to paint &middot; right-click = erase</span></div>
       <div id="ed-toolbar"></div>
       <div id="ed-grid"></div>
       <div class="ed-quick">
-        <button class="ed-qbtn" onclick="editorFillRandom()">&#127922; Random 24</button>
-        <button class="ed-qbtn" onclick="editorClearAll()">&#129529; Clear All</button>
+        <div class="ed-preset-row">
+          <button class="ed-preset-btn" onclick="editorLoadPreset('heart')">&#10084; Heart</button>
+          <button class="ed-preset-btn" onclick="editorLoadPreset('star')">&#11088; Star</button>
+          <button class="ed-preset-btn" onclick="editorLoadPreset('mushroom')">&#127812; Mushroom</button>
+          <button class="ed-preset-btn" onclick="editorLoadPreset('smiley')">&#128578; Smiley</button>
+        </div>
+        <div style="display:flex;gap:6px;justify-content:center;margin-top:4px">
+          <button class="ed-qbtn" onclick="editorFillRandom()">&#127922; Random</button>
+          <button class="ed-qbtn" onclick="editorClearAll()">&#129529; Clear</button>
+        </div>
       </div>
       <div id="ed-stats"></div>
     </div>
-    <div class="ed-section" id="ed-tunnel-panel">
-      <!-- Tunnel contents editor — populated dynamically -->
+    <div class="ed-section">
+      <div class="ed-section-title"><span class="icon">&#128230;</span> Stock Boxes <span style="font-weight:400;font-size:10px;color:#9C8A70;margin-left:auto">auto-generated from pixel art</span></div>
+      <div id="ed-stock-grid"></div>
     </div>
     <div class="ed-section">
       <div class="ed-section-title"><span class="icon">&#9881;</span> Settings</div>

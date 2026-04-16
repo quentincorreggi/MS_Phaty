@@ -53,15 +53,21 @@ var blockerCollectT = 0;
 var blockerCollectSlots = [];
 var blockerCollectCleared = false;
 
-var MRB_PER_BOX = 9, SORT_CAP = 3;
+var MRB_PER_BOX = 8, SORT_CAP = 1;
 var SORT_VISIBLE_ROWS = 4;
 
-// Snake order for 3x3 grid
+// Snake order for 3x3 grid (kept for box drawing)
 var SNAKE_ORDER = [
   { r: 0, c: 0 }, { r: 0, c: 1 }, { r: 0, c: 2 },
   { r: 1, c: 2 }, { r: 1, c: 1 }, { r: 1, c: 0 },
   { r: 2, c: 0 }, { r: 2, c: 1 }, { r: 2, c: 2 }
 ];
+
+// === PIXEL ART GRID ===
+var PIXEL_COLS = 20, PIXEL_ROWS = 20;
+var pixelGrid = [];     // flat array of PIXEL_ROWS * PIXEL_COLS: { ci, filled, popT, squishT, shineT } or null
+var pixelRowShineT = []; // per-row shine timer
+var pixelWinT = 0;      // win shimmer timer
 
 // === CALIBRATION ===
 var cal = {

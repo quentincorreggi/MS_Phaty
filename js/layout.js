@@ -76,15 +76,27 @@ function computeLayout() {
     beltPath.push({ x: x, y: y });
   }
 
-  // SORT
+  // PIXEL ART GRID (replaces old sort area)
   var oCal = cal.sort;
-  var sortW = gameW * oCal.s;
   var sortCx = cx + oCal.dx * S;
-  L.sTop = beltBotY + 16 * S + oCal.dy * S;
-  L.sBw = Math.floor((sortW - 3 * 7 * S * oCal.s) / 4);
-  L.sBh = 32 * S * oCal.s; L.sGap = 3 * S * oCal.s; L.sColGap = 7 * S * oCal.s;
-  var stw = 4 * L.sBw + 3 * L.sColGap;
-  L.sSx = sortCx - stw / 2;
+  L.sTop = beltBotY + 12 * S + oCal.dy * S;
+  var availH = H - L.sTop - 8 * S;
+  var availW = gameW * oCal.s;
+  var pixGap = 1 * S;
+  var cellFromW = Math.floor((availW - (PIXEL_COLS - 1) * pixGap) / PIXEL_COLS);
+  var cellFromH = Math.floor((availH - (PIXEL_ROWS - 1) * pixGap) / PIXEL_ROWS);
+  L.pxCell = Math.max(4, Math.min(cellFromW, cellFromH));
+  L.pxGap = pixGap;
+  var gridW = PIXEL_COLS * L.pxCell + (PIXEL_COLS - 1) * L.pxGap;
+  var gridH = PIXEL_ROWS * L.pxCell + (PIXEL_ROWS - 1) * L.pxGap;
+  L.pxLeft = sortCx - gridW / 2;
+  L.pxTop = L.sTop;
+  L.pxGridW = gridW;
+  L.pxGridH = gridH;
+
+  // Keep legacy sort layout vars for compatibility (jumper target calc)
+  L.sBw = L.pxCell; L.sBh = L.pxCell; L.sGap = L.pxGap; L.sColGap = L.pxGap;
+  L.sSx = L.pxLeft;
 
   // BACK BUTTON
   var bkCal = cal.back;
@@ -93,10 +105,10 @@ function computeLayout() {
   L.bkY = 10 * S + bkCal.dy * S;
   L.bkSize = bkSize;
 
-  // Sort-belt alignment
+  // Pixel grid belt alignment — one T per pixel column
   L.sortBeltT = [];
-  for (var c = 0; c < 4; c++) {
-    var colCx = L.sSx + c * (L.sBw + L.sColGap) + L.sBw / 2;
+  for (var c = 0; c < PIXEL_COLS; c++) {
+    var colCx = L.pxLeft + c * (L.pxCell + L.pxGap) + L.pxCell / 2;
     var best = 0, bd = Infinity;
     for (var j = 0; j < beltPath.length; j++) {
       var dx2 = beltPath[j].x - colCx, dy2 = beltPath[j].y - L.beltBotY;

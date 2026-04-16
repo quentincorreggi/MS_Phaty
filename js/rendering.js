@@ -364,86 +364,127 @@ function drawJumpers() {
   for (var i = 0; i < jumpers.length; i++) {
     var j = jumpers[i]; var t = j.t;
     var e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-    var tx = L.sSx + j.targetCol * (L.sBw + L.sColGap) + L.sBw / 2 + (j.targetSlot - 1) * (L.sBw / 4);
-    var ty = getSortBoxY(j.targetCol, 0) + L.sBh / 2;
+    // Target is pixel grid cell
+    var tPos = getPixelCellXY(j.targetCol, j.targetRow);
+    var tx = tPos.x + L.pxCell / 2;
+    var ty = tPos.y + L.pxCell / 2;
     var x = j.startX + (tx - j.startX) * e;
-    var y = j.startY + (ty - j.startY) * e - Math.sin(t * Math.PI) * 50 * S;
+    var y = j.startY + (ty - j.startY) * e - Math.sin(t * Math.PI) * 40 * S;
     var arcScale = 1 + Math.sin(t * Math.PI) * 0.25;
     if (tick % 3 === 0) {
       particles.push({ x: x, y: y, vx: (Math.random() - 0.5) * 0.5 * S, vy: 0.5 * S,
-        r: (2 + Math.random() * 2) * S, color: COLORS[j.ci].light, life: 0.6, decay: 0.04, grav: false });
+        r: (1.5 + Math.random() * 1.5) * S, color: COLORS[j.ci].light, life: 0.6, decay: 0.04, grav: false });
     }
-    drawMarble(x, y, slotR * 0.8 * cal.marble.s, j.ci, arcScale);
+    drawMarble(x, y, L.pxCell * 0.38, j.ci, arcScale);
   }
 }
 
-// ── Sort area ──
+// ── Pixel Art Grid (replaces sort columns) ──
+
+function getPixelCellXY(col, row) {
+  return {
+    x: L.pxLeft + col * (L.pxCell + L.pxGap),
+    y: L.pxTop + row * (L.pxCell + L.pxGap)
+  };
+}
 
 function drawSortArea() {
-  for (var c = 0; c < 4; c++) {
-    var col = sortCols[c]; var x = L.sSx + c * (L.sBw + L.sColGap);
-    var visibleBoxes = [];
-    for (var r = 0; r < col.length; r++) if (col[r].vis) visibleBoxes.push(col[r]);
-    var showCount = Math.min(visibleBoxes.length, SORT_VISIBLE_ROWS);
-    var hiddenCount = visibleBoxes.length - showCount;
-    for (var vi = 0; vi < showCount; vi++) {
-      var b = visibleBoxes[vi]; var byy = getSortBoxY(c, vi);
-      var ps = 1 + b.popT * 0.25; var al = b.popT > 0.6 ? (1 - b.popT) * 2.5 : 1;
-      var sqX = 1, sqY = 1;
-      if (b.squishT > 0) { var sq = Math.sin(b.squishT * Math.PI); sqX = 1 + sq * 0.12; sqY = 1 - sq * 0.08; }
-      ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, al));
-      ctx.translate(x + L.sBw / 2, byy + L.sBh / 2); ctx.scale(ps * sqX, ps * sqY);
+  var cs = L.pxCell;
+  var rad = Math.max(1, cs * 0.15);
+  var mrbR = cs * 0.38;
 
-      if (b.type === 'lock') {
-        var isTop = (vi === 0);
-        var pulse = isTop ? 1 + Math.sin(tick * 0.08) * 0.03 : 1;
-        ctx.scale(pulse, pulse);
-        ctx.shadowColor = 'rgba(0,0,0,0.25)'; ctx.shadowBlur = 5 * S; ctx.shadowOffsetY = 3 * S;
-        var grad = ctx.createLinearGradient(0, -L.sBh / 2, 0, L.sBh / 2);
-        if (b.triggered) { grad.addColorStop(0, '#7BC67B'); grad.addColorStop(1, '#4AA04A'); }
-        else if (isTop) { grad.addColorStop(0, '#FFD966'); grad.addColorStop(1, '#E8A84C'); }
-        else { grad.addColorStop(0, '#B8A898'); grad.addColorStop(1, '#9A8A78'); }
+  // Draw grid background
+  ctx.save();
+  ctx.fillStyle = 'rgba(180,165,145,0.08)';
+  rRect(L.pxLeft - 3 * S, L.pxTop - 3 * S, L.pxGridW + 6 * S, L.pxGridH + 6 * S, 6 * S);
+  ctx.fill();
+  ctx.restore();
+
+  for (var r = 0; r < PIXEL_ROWS; r++) {
+    for (var c = 0; c < PIXEL_COLS; c++) {
+      var idx = r * PIXEL_COLS + c;
+      var p = pixelGrid[idx];
+      if (!p) continue;  // empty/transparent cell — skip
+
+      var px = L.pxLeft + c * (cs + L.pxGap);
+      var py = L.pxTop + r * (cs + L.pxGap);
+      var cx2 = px + cs / 2;
+      var cy2 = py + cs / 2;
+      var sc = COLORS[p.ci];
+
+      if (p.filled) {
+        // Filled cell — solid marble pixel
+        var sqX = 1, sqY = 1;
+        if (p.squishT > 0) { var sq = Math.sin(p.squishT * Math.PI); sqX = 1 + sq * 0.18; sqY = 1 - sq * 0.12; }
+        var ps = 1 + (p.popT || 0) * 0.2;
+
+        ctx.save();
+        ctx.translate(cx2, cy2);
+        ctx.scale(ps * sqX, ps * sqY);
+
+        // Cell background
+        var grad = ctx.createLinearGradient(-cs / 2, -cs / 2, cs / 2, cs / 2);
+        grad.addColorStop(0, sc.light); grad.addColorStop(1, sc.fill);
         ctx.fillStyle = grad;
-        rRect(-L.sBw / 2, -L.sBh / 2, L.sBw, L.sBh, 8 * S); ctx.fill();
-        ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-        if (b.shineT > 0) { ctx.fillStyle = 'rgba(255,255,255,' + b.shineT * 0.5 + ')'; rRect(-L.sBw / 2, -L.sBh / 2, L.sBw, L.sBh, 8 * S); ctx.fill(); }
-        var iconS = Math.min(L.sBh * 0.35, L.sBw * 0.15);
-        if (!b.triggered) {
-          ctx.fillStyle = 'rgba(0,0,0,0.35)';
-          rRect(-iconS * 0.6, -iconS * 0.2, iconS * 1.2, iconS * 0.9, 2 * S); ctx.fill();
-          ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 2 * S; ctx.lineCap = 'round';
-          ctx.beginPath(); ctx.arc(0, -iconS * 0.2, iconS * 0.4, -Math.PI, 0); ctx.stroke();
-        } else {
-          ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 3 * S; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-          ctx.beginPath(); ctx.moveTo(-iconS * 0.5, 0); ctx.lineTo(-iconS * 0.1, iconS * 0.4); ctx.lineTo(iconS * 0.5, -iconS * 0.3); ctx.stroke();
+        rRect(-cs / 2, -cs / 2, cs, cs, rad); ctx.fill();
+
+        // Marble
+        var mGrad = ctx.createRadialGradient(-mrbR * 0.2, -mrbR * 0.2, mrbR * 0.1, 0, 0, mrbR);
+        mGrad.addColorStop(0, sc.light); mGrad.addColorStop(0.7, sc.fill); mGrad.addColorStop(1, sc.dark);
+        ctx.fillStyle = mGrad;
+        ctx.beginPath(); ctx.arc(0, 0, mrbR, 0, Math.PI * 2); ctx.fill();
+        // Highlight
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.beginPath(); ctx.arc(-mrbR * 0.2, -mrbR * 0.2, mrbR * 0.35, 0, Math.PI * 2); ctx.fill();
+
+        // Shine overlay
+        if (p.shineT > 0) {
+          ctx.fillStyle = 'rgba(255,255,255,' + (p.shineT * 0.5) + ')';
+          rRect(-cs / 2, -cs / 2, cs, cs, rad); ctx.fill();
         }
+
+        ctx.restore();
       } else {
-        ctx.shadowColor = 'rgba(0,0,0,0.22)'; ctx.shadowBlur = 5 * S; ctx.shadowOffsetY = 3 * S;
-        var sc = COLORS[b.ci];
-        var sGrad = ctx.createLinearGradient(-L.sBw / 2, -L.sBh / 2, -L.sBw / 2, L.sBh / 2);
-        sGrad.addColorStop(0, sc.light); sGrad.addColorStop(1, sc.fill);
-        ctx.fillStyle = sGrad;
-        rRect(-L.sBw / 2, -L.sBh / 2, L.sBw, L.sBh, 8 * S); ctx.fill();
-        ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-        ctx.strokeStyle = sc.dark; ctx.lineWidth = 1 * S;
-        rRect(-L.sBw / 2, -L.sBh / 2, L.sBw, L.sBh, 8 * S); ctx.stroke();
-        if (b.shineT > 0) { ctx.fillStyle = 'rgba(255,255,255,' + b.shineT * 0.35 + ')'; rRect(-L.sBw / 2, -L.sBh / 2, L.sBw, L.sBh, 8 * S); ctx.fill(); }
-        var sp = L.sBw / 4, mrr = 6 * S * cal.sort.s * cal.marble.s;
-        for (var j2 = 0; j2 < b.filled; j2++) drawMarble((j2 - 1) * sp, 0, mrr, b.ci);
-        for (var j2 = b.filled; j2 < SORT_CAP; j2++) { ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.beginPath(); ctx.arc((j2 - 1) * sp, 0, mrr * 0.55, 0, Math.PI * 2); ctx.fill(); }
+        // Unfilled cell — ghost outline showing target color
+        ctx.save();
+        ctx.fillStyle = sc.fill;
+        ctx.globalAlpha = 0.12;
+        rRect(px, py, cs, cs, rad); ctx.fill();
+        ctx.globalAlpha = 0.25;
+        ctx.strokeStyle = sc.fill;
+        ctx.lineWidth = 0.5 * S;
+        rRect(px, py, cs, cs, rad); ctx.stroke();
+        ctx.restore();
       }
+    }
+
+    // Row completion shine
+    if (pixelRowShineT && pixelRowShineT[r] > 0) {
+      var shineAlpha = pixelRowShineT[r] * 0.35;
+      var py2 = L.pxTop + r * (cs + L.pxGap);
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,255,255,' + shineAlpha + ')';
+      ctx.fillRect(L.pxLeft, py2, L.pxGridW, cs);
       ctx.restore();
     }
-    if (hiddenCount > 0) {
-      ctx.fillStyle = 'rgba(120,100,80,0.5)'; ctx.font = 9 * S + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('+' + hiddenCount + ' more', x + L.sBw / 2, L.sTop + showCount * (L.sBh + L.sGap) + 6 * S);
-    }
-    if (visibleBoxes.length > 0) {
-      var topBox = visibleBoxes[0];
-      ctx.fillStyle = topBox.type === 'lock' ? 'rgba(200,180,100,0.6)' : 'rgba(120,100,80,0.3)';
-      ctx.font = 'bold ' + (8 * S) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      var label = topBox.type === 'lock' ? '\uD83D\uDD13' : visibleBoxes.length.toString();
-      ctx.fillText(label, x + L.sBw / 2, L.sTop - 8 * S);
+  }
+
+  // Win shimmer
+  if (pixelWinT > 0) {
+    for (var r = 0; r < PIXEL_ROWS; r++) {
+      for (var c = 0; c < PIXEL_COLS; c++) {
+        var idx = r * PIXEL_COLS + c;
+        var p = pixelGrid[idx];
+        if (!p || !p.filled) continue;
+        var wave = Math.sin(tick * 0.08 + r * 0.3 + c * 0.3) * 0.5 + 0.5;
+        var px = L.pxLeft + c * (cs + L.pxGap);
+        var py = L.pxTop + r * (cs + L.pxGap);
+        ctx.save();
+        ctx.globalAlpha = wave * pixelWinT * 0.25;
+        ctx.fillStyle = '#fff';
+        rRect(px, py, cs, cs, rad); ctx.fill();
+        ctx.restore();
+      }
     }
   }
 }
