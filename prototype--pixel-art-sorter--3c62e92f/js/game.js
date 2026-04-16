@@ -1,0 +1,628 @@
+// ============================================================
+// game.js — Game init, update loop, input, level select
+//           + Tunnel spawning integration
+//           + Wall cell support
+// ============================================================
+
+// === LEVEL SELECT ===
+function showLevelSelect() {
+  gameActive = false;
+  document.getElementById('win-screen').classList.remove('show');
+  document.getElementById('cal-toggle').style.display = 'none';
+  if (typeof editor !== 'undefined' && editor._testIdx !== undefined) {
+    editorCleanupTest();
+    showEditor(false);
+    return;
+  }
+  document.getElementById('level-screen').classList.remove('hidden');
+  if (typeof editorCleanupTest === 'function') editorCleanupTest();
+}
+
+function startLevel(idx) {
+  currentLevel = idx;
+  gameActive = true;
+  document.getElementById('level-screen').classList.add('hidden');
+  document.getElementById('cal-toggle').style.display = '';
+  ensureAudio();
+  initGame();
+}
+
+// === GAME INIT ===
+function initGame() {
+  won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
+  totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
+  blockerCollectSlots = []; blockerCollectCleared = false;
+  document.getElementById('win-screen').classList.remove('show');
+  computeLayout(); initBeltSlots();
+
+  var totalSlots = L.rows * L.cols;
+  var lvl = LEVELS[currentLevel];
+
+  // ── Build boxSlots, tunnelSlots, wallSlots from grid or legacy random ──
+  var boxSlots = {};
+  var tunnelSlots = {};
+  var wallSlots = {};
+  if (lvl.grid) {
+    for (var i = 0; i < Math.min(lvl.grid.length, totalSlots); i++) {
+      var cell = lvl.grid[i];
+      if (cell === null || cell === undefined) continue;
+      if (cell.wall) {
+        wallSlots[i] = true;
+        continue;
+      }
+      if (cell.tunnel) {
+        tunnelSlots[i] = { dir: cell.dir || 'bottom', contents: cell.contents ? cell.contents.slice() : [] };
+      } else if (typeof cell === 'number') {
+        if (cell >= 0) boxSlots[i] = { ci: cell, boxType: 'default' };
+      } else if (typeof cell === 'object' && cell.ci >= 0) {
+        boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default' };
+      }
+    }
+  }
+  if (lvl.mrbPerBox) MRB_PER_BOX = lvl.mrbPerBox;
+  if (lvl.sortCap) SORT_CAP = lvl.sortCap;
+
+  // ── Count blockers from boxes and tunnels ──
+  for (var k in boxSlots) {
+    var bs = boxSlots[k];
+    if (bs.boxType === 'blocker') totalBlockerMarbles += BLOCKER_PER_BOX;
+  }
+  for (var k in tunnelSlots) {
+    var ts = tunnelSlots[k];
+    for (var tc = 0; tc < ts.contents.length; tc++) {
+      if (ts.contents[tc].type === 'blocker') totalBlockerMarbles += BLOCKER_PER_BOX;
+    }
+  }
+
+  // ── Build stock ──
+  stock = [];
+  for (var r = 0; r < L.rows; r++) for (var c = 0; c < L.cols; c++) {
+    var idx = r * L.cols + c;
+    var slot = boxSlots[idx];
+    var tSlot = tunnelSlots[idx];
+    var wSlot = wallSlots[idx];
+
+    if (tSlot) {
+      // Tunnel entry
+      stock.push({
+        isTunnel: true, isWall: false,
+        tunnelDir: tSlot.dir,
+        tunnelContents: tSlot.contents.map(function (item) { return { ci: item.ci, type: item.type || 'default' }; }),
+        tunnelTotal: tSlot.contents.length,
+        tunnelSpawning: false,
+        tunnelCooldown: 60,
+        ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
+        revealed: true, empty: false, boxType: 'default',
+        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
+      });
+    } else if (wSlot) {
+      // Wall cell — inert structural element
+      stock.push({
+        isWall: true, isTunnel: false,
+        ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
+        revealed: false, empty: false, boxType: 'default',
+        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
+      });
+    } else if (!slot) {
+      stock.push({ ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
+        revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
+        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
+    } else {
+      var isIce = (slot.boxType === 'ice');
+      var isBlocker = (slot.boxType === 'blocker');
+      stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
+        revealed: isIce ? true : false, empty: false,
+        boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
+        iceHP: isIce ? 2 : 0,
+        iceCrackT: 0, iceShatterT: 0,
+        blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
+        idlePhase: Math.random() * Math.PI * 2 });
+    }
+  }
+
+  // ── Initial reveal: lowest non-empty box per column ──
+  for (var c = 0; c < L.cols; c++) {
+    for (var r = L.rows - 1; r >= 0; r--) {
+      var b = stock[r * L.cols + c];
+      if (!b.empty && !b.isTunnel && !b.isWall) { b.revealed = true; break; }
+    }
+  }
+
+  // ── Reveal boxes adjacent to initially empty/tunnel cells ──
+  var changed = true;
+  while (changed) {
+    changed = false;
+    for (var i = 0; i < stock.length; i++) {
+      if (!isCellTrulyEmpty(i)) continue;
+      var row2 = Math.floor(i / L.cols), col2 = i % L.cols;
+      var nbrs = [];
+      if (row2 > 0)          nbrs.push((row2 - 1) * L.cols + col2);
+      if (row2 < L.rows - 1) nbrs.push((row2 + 1) * L.cols + col2);
+      if (col2 > 0)          nbrs.push(row2 * L.cols + (col2 - 1));
+      if (col2 < L.cols - 1) nbrs.push(row2 * L.cols + (col2 + 1));
+      for (var ni = 0; ni < nbrs.length; ni++) {
+        var nb = stock[nbrs[ni]];
+        if (nb.isTunnel || nb.isWall || nb.empty || nb.used || nb.revealed) continue;
+        nb.revealed = true;
+        changed = true;
+      }
+    }
+  }
+
+  // ── Pixel art grid (replaces sort columns) ──
+  pixelGrid = [];
+  pixelRowShineT = [];
+  pixelWinT = 0;
+  for (var i = 0; i < PIXEL_ROWS; i++) pixelRowShineT.push(0);
+
+  if (lvl.pixelArt) {
+    for (var i = 0; i < PIXEL_ROWS * PIXEL_COLS; i++) {
+      var pa = lvl.pixelArt[i];
+      if (pa !== null && pa !== undefined && pa >= 0) {
+        pixelGrid.push({ ci: pa, filled: false, popT: 0, squishT: 0, shineT: 0 });
+      } else {
+        pixelGrid.push(null);
+      }
+    }
+  } else {
+    for (var i = 0; i < PIXEL_ROWS * PIXEL_COLS; i++) pixelGrid.push(null);
+  }
+
+  // Legacy compat — keep sortCols as empty so old code doesn't crash
+  sortCols = [[], [], [], []];
+}
+
+// === EMPTY-CELL REVEAL ===
+// A cell is "truly empty" when:
+//  • it's an empty slot or a used-up box, AND no tunnel will spawn onto it
+//  • OR it's a depleted tunnel (0 contents left, exit tile also free)
+//  • Walls are NEVER truly empty
+function isCellTrulyEmpty(idx) {
+  var s = stock[idx];
+  if (!s) return false;
+  if (s.isWall) return false;  // Walls are never empty
+  if (s.isTunnel) {
+    if (s.tunnelContents && s.tunnelContents.length > 0) return false;
+    var exitIdx = getTunnelExitIdx(idx);
+    if (exitIdx >= 0 && stock[exitIdx] && !stock[exitIdx].isTunnel
+        && !stock[exitIdx].empty && !stock[exitIdx].used) return false;
+    return true;
+  }
+  if (!s.empty && !s.used) return false;
+  for (var i = 0; i < stock.length; i++) {
+    if (stock[i].isTunnel && stock[i].tunnelContents && stock[i].tunnelContents.length > 0) {
+      if (getTunnelExitIdx(i) === idx) return false;
+    }
+  }
+  return true;
+}
+
+var _revealVisited = {};
+function revealAroundEmptyCell(idx) {
+  if (!isCellTrulyEmpty(idx)) return;
+  if (_revealVisited[idx]) return;
+  _revealVisited[idx] = true;
+  var row = Math.floor(idx / L.cols), col = idx % L.cols;
+  var neighbors = [];
+  if (row > 0)          neighbors.push((row - 1) * L.cols + col);
+  if (row < L.rows - 1) neighbors.push((row + 1) * L.cols + col);
+  if (col > 0)          neighbors.push(row * L.cols + (col - 1));
+  if (col < L.cols - 1) neighbors.push(row * L.cols + (col + 1));
+  for (var ni = 0; ni < neighbors.length; ni++) {
+    var nIdx = neighbors[ni];
+    var nb = stock[nIdx];
+    if (nb.isTunnel) {
+      if (isCellTrulyEmpty(nIdx)) revealAroundEmptyCell(nIdx);
+      continue;
+    }
+    if (nb.isWall || nb.empty || nb.used || nb.revealed || nb.spawning) continue;
+    nb.revealed = true;
+    nb.revealT = 1.0;
+    var bx = nb.x + L.bw / 2, by = nb.y + L.bh / 2;
+    var burstColor = (nb.boxType === 'hidden') ? '#FFD700' : COLORS[nb.ci].fill;
+    for (var p = 0; p < 12; p++) {
+      var a = Math.PI * 2 * p / 12 + Math.random() * 0.3, sp = 3 + Math.random() * 4;
+      particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
+        r: (2 + Math.random() * 4) * S, color: burstColor, life: 1, decay: 0.02 + Math.random() * 0.015, grav: false });
+    }
+    sfx.pop();
+  }
+  _revealVisited[idx] = false;
+}
+
+// === ICE DAMAGE ===
+function damageAdjacentIce(idx) {
+  var row = Math.floor(idx / L.cols), col = idx % L.cols;
+  var neighbors = [];
+  if (row > 0)          neighbors.push((row - 1) * L.cols + col);
+  if (row < L.rows - 1) neighbors.push((row + 1) * L.cols + col);
+  if (col > 0)          neighbors.push(row * L.cols + (col - 1));
+  if (col < L.cols - 1) neighbors.push(row * L.cols + (col + 1));
+  for (var ni = 0; ni < neighbors.length; ni++) {
+    var nb = stock[neighbors[ni]];
+    if (nb.isTunnel || nb.isWall) continue;  // tunnels and walls don't have ice
+    if (nb.empty || nb.used || nb.iceHP <= 0) continue;
+
+    nb.iceHP--;
+    var bx = nb.x + L.bw / 2, by = nb.y + L.bh / 2;
+
+    if (nb.iceHP === 1) {
+      nb.iceCrackT = 1.0;
+      nb.shakeT = 0.4;
+      sfx.pop();
+      for (var p = 0; p < 10; p++) {
+        var a = Math.PI * 2 * p / 10 + Math.random() * 0.4, sp = 2 + Math.random() * 3;
+        particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
+          r: (1.5 + Math.random() * 3) * S, color: 'rgba(180,225,255,0.8)',
+          life: 0.8, decay: 0.03 + Math.random() * 0.02, grav: false });
+      }
+    } else if (nb.iceHP === 0) {
+      nb.iceShatterT = 1.0;
+      nb.popT = 0.8;
+      nb.boxType = 'default';
+      sfx.complete();
+      for (var p = 0; p < 20; p++) {
+        var a = Math.PI * 2 * p / 20 + Math.random() * 0.3, sp = 3 + Math.random() * 5;
+        particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S - 2 * S,
+          r: (2 + Math.random() * 4) * S,
+          color: Math.random() > 0.5 ? 'rgba(180,225,255,0.9)' : 'rgba(220,240,255,0.9)',
+          life: 1, decay: 0.015 + Math.random() * 0.015, grav: true });
+      }
+      for (var p = 0; p < 8; p++) {
+        var a = Math.random() * Math.PI * 2, sp = 1 + Math.random() * 2;
+        particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
+          r: (3 + Math.random() * 3) * S, color: 'rgba(255,255,255,0.7)',
+          life: 0.6, decay: 0.04, grav: false });
+      }
+    }
+  }
+}
+
+function isBoxTappable(idx) {
+  var b = stock[idx];
+  if (b.isTunnel) return false;
+  if (b.isWall) return false;      // walls are not tappable
+  if (b.empty || b.used) return false;
+  if (b.spawning || b.revealT > 0) return false;
+  if (b.iceHP > 0) return false;
+  return b.revealed;
+}
+
+function getSortBoxY(ci, vi) { return L.sTop + vi * (L.sBh + L.sGap); }
+
+// === INPUT ===
+function handleTap(px, py) {
+  if (won || !gameActive) return;
+  ensureAudio();
+  if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
+  for (var i = 0; i < stock.length; i++) {
+    var b = stock[i];
+    if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
+    if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
+    if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
+      if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
+      b.popT = 1;
+      sfx.pop();
+      spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
+      spawnPhysMarbles(b);
+      damageAdjacentIce(i);
+      return;
+    }
+  }
+}
+canvas.addEventListener('click', function (e) { handleTap(e.clientX, e.clientY); });
+canvas.addEventListener('touchstart', function (e) { e.preventDefault(); handleTap(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+document.getElementById('cal-panel').addEventListener('touchstart', function (e) { e.stopPropagation(); }, { passive: false });
+canvas.addEventListener('mousemove', function (e) {
+  hoverIdx = -1;
+  if (!gameActive) return;
+  if (e.clientX >= L.bkX && e.clientX <= L.bkX + L.bkSize && e.clientY >= L.bkY && e.clientY <= L.bkY + L.bkSize) { canvas.style.cursor = 'pointer'; return; }
+  for (var i = 0; i < stock.length; i++) {
+    var b = stock[i];
+    if (b.isTunnel || b.isWall) continue;
+    if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
+    if (!isBoxTappable(i)) continue;
+    if (e.clientX >= b.x && e.clientX <= b.x + L.bw && e.clientY >= b.y && e.clientY <= b.y + L.bh) { hoverIdx = i; break; }
+  }
+  canvas.style.cursor = hoverIdx >= 0 ? 'pointer' : 'default';
+});
+
+// === UPDATE ===
+function update() {
+  if (!gameActive) return;
+  tick++;
+  physicsStep();
+
+  beltOffset = (beltOffset + BELT_SPEED * S) % 1;
+  for (var i = 0; i < BELT_SLOTS; i++) {
+    if (beltSlots[i].arriveAnim > 0) beltSlots[i].arriveAnim = Math.max(0, beltSlots[i].arriveAnim - 0.025);
+  }
+
+  // ── Tunnel spawning ──
+  trySpawnFromTunnels();
+
+  // Belt → pixel grid matching
+  for (var si = 0; si < BELT_SLOTS; si++) {
+    var slot = beltSlots[si]; if (slot.marble < 0) continue;
+    if (slot.marble === BLOCKER_CI) continue; // blockers don't go to pixel grid
+    var slotT = getSlotT(si);
+    for (var pc = 0; pc < PIXEL_COLS; pc++) {
+      var bt = L.sortBeltT[pc]; var diff = Math.abs(slotT - bt); var wdiff = Math.min(diff, 1 - diff);
+      if (wdiff > 0.012) continue;
+      // Find bottom-most unfilled cell in this column matching marble color
+      var targetRow = -1;
+      for (var pr = PIXEL_ROWS - 1; pr >= 0; pr--) {
+        var pidx = pr * PIXEL_COLS + pc;
+        var px = pixelGrid[pidx];
+        if (!px || px.filled) continue;
+        if (px.ci !== slot.marble) continue;
+        // Check not already targeted by a jumper
+        var alreadyTargeted = false;
+        for (var jj = 0; jj < jumpers.length; jj++) {
+          if (jumpers[jj].targetCol === pc && jumpers[jj].targetRow === pr) { alreadyTargeted = true; break; }
+        }
+        if (alreadyTargeted) continue;
+        targetRow = pr;
+        break;
+      }
+      if (targetRow < 0) continue;
+      // Check this slot isn't already jumping
+      var aj = false;
+      for (var jj = 0; jj < jumpers.length; jj++) if (jumpers[jj].slotIdx === si) { aj = true; break; }
+      if (aj) continue;
+      var pos = getSlotPos(si);
+      jumpers.push({ ci: slot.marble, slotIdx: si, startX: pos.x, startY: pos.y, targetCol: pc, targetRow: targetRow, t: 0 });
+      slot.marble = -1; break;
+    }
+  }
+
+  // Jumper animation
+  for (var i = jumpers.length - 1; i >= 0; i--) {
+    var j = jumpers[i]; j.t += 0.04;
+    if (j.t >= 1) {
+      var pidx = j.targetRow * PIXEL_COLS + j.targetCol;
+      var px = pixelGrid[pidx];
+      if (px && !px.filled && px.ci === j.ci) {
+        px.filled = true;
+        px.squishT = 1;
+        sfx.sort();
+        // Check row completion
+        var rowComplete = true;
+        var rowHasPixels = false;
+        for (var rc = 0; rc < PIXEL_COLS; rc++) {
+          var rp = pixelGrid[j.targetRow * PIXEL_COLS + rc];
+          if (rp) {
+            rowHasPixels = true;
+            if (!rp.filled) { rowComplete = false; break; }
+          }
+        }
+        if (rowComplete && rowHasPixels) {
+          pixelRowShineT[j.targetRow] = 1;
+          sfx.complete();
+          var rowY = L.pxTop + j.targetRow * (L.pxCell + L.pxGap) + L.pxCell / 2;
+          spawnConfetti(L.pxLeft + L.pxGridW / 2, rowY, 12);
+        }
+        // Particle burst at the filled cell
+        var cellPos = getPixelCellXY(j.targetCol, j.targetRow);
+        spawnBurst(cellPos.x + L.pxCell / 2, cellPos.y + L.pxCell / 2, COLORS[j.ci].fill, 6);
+        // Check win
+        checkWin();
+      }
+      jumpers.splice(i, 1);
+    }
+  }
+
+  // Blocker collection
+  if (!blockerCollecting && totalBlockerMarbles > 0) {
+    blockersOnBelt = 0;
+    blockerCollectSlots = [];
+    for (var i = 0; i < BELT_SLOTS; i++) {
+      if (beltSlots[i].marble === BLOCKER_CI) { blockersOnBelt++; blockerCollectSlots.push(i); }
+    }
+    if (blockersOnBelt >= totalBlockerMarbles) {
+      blockerCollecting = true; blockerCollectT = 1; blockerCollectCleared = false;
+    }
+  }
+  if (blockerCollecting) {
+    blockerCollectT = Math.max(0, blockerCollectT - 0.015);
+    if (blockerCollectT <= 0.5 && !blockerCollectCleared) {
+      blockerCollectCleared = true;
+      for (var k = 0; k < blockerCollectSlots.length; k++) {
+        var csi = blockerCollectSlots[k];
+        if (beltSlots[csi].marble === BLOCKER_CI) {
+          var cpos = getSlotPos(csi);
+          beltSlots[csi].marble = -1;
+          spawnBurst(cpos.x, cpos.y, COLORS[BLOCKER_CI].light, 10);
+          for (var p = 0; p < 3; p++) {
+            var a = Math.random() * Math.PI * 2, sp = 1 + Math.random() * 2;
+            particles.push({ x: cpos.x, y: cpos.y,
+              vx: (L.beltCx - cpos.x) * 0.03 + Math.cos(a) * sp * S,
+              vy: ((L.beltTopY + L.beltBotY) / 2 - cpos.y) * 0.03 + Math.sin(a) * sp * S,
+              r: (2 + Math.random() * 3) * S, color: '#fff', life: 0.8, decay: 0.03, grav: false });
+          }
+        }
+      }
+      var bcx = L.beltCx, bcy = (L.beltTopY + L.beltBotY) / 2;
+      spawnBurst(bcx, bcy, '#A89E94', 20);
+      spawnConfetti(bcx, bcy, 25);
+      sfx.win();
+      blockersOnBelt = 0;
+    }
+    if (blockerCollectT <= 0) {
+      blockerCollecting = false;
+      blockerCollectT = 0;
+      blockerCollectSlots = [];
+    }
+  }
+
+  // Stock animations
+  for (var i = 0; i < stock.length; i++) {
+    var b = stock[i];
+    if (b.isTunnel || b.isWall) continue;  // tunnels and walls don't need stock animations
+    if (b.empty) continue;
+    if (b.shakeT > 0) b.shakeT = Math.max(0, b.shakeT - 0.04);
+    if (b.popT > 0) b.popT = Math.max(0, b.popT - 0.025);
+    if (b.revealT > 0) b.revealT = Math.max(0, b.revealT - 0.03);
+    if (b.emptyT > 0) b.emptyT = Math.max(0, b.emptyT - 0.025);
+    if (b.iceCrackT > 0) b.iceCrackT = Math.max(0, b.iceCrackT - 0.03);
+    if (b.iceShatterT > 0) b.iceShatterT = Math.max(0, b.iceShatterT - 0.025);
+    var th = (i === hoverIdx && !b.used && isBoxTappable(i)) ? 1 : 0;
+    b.hoverT += (th - b.hoverT) * 0.12;
+  }
+
+  // Phys marble spawn bounce
+  for (var i = 0; i < physMarbles.length; i++) {
+    if (physMarbles[i].spawnT > 0) physMarbles[i].spawnT = Math.max(0, physMarbles[i].spawnT - 0.05);
+  }
+
+  // Pixel grid animations
+  for (var i = 0; i < pixelGrid.length; i++) {
+    var px = pixelGrid[i];
+    if (!px) continue;
+    if (px.popT > 0) px.popT = Math.max(0, px.popT - 0.03);
+    if (px.shineT > 0) px.shineT = Math.max(0, px.shineT - 0.03);
+    if (px.squishT > 0) px.squishT = Math.max(0, px.squishT - 0.06);
+  }
+  for (var r = 0; r < PIXEL_ROWS; r++) {
+    if (pixelRowShineT[r] > 0) pixelRowShineT[r] = Math.max(0, pixelRowShineT[r] - 0.02);
+  }
+  if (pixelWinT > 0) pixelWinT = Math.max(0, pixelWinT - 0.005);
+
+  tickParticles();
+  updateRollingSound();
+}
+
+function checkWin() {
+  // Check all pixel cells are filled
+  for (var i = 0; i < pixelGrid.length; i++) {
+    if (pixelGrid[i] && !pixelGrid[i].filled) return;
+  }
+  // Check all tunnel contents depleted
+  for (var i = 0; i < stock.length; i++) {
+    if (stock[i].isTunnel && stock[i].tunnelContents && stock[i].tunnelContents.length > 0) return;
+  }
+  if (!won) {
+    won = true; sfx.win();
+    pixelWinT = 1;
+    document.getElementById('win-msg').textContent = 'Pixel art complete!';
+    spawnConfetti(W / 2, H / 3, 60);
+    setTimeout(function () { spawnConfetti(W * 0.3, H / 2, 40); }, 200);
+    setTimeout(function () { spawnConfetti(W * 0.7, H / 2, 40); }, 400);
+    setTimeout(function () { spawnConfetti(W / 2, H / 4, 50); }, 600);
+    setTimeout(function () { spawnConfetti(W / 2, H / 2, 80); }, 800);
+    setTimeout(function () { document.getElementById('win-screen').classList.add('show'); }, 2000);
+  }
+}
+
+// === MAIN LOOP ===
+function frame() {
+  if (gameActive) {
+    update();
+    ctx.clearRect(0, 0, W, H);
+    drawBackground();
+    drawFunnel();
+    drawStock();
+    drawPhysMarbles();
+    drawBelt();
+    drawBlockerProgress();
+    drawJumpers();
+    drawSortArea();
+    drawBackButton();
+    drawParticles();
+    drawDebugWalls();
+  }
+  requestAnimationFrame(frame);
+}
+
+// === PROTOTYPE.JSON LOADER ===
+var prototypeInfo = null;  // loaded from prototype.json if present
+
+function loadPrototypeJSON(callback) {
+  fetch('prototype.json').then(function(r) {
+    if (!r.ok) throw new Error('not found');
+    return r.json();
+  }).then(function(data) {
+    prototypeInfo = data;
+    if (data.showcaseLevel && data.showcaseLevel.grid) {
+      LEVELS.push(data.showcaseLevel);
+      levelStars.push(0);
+      unlockedLevels = LEVELS.length;
+    }
+    callback();
+  }).catch(function() {
+    callback();
+  });
+}
+
+function playShowcase() {
+  if (!prototypeInfo || !prototypeInfo.showcaseLevel) return;
+  var idx = LEVELS.length - 1; // showcase level is always last added
+  startLevel(idx);
+}
+
+function updateShowcaseUI() {
+  var btn = document.getElementById('ls-showcase-btn');
+  var info = document.getElementById('ls-showcase-info');
+  if (!prototypeInfo || !prototypeInfo.showcaseLevel) {
+    if (btn) btn.style.display = 'none';
+    if (info) info.style.display = 'none';
+    return;
+  }
+  if (btn) btn.style.display = '';
+  if (info) {
+    info.style.display = '';
+    var html = '';
+    if (prototypeInfo.name) html += '<div class="ls-showcase-name">' + prototypeInfo.name + '</div>';
+    if (prototypeInfo.description) html += '<div class="ls-showcase-desc">' + prototypeInfo.description + '</div>';
+    if (prototypeInfo.howToPlay) html += '<div class="ls-showcase-how"><strong>How to play:</strong> ' + prototypeInfo.howToPlay + '</div>';
+    info.innerHTML = html;
+  }
+}
+
+// === SHOWCASE FROM PRESET ===
+function makeShowcaseFromPreset(pixArt, lvlName, lvlDesc) {
+  var counts = [];
+  for (var c = 0; c < NUM_COLORS; c++) counts.push(0);
+  for (var i = 0; i < pixArt.length; i++) {
+    var pa = pixArt[i];
+    if (pa !== null && pa >= 0 && pa < NUM_COLORS) counts[pa]++;
+  }
+  var boxes = [];
+  for (var c = 0; c < NUM_COLORS; c++) {
+    var needed = Math.ceil(counts[c] / 8);
+    for (var n = 0; n < needed; n++) boxes.push({ ci: c, type: 'default' });
+  }
+  shuffle(boxes);
+  var grid = [];
+  for (var i = 0; i < 49; i++) grid.push(i < boxes.length ? boxes[i] : null);
+  return { name: lvlName || 'Pixel Art', desc: lvlDesc || '', mrbPerBox: 8, sortCap: 1, lockButtons: 0, grid: grid, pixelArt: pixArt.slice() };
+}
+
+// === BOOT ===
+resize();
+loadPrototypeJSON(function() {
+  // Add built-in showcase level from heart preset if no prototype.json
+  if (!prototypeInfo && typeof PIXEL_PRESETS !== 'undefined' && PIXEL_PRESETS.heart) {
+    var showcaseLvl = makeShowcaseFromPreset(PIXEL_PRESETS.heart, 'Pixel Heart', 'Paint a heart with marbles!');
+    LEVELS.push(showcaseLvl);
+    levelStars.push(0);
+    unlockedLevels = LEVELS.length;
+    prototypeInfo = {
+      name: 'Pixel Art Sorter',
+      description: 'Sort marbles to paint a pixel art image! Each marble fills one pixel.',
+      howToPlay: 'Tap boxes at the top to release marbles. They flow through the funnel onto the belt, then jump into matching colored cells in the pixel grid below. Fill every pixel to complete the image!',
+      showcaseLevel: showcaseLvl
+    };
+  }
+  updateShowcaseUI();
+  showLevelSelect();
+});
+frame();
