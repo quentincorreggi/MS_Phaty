@@ -26,8 +26,9 @@ var BELT_SLOTS = 30, beltSlots = [], beltOffset = 0, BELT_SPEED = 0.0031;
 var LIP_PCT = 0.28;
 var MRB_GAP_FACTOR = 0.75;
 
-// === 8 COLORS ===
-var CLR_NAMES = ['pink', 'blue', 'green', 'yellow', 'purple', 'orange', 'teal', 'crimson'];
+// === 16 COLORS ===
+var CLR_NAMES = ['pink', 'blue', 'green', 'yellow', 'purple', 'orange', 'teal', 'crimson',
+                 'red', 'navy', 'brown', 'sky', 'lime', 'peach', 'gray', 'ivory'];
 var COLORS = [
   { fill: '#FF4E8C', light: '#FF85B5', dark: '#C73068', glow: 'rgba(255,78,140,0.5)' },
   { fill: '#4A9FFF', light: '#80C0FF', dark: '#2B6FCC', glow: 'rgba(74,159,255,0.5)' },
@@ -36,7 +37,15 @@ var COLORS = [
   { fill: '#A66DD4', light: '#C89CF2', dark: '#7B4FA8', glow: 'rgba(166,109,212,0.5)' },
   { fill: '#FF7F50', light: '#FFA885', dark: '#CC5A30', glow: 'rgba(255,127,80,0.5)' },
   { fill: '#4ECDC4', light: '#7EDDD6', dark: '#35A89F', glow: 'rgba(78,205,196,0.5)' },
-  { fill: '#E84393', light: '#F28CB1', dark: '#B8326F', glow: 'rgba(232,67,147,0.5)' }
+  { fill: '#E84393', light: '#F28CB1', dark: '#B8326F', glow: 'rgba(232,67,147,0.5)' },
+  { fill: '#E74C3C', light: '#F1948A', dark: '#B03A2E', glow: 'rgba(231,76,60,0.5)' },
+  { fill: '#34495E', light: '#5D6D7E', dark: '#1C2833', glow: 'rgba(52,73,94,0.5)' },
+  { fill: '#A0724A', light: '#C9A87C', dark: '#7A5230', glow: 'rgba(160,114,74,0.5)' },
+  { fill: '#85C1E9', light: '#AED6F1', dark: '#5DADE2', glow: 'rgba(133,193,233,0.5)' },
+  { fill: '#A8D86C', light: '#C5E89B', dark: '#7CB342', glow: 'rgba(168,216,108,0.5)' },
+  { fill: '#F5B895', light: '#FADBC8', dark: '#E59866', glow: 'rgba(245,184,149,0.5)' },
+  { fill: '#95A5A6', light: '#BFC9CA', dark: '#717D7E', glow: 'rgba(149,165,166,0.5)' },
+  { fill: '#F0EBE0', light: '#FDFCFA', dark: '#C8C3B8', glow: 'rgba(240,235,224,0.5)' }
 ];
 var NUM_COLORS = COLORS.length;
 
