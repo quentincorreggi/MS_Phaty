@@ -73,7 +73,7 @@ var cal = {
   stock:  { dx: -1, dy: 93, s: 0.89 },
   funnel: { dx: 0, dy: -54, sw: 1.03, sh: 0.65 },
   belt:   { dx: 0, dy: 24, sw: 0.80, sh: 1.33 },
-  sort:   { dx: 0, dy: -7, s: 0.96 },
+  sort:   { dx: 0, dy: -24, s: 0.96 },
   marble: { s: 1.37 },
   back:   { dx: -23, dy: 85, s: 1.0 }
 };
