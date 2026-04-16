@@ -360,14 +360,12 @@ function drawBlockerProgress() {
 // ── Jumpers ──
 
 function drawJumpers() {
-  var slotR = 8 * S;
   for (var i = 0; i < jumpers.length; i++) {
     var j = jumpers[i]; var t = j.t;
     var e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-    // Target is pixel grid cell
-    var tPos = getPixelCellXY(j.targetCol, j.targetRow);
-    var tx = tPos.x + L.pxCell / 2;
-    var ty = tPos.y + L.pxCell / 2;
+    // Target: visual top of the column (row 0)
+    var tx = L.pxLeft + j.targetCol * (L.pxCell + L.pxGap) + L.pxCell / 2;
+    var ty = L.pxTop + L.pxCell / 2;
     var x = j.startX + (tx - j.startX) * e;
     var y = j.startY + (ty - j.startY) * e - Math.sin(t * Math.PI) * 40 * S;
     var arcScale = 1 + Math.sin(t * Math.PI) * 0.25;
@@ -393,98 +391,68 @@ function drawSortArea() {
   var rad = Math.max(1, cs * 0.15);
   var mrbR = cs * 0.38;
 
-  // Draw grid background
+  // Grid background
   ctx.save();
   ctx.fillStyle = 'rgba(180,165,145,0.08)';
   rRect(L.pxLeft - 3 * S, L.pxTop - 3 * S, L.pxGridW + 6 * S, L.pxGridH + 6 * S, 6 * S);
   ctx.fill();
   ctx.restore();
 
-  for (var r = 0; r < PIXEL_ROWS; r++) {
-    for (var c = 0; c < PIXEL_COLS; c++) {
-      var idx = r * PIXEL_COLS + c;
-      var p = pixelGrid[idx];
-      if (!p) continue;  // empty/transparent cell — skip
+  // Draw each column: visible pixels packed from the top
+  for (var c = 0; c < PIXEL_COLS; c++) {
+    var visPx = [];
+    for (var r = 0; r < PIXEL_ROWS; r++) {
+      var p = pixelGrid[r * PIXEL_COLS + c];
+      if (p && p.vis) visPx.push(p);
+    }
 
+    for (var vi = 0; vi < visPx.length; vi++) {
+      var p = visPx[vi];
       var px = L.pxLeft + c * (cs + L.pxGap);
-      var py = L.pxTop + r * (cs + L.pxGap);
+      var py = L.pxTop + vi * (cs + L.pxGap);
       var cx2 = px + cs / 2;
       var cy2 = py + cs / 2;
       var sc = COLORS[p.ci];
 
-      if (p.filled) {
-        // Filled cell — solid marble pixel
-        var sqX = 1, sqY = 1;
-        if (p.squishT > 0) { var sq = Math.sin(p.squishT * Math.PI); sqX = 1 + sq * 0.18; sqY = 1 - sq * 0.12; }
-        var ps = 1 + (p.popT || 0) * 0.2;
+      var sqX = 1, sqY = 1;
+      if (p.squishT > 0) { var sq = Math.sin(p.squishT * Math.PI); sqX = 1 + sq * 0.18; sqY = 1 - sq * 0.12; }
+      var ps = 1 + p.popT * 0.25;
+      var al = p.popT > 0.6 ? (1 - p.popT) * 2.5 : 1;
 
-        ctx.save();
-        ctx.translate(cx2, cy2);
-        ctx.scale(ps * sqX, ps * sqY);
-
-        // Cell background
-        var grad = ctx.createLinearGradient(-cs / 2, -cs / 2, cs / 2, cs / 2);
-        grad.addColorStop(0, sc.light); grad.addColorStop(1, sc.fill);
-        ctx.fillStyle = grad;
-        rRect(-cs / 2, -cs / 2, cs, cs, rad); ctx.fill();
-
-        // Marble
-        var mGrad = ctx.createRadialGradient(-mrbR * 0.2, -mrbR * 0.2, mrbR * 0.1, 0, 0, mrbR);
-        mGrad.addColorStop(0, sc.light); mGrad.addColorStop(0.7, sc.fill); mGrad.addColorStop(1, sc.dark);
-        ctx.fillStyle = mGrad;
-        ctx.beginPath(); ctx.arc(0, 0, mrbR, 0, Math.PI * 2); ctx.fill();
-        // Highlight
-        ctx.fillStyle = 'rgba(255,255,255,0.3)';
-        ctx.beginPath(); ctx.arc(-mrbR * 0.2, -mrbR * 0.2, mrbR * 0.35, 0, Math.PI * 2); ctx.fill();
-
-        // Shine overlay
-        if (p.shineT > 0) {
-          ctx.fillStyle = 'rgba(255,255,255,' + (p.shineT * 0.5) + ')';
-          rRect(-cs / 2, -cs / 2, cs, cs, rad); ctx.fill();
-        }
-
-        ctx.restore();
-      } else {
-        // Unfilled cell — ghost outline showing target color
-        ctx.save();
-        ctx.fillStyle = sc.fill;
-        ctx.globalAlpha = 0.12;
-        rRect(px, py, cs, cs, rad); ctx.fill();
-        ctx.globalAlpha = 0.25;
-        ctx.strokeStyle = sc.fill;
-        ctx.lineWidth = 0.5 * S;
-        rRect(px, py, cs, cs, rad); ctx.stroke();
-        ctx.restore();
-      }
-    }
-
-    // Row completion shine
-    if (pixelRowShineT && pixelRowShineT[r] > 0) {
-      var shineAlpha = pixelRowShineT[r] * 0.35;
-      var py2 = L.pxTop + r * (cs + L.pxGap);
       ctx.save();
-      ctx.fillStyle = 'rgba(255,255,255,' + shineAlpha + ')';
-      ctx.fillRect(L.pxLeft, py2, L.pxGridW, cs);
-      ctx.restore();
-    }
-  }
+      ctx.globalAlpha = Math.max(0, Math.min(1, al));
+      ctx.translate(cx2, cy2);
+      ctx.scale(ps * sqX, ps * sqY);
 
-  // Win shimmer
-  if (pixelWinT > 0) {
-    for (var r = 0; r < PIXEL_ROWS; r++) {
-      for (var c = 0; c < PIXEL_COLS; c++) {
-        var idx = r * PIXEL_COLS + c;
-        var p = pixelGrid[idx];
-        if (!p || !p.filled) continue;
-        var wave = Math.sin(tick * 0.08 + r * 0.3 + c * 0.3) * 0.5 + 0.5;
-        var px = L.pxLeft + c * (cs + L.pxGap);
-        var py = L.pxTop + r * (cs + L.pxGap);
-        ctx.save();
-        ctx.globalAlpha = wave * pixelWinT * 0.25;
-        ctx.fillStyle = '#fff';
-        rRect(px, py, cs, cs, rad); ctx.fill();
-        ctx.restore();
+      // Cell background
+      var grad = ctx.createLinearGradient(-cs / 2, -cs / 2, cs / 2, cs / 2);
+      grad.addColorStop(0, sc.light); grad.addColorStop(1, sc.fill);
+      ctx.fillStyle = grad;
+      rRect(-cs / 2, -cs / 2, cs, cs, rad); ctx.fill();
+
+      // Marble
+      var mGrad = ctx.createRadialGradient(-mrbR * 0.2, -mrbR * 0.2, mrbR * 0.1, 0, 0, mrbR);
+      mGrad.addColorStop(0, sc.light); mGrad.addColorStop(0.7, sc.fill); mGrad.addColorStop(1, sc.dark);
+      ctx.fillStyle = mGrad;
+      ctx.beginPath(); ctx.arc(0, 0, mrbR, 0, Math.PI * 2); ctx.fill();
+      // Highlight
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.beginPath(); ctx.arc(-mrbR * 0.2, -mrbR * 0.2, mrbR * 0.35, 0, Math.PI * 2); ctx.fill();
+
+      // Shine overlay
+      if (p.shineT > 0) {
+        ctx.fillStyle = 'rgba(255,255,255,' + (p.shineT * 0.5) + ')';
+        rRect(-cs / 2, -cs / 2, cs, cs, rad); ctx.fill();
       }
+
+      // Subtle highlight on topmost pixel (the active one)
+      if (vi === 0) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+        ctx.lineWidth = 1.5 * S;
+        rRect(-cs / 2, -cs / 2, cs, cs, rad); ctx.stroke();
+      }
+
+      ctx.restore();
     }
   }
 }

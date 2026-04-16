@@ -65,9 +65,8 @@ var SNAKE_ORDER = [
 
 // === PIXEL ART GRID ===
 var PIXEL_COLS = 20, PIXEL_ROWS = 20;
-var pixelGrid = [];     // flat array of PIXEL_ROWS * PIXEL_COLS: { ci, filled, popT, squishT, shineT } or null
-var pixelRowShineT = []; // per-row shine timer
-var pixelWinT = 0;      // win shimmer timer
+var pixelGrid = [];     // flat array of PIXEL_ROWS * PIXEL_COLS: { ci, vis, popT, squishT, shineT } or null
+var pixelWinT = 0;
 
 // === CALIBRATION ===
 var cal = {

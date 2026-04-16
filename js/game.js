@@ -159,15 +159,13 @@ function initGame() {
 
   // ── Pixel art grid (replaces sort columns) ──
   pixelGrid = [];
-  pixelRowShineT = [];
   pixelWinT = 0;
-  for (var i = 0; i < PIXEL_ROWS; i++) pixelRowShineT.push(0);
 
   if (lvl.pixelArt) {
     for (var i = 0; i < PIXEL_ROWS * PIXEL_COLS; i++) {
       var pa = lvl.pixelArt[i];
       if (pa !== null && pa !== undefined && pa >= 0) {
-        pixelGrid.push({ ci: pa, filled: false, popT: 0, squishT: 0, shineT: 0 });
+        pixelGrid.push({ ci: pa, vis: true, popT: 0, squishT: 0, shineT: 0 });
       } else {
         pixelGrid.push(null);
       }
@@ -349,72 +347,54 @@ function update() {
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
 
-  // Belt → pixel grid matching
+  // Belt → pixel grid matching (only topmost visible pixel per column)
   for (var si = 0; si < BELT_SLOTS; si++) {
     var slot = beltSlots[si]; if (slot.marble < 0) continue;
-    if (slot.marble === BLOCKER_CI) continue; // blockers don't go to pixel grid
+    if (slot.marble === BLOCKER_CI) continue;
     var slotT = getSlotT(si);
     for (var pc = 0; pc < PIXEL_COLS; pc++) {
       var bt = L.sortBeltT[pc]; var diff = Math.abs(slotT - bt); var wdiff = Math.min(diff, 1 - diff);
       if (wdiff > 0.012) continue;
-      // Find bottom-most unfilled cell in this column matching marble color
-      var targetRow = -1;
-      for (var pr = PIXEL_ROWS - 1; pr >= 0; pr--) {
+      // Find topmost visible pixel in this column
+      var topRow = -1, topPx = null;
+      for (var pr = 0; pr < PIXEL_ROWS; pr++) {
         var pidx = pr * PIXEL_COLS + pc;
-        var px = pixelGrid[pidx];
-        if (!px || px.filled) continue;
-        if (px.ci !== slot.marble) continue;
-        // Check not already targeted by a jumper
-        var alreadyTargeted = false;
-        for (var jj = 0; jj < jumpers.length; jj++) {
-          if (jumpers[jj].targetCol === pc && jumpers[jj].targetRow === pr) { alreadyTargeted = true; break; }
-        }
-        if (alreadyTargeted) continue;
-        targetRow = pr;
-        break;
+        var px2 = pixelGrid[pidx];
+        if (px2 && px2.vis) { topRow = pr; topPx = px2; break; }
       }
-      if (targetRow < 0) continue;
-      // Check this slot isn't already jumping
+      if (!topPx || topPx.ci !== slot.marble) continue;
+      // One jumper per column at a time
+      var colBusy = false;
+      for (var jj = 0; jj < jumpers.length; jj++) { if (jumpers[jj].targetCol === pc) { colBusy = true; break; } }
+      if (colBusy) continue;
+      // Check slot not already jumping
       var aj = false;
       for (var jj = 0; jj < jumpers.length; jj++) if (jumpers[jj].slotIdx === si) { aj = true; break; }
       if (aj) continue;
       var pos = getSlotPos(si);
-      jumpers.push({ ci: slot.marble, slotIdx: si, startX: pos.x, startY: pos.y, targetCol: pc, targetRow: targetRow, t: 0 });
+      jumpers.push({ ci: slot.marble, slotIdx: si, startX: pos.x, startY: pos.y, targetCol: pc, targetRow: topRow, t: 0 });
       slot.marble = -1; break;
     }
   }
 
-  // Jumper animation
+  // Jumper animation — on arrival, pop + hide the top visible pixel
   for (var i = jumpers.length - 1; i >= 0; i--) {
     var j = jumpers[i]; j.t += 0.04;
     if (j.t >= 1) {
-      var pidx = j.targetRow * PIXEL_COLS + j.targetCol;
-      var px = pixelGrid[pidx];
-      if (px && !px.filled && px.ci === j.ci) {
-        px.filled = true;
-        px.squishT = 1;
+      // Find current topmost visible pixel in target column
+      var hitPx = null;
+      for (var pr = 0; pr < PIXEL_ROWS; pr++) {
+        var pidx = pr * PIXEL_COLS + j.targetCol;
+        var px2 = pixelGrid[pidx];
+        if (px2 && px2.vis) { if (px2.ci === j.ci) hitPx = px2; break; }
+      }
+      if (hitPx) {
+        hitPx.popT = 1; hitPx.shineT = 1;
         sfx.sort();
-        // Check row completion
-        var rowComplete = true;
-        var rowHasPixels = false;
-        for (var rc = 0; rc < PIXEL_COLS; rc++) {
-          var rp = pixelGrid[j.targetRow * PIXEL_COLS + rc];
-          if (rp) {
-            rowHasPixels = true;
-            if (!rp.filled) { rowComplete = false; break; }
-          }
-        }
-        if (rowComplete && rowHasPixels) {
-          pixelRowShineT[j.targetRow] = 1;
-          sfx.complete();
-          var rowY = L.pxTop + j.targetRow * (L.pxCell + L.pxGap) + L.pxCell / 2;
-          spawnConfetti(L.pxLeft + L.pxGridW / 2, rowY, 12);
-        }
-        // Particle burst at the filled cell
-        var cellPos = getPixelCellXY(j.targetCol, j.targetRow);
-        spawnBurst(cellPos.x + L.pxCell / 2, cellPos.y + L.pxCell / 2, COLORS[j.ci].fill, 6);
-        // Check win
-        checkWin();
+        var bx2 = L.pxLeft + j.targetCol * (L.pxCell + L.pxGap) + L.pxCell / 2;
+        var by2 = L.pxTop + L.pxCell / 2;
+        spawnBurst(bx2, by2, COLORS[j.ci].fill, 8);
+        (function (px3) { setTimeout(function () { px3.vis = false; checkWin(); }, 400); })(hitPx);
       }
       jumpers.splice(i, 1);
     }
@@ -487,23 +467,19 @@ function update() {
   for (var i = 0; i < pixelGrid.length; i++) {
     var px = pixelGrid[i];
     if (!px) continue;
-    if (px.popT > 0) px.popT = Math.max(0, px.popT - 0.03);
-    if (px.shineT > 0) px.shineT = Math.max(0, px.shineT - 0.03);
+    if (px.popT > 0) px.popT = Math.max(0, px.popT - 0.02);
+    if (px.shineT > 0) px.shineT = Math.max(0, px.shineT - 0.025);
     if (px.squishT > 0) px.squishT = Math.max(0, px.squishT - 0.06);
   }
-  for (var r = 0; r < PIXEL_ROWS; r++) {
-    if (pixelRowShineT[r] > 0) pixelRowShineT[r] = Math.max(0, pixelRowShineT[r] - 0.02);
-  }
-  if (pixelWinT > 0) pixelWinT = Math.max(0, pixelWinT - 0.005);
 
   tickParticles();
   updateRollingSound();
 }
 
 function checkWin() {
-  // Check all pixel cells are filled
+  // Check all pixel cells are consumed (vis=false)
   for (var i = 0; i < pixelGrid.length; i++) {
-    if (pixelGrid[i] && !pixelGrid[i].filled) return;
+    if (pixelGrid[i] && pixelGrid[i].vis) return;
   }
   // Check all tunnel contents depleted
   for (var i = 0; i < stock.length; i++) {
@@ -511,7 +487,6 @@ function checkWin() {
   }
   if (!won) {
     won = true; sfx.win();
-    pixelWinT = 1;
     document.getElementById('win-msg').textContent = 'Pixel art complete!';
     spawnConfetti(W / 2, H / 3, 60);
     setTimeout(function () { spawnConfetti(W * 0.3, H / 2, 40); }, 200);
