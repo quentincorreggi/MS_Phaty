@@ -40,18 +40,10 @@ var COLORS = [
 ];
 var NUM_COLORS = COLORS.length;
 
-// Blocker marble color — index 8, NOT included in NUM_COLORS
+// Blocker marble stone color — index 8, NOT included in NUM_COLORS
 var BLOCKER_CI = COLORS.length;
 COLORS.push({ fill: '#7A7068', light: '#A89E94', dark: '#4A4440', glow: 'rgba(122,112,104,0.5)' });
-var BLOCKER_PER_BOX = 3;
-
-// Blocker tracking state
-var totalBlockerMarbles = 0;
-var blockersOnBelt = 0;
-var blockerCollecting = false;
-var blockerCollectT = 0;
-var blockerCollectSlots = [];
-var blockerCollectCleared = false;
+var BLOCKER_PER_BOX = 3; // 3 blockers per tagged box
 
 var MRB_PER_BOX = 9, SORT_CAP = 3;
 var SORT_VISIBLE_ROWS = 4;

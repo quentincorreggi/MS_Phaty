@@ -97,7 +97,7 @@ function physicsStep() {
 function spawnPhysMarbles(box) {
   box.spawning = true; box.spawnIdx = 0;
   var count = box.remaining;
-  var blockerCount = box.blockerCount || 0;
+  var blockerCount = box.hasBlockers ? BLOCKER_PER_BOX : 0;
   var blockerStart = MRB_PER_BOX - blockerCount;
   for (var idx = 0; idx < count; idx++) {
     (function (i, b, bStart) {

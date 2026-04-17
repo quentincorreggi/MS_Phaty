@@ -5,7 +5,7 @@
 // ============================================================
 
 var editor = {
-  grid: [],            // 7x7: null = empty, { ci, type } or { tunnel: true, ... } or { wall: true }
+  grid: [],            // 7x7: null = empty, { ci, type, hasBlockers? } or { tunnel: true, ... } or { wall: true }
   name: 'Custom Level',
   desc: 'My custom level',
   mrbPerBox: 9,
@@ -17,6 +17,7 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  blockerMode: false,   // true when tap toggles hasBlockers on a box
   visible: false
 };
 
@@ -34,6 +35,7 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.blockerMode = false;
 }
 
 function showEditor(fresh) {
@@ -91,6 +93,10 @@ function editorRenderGrid() {
       cell.style.background = st.background;
       cell.style.borderColor = st.borderColor;
       cell.innerHTML = bt.editorCellHTML(v.ci);
+      if (v.hasBlockers) {
+        cell.innerHTML += '<span class="ed-blocker-badge" title="contains blocker marbles">\u25CF\u25CF\u25CF</span>';
+        cell.style.boxShadow = '0 0 0 2px rgba(122,112,104,0.65)';
+      }
     } else {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
@@ -104,6 +110,19 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.blockerMode) {
+    // Blocker modifier mode — toggle hasBlockers on a painted box
+    var cell = editor.grid[idx];
+    if (cell && !cell.tunnel && !cell.wall && cell.ci >= 0) {
+      cell.hasBlockers = !cell.hasBlockers;
+      editorRenderGrid();
+      editorUpdateStats();
+    } else {
+      editorShowToast('Paint a colored box first, then tag it with blockers');
+    }
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -178,13 +197,14 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.blockerMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.blockerMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -200,6 +220,7 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.blockerMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -214,10 +235,27 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.blockerMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(tunnelBtn);
+
+  // Blocker modifier toggle
+  var blkBtn = document.createElement('button');
+  blkBtn.className = 'ed-type-btn' + (editor.blockerMode ? ' active' : '');
+  blkBtn.textContent = '\u25CF\u25CF\u25CF +Blk';
+  blkBtn.style.borderColor = editor.blockerMode ? 'rgba(90,80,72,0.8)' : '';
+  blkBtn.style.color = editor.blockerMode ? '#3E3832' : '';
+  blkBtn.title = 'Tag a painted box with 3 blocker marbles';
+  blkBtn.addEventListener('click', function () {
+    editor.blockerMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(blkBtn);
 
   el.appendChild(typeRow);
 
@@ -260,6 +298,12 @@ function editorRenderToolbar() {
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
+  } else if (editor.blockerMode) {
+    // Blocker mode: info hint
+    var blkInfo = document.createElement('div');
+    blkInfo.className = 'ed-color-row';
+    blkInfo.innerHTML = '<span style="font-size:11px;color:#5A4A38">Tap a colored box to tag/untag 3 blocker marbles. Total must be a multiple of 3.</span>';
+    el.appendChild(blkInfo);
   } else {
     // Color palette: eraser + 8 colors
     var colorRow = document.createElement('div');
@@ -467,7 +511,7 @@ function editorUpdateStats() {
         for (var tc = 0; tc < v.contents.length; tc++) {
           var tItem = v.contents[tc];
           counts[tItem.ci]++;
-          if (tItem.type === 'blocker') {
+          if (tItem.hasBlockers) {
             regularMrb[tItem.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
             totalBlockers += BLOCKER_PER_BOX;
           } else {
@@ -481,7 +525,7 @@ function editorUpdateStats() {
       counts[v.ci]++;
       total++;
       typeCounts[v.type] = (typeCounts[v.type] || 0) + 1;
-      if (v.type === 'blocker') {
+      if (v.hasBlockers) {
         regularMrb[v.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
         totalBlockers += BLOCKER_PER_BOX;
       } else {
@@ -618,8 +662,21 @@ function editorImportJSON() {
           if (cell === null || cell === undefined || cell === -1) editor.grid[i] = null;
           else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
           else if (cell.wall) editor.grid[i] = { wall: true };
-          else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
-          else editor.grid[i] = cell;
+          else if (cell.tunnel) {
+            var conts = (cell.contents || []).map(function (it) {
+              var tp = it.type || 'default';
+              var hb = !!it.hasBlockers;
+              if (tp === 'blocker') { tp = 'default'; hb = true; }
+              return { ci: it.ci, type: tp, hasBlockers: hb };
+            });
+            editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: conts };
+          }
+          else {
+            var tp2 = cell.type || 'default';
+            var hb2 = !!cell.hasBlockers;
+            if (tp2 === 'blocker') { tp2 = 'default'; hb2 = true; }
+            editor.grid[i] = { ci: cell.ci, type: tp2, hasBlockers: hb2 };
+          }
         }
       }
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;

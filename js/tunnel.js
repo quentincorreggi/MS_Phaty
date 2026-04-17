@@ -175,8 +175,11 @@ function trySpawnFromTunnels() {
 
     var exitRow = Math.floor(exitIdx / L.cols);
     var exitCol = exitIdx % L.cols;
-    var isIce = (nextBox.type === 'ice');
-    var isBlocker = (nextBox.type === 'blocker');
+    var btp = nextBox.type || 'default';
+    var hasB = !!nextBox.hasBlockers;
+    // Migrate legacy 'blocker' type to hasBlockers flag on default boxes
+    if (btp === 'blocker') { btp = 'default'; hasB = true; }
+    var isIce = (btp === 'ice');
 
     stock[exitIdx] = {
       ci: nextBox.ci,
@@ -188,11 +191,11 @@ function trySpawnFromTunnels() {
       // still has a passable path to the bottom of the grid.
       revealed: false,
       empty: false,
-      boxType: nextBox.type || 'default',
+      boxType: btp,
+      hasBlockers: hasB,
       iceHP: isIce ? 2 : 0,
       iceCrackT: 0,
       iceShatterT: 0,
-      blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
       isTunnel: false,
       isWall: false,
       x: L.sx + exitCol * (L.bw + L.bg),
