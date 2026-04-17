@@ -225,7 +225,7 @@ function drawBlockerTray() {
 
   ctx.save();
 
-  // Tray plank body (stone slab)
+  // Tray plank body (stone slab) — surface scrolls with the conveyor
   if (trayAlive) {
     var shake = 0;
     if (blocker.collecting && blocker.collectT > 0.65) {
@@ -237,7 +237,7 @@ function drawBlockerTray() {
     // Drop shadow
     ctx.shadowColor = 'rgba(0,0,0,0.28)';
     ctx.shadowBlur = 6 * S; ctx.shadowOffsetY = 2 * S;
-    // Stone gradient
+    // Stone gradient base
     var gradSt = ctx.createLinearGradient(0, plankTy, 0, plankTy + planksH);
     gradSt.addColorStop(0, '#B0A598');
     gradSt.addColorStop(0.5, '#8A8078');
@@ -245,35 +245,82 @@ function drawBlockerTray() {
     ctx.fillStyle = gradSt;
     rRect(plankLx, plankTy, planksW, planksH, 8 * S); ctx.fill();
     ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-    // Inner bevel / crack texture lines
+
+    // Scrolling tread pattern (tracks the belt's bottom direction: right → left)
+    ctx.save();
+    ctx.beginPath();
+    rRect(plankLx, plankTy, planksW, planksH, 8 * S);
+    ctx.clip();
+    var treadGap = 14 * S;
+    // perimeter the belt travels per full beltOffset cycle
+    var beltPerim = (L.beltRight - L.beltLeft - 2 * L.uR) * 2 + Math.PI * 2 * L.uR;
+    var treadShift = ((beltOffset * beltPerim) % treadGap + treadGap) % treadGap;
+    // Dark chevron lines
+    ctx.strokeStyle = 'rgba(50,42,36,0.28)';
+    ctx.lineWidth = 1.4 * S;
+    for (var gx = plankLx - treadGap * 2 - treadShift; gx < plankLx + planksW + treadGap; gx += treadGap) {
+      ctx.beginPath();
+      ctx.moveTo(gx, plankTy + planksH + 2 * S);
+      ctx.lineTo(gx + planksH * 0.5, plankTy - 2 * S);
+      ctx.stroke();
+    }
+    // Lighter companion line for 3D feel
+    ctx.strokeStyle = 'rgba(255,255,255,0.09)';
+    ctx.lineWidth = 1 * S;
+    for (var gx2 = plankLx - treadGap * 2 - treadShift + 2 * S; gx2 < plankLx + planksW + treadGap; gx2 += treadGap) {
+      ctx.beginPath();
+      ctx.moveTo(gx2, plankTy + planksH + 2 * S);
+      ctx.lineTo(gx2 + planksH * 0.5, plankTy - 2 * S);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Inner bevel outline
     ctx.strokeStyle = 'rgba(50,42,36,0.35)';
     ctx.lineWidth = 1.2 * S;
     rRect(plankLx, plankTy, planksW, planksH, 8 * S); ctx.stroke();
-    // Top highlight line
-    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    // Top highlight edge
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
     ctx.lineWidth = 1 * S;
     ctx.beginPath();
     ctx.moveTo(plankLx + 8 * S, plankTy + 2 * S);
     ctx.lineTo(plankLx + planksW - 8 * S, plankTy + 2 * S);
     ctx.stroke();
-    // Subtle cracks
-    ctx.strokeStyle = 'rgba(50,42,36,0.22)';
-    ctx.lineWidth = 0.8 * S;
-    var crackY = plankTy + planksH * 0.7;
-    ctx.beginPath();
-    ctx.moveTo(plankLx + 6 * S, crackY);
-    ctx.lineTo(plankLx + planksW * 0.3, crackY - 2 * S);
-    ctx.lineTo(plankLx + planksW * 0.55, crackY + 1 * S);
-    ctx.lineTo(plankLx + planksW - 8 * S, crackY - 1 * S);
-    ctx.stroke();
+    // End-cap drums (axles hinting the tray is driven by the belt)
+    var drumR = planksH * 0.42;
+    [plankLx + drumR * 0.9, plankLx + planksW - drumR * 0.9].forEach(function (dx, di) {
+      var dy = plankTy + planksH / 2;
+      var dg = ctx.createRadialGradient(dx - drumR * 0.3, dy - drumR * 0.3, drumR * 0.1, dx, dy, drumR);
+      dg.addColorStop(0, '#9A8F82');
+      dg.addColorStop(1, '#3E3832');
+      ctx.fillStyle = dg;
+      ctx.beginPath(); ctx.arc(dx, dy, drumR, 0, Math.PI * 2); ctx.fill();
+      // Rotation spokes
+      ctx.save();
+      ctx.translate(dx, dy);
+      var rotDir = (di === 0 ? 1 : 1); // both drums turn the same way
+      ctx.rotate(beltOffset * beltPerim / drumR * rotDir);
+      ctx.strokeStyle = 'rgba(30,24,18,0.55)';
+      ctx.lineWidth = 1 * S;
+      for (var sp = 0; sp < 4; sp++) {
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(sp * Math.PI / 2) * drumR * 0.85, Math.sin(sp * Math.PI / 2) * drumR * 0.85);
+        ctx.stroke();
+      }
+      ctx.restore();
+      ctx.strokeStyle = 'rgba(30,24,18,0.55)';
+      ctx.lineWidth = 1 * S;
+      ctx.beginPath(); ctx.arc(dx, dy, drumR, 0, Math.PI * 2); ctx.stroke();
+    });
     // Label
     ctx.fillStyle = 'rgba(255,255,255,0.28)';
     ctx.font = 'bold ' + (7 * S) + 'px sans-serif';
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText('BLOCKERS', plankLx + 6 * S, plankTy + 6 * S);
+    ctx.fillText('BLOCKERS', plankLx + drumR * 2 + 2 * S, plankTy + 6 * S);
     ctx.fillStyle = 'rgba(255,255,255,0.38)';
     ctx.textAlign = 'right';
-    ctx.fillText(blocker.onBelt + ' / ' + blocker.total, plankLx + planksW - 6 * S, plankTy + 6 * S);
+    ctx.fillText(blocker.onBelt + ' / ' + blocker.total, plankLx + planksW - drumR * 2 - 2 * S, plankTy + 6 * S);
     ctx.restore();
   }
 
@@ -364,57 +411,3 @@ function drawBlockerTray() {
   ctx.restore();
 }
 
-// Blocker indicator drawn on top of any box with hasBlockers=true.
-// Called from drawStock for both closed and revealed boxes.
-function drawBlockerBoxBadge(x, y, w, h, alpha) {
-  if (alpha === undefined) alpha = 1;
-  var bc = COLORS[BLOCKER_CI];
-  ctx.save();
-  ctx.globalAlpha = alpha;
-
-  // Corner stone patch with 3 stone-marble dots peeking from the top
-  var patchW = w * 0.55;
-  var patchH = h * 0.26;
-  var px = x + (w - patchW) / 2;
-  var py = y - h * 0.02;
-
-  // Stone tab background
-  ctx.save();
-  var sg = ctx.createLinearGradient(px, py, px, py + patchH);
-  sg.addColorStop(0, '#A89E94');
-  sg.addColorStop(1, '#6A6058');
-  ctx.fillStyle = sg;
-  ctx.shadowColor = 'rgba(0,0,0,0.28)';
-  ctx.shadowBlur = 3 * S; ctx.shadowOffsetY = 1.5 * S;
-  rRect(px, py, patchW, patchH, 5 * S); ctx.fill();
-  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-  ctx.strokeStyle = 'rgba(40,32,26,0.5)'; ctx.lineWidth = 0.8 * S;
-  rRect(px, py, patchW, patchH, 5 * S); ctx.stroke();
-  ctx.restore();
-
-  // 3 stone marbles
-  var dotR = patchH * 0.34;
-  var cxc = px + patchW / 2;
-  var cyc = py + patchH * 0.55;
-  var gap = patchW * 0.26;
-  for (var d = -1; d <= 1; d++) {
-    var dcx = cxc + d * gap;
-    var dg = ctx.createRadialGradient(dcx - dotR * 0.3, cyc - dotR * 0.3, dotR * 0.1, dcx, cyc, dotR);
-    dg.addColorStop(0, bc.light);
-    dg.addColorStop(0.65, bc.fill);
-    dg.addColorStop(1, bc.dark);
-    ctx.fillStyle = dg;
-    ctx.beginPath(); ctx.arc(dcx, cyc, dotR, 0, Math.PI * 2); ctx.fill();
-    // Highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.35)';
-    ctx.beginPath(); ctx.arc(dcx - dotR * 0.3, cyc - dotR * 0.3, dotR * 0.28, 0, Math.PI * 2); ctx.fill();
-  }
-
-  // Thin label
-  ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  ctx.font = 'bold ' + (patchH * 0.25) + 'px sans-serif';
-  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-  ctx.fillText('\u00D73', cxc, py + patchH * 0.02);
-
-  ctx.restore();
-}
