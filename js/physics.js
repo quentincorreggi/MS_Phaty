@@ -86,10 +86,6 @@ function physicsStep() {
       var bestIdx = -1, bestDist = Infinity;
       for (var k = 0; k < BELT_SLOTS; k++) {
         if (beltSlots[k].marble >= 0) continue;
-        // Don't let regular marbles claim tray slots as their initial
-        // landing point — they can still drift through later, but a fresh
-        // drop should prefer a non-tray slot.
-        if (typeof isBeltSlotInTray === 'function' && isBeltSlotInTray(k)) continue;
         var st = getSlotT(k);
         var diff = Math.abs(st - entryT);
         diff = Math.min(diff, 1 - diff);
