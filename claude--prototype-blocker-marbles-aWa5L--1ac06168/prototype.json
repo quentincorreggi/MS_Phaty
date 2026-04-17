@@ -1,0 +1,22 @@
+{
+  "name": "Blocker Marbles",
+  "description": "Some boxes are tagged with 3 stone blocker marbles mixed in. Fill the stone tray to shatter them all at once.",
+  "howToPlay": "Tap boxes to spawn marbles into the funnel. Colored marbles get sorted normally. Stone marbles instantly teleport to the Blocker Tray and ride with it around the belt. When every tray slot is filled, the tray shatters and resets.",
+  "author": "Blocker Marbles prototype",
+  "showcaseLevel": {
+    "name": "Blocker Marbles — Showcase",
+    "desc": "14 regular boxes (4 colors) + 3 blocker-tagged boxes (9 stone marbles total).",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, {"ci":3,"type":"default"}, null, {"ci":0,"type":"default"}, null, {"ci":1,"type":"default"}, null,
+      {"ci":2,"type":"default"}, null, {"ci":3,"type":"default"}, null, {"ci":0,"type":"default"}, null, {"ci":2,"type":"default"},
+      null, {"ci":1,"type":"default"}, null, {"ci":2,"type":"default"}, null, {"ci":3,"type":"default"}, null,
+      {"ci":0,"type":"default"}, null, {"ci":1,"type":"default"}, null, {"ci":2,"type":"default"}, null, {"ci":3,"type":"default"},
+      null, {"ci":0,"type":"default"}, null, {"ci":1,"type":"default"}, null, {"ci":2,"type":"default"}, null,
+      null, {"ci":0,"type":"default","hasBlockers":true}, null, {"ci":1,"type":"default","hasBlockers":true}, null, {"ci":2,"type":"default","hasBlockers":true}, null
+    ]
+  }
+}
