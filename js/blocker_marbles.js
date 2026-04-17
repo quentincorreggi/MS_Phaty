@@ -13,10 +13,9 @@
 // lock-step with the belt.
 //
 // CAPTURE:
-// A blocker that exits the funnel does NOT enter a normal belt
-// slot; instead it dips below the belt and resurfaces in the
-// next empty tray slot, wherever that slot currently is on the
-// loop. Once captured the stone stays locked to the tray.
+// The instant a blocker touches the belt, it teleports straight
+// into the next empty tray slot. Once captured the stone stays
+// locked to the tray.
 //
 // BUMP:
 // Regular marbles can ride the belt through tray-slot positions
@@ -34,7 +33,6 @@ var blocker = {
   total: 0,             // total blockers across all boxes in the level
   slots: [],            // per-slot state: { filled, fillT, shatterT, dx, dy, vx, vy, rot, rotV, shX, shY }
   trayStart: 0,         // first belt-slot index the tray occupies
-  captures: [],         // active dip-to-tray animations
   bumps: [],            // active regular-marble bump-off animations
   collecting: false,    // shatter sequence active
   collectT: 0,          // 1 -> 0 countdown during shatter
@@ -53,7 +51,6 @@ function initBlockerState(total) {
   }
   // Start the tray somewhere visible on the bottom of the belt.
   blocker.trayStart = Math.floor(BELT_SLOTS * 0.55);
-  blocker.captures = [];
   blocker.bumps = [];
   blocker.collecting = false;
   blocker.collectT = 0;
@@ -81,24 +78,25 @@ function trayIndexOfBeltSlot(i) {
 // Returns true if the blocker was captured (caller should remove the
 // phys marble); false if the tray is full and the blocker should fall
 // through as a regular belt marble.
+//
+// Capture is instant: the moment a blocker would land on the belt, it
+// teleports straight into the next empty tray slot.
 function captureBlocker(sx, sy) {
   if (blocker.total <= 0) return false;
   if (blocker.collecting) return false;
   var k = -1;
   for (var i = 0; i < blocker.total; i++) {
-    var slot = blocker.slots[i];
-    if (slot.filled) continue;
-    // Check if this slot is already the target of an in-flight capture
-    var alreadyTargeted = false;
-    for (var c = 0; c < blocker.captures.length; c++) {
-      if (blocker.captures[c].k === i) { alreadyTargeted = true; break; }
-    }
-    if (alreadyTargeted) continue;
-    k = i; break;
+    if (!blocker.slots[i].filled) { k = i; break; }
   }
   if (k < 0) return false;
-  blocker.captures.push({ sx: sx, sy: sy, k: k, t: 0, dur: 28 });
-  if (typeof sfx !== 'undefined' && sfx.drop) sfx.drop();
+  // Push out any regular sitting on the target tray slot first.
+  bumpRegularFromTraySlot(k);
+  var slot = blocker.slots[k];
+  slot.filled = true;
+  slot.fillT = 1.0;
+  if (typeof sfx !== 'undefined' && sfx.stoneClack) sfx.stoneClack();
+  var pos = getBlockerSlotPos(k);
+  spawnBurst(pos.x, pos.y, COLORS[BLOCKER_CI].light, 6);
   return true;
 }
 
@@ -154,23 +152,6 @@ function updateBlockers() {
       if (captureBlocker(bpos.x, bpos.y)) {
         beltSlots[bi].marble = -1;
       }
-    }
-  }
-
-  // Advance in-flight captures
-  for (var c = blocker.captures.length - 1; c >= 0; c--) {
-    var cap = blocker.captures[c];
-    cap.t += 1;
-    if (cap.t >= cap.dur) {
-      // Land the blocker: push out any regular sitting in the slot, then fill.
-      bumpRegularFromTraySlot(cap.k);
-      var slot = blocker.slots[cap.k];
-      slot.filled = true;
-      slot.fillT = 1.0;
-      if (typeof sfx !== 'undefined' && sfx.stoneClack) sfx.stoneClack();
-      var pos = getBlockerSlotPos(cap.k);
-      spawnBurst(pos.x, pos.y, COLORS[BLOCKER_CI].light, 6);
-      blocker.captures.splice(c, 1);
     }
   }
 
@@ -295,10 +276,7 @@ function drawBlockerTray() {
   // 2. Draw each tray slot (recess + stone marble / shatter fragment)
   drawBlockerSlots(trayAlive);
 
-  // 3. Draw in-flight capture dips (blocker falling under belt → up into slot)
-  drawBlockerCaptures();
-
-  // 4. Draw in-flight bump-offs (regular marble displaced by a blocker)
+  // 3. Draw in-flight bump-offs (regular marble displaced by a blocker)
   drawBlockerBumps();
 }
 
@@ -415,36 +393,6 @@ function drawStoneMarble(cx, cy, r, bc) {
   // Highlight
   ctx.fillStyle = 'rgba(255,255,255,0.32)';
   ctx.beginPath(); ctx.arc(cx - r * 0.3, cy - r * 0.3, r * 0.3, 0, Math.PI * 2); ctx.fill();
-}
-
-function drawBlockerCaptures() {
-  var bc = COLORS[BLOCKER_CI];
-  var slotR = 9 * S;
-  for (var c = 0; c < blocker.captures.length; c++) {
-    var cap = blocker.captures[c];
-    var u = cap.t / cap.dur;
-    var target = getBlockerSlotPos(cap.k);
-    // Straight-line X interpolation, arc-dip in Y.
-    var x = cap.sx + (target.x - cap.sx) * u;
-    var baseY = cap.sy + (target.y - cap.sy) * u;
-    // Dip: extra y pushes the marble below the belt near u = 0.5
-    var dipAmount = 42 * S;
-    var y = baseY + Math.sin(u * Math.PI) * dipAmount;
-    ctx.save();
-    // Fade out slightly at the deepest point so it reads as "under"
-    var belowness = Math.sin(u * Math.PI);
-    ctx.globalAlpha = 1 - belowness * 0.35;
-    drawStoneMarble(x, y, slotR * 0.85, bc);
-    // small dust trail
-    if ((tick + c) % 3 === 0) {
-      particles.push({
-        x: x, y: y, vx: (Math.random() - 0.5) * 0.4 * S, vy: 0.5 * S,
-        r: (1.5 + Math.random() * 1.5) * S, color: bc.light,
-        life: 0.5, decay: 0.05, grav: false
-      });
-    }
-    ctx.restore();
-  }
 }
 
 function drawBlockerBumps() {
