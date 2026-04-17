@@ -263,26 +263,20 @@ function drawBelt() {
   var slotR = 8 * S;
   for (var i = 0; i < BELT_SLOTS; i++) {
     var pos = getSlotPos(i); var slot = beltSlots[i];
-    ctx.save();
-    ctx.fillStyle = 'rgba(180,165,145,0.35)';
-    ctx.shadowColor = 'rgba(0,0,0,0.15)'; ctx.shadowBlur = 3 * S; ctx.shadowOffsetY = 1 * S;
-    ctx.beginPath(); ctx.arc(pos.x, pos.y, slotR, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(160,140,120,0.25)'; ctx.lineWidth = 1 * S;
-    ctx.beginPath(); ctx.arc(pos.x, pos.y, slotR, 0, Math.PI * 2); ctx.stroke();
-    ctx.restore();
+    var onTray = (typeof isBeltSlotInTray === 'function') && isBeltSlotInTray(i) && !blocker.cleared;
+    // Background disc — hidden where the tray bar already covers the path.
+    if (!onTray) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(180,165,145,0.35)';
+      ctx.shadowColor = 'rgba(0,0,0,0.15)'; ctx.shadowBlur = 3 * S; ctx.shadowOffsetY = 1 * S;
+      ctx.beginPath(); ctx.arc(pos.x, pos.y, slotR, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(160,140,120,0.25)'; ctx.lineWidth = 1 * S;
+      ctx.beginPath(); ctx.arc(pos.x, pos.y, slotR, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
     if (slot.marble >= 0) {
       var bs = 1;
       if (slot.arriveAnim > 0) { var t2 = 1 - slot.arriveAnim; bs = 1 + Math.sin(t2 * Math.PI * 3) * 0.3 * slot.arriveAnim; }
-      if (slot.marble === BLOCKER_CI && blocker.collecting && blocker.collectT > 0.65) {
-        var ct = (blocker.collectT - 0.65) / 0.35;
-        var pulse = 1 + Math.sin((1 - ct) * Math.PI * 8) * 0.2;
-        bs *= pulse;
-        ctx.save();
-        ctx.globalAlpha = 0.3 + Math.sin((1 - ct) * Math.PI * 6) * 0.25;
-        ctx.fillStyle = COLORS[BLOCKER_CI].glow;
-        ctx.beginPath(); ctx.arc(pos.x, pos.y, slotR * 1.6 * pulse, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
-      }
       drawMarble(pos.x, pos.y, slotR * 0.8 * cal.marble.s, slot.marble, bs);
     }
   }
