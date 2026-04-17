@@ -23,6 +23,7 @@ var blocker = {
   collecting: false,   // shatter sequence active
   collectT: 0,         // 1 -> 0 countdown during shatter
   cleared: false,      // flag to dedupe the clear moment
+  shatterScroll: 0,    // belt scroll value frozen at the shatter moment
   belowBeltY: 0,       // y target for "dip below belt" animation
   trayY: 0,            // tray baseline y (computed per frame)
   trayCx: 0,           // tray center x
@@ -102,6 +103,8 @@ function updateBlockers() {
     // Midway through: clear blockers from belt + launch shatter fragments
     if (blocker.collectT <= 0.65 && !blocker.cleared) {
       blocker.cleared = true;
+      var beltPerimSc = (L.beltRight - L.beltLeft - 2 * L.uR) * 2 + Math.PI * 2 * L.uR;
+      blocker.shatterScroll = beltOffset * beltPerimSc;
       // Clear blockers from the belt with a burst
       for (var i = 0; i < BELT_SLOTS; i++) {
         if (beltSlots[i].marble === BLOCKER_CI) {
@@ -187,22 +190,35 @@ function spawnStoneFragments(x, y, n) {
 
 function computeBlockerTrayLayout() {
   if (blocker.total <= 0) return;
-  // Place tray horizontally between the belt bottom and sort area top.
+  // Tray sits between the belt bottom and the sort area; its surface is
+  // a closed loop that scrolls in sync with the main belt.
   var cy = (L.beltBotY + L.sTop) / 2;
-  var maxW = L.beltRight - L.beltLeft - 24 * S;
+  var maxW = L.beltRight - L.beltLeft - 12 * S;
   var minSlot = 9 * S, maxSlot = 14 * S;
   var slotR = Math.max(minSlot, Math.min(maxSlot, (maxW / Math.max(1, blocker.total)) * 0.42));
-  var slotGap = slotR * 2.4;
-  // If too wide, shrink slot size
-  var totalW = (blocker.total - 1) * slotGap + slotR * 2 + 32 * S;
-  if (totalW > maxW) {
-    var scale = maxW / totalW;
-    slotR *= scale; slotGap *= scale;
+  var planksH = slotR * 2 + slotR * 0.85 * 2;
+  var drumR = planksH * 0.42;
+  var drumZone = drumR * 2 + 4 * S;
+  var slotZoneW = blocker.total * slotR * 2.4;
+  var planksW = slotZoneW + drumZone * 2;
+  if (planksW > maxW) {
+    var scale = maxW / planksW;
+    slotR *= scale;
+    planksH = slotR * 2 + slotR * 0.85 * 2;
+    drumR = planksH * 0.42;
+    drumZone = drumR * 2 + 4 * S;
+    slotZoneW = blocker.total * slotR * 2.4;
+    planksW = slotZoneW + drumZone * 2;
   }
   blocker.trayY = cy;
   blocker.trayCx = L.beltCx;
   blocker.slotR = slotR;
-  blocker.slotGap = slotGap;
+  blocker.planksH = planksH;
+  blocker.planksW = planksW;
+  blocker.drumR = drumR;
+  blocker.drumZone = drumZone;
+  blocker.slotZoneW = slotZoneW;
+  blocker.slotGap = slotZoneW / blocker.total; // seamless wrap-around
   blocker.belowBeltY = L.beltBotY + 30 * S;
 }
 
@@ -216,12 +232,18 @@ function drawBlockerTray() {
   var slotR = blocker.slotR;
   var slotGap = blocker.slotGap;
   var total = blocker.total;
-  var padX = 14 * S;
-  var padY = slotR * 0.85;
-  var planksW = (total - 1) * slotGap + slotR * 2 + padX * 2;
-  var planksH = slotR * 2 + padY * 2;
+  var planksW = blocker.planksW;
+  var planksH = blocker.planksH;
+  var drumR = blocker.drumR;
+  var drumZone = blocker.drumZone;
+  var slotZoneW = blocker.slotZoneW;
   var plankLx = cx - planksW / 2;
   var plankTy = cy - planksH / 2;
+  var slotZoneLeft = plankLx + drumZone;
+
+  // Scroll distance shared by the tread AND the slots — matches the main belt.
+  var beltPerim = (L.beltRight - L.beltLeft - 2 * L.uR) * 2 + Math.PI * 2 * L.uR;
+  var beltScroll = beltOffset * beltPerim;
 
   ctx.save();
 
@@ -252,9 +274,7 @@ function drawBlockerTray() {
     rRect(plankLx, plankTy, planksW, planksH, 8 * S);
     ctx.clip();
     var treadGap = 14 * S;
-    // perimeter the belt travels per full beltOffset cycle
-    var beltPerim = (L.beltRight - L.beltLeft - 2 * L.uR) * 2 + Math.PI * 2 * L.uR;
-    var treadShift = ((beltOffset * beltPerim) % treadGap + treadGap) % treadGap;
+    var treadShift = ((beltScroll) % treadGap + treadGap) % treadGap;
     // Dark chevron lines
     ctx.strokeStyle = 'rgba(50,42,36,0.28)';
     ctx.lineWidth = 1.4 * S;
@@ -287,19 +307,17 @@ function drawBlockerTray() {
     ctx.lineTo(plankLx + planksW - 8 * S, plankTy + 2 * S);
     ctx.stroke();
     // End-cap drums (axles hinting the tray is driven by the belt)
-    var drumR = planksH * 0.42;
-    [plankLx + drumR * 0.9, plankLx + planksW - drumR * 0.9].forEach(function (dx, di) {
+    [plankLx + drumR * 0.9, plankLx + planksW - drumR * 0.9].forEach(function (dx) {
       var dy = plankTy + planksH / 2;
       var dg = ctx.createRadialGradient(dx - drumR * 0.3, dy - drumR * 0.3, drumR * 0.1, dx, dy, drumR);
       dg.addColorStop(0, '#9A8F82');
       dg.addColorStop(1, '#3E3832');
       ctx.fillStyle = dg;
       ctx.beginPath(); ctx.arc(dx, dy, drumR, 0, Math.PI * 2); ctx.fill();
-      // Rotation spokes
+      // Rotation spokes — both drums turn the same way (driven by the belt)
       ctx.save();
       ctx.translate(dx, dy);
-      var rotDir = (di === 0 ? 1 : 1); // both drums turn the same way
-      ctx.rotate(beltOffset * beltPerim / drumR * rotDir);
+      ctx.rotate(-beltScroll / drumR);
       ctx.strokeStyle = 'rgba(30,24,18,0.55)';
       ctx.lineWidth = 1 * S;
       for (var sp = 0; sp < 4; sp++) {
@@ -324,12 +342,16 @@ function drawBlockerTray() {
     ctx.restore();
   }
 
-  // Slots + stone marbles
-  var startX = cx - (total - 1) * slotGap / 2;
+  // Slots + stone marbles — each slot rides the belt, wrapping seamlessly
+  // inside the plank in sync with beltOffset. Freeze the positions once the
+  // shatter starts so flying fragments aren't dragged by the belt.
   var bc = COLORS[BLOCKER_CI];
+  var scrollForSlots = blocker.cleared ? blocker.shatterScroll : beltScroll;
   for (var i = 0; i < total; i++) {
     var slot = blocker.slots[i];
-    var sx = startX + i * slotGap;
+    // Bottom of the belt moves right → left, so slots shift left as scroll grows.
+    var wrapped = ((i * slotGap - scrollForSlots) % slotZoneW + slotZoneW) % slotZoneW;
+    var sx = slotZoneLeft + wrapped + slotGap / 2;
     var sy = cy + slotR * 0.15;
 
     // Slot recess (only visible while tray intact)
