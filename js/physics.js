@@ -74,14 +74,6 @@ function physicsStep() {
   for (var i = physMarbles.length - 1; i >= 0; i--) {
     var m = physMarbles[i];
     if (m.y + m.r >= exitY - 3 * S && m.x > exitL - m.r && m.x < exitR + m.r) {
-      // Blockers are intercepted: they dip below the belt and resurface in
-      // the next empty tray slot instead of riding the belt normally.
-      if (m.ci === BLOCKER_CI && typeof captureBlocker === 'function') {
-        if (captureBlocker(m.x, m.y)) {
-          physMarbles.splice(i, 1);
-          continue;
-        }
-      }
       var entryT = getBeltEntryT();
       var bestIdx = -1, bestDist = Infinity;
       for (var k = 0; k < BELT_SLOTS; k++) {

@@ -3,232 +3,100 @@
 // ------------------------------------------------------------
 // Any regular box can be TAGGED with `hasBlockers = true`.
 // A tagged box holds (MRB_PER_BOX - BLOCKER_PER_BOX) regular
-// marbles + BLOCKER_PER_BOX stone "blocker" marbles.
+// marbles + BLOCKER_PER_BOX blocker "light bulb" marbles.
 //
-// TRAY:
-// A lean stone bar with one slot per blocker in the level
-// physically rides the belt loop, bending around the two
-// pulleys. Its 9 slots are mapped to 9 consecutive belt-slot
-// indices (trayStart..trayStart+N-1), so the tray advances in
-// lock-step with the belt.
+// BELT:
+// Blocker marbles land on the belt like any other marble and
+// ride it indefinitely. Sort columns ignore them.
 //
-// CAPTURE:
-// The instant a blocker touches the belt, it teleports straight
-// into the next empty tray slot. Once captured the stone stays
-// locked to the tray.
+// BRIGHTNESS:
+// Every 3 blockers sitting on the belt bumps the shared bulb
+// brightness up one step. Threshold 9 -> 3 steps, 12 -> 4 steps.
 //
-// BUMP:
-// Regular marbles can ride the belt through tray-slot positions
-// (they visually sit on the bar). If a blocker claims a tray
-// slot that currently holds a regular marble, the regular is
-// bumped out to the nearest empty non-tray belt slot.
-//
-// SHATTER:
-// When every tray slot is filled, the bar shatters in place.
-// Blockers burst out and the tray respawns empty on the belt
-// to catch the next round.
+// CLEAR:
+// When the belt holds BLOCKER_CLEAR_THRESHOLD blockers at once,
+// every blocker bursts simultaneously and is wiped from the
+// belt. The clear fires once and does not reset.
 // ============================================================
 
 var blocker = {
-  total: 0,             // total blockers across all boxes in the level
-  slots: [],            // per-slot state: { filled, fillT, shatterT, dx, dy, vx, vy, rot, rotV, shX, shY }
-  trayStart: 0,         // first belt-slot index the tray occupies
-  bumps: [],            // active regular-marble bump-off animations
-  collecting: false,    // shatter sequence active
-  collectT: 0,          // 1 -> 0 countdown during shatter
-  cleared: false        // flag to dedupe the clear moment
+  total: 0,          // total blockers introduced across the level (informational)
+  cleared: false,    // true once the threshold has fired (one-time clear)
+  flashT: 0,         // 1 -> 0 white flash overlay after clear fires
+  shatters: []       // { x, y, vx, vy, rot, rotV, t, dur }
 };
 
 function initBlockerState(total) {
   blocker.total = total;
-  blocker.slots = [];
-  for (var i = 0; i < total; i++) {
-    blocker.slots.push({
-      filled: false, fillT: 0,
-      shatterT: 0, dx: 0, dy: 0, vx: 0, vy: 0, rot: 0, rotV: 0,
-      shX: 0, shY: 0
-    });
-  }
-  // Start the tray somewhere visible on the bottom of the belt.
-  blocker.trayStart = Math.floor(BELT_SLOTS * 0.55);
-  blocker.bumps = [];
-  blocker.collecting = false;
-  blocker.collectT = 0;
   blocker.cleared = false;
+  blocker.flashT = 0;
+  blocker.shatters = [];
 }
 
-// Is belt-slot `i` currently one of the tray's slots?
-function isBeltSlotInTray(i) {
-  if (blocker.total <= 0) return false;
-  for (var k = 0; k < blocker.total; k++) {
-    if (((blocker.trayStart + k) % BELT_SLOTS) === i) return true;
-  }
-  return false;
-}
-
-// Which tray slot index (0..total-1) does belt-slot `i` correspond to, or -1.
-function trayIndexOfBeltSlot(i) {
-  for (var k = 0; k < blocker.total; k++) {
-    if (((blocker.trayStart + k) % BELT_SLOTS) === i) return k;
-  }
-  return -1;
-}
-
-// Called from physics.js when a blocker marble reaches the belt entry.
-// Returns true if the blocker was captured (caller should remove the
-// phys marble); false if the tray is full and the blocker should fall
-// through as a regular belt marble.
-//
-// Capture is instant: the moment a blocker would land on the belt, it
-// teleports straight into the next empty tray slot.
-function captureBlocker(sx, sy) {
-  if (blocker.total <= 0) return false;
-  if (blocker.collecting) return false;
-  var k = -1;
-  for (var i = 0; i < blocker.total; i++) {
-    if (!blocker.slots[i].filled) { k = i; break; }
-  }
-  if (k < 0) return false;
-  // Push out any regular sitting on the target tray slot first.
-  bumpRegularFromTraySlot(k);
-  var slot = blocker.slots[k];
-  slot.filled = true;
-  slot.fillT = 1.0;
-  if (typeof sfx !== 'undefined' && sfx.stoneClack) sfx.stoneClack();
-  var pos = getBlockerSlotPos(k);
-  spawnBurst(pos.x, pos.y, COLORS[BLOCKER_CI].light, 6);
-  return true;
-}
-
-function countFilledTraySlots() {
+function countBlockersOnBelt() {
   var n = 0;
-  for (var i = 0; i < blocker.slots.length; i++) if (blocker.slots[i].filled) n++;
+  for (var i = 0; i < BELT_SLOTS; i++) {
+    if (beltSlots[i].marble === BLOCKER_CI) n++;
+  }
   return n;
 }
 
-// Bump a regular marble out of tray-slot k (if any) into the nearest
-// empty non-tray belt slot.
-function bumpRegularFromTraySlot(k) {
-  var beltIdx = (blocker.trayStart + k) % BELT_SLOTS;
-  var slot = beltSlots[beltIdx];
-  if (slot.marble < 0 || slot.marble === BLOCKER_CI) return;
-  var ci = slot.marble;
-  // Find the nearest empty non-tray belt slot (searching both directions).
-  var dest = -1;
-  for (var step = 1; step < BELT_SLOTS; step++) {
-    for (var dir = -1; dir <= 1; dir += 2) {
-      var idx = ((beltIdx + dir * step) % BELT_SLOTS + BELT_SLOTS) % BELT_SLOTS;
-      if (isBeltSlotInTray(idx)) continue;
-      if (beltSlots[idx].marble >= 0) continue;
-      dest = idx; break;
-    }
-    if (dest >= 0) break;
-  }
-  var srcPos = getSlotPos(beltIdx);
-  slot.marble = -1; slot.arriveAnim = 0;
-  if (dest >= 0) {
-    beltSlots[dest].marble = ci;
-    beltSlots[dest].arriveAnim = 0;
-    blocker.bumps.push({
-      ci: ci, sx: srcPos.x, sy: srcPos.y,
-      target: dest, t: 0, dur: 22
-    });
-  } else {
-    // No room anywhere — just sparkle it out of existence.
-    spawnBurst(srcPos.x, srcPos.y, COLORS[ci].light, 8);
-  }
+function blockerBrightnessSteps() {
+  return Math.max(1, Math.ceil(BLOCKER_CLEAR_THRESHOLD / 3));
+}
+
+// 0..1 brightness for rendering — jumps in steps of 3 blockers.
+function blockerBrightnessT() {
+  var count = countBlockersOnBelt();
+  var steps = blockerBrightnessSteps();
+  if (count <= 0) return 0;
+  var lvl = Math.min(steps, Math.ceil(count / 3));
+  return lvl / steps;
 }
 
 function updateBlockers() {
-  if (blocker.total <= 0) return;
-
-  // A blocker that ended up on a regular belt slot (e.g. was placed while
-  // the tray was mid-shatter) gets scooped onto the tray the moment a
-  // slot frees up.
-  if (!blocker.collecting) {
-    for (var bi = 0; bi < BELT_SLOTS; bi++) {
-      if (beltSlots[bi].marble !== BLOCKER_CI) continue;
-      var bpos = getSlotPos(bi);
-      if (captureBlocker(bpos.x, bpos.y)) {
-        beltSlots[bi].marble = -1;
-      }
+  if (!blocker.cleared && blocker.total > 0) {
+    if (countBlockersOnBelt() >= BLOCKER_CLEAR_THRESHOLD) {
+      triggerBlockerClear();
     }
   }
 
-  // Advance in-flight regular bumps
-  for (var b = blocker.bumps.length - 1; b >= 0; b--) {
-    blocker.bumps[b].t += 1;
-    if (blocker.bumps[b].t >= blocker.bumps[b].dur) {
-      blocker.bumps.splice(b, 1);
-    }
-  }
+  if (blocker.flashT > 0) blocker.flashT = Math.max(0, blocker.flashT - 0.04);
 
-  // Trigger shatter when every tray slot is filled
-  if (!blocker.collecting && countFilledTraySlots() >= blocker.total) {
-    blocker.collecting = true;
-    blocker.collectT = 1;
-    blocker.cleared = false;
-    if (typeof sfx !== 'undefined' && sfx.stoneCharge) sfx.stoneCharge();
-  }
-
-  // Tick fill-pop animation
-  for (var s = 0; s < blocker.slots.length; s++) {
-    var sl0 = blocker.slots[s];
-    if (sl0.fillT > 0) sl0.fillT = Math.max(0, sl0.fillT - 0.04);
-  }
-
-  // Shatter sequence
-  if (blocker.collecting) {
-    blocker.collectT = Math.max(0, blocker.collectT - 0.02);
-
-    // Midway through: freeze each slot's position and launch fragments
-    if (blocker.collectT <= 0.65 && !blocker.cleared) {
-      blocker.cleared = true;
-      for (var s2 = 0; s2 < blocker.slots.length; s2++) {
-        var sl = blocker.slots[s2];
-        var sp = getBlockerSlotPos(s2);
-        sl.shX = sp.x; sl.shY = sp.y;
-        sl.shatterT = 1.0;
-        var ang = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.8;
-        var spd = 4 + Math.random() * 6;
-        sl.vx = Math.cos(ang) * spd;
-        sl.vy = Math.sin(ang) * spd - 3;
-        sl.rotV = (Math.random() - 0.5) * 0.4;
-        sl.dx = 0; sl.dy = 0; sl.rot = 0;
-        // stone fragment burst at this slot
-        spawnStoneFragments(sp.x, sp.y, 5);
-        spawnBurst(sp.x, sp.y, '#C8BDB2', 6);
-      }
-      if (typeof sfx !== 'undefined' && sfx.stoneShatter) sfx.stoneShatter();
-    }
-
-    // Update shatter fragment motion
-    for (var s3 = 0; s3 < blocker.slots.length; s3++) {
-      var sl3 = blocker.slots[s3];
-      if (sl3.shatterT > 0) {
-        sl3.shatterT = Math.max(0, sl3.shatterT - 0.022);
-        sl3.dx += sl3.vx;
-        sl3.dy += sl3.vy;
-        sl3.vy += 0.5;
-        sl3.vx *= 0.985;
-        sl3.rot += sl3.rotV;
-      }
-    }
-
-    // Reset when done
-    if (blocker.collectT <= 0) {
-      blocker.collecting = false;
-      blocker.collectT = 0;
-      for (var s4 = 0; s4 < blocker.slots.length; s4++) {
-        var sl4 = blocker.slots[s4];
-        sl4.filled = false; sl4.fillT = 0; sl4.shatterT = 0;
-        sl4.dx = 0; sl4.dy = 0; sl4.vx = 0; sl4.vy = 0; sl4.rot = 0; sl4.rotV = 0;
-      }
-    }
+  for (var s = blocker.shatters.length - 1; s >= 0; s--) {
+    var sh = blocker.shatters[s];
+    sh.t++;
+    sh.x += sh.vx;
+    sh.y += sh.vy;
+    sh.vy += 0.5;
+    sh.vx *= 0.985;
+    sh.rot += sh.rotV;
+    if (sh.t >= sh.dur) blocker.shatters.splice(s, 1);
   }
 }
 
-function spawnStoneFragments(x, y, n) {
+function triggerBlockerClear() {
+  blocker.cleared = true;
+  blocker.flashT = 1;
+  if (typeof sfx !== 'undefined' && sfx.stoneShatter) sfx.stoneShatter();
+  for (var i = 0; i < BELT_SLOTS; i++) {
+    if (beltSlots[i].marble !== BLOCKER_CI) continue;
+    var pos = getSlotPos(i);
+    var ang = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.9;
+    var spd = 4 + Math.random() * 6;
+    blocker.shatters.push({
+      x: pos.x, y: pos.y,
+      vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd - 3,
+      rot: 0, rotV: (Math.random() - 0.5) * 0.4,
+      t: 0, dur: 45
+    });
+    spawnGlassFragments(pos.x, pos.y, 7);
+    spawnBurst(pos.x, pos.y, '#FFF0A0', 10);
+    beltSlots[i].marble = -1;
+  }
+}
+
+function spawnGlassFragments(x, y, n) {
   n = n || 6;
   for (var i = 0; i < n; i++) {
     var a = Math.random() * Math.PI * 2;
@@ -237,174 +105,126 @@ function spawnStoneFragments(x, y, n) {
       x: x, y: y,
       vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S - 2 * S,
       r: (2 + Math.random() * 3) * S,
-      color: i % 3 === 0 ? '#A89E94' : (i % 3 === 1 ? '#7A7068' : '#4A4440'),
+      color: i % 3 === 0 ? '#FFF7C0' : (i % 3 === 1 ? '#FFD060' : '#C09030'),
       life: 0.9, decay: 0.02 + Math.random() * 0.015, grav: true
     });
   }
 }
 
-// ──────────── Path / position helpers ────────────
+// ─────────── Rendering ───────────
 
-// Interpolate the belt path at a real-valued t in [0, BELT_SLOTS)
-// (same conventions as getSlotPos but for a continuous parameter).
-function pathAtSlot(slotT) {
-  var t = ((slotT / BELT_SLOTS) + beltOffset) % 1;
-  t = ((t % 1) + 1) % 1;
-  var idx = t * beltPath.length;
-  var i0 = Math.floor(idx) % beltPath.length;
-  var i1 = (i0 + 1) % beltPath.length;
-  var f = idx - Math.floor(idx);
-  return {
-    x: beltPath[i0].x + (beltPath[i1].x - beltPath[i0].x) * f,
-    y: beltPath[i0].y + (beltPath[i1].y - beltPath[i0].y) * f
-  };
-}
+// Draws a light bulb at (cx, cy) with radius r and brightness t (0..1).
+function drawBlockerBulb(cx, cy, r, t) {
+  var bright = Math.max(0.18, t);
 
-function getBlockerSlotPos(k) {
-  return pathAtSlot(blocker.trayStart + k);
-}
-
-// ──────────── Rendering ────────────
-
-function drawBlockerTray() {
-  if (blocker.total <= 0) return;
-  var trayAlive = !blocker.cleared;
-
-  // 1. Draw the bent stone bar along the belt path between slot 0 and slot N-1
-  if (trayAlive) drawBlockerBar();
-
-  // 2. Draw each tray slot (recess + stone marble / shatter fragment)
-  drawBlockerSlots(trayAlive);
-
-  // 3. Draw in-flight bump-offs (regular marble displaced by a blocker)
-  drawBlockerBumps();
-}
-
-function drawBlockerBar() {
-  var thickness = 13 * S;
-  // Sample the path between the first and last tray slots.
-  var samples = Math.max(16, blocker.total * 6);
-  var pts = [];
-  for (var i = 0; i < samples; i++) {
-    var slotT = blocker.trayStart + (i / (samples - 1)) * (blocker.total - 1);
-    pts.push(pathAtSlot(slotT));
-  }
-
+  // Outer glow
   ctx.save();
-  // Drop shadow
-  ctx.shadowColor = 'rgba(0,0,0,0.35)';
-  ctx.shadowBlur = 4 * S;
-  ctx.shadowOffsetY = 2 * S;
-  // Dark underside
-  ctx.strokeStyle = '#3E3832';
-  ctx.lineWidth = thickness;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  strokePoints(pts);
-  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-  // Stone mid-tone
-  ctx.strokeStyle = '#8A8078';
-  ctx.lineWidth = thickness * 0.82;
-  strokePoints(pts);
-  // Top highlight
-  ctx.strokeStyle = 'rgba(255,255,255,0.22)';
-  ctx.lineWidth = thickness * 0.25;
-  ctx.lineCap = 'round';
-  strokePoints(pts, -thickness * 0.3);
+  var glowR = r * (1.3 + bright * 1.4);
+  var glow = ctx.createRadialGradient(cx, cy - r * 0.1, r * 0.1, cx, cy - r * 0.1, glowR);
+  glow.addColorStop(0, 'rgba(255,240,150,' + (0.55 * bright) + ')');
+  glow.addColorStop(0.6, 'rgba(255,200,80,' + (0.22 * bright) + ')');
+  glow.addColorStop(1, 'rgba(255,180,60,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(cx, cy - r * 0.1, glowR, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
-}
 
-function strokePoints(pts, yOffset) {
-  yOffset = yOffset || 0;
+  // Screw base (drawn first so the bulb sits on top)
+  ctx.save();
+  ctx.fillStyle = '#5A4E42';
+  var baseW = r * 1.0, baseH = r * 0.45;
   ctx.beginPath();
-  ctx.moveTo(pts[0].x, pts[0].y + yOffset);
-  for (var i = 1; i < pts.length; i++) {
-    ctx.lineTo(pts[i].x, pts[i].y + yOffset);
+  rRect(cx - baseW / 2, cy + r * 0.55, baseW, baseH, r * 0.12);
+  ctx.fill();
+  // Base grooves
+  ctx.strokeStyle = 'rgba(30,24,18,0.55)';
+  ctx.lineWidth = 0.9 * S;
+  for (var g = 0; g < 3; g++) {
+    var gy = cy + r * 0.65 + g * (baseH * 0.22);
+    ctx.beginPath();
+    ctx.moveTo(cx - baseW / 2 + 1 * S, gy);
+    ctx.lineTo(cx + baseW / 2 - 1 * S, gy);
+    ctx.stroke();
   }
-  ctx.stroke();
-}
+  ctx.restore();
 
-function drawBlockerSlots(trayAlive) {
-  var slotR = 9 * S;
-  var bc = COLORS[BLOCKER_CI];
-  for (var k = 0; k < blocker.total; k++) {
-    var slot = blocker.slots[k];
-    var pos = blocker.cleared ? { x: slot.shX, y: slot.shY } : getBlockerSlotPos(k);
-    var sx = pos.x, sy = pos.y;
-
-    // Slot recess
-    if (trayAlive) {
-      ctx.save();
-      var rg = ctx.createRadialGradient(sx, sy, slotR * 0.2, sx, sy, slotR);
-      rg.addColorStop(0, '#2E2822');
-      rg.addColorStop(1, '#5A5048');
-      ctx.fillStyle = rg;
-      ctx.beginPath(); ctx.arc(sx, sy, slotR * 0.95, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = 'rgba(30,24,18,0.55)'; ctx.lineWidth = 1 * S;
-      ctx.beginPath(); ctx.arc(sx, sy, slotR * 0.95, 0, Math.PI * 2); ctx.stroke();
-      ctx.restore();
-    }
-
-    // Stone marble (filled or shattering)
-    if (slot.filled || slot.shatterT > 0) {
-      ctx.save();
-      var px = sx + slot.dx;
-      var py = sy + slot.dy;
-      var scale = 1;
-      if (slot.fillT > 0) {
-        scale = 0.4 + (1 - slot.fillT) * 0.7 + Math.sin((1 - slot.fillT) * Math.PI) * 0.3;
-        ctx.globalAlpha = Math.min(1, (1 - slot.fillT) * 2);
-      }
-      if (slot.shatterT > 0) {
-        scale *= (0.4 + slot.shatterT * 0.6);
-        ctx.globalAlpha = slot.shatterT;
-      }
-      ctx.translate(px, py);
-      ctx.rotate(slot.rot);
-      ctx.scale(scale, scale);
-      drawStoneMarble(0, 0, slotR * 0.85, bc);
-
-      // Wind-up glow
-      if (blocker.collecting && blocker.collectT > 0.65 && slot.shatterT <= 0) {
-        var wind = (1 - (blocker.collectT - 0.65) / 0.35);
-        ctx.globalAlpha = 0.3 + Math.sin(tick * 0.25 + k * 0.4) * 0.25 * wind;
-        ctx.fillStyle = bc.glow;
-        ctx.beginPath(); ctx.arc(0, 0, slotR * 1.4, 0, Math.PI * 2); ctx.fill();
-      }
-      ctx.restore();
-    }
-  }
-}
-
-function drawStoneMarble(cx, cy, r, bc) {
-  var grd = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.1, cx, cy, r);
-  grd.addColorStop(0, bc.light);
-  grd.addColorStop(0.55, bc.fill);
-  grd.addColorStop(1, bc.dark);
+  // Bulb glass
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.25)';
+  ctx.shadowBlur = r * 0.4;
+  ctx.shadowOffsetY = r * 0.1;
+  // Lit vs dim color palette
+  var core = bright > 0.66 ? '#FFFFF2' : (bright > 0.33 ? '#FFF2A8' : '#E8D078');
+  var mid  = bright > 0.66 ? '#FFEB8A' : (bright > 0.33 ? '#F0CC50' : '#B89848');
+  var edge = bright > 0.66 ? '#D4A030' : (bright > 0.33 ? '#8C6820' : '#504018');
+  var grd = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.35, r * 0.1, cx, cy, r * 1.02);
+  grd.addColorStop(0, core);
+  grd.addColorStop(0.55, mid);
+  grd.addColorStop(1, edge);
   ctx.fillStyle = grd;
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
-  // Crack
-  ctx.strokeStyle = 'rgba(30,24,18,0.45)'; ctx.lineWidth = 0.8 * S; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(cx, cy - r * 0.05, r * 1.0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  // Filament squiggle
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,120,30,' + (0.45 + 0.4 * bright) + ')';
+  ctx.lineWidth = 1.1 * S;
+  ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(cx - r * 0.35, cy + r * 0.05);
-  ctx.lineTo(cx - r * 0.05, cy - r * 0.2);
-  ctx.lineTo(cx + r * 0.2, cy + r * 0.1);
+  ctx.moveTo(cx - r * 0.4, cy + r * 0.15);
+  ctx.quadraticCurveTo(cx - r * 0.3, cy - r * 0.2, cx - r * 0.05, cy - r * 0.1);
+  ctx.quadraticCurveTo(cx + r * 0.2, cy - r * 0.3, cx + r * 0.4, cy + r * 0.1);
   ctx.stroke();
-  // Highlight
-  ctx.fillStyle = 'rgba(255,255,255,0.32)';
-  ctx.beginPath(); ctx.arc(cx - r * 0.3, cy - r * 0.3, r * 0.3, 0, Math.PI * 2); ctx.fill();
+  // Filament posts
+  ctx.strokeStyle = 'rgba(40,30,20,0.55)';
+  ctx.lineWidth = 1.1 * S;
+  ctx.beginPath();
+  ctx.moveTo(cx - r * 0.4, cy + r * 0.55); ctx.lineTo(cx - r * 0.4, cy + r * 0.15);
+  ctx.moveTo(cx + r * 0.4, cy + r * 0.55); ctx.lineTo(cx + r * 0.4, cy + r * 0.1);
+  ctx.stroke();
+  ctx.restore();
+
+  // Glass highlight
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,' + (0.35 + bright * 0.35) + ')';
+  ctx.beginPath(); ctx.arc(cx - r * 0.32, cy - r * 0.38, r * 0.28, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  // Pulse ring when fully charged (near threshold)
+  if (bright >= 1) {
+    var pulse = 0.5 + Math.sin(tick * 0.2) * 0.5;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,240,140,' + (0.35 + 0.35 * pulse) + ')';
+    ctx.lineWidth = 1.4 * S;
+    ctx.beginPath(); ctx.arc(cx, cy - r * 0.05, r * (1.1 + 0.2 * pulse), 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
 }
 
-function drawBlockerBumps() {
-  var slotR = 8 * S;
-  for (var b = 0; b < blocker.bumps.length; b++) {
-    var bu = blocker.bumps[b];
-    var u = bu.t / bu.dur;
-    var dest = getSlotPos(bu.target);
-    var x = bu.sx + (dest.x - bu.sx) * u;
-    var baseY = bu.sy + (dest.y - bu.sy) * u;
-    // Arc up: regulars get popped up and over
-    var y = baseY - Math.sin(u * Math.PI) * 22 * S;
-    drawMarble(x, y, slotR * 0.8 * cal.marble.s, bu.ci, 1 + Math.sin(u * Math.PI) * 0.15);
+// Kept name for game.js compatibility. Draws the post-belt overlays
+// (shatter fragments + white flash). Bulbs themselves render inline
+// via drawMarble's BLOCKER_CI branch.
+function drawBlockerTray() {
+  drawBlockerShatters();
+  drawBlockerFlash();
+}
+
+function drawBlockerShatters() {
+  for (var i = 0; i < blocker.shatters.length; i++) {
+    var sh = blocker.shatters[i];
+    var u = sh.t / sh.dur;
+    ctx.save();
+    ctx.globalAlpha = 1 - u;
+    ctx.translate(sh.x, sh.y);
+    ctx.rotate(sh.rot);
+    drawBlockerBulb(0, 0, 7 * S, 1);
+    ctx.restore();
   }
+}
+
+function drawBlockerFlash() {
+  if (blocker.flashT <= 0) return;
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,250,220,' + (blocker.flashT * 0.55) + ')';
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
 }
