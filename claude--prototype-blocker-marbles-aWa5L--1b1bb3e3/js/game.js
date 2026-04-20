@@ -507,8 +507,8 @@ function frame() {
     drawFunnel();
     drawStock();
     drawPhysMarbles();
-    drawBlockerTray();
     drawBelt();
+    drawBlockerTray();
     drawJumpers();
     drawSortArea();
     drawBackButton();

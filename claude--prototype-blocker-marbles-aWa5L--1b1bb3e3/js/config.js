@@ -44,6 +44,7 @@ var NUM_COLORS = COLORS.length;
 var BLOCKER_CI = COLORS.length;
 COLORS.push({ fill: '#7A7068', light: '#A89E94', dark: '#4A4440', glow: 'rgba(122,112,104,0.5)' });
 var BLOCKER_PER_BOX = 3; // 3 blockers per tagged box
+var BLOCKER_CLEAR_THRESHOLD = 9; // blockers on belt needed to trigger burst (9 or 12)
 
 var MRB_PER_BOX = 9, SORT_CAP = 3;
 var SORT_VISIBLE_ROWS = 4;
