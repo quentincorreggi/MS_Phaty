@@ -17,7 +17,11 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
-  visible: false
+  visible: false,
+  // Procedural generation options
+  genDifficulty: 3,
+  genMechanics: { hidden: true, ice: true, blocker: true, tunnel: true, wall: false },
+  genLastSeed: 0
 };
 
 function editorInit() {
@@ -60,6 +64,7 @@ function editorBuildUI() {
   editorRenderSettings();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderGenPanel();
 }
 
 // ── Grid ──
@@ -443,6 +448,78 @@ function editorClearAll() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
   editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+}
+
+// ── Procedural generation ──
+function editorGenerate(reuseSeed) {
+  if (typeof generateLevel !== 'function') { editorShowToast('Generator missing'); return; }
+  var seed = reuseSeed ? editor.genLastSeed : 0;
+  var lvl = generateLevel({
+    difficulty: editor.genDifficulty,
+    mechanics: editor.genMechanics,
+    seed: seed
+  });
+  editor.grid = lvl.grid.slice();
+  editor.mrbPerBox = lvl.mrbPerBox;
+  editor.sortCap = lvl.sortCap;
+  editor.lockButtons = lvl.lockButtons;
+  editor.name = lvl.name;
+  editor.desc = lvl.desc;
+  editor.genLastSeed = lvl._seed;
+  editor.selectedTunnel = -1;
+  var nameEl = document.getElementById('ed-name');
+  var descEl = document.getElementById('ed-desc');
+  if (nameEl) nameEl.value = editor.name;
+  if (descEl) descEl.value = editor.desc;
+  editorBuildUI();
+}
+
+function editorToggleGenMechanic(name) {
+  editor.genMechanics[name] = !editor.genMechanics[name];
+  editorRenderGenPanel();
+}
+
+function editorSetGenDifficulty(v) {
+  editor.genDifficulty = Math.max(1, Math.min(5, parseInt(v) || 3));
+  var valEl = document.getElementById('ed-gen-diff-v');
+  if (valEl) valEl.textContent = editor.genDifficulty;
+}
+
+function editorRenderGenPanel() {
+  var el = document.getElementById('ed-gen-panel');
+  if (!el) return;
+  var mechs = [
+    { key: 'hidden', label: 'Hidden' },
+    { key: 'ice', label: 'Ice' },
+    { key: 'blocker', label: 'Blocker' },
+    { key: 'tunnel', label: 'Tunnel' },
+    { key: 'wall', label: 'Wall' }
+  ];
+  var html = '';
+  html += '<div class="ed-setting-row"><label>Difficulty</label>';
+  html += '<input type="range" id="ed-gen-diff" min="1" max="5" step="1" value="' + editor.genDifficulty + '" oninput="editorSetGenDifficulty(this.value)">';
+  html += '<span class="ed-s-val" id="ed-gen-diff-v">' + editor.genDifficulty + '</span></div>';
+  html += '<div class="ed-gen-mechs">';
+  for (var m = 0; m < mechs.length; m++) {
+    var mk = mechs[m];
+    var on = !!editor.genMechanics[mk.key];
+    html += '<button class="ed-gen-mech' + (on ? ' on' : '') + '" data-mk="' + mk.key + '">' + mk.label + '</button>';
+  }
+  html += '</div>';
+  html += '<div class="ed-gen-actions">';
+  html += '<button class="ed-qbtn" onclick="editorGenerate(false)">✨ Generate</button>';
+  html += '<button class="ed-qbtn" onclick="editorGenerate(true)" title="Regenerate with the last seed">↻ Re-roll same seed</button>';
+  html += '</div>';
+  if (editor.genLastSeed) {
+    html += '<div class="ed-gen-seed">seed: ' + editor.genLastSeed.toString(36).toUpperCase() + '</div>';
+  }
+  el.innerHTML = html;
+  var btns = el.querySelectorAll('.ed-gen-mech');
+  for (var b = 0; b < btns.length; b++) {
+    btns[b].addEventListener('click', function () {
+      editorToggleGenMechanic(this.getAttribute('data-mk'));
+    });
+  }
 }
 
 // ── Stats ──

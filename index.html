@@ -162,6 +162,16 @@
     display:flex;align-items:center;justify-content:center}
   .ed-tunnel-add-clr:hover{transform:scale(1.15);border-color:rgba(255,255,255,0.7)}
   .ed-tunnel-add-clr:active{transform:scale(0.9)}
+
+  /* ═══ GENERATOR ═══ */
+  .ed-gen-mechs{display:flex;gap:4px;flex-wrap:wrap;justify-content:center;margin:6px 0}
+  .ed-gen-mech{padding:4px 10px;border:2px solid rgba(120,100,80,0.25);border-radius:8px;
+    background:rgba(180,165,145,0.2);color:#8A7A60;font-family:'Fredoka',sans-serif;font-size:11px;
+    font-weight:600;cursor:pointer;transition:all 0.15s}
+  .ed-gen-mech:hover{transform:scale(1.05)}
+  .ed-gen-mech.on{background:rgba(123,82,160,0.18);border-color:rgba(123,82,160,0.55);color:#7B52A0}
+  .ed-gen-actions{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:4px}
+  .ed-gen-seed{text-align:center;font-size:10px;color:#9C8A70;margin-top:4px;font-family:monospace}
 </style>
 </head>
 <body>
@@ -233,6 +243,10 @@
       <!-- Tunnel contents editor — populated dynamically -->
     </div>
     <div class="ed-section">
+      <div class="ed-section-title"><span class="icon">&#10024;</span> Procedural Generator</div>
+      <div id="ed-gen-panel"></div>
+    </div>
+    <div class="ed-section">
       <div class="ed-section-title"><span class="icon">&#9881;</span> Settings</div>
       <div id="ed-settings-body"></div>
     </div>
@@ -268,6 +282,7 @@
 <script src="js/tunnel.js"></script>
 <script src="js/wall.js"></script>
 <script src="js/rendering.js"></script>
+<script src="js/generator.js"></script>
 <script src="js/editor.js"></script>
 <script src="js/game.js"></script>
 </body>
