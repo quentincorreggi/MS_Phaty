@@ -1,0 +1,23 @@
+{
+  "name": "Conveyor Lanes",
+  "description": "Some grid rows ride a conveyor. Every time you open a box, the entire lane shifts one slot — so each tap reshuffles which boxes you can reach.",
+  "howToPlay": "The orange-tinted rows are conveyor lanes with arrows showing their direction. Walls below create narrow windows so only a few boxes are reachable at a time. Tap an open box: it spawns marbles and the lane shifts, exposing a different set of boxes. Plan your taps so every box eventually lines up with a window.",
+  "author": "Claude prototype",
+  "showcaseLevel": {
+    "name": "Conveyor Lanes",
+    "desc": "Tap a box → the lane shifts → new boxes become reachable",
+    "mrbPerBox": 3,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "conveyorRows": [null, null, "right", null, "left", null, null],
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" },
+      { "wall": true }, null, { "wall": true }, null, { "wall": true }, null, { "wall": true },
+      { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" },
+      null, { "wall": true }, null, { "wall": true }, null, { "wall": true }, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}

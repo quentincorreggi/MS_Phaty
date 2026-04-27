@@ -162,6 +162,25 @@
     display:flex;align-items:center;justify-content:center}
   .ed-tunnel-add-clr:hover{transform:scale(1.15);border-color:rgba(255,255,255,0.7)}
   .ed-tunnel-add-clr:active{transform:scale(0.9)}
+
+  /* ═══ CONVEYOR EDITOR ═══ */
+  #ed-conveyor-panel{background:rgba(232,148,60,0.08);border-radius:12px;padding:10px 12px;
+    border:1.5px solid rgba(184,100,40,0.25)}
+  .ed-conv-rows{display:flex;flex-direction:column;gap:4px;margin-top:4px}
+  .ed-conv-row{display:flex;align-items:center;gap:8px}
+  .ed-conv-label{font-size:11px;color:#5A4A38;width:48px;text-align:right;font-weight:600}
+  .ed-conv-btns{display:flex;gap:3px;flex:1}
+  .ed-conv-btn{flex:1;padding:4px 0;border:2px solid rgba(184,100,40,0.25);border-radius:6px;
+    font-family:'Fredoka',sans-serif;font-size:13px;font-weight:700;cursor:pointer;
+    color:#9C8A70;background:rgba(255,255,255,0.5);transition:all 0.12s;text-align:center}
+  .ed-conv-btn:hover{transform:scale(1.04)}.ed-conv-btn:active{transform:scale(0.95)}
+  .ed-conv-btn.active{background:linear-gradient(135deg,#FFB979,#E8943C);color:white;
+    border-color:rgba(184,100,40,0.7);text-shadow:0 1px 2px rgba(0,0,0,0.2)}
+  .ed-conv-row.has-dir{background:rgba(232,148,60,0.10);border-radius:6px;padding:2px 4px}
+  .ed-conv-clear{padding:4px 12px;border:none;border-radius:6px;font-family:'Fredoka',sans-serif;
+    font-size:11px;font-weight:600;cursor:pointer;color:#5A4A38;background:rgba(180,165,145,0.4);
+    transition:transform 0.12s;margin-top:6px;display:block;margin-left:auto;margin-right:auto}
+  .ed-conv-clear:hover{background:rgba(180,165,145,0.6);transform:scale(1.05)}
 </style>
 </head>
 <body>
@@ -232,6 +251,9 @@
     <div class="ed-section" id="ed-tunnel-panel">
       <!-- Tunnel contents editor — populated dynamically -->
     </div>
+    <div class="ed-section" id="ed-conveyor-panel">
+      <!-- Conveyor lane editor — populated dynamically -->
+    </div>
     <div class="ed-section">
       <div class="ed-section-title"><span class="icon">&#9881;</span> Settings</div>
       <div id="ed-settings-body"></div>
@@ -267,6 +289,7 @@
 <script src="js/physics.js"></script>
 <script src="js/tunnel.js"></script>
 <script src="js/wall.js"></script>
+<script src="js/conveyor.js"></script>
 <script src="js/rendering.js"></script>
 <script src="js/editor.js"></script>
 <script src="js/game.js"></script>

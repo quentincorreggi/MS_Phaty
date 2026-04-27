@@ -6,6 +6,7 @@
 
 var editor = {
   grid: [],            // 7x7: null = empty, { ci, type } or { tunnel: true, ... } or { wall: true }
+  conveyorRows: [null, null, null, null, null, null, null],  // per-row: 'left' | 'right' | null
   name: 'Custom Level',
   desc: 'My custom level',
   mrbPerBox: 9,
@@ -23,6 +24,7 @@ var editor = {
 function editorInit() {
   editor.grid = [];
   for (var i = 0; i < 49; i++) editor.grid.push(null);
+  editor.conveyorRows = [null, null, null, null, null, null, null];
   editor.name = 'Custom Level';
   editor.desc = 'My custom level';
   editor.mrbPerBox = 9;
@@ -60,6 +62,7 @@ function editorBuildUI() {
   editorRenderSettings();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderConveyorPanel();
 }
 
 // ── Grid ──
@@ -426,6 +429,55 @@ function editorRenderTunnelPanel() {
   }
 }
 
+// ── Conveyor lanes panel ──
+function editorRenderConveyorPanel() {
+  var container = document.getElementById('ed-conveyor-panel');
+  if (!container) return;
+  if (!editor.conveyorRows || editor.conveyorRows.length !== 7) {
+    editor.conveyorRows = [null, null, null, null, null, null, null];
+  }
+  var html = '<div class="ed-section-title"><span class="icon">⇄</span> Conveyor Lanes ' +
+    '<span style="font-weight:400;font-size:10px;color:#9C8A70;margin-left:auto">tap a box → these rows shift</span></div>';
+  html += '<div class="ed-conv-rows">';
+  for (var r = 0; r < 7; r++) {
+    var dir = editor.conveyorRows[r];
+    var hasDir = dir ? ' has-dir' : '';
+    html += '<div class="ed-conv-row' + hasDir + '">';
+    html += '<span class="ed-conv-label">Row ' + (r + 1) + '</span>';
+    html += '<div class="ed-conv-btns">';
+    html += '<button class="ed-conv-btn' + (!dir ? ' active' : '') + '" data-row="' + r + '" data-dir="none">—</button>';
+    html += '<button class="ed-conv-btn' + (dir === 'left' ? ' active' : '') + '" data-row="' + r + '" data-dir="left">◀ Left</button>';
+    html += '<button class="ed-conv-btn' + (dir === 'right' ? ' active' : '') + '" data-row="' + r + '" data-dir="right">Right ▶</button>';
+    html += '</div></div>';
+  }
+  html += '</div>';
+  var anySet = false;
+  for (var rr = 0; rr < 7; rr++) if (editor.conveyorRows[rr]) { anySet = true; break; }
+  if (anySet) {
+    html += '<button class="ed-conv-clear" id="ed-conv-clear-btn">Clear All Lanes</button>';
+  }
+  container.innerHTML = html;
+
+  var btns = container.querySelectorAll('.ed-conv-btn');
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener('click', function () {
+      var row = parseInt(this.getAttribute('data-row'));
+      var d = this.getAttribute('data-dir');
+      editor.conveyorRows[row] = (d === 'none') ? null : d;
+      editorRenderConveyorPanel();
+      editorUpdateStats();
+    });
+  }
+  var clearBtn = document.getElementById('ed-conv-clear-btn');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', function () {
+      editor.conveyorRows = [null, null, null, null, null, null, null];
+      editorRenderConveyorPanel();
+      editorUpdateStats();
+    });
+  }
+}
+
 // ── Quick actions ──
 function editorFillRandom() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
@@ -503,6 +555,13 @@ function editorUpdateStats() {
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
   }
+  var convCount = 0;
+  if (editor.conveyorRows) {
+    for (var rci = 0; rci < editor.conveyorRows.length; rci++) if (editor.conveyorRows[rci]) convCount++;
+  }
+  if (convCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#E8943C">' + convCount + ' conveyor lane' + (convCount > 1 ? 's' : '') + '</span>';
+  }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
   }
@@ -563,12 +622,19 @@ function editorRenderSettings() {
 
 // ── Build level definition ──
 function editorBuildLevel() {
-  return {
+  var lvl = {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
     grid: editor.grid.slice()
   };
+  // Only include conveyorRows if any are set, to keep level JSON clean
+  var anyConv = false;
+  for (var r = 0; r < editor.conveyorRows.length; r++) {
+    if (editor.conveyorRows[r]) { anyConv = true; break; }
+  }
+  if (anyConv) lvl.conveyorRows = editor.conveyorRows.slice();
+  return lvl;
 }
 
 // ── Test play ──
@@ -627,6 +693,15 @@ function editorImportJSON() {
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
+      if (lvl.conveyorRows && lvl.conveyorRows.length === 7) {
+        editor.conveyorRows = [];
+        for (var ci5 = 0; ci5 < 7; ci5++) {
+          var v = lvl.conveyorRows[ci5];
+          editor.conveyorRows.push((v === 'left' || v === 'right') ? v : null);
+        }
+      } else {
+        editor.conveyorRows = [null, null, null, null, null, null, null];
+      }
       var nameEl = document.getElementById('ed-name');
       var descEl = document.getElementById('ed-desc');
       if (nameEl) nameEl.value = editor.name;

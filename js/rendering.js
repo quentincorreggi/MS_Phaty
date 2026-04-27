@@ -162,23 +162,31 @@ function drawFunnel() {
 function drawStock() {
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
+    var slideX = b.slideX || 0;
+    var wrapAlpha = b.wrapFadeT > 0 ? (1 - b.wrapFadeT) : 1;
 
     // ── Tunnel ──
     if (b.isTunnel) {
       var tRemain = b.tunnelContents ? b.tunnelContents.length : 0;
-      drawTunnelOnGrid(ctx, b.x, b.y, L.bw, L.bh, S,
+      ctx.save();
+      if (wrapAlpha < 1) ctx.globalAlpha = wrapAlpha;
+      drawTunnelOnGrid(ctx, b.x + slideX, b.y, L.bw, L.bh, S,
         b.tunnelDir, tRemain, b.tunnelTotal, tick, b.tunnelSpawning);
+      ctx.restore();
       continue;
     }
 
     // ── Wall ──
     if (b.isWall) {
-      drawWallOnGrid(ctx, b.x, b.y, L.bw, L.bh, S, tick);
+      ctx.save();
+      if (wrapAlpha < 1) ctx.globalAlpha = wrapAlpha;
+      drawWallOnGrid(ctx, b.x + slideX, b.y, L.bw, L.bh, S, tick);
+      ctx.restore();
       continue;
     }
 
-    var ox = 0;
-    if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
+    var ox = slideX;
+    if (b.shakeT > 0) ox += Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
     var breathe = 0;
     if (!b.used && !b.spawning && b.revealT <= 0 && b.revealed && isBoxTappable(i)) {
       breathe = Math.sin(tick * 0.04 + b.idlePhase) * 0.02;
@@ -188,22 +196,35 @@ function drawStock() {
     var ts = ps * hs;
 
     // Empty slot
-    if (b.empty) { drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
+    if (b.empty) {
+      ctx.save();
+      if (wrapAlpha < 1) ctx.globalAlpha = wrapAlpha;
+      drawEmptySlot(b.x + slideX, b.y, L.bw, L.bh);
+      ctx.restore();
+      continue;
+    }
 
     // Used box fading out
     if (b.used && b.emptyT > 0) {
       ts *= 0.7 + 0.3 * (1 - b.emptyT);
-      ctx.save(); ctx.globalAlpha = 1 - b.emptyT * 0.3;
+      ctx.save(); ctx.globalAlpha = (1 - b.emptyT * 0.3) * wrapAlpha;
       ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2); ctx.scale(ts, ts);
       drawEmptySlot(-L.bw / 2, -L.bh / 2, L.bw, L.bh);
       ctx.restore(); continue;
     }
 
     // Used box (fully empty)
-    if (b.used) { drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
+    if (b.used) {
+      ctx.save();
+      if (wrapAlpha < 1) ctx.globalAlpha = wrapAlpha;
+      drawEmptySlot(b.x + slideX, b.y, L.bw, L.bh);
+      ctx.restore();
+      continue;
+    }
 
     var bt = getBoxType(b.boxType);
     ctx.save();
+    if (wrapAlpha < 1) ctx.globalAlpha = wrapAlpha;
     ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2); ctx.scale(ts, ts);
 
     if (b.revealT > 0) {

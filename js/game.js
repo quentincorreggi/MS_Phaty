@@ -142,6 +142,9 @@ function initGame() {
     }
   }
 
+  // ── Conveyor lanes (must be initialized before reveals/animations) ──
+  initConveyorRows(lvl.conveyorRows);
+
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
 
@@ -339,6 +342,7 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      triggerConveyorShift();
       return;
     }
   }
@@ -373,6 +377,9 @@ function update() {
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
+
+  // ── Conveyor slide animation ──
+  updateConveyorAnim();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -544,6 +551,7 @@ function frame() {
     ctx.clearRect(0, 0, W, H);
     drawBackground();
     drawFunnel();
+    drawConveyorBackgrounds();
     drawStock();
     drawPhysMarbles();
     drawBelt();
