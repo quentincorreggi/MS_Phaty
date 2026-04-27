@@ -2,7 +2,8 @@
 // shell.js — Wandering Shell mechanic
 // A steel armor plate (HP 3→2→1→0) that sits on any box.
 // Each adjacent tap deals 1 damage; on each hit the shell
-// jumps to a random new active box. At 0 HP it shatters.
+// jumps far across the grid to a different area. At 0 HP
+// it shatters and the box underneath becomes tappable.
 // ============================================================
 
 function drawShellOverlay(ctx, x, y, w, h, S, hp, tick, hitT, jumpT, destroyT) {
@@ -108,9 +109,10 @@ function damageAdjacentShells(idx) {
   if (col < L.cols - 1) neighbors.push(row * L.cols + (col + 1));
 
   for (var ni = 0; ni < neighbors.length; ni++) {
-    var nb = stock[neighbors[ni]];
+    var shellIdx = neighbors[ni];
+    var nb = stock[shellIdx];
     if (!nb || nb.isTunnel || nb.isWall || nb.empty || nb.used) continue;
-    if (nb.shellHP <= 0) continue;
+    if (!(nb.shellHP > 0)) continue;
 
     var newHP = nb.shellHP - 1;
     var bx = nb.x + L.bw / 2, by = nb.y + L.bh / 2;
@@ -133,11 +135,9 @@ function damageAdjacentShells(idx) {
       }
       nb.popT = 0.8;
     } else {
-      // Shell takes damage and jumps
+      // Shell takes damage — metal sparks at old position
       nb.shellHitT = 1.0;
       if (typeof sfx !== 'undefined' && sfx.pop) sfx.pop();
-
-      // Metal sparks at old position
       for (var p = 0; p < 12; p++) {
         var a = Math.PI * 2 * p / 12 + Math.random() * 0.4;
         var sp = 2 + Math.random() * 3.5;
@@ -150,18 +150,46 @@ function damageAdjacentShells(idx) {
         });
       }
 
-      // Find valid jump targets
-      var validTargets = [];
+      // Collect valid targets with Manhattan distance from current shell
+      var shellRow = Math.floor(shellIdx / L.cols);
+      var shellCol = shellIdx % L.cols;
+      var withDist = [];
       for (var si = 0; si < stock.length; si++) {
-        if (si === neighbors[ni]) continue;
+        if (si === shellIdx) continue;
         var s = stock[si];
         if (!s || s.isTunnel || s.isWall || s.empty || s.used || s.spawning) continue;
         if (s.shellHP > 0) continue;
-        validTargets.push(si);
+        var tr = Math.floor(si / L.cols), tc = si % L.cols;
+        var dist = Math.abs(tr - shellRow) + Math.abs(tc - shellCol);
+        withDist.push({ idx: si, dist: dist });
       }
 
-      if (validTargets.length > 0) {
-        var targetIdx = validTargets[Math.floor(Math.random() * validTargets.length)];
+      var targetIdx = -1;
+      if (withDist.length > 0) {
+        // Sort descending by distance so farthest targets come first
+        withDist.sort(function (a, b) { return b.dist - a.dist; });
+
+        // Prefer targets in a clearly different area (distance >= 3)
+        var pool = [];
+        for (var pi = 0; pi < withDist.length; pi++) {
+          if (withDist[pi].dist >= 3) pool.push(withDist[pi]);
+        }
+        // Fall back to distance >= 2
+        if (pool.length === 0) {
+          for (var pi = 0; pi < withDist.length; pi++) {
+            if (withDist[pi].dist >= 2) pool.push(withDist[pi]);
+          }
+        }
+        // Last resort: any valid target
+        if (pool.length === 0) pool = withDist;
+
+        // Pick randomly from the farthest half of the pool
+        var pickCount = Math.max(1, Math.ceil(pool.length / 2));
+        var chosen = pool[Math.floor(Math.random() * pickCount)];
+        targetIdx = chosen.idx;
+      }
+
+      if (targetIdx >= 0) {
         var target = stock[targetIdx];
         nb.shellHP = 0;
         nb.shellHitT = 0;
@@ -169,19 +197,19 @@ function damageAdjacentShells(idx) {
         target.shellJumpT = 1.0;
         // Landing sparks at new position
         var tx = target.x + L.bw / 2, ty = target.y + L.bh / 2;
-        for (var p = 0; p < 8; p++) {
-          var a2 = Math.PI * 2 * p / 8 + Math.random() * 0.5;
+        for (var p = 0; p < 10; p++) {
+          var a2 = Math.PI * 2 * p / 10 + Math.random() * 0.5;
           particles.push({
             x: tx, y: ty,
-            vx: Math.cos(a2) * (1.5 + Math.random() * 2) * S,
-            vy: Math.sin(a2) * (1.5 + Math.random() * 2) * S,
+            vx: Math.cos(a2) * (1.5 + Math.random() * 2.5) * S,
+            vy: Math.sin(a2) * (1.5 + Math.random() * 2.5) * S,
             r: (1 + Math.random() * 2) * S,
             color: 'rgba(195,200,218,0.85)',
-            life: 0.5, decay: 0.04, grav: false
+            life: 0.55, decay: 0.038, grav: false
           });
         }
       } else {
-        // Nowhere to jump — shell stays in place with new HP
+        // Nowhere far enough — stay in place with reduced HP
         nb.shellHP = newHP;
       }
     }
