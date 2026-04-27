@@ -1,0 +1,22 @@
+{
+  "name": "Wandering Shell",
+  "description": "One armored shell guards a box somewhere on the grid. Tap its neighbors to hit it — but after every hit it leaps to a completely different area.",
+  "howToPlay": "Find the steel plate (shows a number 3→2→1). Tap any box next to it to deal damage. After each hit it jumps far away — track it down and hit it 3 times total to shatter it and free the box underneath.",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Wandering Shell Demo",
+    "desc": "Track it down — it won't stay still!",
+    "mrbPerBox": 9,
+    "sortCap": 9,
+    "lockButtons": 0,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      {"ci":0,"type":"default"}, {"ci":1,"type":"default"}, {"ci":2,"type":"default"}, {"ci":3,"type":"default"}, {"ci":0,"type":"default"}, {"ci":1,"type":"default"}, {"ci":2,"type":"default"},
+      {"ci":3,"type":"default"}, {"ci":0,"type":"default"}, {"ci":1,"type":"default"}, {"ci":2,"type":"default"}, {"ci":3,"type":"default"}, {"ci":0,"type":"default"}, {"ci":1,"type":"default"},
+      {"ci":2,"type":"default"}, {"ci":3,"type":"default"}, {"ci":0,"type":"default"}, {"ci":1,"type":"default","shell":true}, {"ci":2,"type":"default"}, {"ci":3,"type":"default"}, {"ci":0,"type":"default"},
+      null, null, null, null, null, null, null
+    ]
+  }
+}
