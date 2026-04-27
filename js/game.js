@@ -583,8 +583,28 @@ function update() {
         spawnBurst(fp.endX, fp.endY, fp.color, 18);
         spawnConfetti(fp.endX, fp.endY, 10);
         sfx.pop();
-        spawnPhysMarbles(tb);
+        // Deposit marbles directly onto belt slots (avoids funnel physics edge cases)
+        var mCount = tb.remaining;
+        var mCi = tb.ci;
+        for (var mi = 0; mi < mCount; mi++) {
+          var placed = false;
+          for (var bsi = 0; bsi < BELT_SLOTS; bsi++) {
+            if (beltSlots[bsi].marble < 0) {
+              beltSlots[bsi].marble = mCi;
+              beltSlots[bsi].arriveAnim = 1.0;
+              var bpos = getSlotPos(bsi);
+              spawnBurst(bpos.x, bpos.y, COLORS[mCi].fill, 6);
+              placed = true;
+              break;
+            }
+          }
+        }
+        tb.remaining = 0;
+        tb.emptyT = 1.0;
         damageAdjacentIce(fp.targetIdx);
+        (function(boxRef) {
+          setTimeout(function() { boxRef.used = true; updateBoxReveals(true); }, 400);
+        })(tb);
       }
     }
     if (fp.t >= 1.4) fireworkProjectiles.splice(i, 1);
