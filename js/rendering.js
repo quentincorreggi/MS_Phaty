@@ -512,11 +512,11 @@ function drawFireworksBoxVisual(ctx, x, y, w, h, S, charges, tick, idlePhase) {
   ctx.beginPath(); ctx.arc(0, 0, w * 0.05, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 
-  // 3 charge dots at the bottom
+  // 2 charge dots at the bottom
   var dotR = w * 0.07;
   var dotY = y + h - dotR * 2.2;
-  for (var d = 0; d < 3; d++) {
-    var dotX = cx2 + (d - 1) * w * 0.28;
+  for (var d = 0; d < 2; d++) {
+    var dotX = cx2 + (d - 0.5) * w * 0.28;
     if (d < charges) {
       ctx.save();
       ctx.shadowColor = 'rgba(255,215,0,0.9)'; ctx.shadowBlur = 5 * S;
@@ -543,21 +543,41 @@ function drawFireworkProjectiles() {
     var arcH = (Math.abs(fp.endY - fp.startY) * 0.4 + 60 * S);
     var y = fp.startY + (fp.endY - fp.startY) * e - Math.sin(t * Math.PI) * arcH;
 
+    // Rotating 4-point sparkle star
     ctx.save();
-    ctx.shadowColor = fp.color; ctx.shadowBlur = 12 * S;
+    ctx.translate(x, y);
+    ctx.rotate(tick * 0.18 + fp.rotOffset);
+    ctx.shadowColor = fp.color; ctx.shadowBlur = 14 * S;
+
+    var sr = 6 * S;
+    ctx.beginPath();
+    for (var p = 0; p < 8; p++) {
+      var ang = p * Math.PI / 4;
+      var rr = (p % 2 === 0) ? sr : sr * 0.38;
+      if (p === 0) ctx.moveTo(Math.cos(ang) * rr, Math.sin(ang) * rr);
+      else ctx.lineTo(Math.cos(ang) * rr, Math.sin(ang) * rr);
+    }
+    ctx.closePath();
     ctx.fillStyle = fp.color;
-    ctx.beginPath(); ctx.arc(x, y, 5 * S, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(x - 1.5 * S, y - 1.5 * S, 2 * S, 0, Math.PI * 2); ctx.fill();
-    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+    ctx.fill();
+
+    // Bright white core
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.beginPath(); ctx.arc(0, 0, 2 * S, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowColor = 'transparent';
     ctx.restore();
 
-    if (tick % 2 === 0) {
+    // Colorful spark trail every frame
+    for (var s = 0; s < 2; s++) {
+      var ang2 = Math.random() * Math.PI * 2;
+      var sp = (0.5 + Math.random() * 1.5) * S;
       particles.push({
         x: x, y: y,
-        vx: (Math.random() - 0.5) * S, vy: (Math.random() - 0.5) * S,
-        r: (1.5 + Math.random() * 2.5) * S,
-        color: fp.color, life: 0.7, decay: 0.07, grav: false
+        vx: Math.cos(ang2) * sp, vy: Math.sin(ang2) * sp + 0.4 * S,
+        r: (1.5 + Math.random() * 2) * S,
+        color: Math.random() > 0.4 ? fp.color : '#FFD700',
+        life: 0.8, decay: 0.06 + Math.random() * 0.04, grav: false
       });
     }
   }
