@@ -1,7 +1,7 @@
 {
   "name": "Fireworks Box",
-  "description": "A navy box marked ✦ sits in the grid. Open 3 boxes next to it and it auto-launches 3 rockets that blast open 3 more boxes for free!",
-  "howToPlay": "Tap boxes in the bottom rows first to work your way up. When 3 boxes around a Fireworks Box (✦) are opened, it fires rockets automatically!",
+  "description": "Open 2 boxes next to the ✦ and it launches 3 sparkle rockets — each one blasts open a random box and sends its marbles straight to the belt.",
+  "howToPlay": "Work up from the bottom. Once 2 neighbours of a ✦ box are opened, it fires automatically. Watch the rockets fly and collect the free marbles!",
   "showcaseLevel": {
     "name": "Fireworks Box",
     "desc": "Ignite the rockets!",
