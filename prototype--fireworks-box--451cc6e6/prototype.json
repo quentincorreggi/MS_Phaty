@@ -1,0 +1,20 @@
+{
+  "name": "Fireworks Box",
+  "description": "A navy box marked ✦ sits in the grid. Open 3 boxes next to it and it auto-launches 3 rockets that blast open 3 more boxes for free!",
+  "howToPlay": "Tap boxes in the bottom rows first to work your way up. When 3 boxes around a Fireworks Box (✦) are opened, it fires rockets automatically!",
+  "showcaseLevel": {
+    "name": "Fireworks Box",
+    "desc": "Ignite the rockets!",
+    "mrbPerBox": 2,
+    "sortCap": 3,
+    "grid": [
+      null, null, null, null, null, null, null,
+      {"ci":0,"type":"default"}, {"ci":1,"type":"default"}, {"ci":2,"type":"default"}, {"ci":3,"type":"default"}, {"ci":0,"type":"default"}, {"ci":1,"type":"default"}, {"ci":2,"type":"default"},
+      {"ci":3,"type":"default"}, {"ci":2,"type":"default"}, {"ci":0,"type":"default"}, {"ci":1,"type":"default"}, {"ci":3,"type":"default"}, {"ci":2,"type":"default"}, {"ci":0,"type":"default"},
+      {"ci":1,"type":"default"}, {"ci":0,"type":"default"}, {"ci":0,"type":"fireworks"}, {"ci":2,"type":"default"}, {"ci":0,"type":"fireworks"}, {"ci":3,"type":"default"}, {"ci":1,"type":"default"},
+      {"ci":2,"type":"default"}, {"ci":3,"type":"default"}, {"ci":1,"type":"default"}, {"ci":0,"type":"default"}, {"ci":2,"type":"default"}, {"ci":1,"type":"default"}, {"ci":3,"type":"default"},
+      {"ci":0,"type":"default"}, {"ci":1,"type":"default"}, {"ci":2,"type":"default"}, {"ci":3,"type":"default"}, {"ci":0,"type":"default"}, {"ci":1,"type":"default"}, {"ci":2,"type":"default"},
+      null, null, null, null, null, null, null
+    ]
+  }
+}
