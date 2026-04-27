@@ -53,6 +53,8 @@ var blockerCollectT = 0;
 var blockerCollectSlots = [];
 var blockerCollectCleared = false;
 
+var shellOverlays = {};  // not used at runtime — shell state lives on stock objects
+
 var MRB_PER_BOX = 9, SORT_CAP = 3;
 var SORT_VISIBLE_ROWS = 4;
 

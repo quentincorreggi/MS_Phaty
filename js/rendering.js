@@ -254,6 +254,12 @@ function drawStock() {
       ctx.restore();
     }
 
+    // Shell overlay
+    if (b.shellHP > 0 || b.shellDestroyT > 0) {
+      drawShellOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S,
+        b.shellHP, tick, b.shellHitT, b.shellJumpT, b.shellDestroyT);
+    }
+
     ctx.restore();
   }
 }

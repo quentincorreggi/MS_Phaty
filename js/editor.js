@@ -17,6 +17,7 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  shellMode: false,     // true when toggling shell overlays
   visible: false
 };
 
@@ -34,6 +35,7 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.shellMode = false;
 }
 
 function showEditor(fresh) {
@@ -89,8 +91,11 @@ function editorRenderGrid() {
       var bt = getBoxType(v.type);
       var st = bt.editorCellStyle(v.ci);
       cell.style.background = st.background;
-      cell.style.borderColor = st.borderColor;
+      cell.style.borderColor = v.shell ? '#8888AA' : st.borderColor;
       cell.innerHTML = bt.editorCellHTML(v.ci);
+      if (v.shell) {
+        cell.innerHTML += '<span class="ed-shell-badge">3</span>';
+      }
     } else {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
@@ -104,6 +109,17 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.shellMode) {
+    // Shell toggle mode — toggle shell on any regular box cell
+    var existing = editor.grid[idx];
+    if (existing && !existing.wall && !existing.tunnel && existing.ci >= 0) {
+      existing.shell = !existing.shell;
+      editorRenderGrid();
+      editorUpdateStats();
+    }
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -191,6 +207,21 @@ function editorRenderToolbar() {
     typeRow.appendChild(tb);
   }
 
+  // Shell mode button
+  var shellBtn = document.createElement('button');
+  shellBtn.className = 'ed-type-btn' + (editor.shellMode ? ' active' : '');
+  shellBtn.textContent = '\u26E8 Shell';
+  shellBtn.style.borderColor = editor.shellMode ? 'rgba(100,100,120,0.6)' : '';
+  shellBtn.style.color = editor.shellMode ? '#555570' : '';
+  shellBtn.addEventListener('click', function () {
+    editor.shellMode = !editor.shellMode;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(shellBtn);
+
   // Wall mode button
   var wallBtn = document.createElement('button');
   wallBtn.className = 'ed-type-btn' + (editor.wallMode ? ' active' : '');
@@ -200,6 +231,7 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.shellMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
