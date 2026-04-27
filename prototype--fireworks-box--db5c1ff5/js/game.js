@@ -349,6 +349,7 @@ function triggerFireworksBox(idx) {
       endX: tb.x + L.bw / 2, endY: tb.y + L.bh / 2,
       targetIdx: ti, t: 0,
       color: rocketColors[i % rocketColors.length],
+      rotOffset: Math.random() * Math.PI * 2,
       fired: false
     });
   }
@@ -605,7 +606,7 @@ function update() {
       if (nb && (nb.used || nb.empty)) openedCount++;
     }
     b.fireworksCharges = openedCount;
-    if (openedCount >= 3) triggerFireworksBox(i);
+    if (openedCount >= 2) triggerFireworksBox(i);
   }
 
   tickParticles();
