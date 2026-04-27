@@ -31,7 +31,7 @@ function startLevel(idx) {
 function initGame() {
   won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
-  blockerCollectSlots = []; blockerCollectCleared = false;
+  blockerCollectSlots = []; blockerCollectCleared = false; fireworkProjectiles = [];
   document.getElementById('win-screen').classList.remove('show');
   computeLayout(); initBeltSlots();
 
@@ -68,9 +68,12 @@ function initGame() {
   for (var k in boxSlots) {
     var bs = boxSlots[k];
     var isBlockerBox = (bs.boxType === 'blocker');
-    var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
-    colorMarblesTotal[bs.ci] += regularPerBox;
-    if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
+    var isFireworksBox = (bs.boxType === 'fireworks');
+    if (!isFireworksBox) {
+      var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
+      colorMarblesTotal[bs.ci] += regularPerBox;
+      if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
+    }
   }
   // Count marbles from tunnel contents
   for (var k in tunnelSlots) {
@@ -130,12 +133,14 @@ function initGame() {
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
-      stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
+      var isFireworks = (slot.boxType === 'fireworks');
+      stock.push({ ci: slot.ci, used: false, remaining: isFireworks ? 0 : MRB_PER_BOX, spawning: false, spawnIdx: 0,
         revealed: isIce ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        fireworksCharges: 0, fireworksTriggered: false,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
@@ -311,10 +316,59 @@ function damageAdjacentIce(idx) {
   }
 }
 
+// === FIREWORKS BOX ===
+function triggerFireworksBox(idx) {
+  var b = stock[idx];
+  if (b.fireworksTriggered) return;
+  b.fireworksTriggered = true;
+  b.popT = 1;
+
+  var cx = b.x + L.bw / 2, cy = b.y + L.bh / 2;
+  spawnBurst(cx, cy, '#FFD700', 28);
+  spawnConfetti(cx, cy, 22);
+  sfx.complete();
+
+  // Pick 3 random un-opened target boxes
+  var candidates = [];
+  for (var i = 0; i < stock.length; i++) {
+    if (i === idx) continue;
+    var s = stock[i];
+    if (s.isTunnel || s.isWall || s.empty || s.used || s.spawning) continue;
+    if (s.boxType === 'fireworks') continue;
+    candidates.push(i);
+  }
+  shuffle(candidates);
+  var targets = candidates.slice(0, Math.min(3, candidates.length));
+
+  var rocketColors = ['#FF4E8C', '#4A9FFF', '#4EE68C'];
+  for (var i = 0; i < targets.length; i++) {
+    var ti = targets[i];
+    var tb = stock[ti];
+    fireworkProjectiles.push({
+      startX: cx, startY: cy,
+      endX: tb.x + L.bw / 2, endY: tb.y + L.bh / 2,
+      targetIdx: ti, t: 0,
+      color: rocketColors[i % rocketColors.length],
+      fired: false
+    });
+  }
+
+  // Box fades out after launching
+  var boxRef = b;
+  setTimeout(function () {
+    boxRef.emptyT = 1.0;
+    setTimeout(function () {
+      boxRef.used = true;
+      updateBoxReveals(true);
+    }, 400);
+  }, 150);
+}
+
 function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
-  if (b.isWall) return false;      // walls are not tappable
+  if (b.isWall) return false;
+  if (b.boxType === 'fireworks') return false;
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
@@ -330,7 +384,8 @@ function handleTap(px, py) {
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
+    if (b.isTunnel || b.isWall) continue;
+    if (b.boxType === 'fireworks') continue;
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
@@ -514,6 +569,45 @@ function update() {
     if (box.type === 'lock' && box.triggerT > 0) box.triggerT = Math.max(0, box.triggerT - 0.03);
   }
 
+  // ── Firework projectiles ──
+  for (var i = fireworkProjectiles.length - 1; i >= 0; i--) {
+    var fp = fireworkProjectiles[i];
+    fp.t += 0.017;
+    if (fp.t >= 1 && !fp.fired) {
+      fp.fired = true;
+      var tb = stock[fp.targetIdx];
+      if (tb && !tb.used && !tb.empty && !tb.spawning) {
+        if (tb.iceHP > 0) { tb.iceHP = 0; tb.iceShatterT = 1.0; }
+        tb.popT = 1;
+        spawnBurst(fp.endX, fp.endY, fp.color, 18);
+        spawnConfetti(fp.endX, fp.endY, 10);
+        sfx.pop();
+        spawnPhysMarbles(tb);
+        damageAdjacentIce(fp.targetIdx);
+      }
+    }
+    if (fp.t >= 1.4) fireworkProjectiles.splice(i, 1);
+  }
+
+  // ── Check fireworks box triggers ──
+  for (var i = 0; i < stock.length; i++) {
+    var b = stock[i];
+    if (b.boxType !== 'fireworks' || b.fireworksTriggered || b.used || b.empty) continue;
+    var frow = Math.floor(i / L.cols), fcol = i % L.cols;
+    var fnbrs = [];
+    if (frow > 0)          fnbrs.push((frow - 1) * L.cols + fcol);
+    if (frow < L.rows - 1) fnbrs.push((frow + 1) * L.cols + fcol);
+    if (fcol > 0)          fnbrs.push(frow * L.cols + (fcol - 1));
+    if (fcol < L.cols - 1) fnbrs.push(frow * L.cols + (fcol + 1));
+    var openedCount = 0;
+    for (var ni = 0; ni < fnbrs.length; ni++) {
+      var nb = stock[fnbrs[ni]];
+      if (nb && (nb.used || nb.empty)) openedCount++;
+    }
+    b.fireworksCharges = openedCount;
+    if (openedCount >= 3) triggerFireworksBox(i);
+  }
+
   tickParticles();
   updateRollingSound();
 }
@@ -551,6 +645,7 @@ function frame() {
     drawJumpers();
     drawSortArea();
     drawBackButton();
+    drawFireworkProjectiles();
     drawParticles();
     drawDebugWalls();
   }

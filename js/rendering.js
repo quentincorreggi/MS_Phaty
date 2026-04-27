@@ -202,6 +202,15 @@ function drawStock() {
     // Used box (fully empty)
     if (b.used) { drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
 
+    // ── Fireworks box special rendering ──
+    if (b.boxType === 'fireworks') {
+      ctx.save();
+      ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2); ctx.scale(ts, ts);
+      drawFireworksBoxVisual(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, b.fireworksCharges || 0, tick, b.idlePhase || 0);
+      ctx.restore();
+      continue;
+    }
+
     var bt = getBoxType(b.boxType);
     ctx.save();
     ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2); ctx.scale(ts, ts);
@@ -460,6 +469,98 @@ function drawBackButton() {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText('\u2190', L.bkX + L.bkSize / 2, L.bkY + L.bkSize / 2);
   ctx.restore();
+}
+
+// ── Fireworks box visual ──
+
+function drawFireworksBoxVisual(ctx, x, y, w, h, S, charges, tick, idlePhase) {
+  // Navy background
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.3)'; ctx.shadowBlur = 5 * S; ctx.shadowOffsetY = 2 * S;
+  var grad = ctx.createLinearGradient(x, y, x, y + h);
+  grad.addColorStop(0, '#2A2A5E'); grad.addColorStop(1, '#0D0D2E');
+  ctx.fillStyle = grad;
+  rRect(x, y, w, h, 6 * S); ctx.fill();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+
+  // Gold border with pulse
+  var glow = Math.sin(tick * 0.06 + idlePhase) * 0.25 + 0.75;
+  ctx.strokeStyle = 'rgba(184,134,11,' + glow + ')';
+  ctx.lineWidth = 1.5 * S;
+  rRect(x, y, w, h, 6 * S); ctx.stroke();
+
+  var cx2 = x + w / 2, cy2 = y + h / 2;
+
+  // Rotating starburst
+  var pulse = 0.88 + Math.sin(tick * 0.06 + idlePhase) * 0.1;
+  ctx.save();
+  ctx.translate(cx2, cy2);
+  ctx.rotate(tick * 0.01 + idlePhase);
+  var pts = 8, outerR = w * 0.24 * pulse, innerR = w * 0.12 * pulse;
+  ctx.beginPath();
+  for (var p = 0; p < pts * 2; p++) {
+    var ang = (p * Math.PI / pts) - Math.PI / 2;
+    var rr = (p % 2 === 0) ? outerR : innerR;
+    if (p === 0) ctx.moveTo(Math.cos(ang) * rr, Math.sin(ang) * rr);
+    else ctx.lineTo(Math.cos(ang) * rr, Math.sin(ang) * rr);
+  }
+  ctx.closePath();
+  var sg = ctx.createRadialGradient(0, 0, 0, 0, 0, outerR);
+  sg.addColorStop(0, '#FFD700'); sg.addColorStop(0.6, '#FF8C00'); sg.addColorStop(1, '#FF4500');
+  ctx.fillStyle = sg; ctx.fill();
+  ctx.fillStyle = '#FFF8DC';
+  ctx.beginPath(); ctx.arc(0, 0, w * 0.05, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  // 3 charge dots at the bottom
+  var dotR = w * 0.07;
+  var dotY = y + h - dotR * 2.2;
+  for (var d = 0; d < 3; d++) {
+    var dotX = cx2 + (d - 1) * w * 0.28;
+    if (d < charges) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(255,215,0,0.9)'; ctx.shadowBlur = 5 * S;
+      ctx.fillStyle = '#FFD700';
+      ctx.beginPath(); ctx.arc(dotX, dotY, dotR, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      ctx.beginPath(); ctx.arc(dotX, dotY, dotR * 0.7, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+// ── Firework projectiles in flight ──
+
+function drawFireworkProjectiles() {
+  for (var i = 0; i < fireworkProjectiles.length; i++) {
+    var fp = fireworkProjectiles[i];
+    if (fp.t >= 1) continue;
+    var t = fp.t;
+    var e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    var x = fp.startX + (fp.endX - fp.startX) * e;
+    var arcH = (Math.abs(fp.endY - fp.startY) * 0.4 + 60 * S);
+    var y = fp.startY + (fp.endY - fp.startY) * e - Math.sin(t * Math.PI) * arcH;
+
+    ctx.save();
+    ctx.shadowColor = fp.color; ctx.shadowBlur = 12 * S;
+    ctx.fillStyle = fp.color;
+    ctx.beginPath(); ctx.arc(x, y, 5 * S, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x - 1.5 * S, y - 1.5 * S, 2 * S, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+    ctx.restore();
+
+    if (tick % 2 === 0) {
+      particles.push({
+        x: x, y: y,
+        vx: (Math.random() - 0.5) * S, vy: (Math.random() - 0.5) * S,
+        r: (1.5 + Math.random() * 2.5) * S,
+        color: fp.color, life: 0.7, decay: 0.07, grav: false
+      });
+    }
+  }
 }
 
 // ── Debug walls ──
