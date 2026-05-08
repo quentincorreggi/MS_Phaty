@@ -40,7 +40,14 @@ var sfx = {
       tone(p2, 0.04, 'square', 0.028, p2 * 0.55);
     }, 30);
   },
-  coinJackpot: function () { [659, 988, 1319, 1976, 2637].forEach(function (f, i) { setTimeout(function () { tone(f, 0.3, 'triangle', 0.08); }, i * 70); }); }
+  coinJackpot: function () { [659, 988, 1319, 1976, 2637].forEach(function (f, i) { setTimeout(function () { tone(f, 0.3, 'triangle', 0.08); }, i * 70); }); },
+  goldComplete: function () {
+    // Mini cash-register fanfare: rising arpeggio + bell ring on top.
+    [1047, 1319, 1568, 2093].forEach(function (f, i) {
+      setTimeout(function () { tone(f, 0.16, 'triangle', 0.08); }, i * 55);
+    });
+    setTimeout(function () { tone(2637, 0.22, 'sine', 0.05, 2000); }, 240);
+  }
 };
 
 function spawnMarbleClick(intensity) {

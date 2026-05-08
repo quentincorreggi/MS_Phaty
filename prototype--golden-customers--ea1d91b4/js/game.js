@@ -430,18 +430,21 @@ function update() {
       if (tv >= 0 && col[tv].ci === j.ci) {
         col[tv].filled++;
         col[tv].squishT = 1;
-        sfx.sort();
+        var isGold = col[tv].isGolden && col[tv].type !== 'lock';
+        if (isGold) { sfx.goldBurst(); col[tv].shimmerT = 1; }
+        else sfx.sort();
         if (col[tv].filled >= SORT_CAP) {
           col[tv].popT = 1; col[tv].shineT = 1;
-          sfx.complete();
           var bx2 = L.sSx + j.targetCol * (L.sBw + L.sColGap) + L.sBw / 2;
           var by2 = getSortBoxY(j.targetCol, 0) + L.sBh / 2;
           spawnBurst(bx2, by2, COLORS[j.ci].fill, 20);
           spawnConfetti(bx2, by2, 15);
-          if (col[tv].isGolden && col[tv].type !== 'lock') {
-            sfx.goldBurst();
+          if (isGold) {
+            sfx.goldComplete();
             spawnBurst(bx2, by2, GOLD_COLOR.fill, 16);
             spawnCoinFlight(bx2, by2, COINS_PER_GOLDEN);
+          } else {
+            sfx.complete();
           }
           (function (box) { setTimeout(function () { box.vis = false; checkWin(); }, 600); })(col[tv]);
         }
