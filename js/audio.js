@@ -31,14 +31,20 @@ var sfx = {
     setTimeout(function () { tone(1319, 0.30, 'square', 0.11); }, 35);
   },
   coinLand: function () {
-    // Coin clinks against coins in bag: two bright metallic pings.
-    var p1 = 2400 + Math.random() * 300;
-    var p2 = p1 * (1.18 + Math.random() * 0.08);
-    tone(p1, 0.05, 'square', 0.035, p1 * 0.6);
-    tone(p1 * 2.05, 0.04, 'triangle', 0.018, p1 * 1.2);
+    // Coin onto a pile of gold: detuned metallic shimmer + scatter pings.
+    var base = 1900 + Math.random() * 500;
+    tone(base, 0.05, 'square', 0.028, base * 0.55);
+    tone(base * 1.498, 0.045, 'triangle', 0.018, base * 0.9);
+    tone(base * 2.02, 0.035, 'sine', 0.012, base * 1.4);
     setTimeout(function () {
-      tone(p2, 0.04, 'square', 0.028, p2 * 0.55);
-    }, 30);
+      var p = base * (1.18 + Math.random() * 0.12);
+      tone(p, 0.05, 'square', 0.024, p * 0.6);
+      tone(p * 1.51, 0.035, 'triangle', 0.012, p * 1.0);
+    }, 28 + Math.random() * 14);
+    setTimeout(function () {
+      var p = base * (0.82 + Math.random() * 0.1);
+      tone(p, 0.04, 'triangle', 0.018, p * 0.7);
+    }, 56 + Math.random() * 18);
   },
   coinJackpot: function () { [659, 988, 1319, 1976, 2637].forEach(function (f, i) { setTimeout(function () { tone(f, 0.3, 'triangle', 0.08); }, i * 70); }); },
   goldComplete: function () {
