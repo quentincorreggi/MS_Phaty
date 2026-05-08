@@ -25,10 +25,22 @@ var sfx = {
   sort: function () { tone(600, 0.1, 'triangle', 0.1); setTimeout(function () { tone(900, 0.1, 'triangle', 0.1); }, 80); },
   complete: function () { [523, 659, 784, 1047].forEach(function (f, i) { setTimeout(function () { tone(f, 0.2, 'sine', 0.1); }, i * 90); }); },
   win: function () { [523, 659, 784, 1047, 1319, 1568].forEach(function (f, i) { setTimeout(function () { tone(f, 0.25, 'sine', 0.12); }, i * 100); }); },
-  goldBurst: function () { [880, 1175, 1568].forEach(function (f, i) { setTimeout(function () { tone(f, 0.22, 'triangle', 0.06, f * 0.5); }, i * 35); }); },
+  goldBurst: function () {
+    // Mario-coin: bright square two-tone (B5 → E6) with metallic harmonic.
+    tone(988, 0.05, 'square', 0.07);
+    tone(1976, 0.05, 'triangle', 0.025);
+    setTimeout(function () {
+      tone(1319, 0.20, 'square', 0.07, 1150);
+      tone(2637, 0.16, 'triangle', 0.022, 2300);
+      tone(3951, 0.10, 'triangle', 0.012);
+    }, 55);
+  },
   coinLand: function () {
-    var base = 1400 + Math.random() * 400;
-    tone(base, 0.08, 'sine', 0.05, base * 0.55);
+    // Coin into pouch: soft low thud + brief metallic ping.
+    var thud = 150 + Math.random() * 40;
+    tone(thud, 0.07, 'sine', 0.045, thud * 0.55);
+    var ping = 2100 + Math.random() * 500;
+    setTimeout(function () { tone(ping, 0.045, 'triangle', 0.025, ping * 0.6); }, 18);
   },
   coinJackpot: function () { [659, 988, 1319, 1976, 2637].forEach(function (f, i) { setTimeout(function () { tone(f, 0.3, 'triangle', 0.08); }, i * 70); }); }
 };
