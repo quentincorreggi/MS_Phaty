@@ -25,10 +25,20 @@ var sfx = {
   sort: function () { tone(600, 0.1, 'triangle', 0.1); setTimeout(function () { tone(900, 0.1, 'triangle', 0.1); }, 80); },
   complete: function () { [523, 659, 784, 1047].forEach(function (f, i) { setTimeout(function () { tone(f, 0.2, 'sine', 0.1); }, i * 90); }); },
   win: function () { [523, 659, 784, 1047, 1319, 1568].forEach(function (f, i) { setTimeout(function () { tone(f, 0.25, 'sine', 0.12); }, i * 100); }); },
-  goldBurst: function () { [880, 1175, 1568].forEach(function (f, i) { setTimeout(function () { tone(f, 0.22, 'triangle', 0.06, f * 0.5); }, i * 35); }); },
+  goldBurst: function () {
+    // Authentic SMB1 coin: short B5 grace note → sustained E6, pure square.
+    tone(988, 0.035, 'square', 0.10);
+    setTimeout(function () { tone(1319, 0.30, 'square', 0.11); }, 35);
+  },
   coinLand: function () {
-    var base = 1400 + Math.random() * 400;
-    tone(base, 0.08, 'sine', 0.05, base * 0.55);
+    // Coin clinks against coins in bag: two bright metallic pings.
+    var p1 = 2400 + Math.random() * 300;
+    var p2 = p1 * (1.18 + Math.random() * 0.08);
+    tone(p1, 0.05, 'square', 0.035, p1 * 0.6);
+    tone(p1 * 2.05, 0.04, 'triangle', 0.018, p1 * 1.2);
+    setTimeout(function () {
+      tone(p2, 0.04, 'square', 0.028, p2 * 0.55);
+    }, 30);
   },
   coinJackpot: function () { [659, 988, 1319, 1976, 2637].forEach(function (f, i) { setTimeout(function () { tone(f, 0.3, 'triangle', 0.08); }, i * 70); }); }
 };
