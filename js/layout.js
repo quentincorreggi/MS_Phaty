@@ -105,6 +105,20 @@ function computeLayout() {
     }
     L.sortBeltT.push(best / beltPath.length);
   }
+
+  // COIN-BAG anchor (center). Primary: just above sort area, near right edge.
+  // Fallback: top-right corner if primary would overlap belt area.
+  L.coinBagW = 70 * S;
+  L.coinBagH = 80 * S;
+  var primX = L.gameRight - 30 * S;
+  var primY = L.sTop - 70 * S;
+  if (primY - L.coinBagH / 2 < L.beltBotY + 8 * S) {
+    L.coinBagX = W - 90 * S;
+    L.coinBagY = 70 * S;
+  } else {
+    L.coinBagX = primX;
+    L.coinBagY = primY;
+  }
 }
 
 function updateStockPositions() {

@@ -56,6 +56,13 @@ var blockerCollectCleared = false;
 var MRB_PER_BOX = 9, SORT_CAP = 3;
 var SORT_VISIBLE_ROWS = 4;
 
+// === GOLDEN CUSTOMERS ===
+var COINS_PER_GOLDEN = 10;
+var COIN_FLIGHT_MS = 700;
+var GOLD_COLOR = { fill: '#FFD700', light: '#FFEC8B', dark: '#B8860B', glow: 'rgba(255,215,0,0.5)' };
+var coins = [];
+var coinBag = { count: 0, squishT: 0, sparkleT: 0, visible: false, bobPhase: 0 };
+
 // Snake order for 3x3 grid
 var SNAKE_ORDER = [
   { r: 0, c: 0 }, { r: 0, c: 1 }, { r: 0, c: 2 },

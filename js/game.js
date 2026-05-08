@@ -29,7 +29,7 @@ function startLevel(idx) {
 
 // === GAME INIT ===
 function initGame() {
-  won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
+  won = false; score = 0; particles = []; physMarbles = []; jumpers = []; coins = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
   document.getElementById('win-screen').classList.remove('show');
@@ -148,7 +148,7 @@ function initGame() {
   // ── Sort columns ──
   var allBoxes = [];
   for (var c = 0; c < NUM_COLORS; c++) for (var r = 0; r < sortPerColor[c]; r++)
-    allBoxes.push({ ci: c, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0 });
+    allBoxes.push({ ci: c, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0, isGolden: false, shimmerT: 0 });
   shuffle(allBoxes);
   sortCols = [[], [], [], []];
   for (var i = 0; i < allBoxes.length; i++) sortCols[i % 4].push(allBoxes[i]);
@@ -158,8 +158,32 @@ function initGame() {
   for (var li2 = 0; li2 < numLocks; li2++) {
     var lockCol = Math.floor(Math.random() * 4);
     var lockRow = Math.min(2 + Math.floor(Math.random() * 4), sortCols[lockCol].length);
-    sortCols[lockCol].splice(lockRow, 0, { type: 'lock', ci: -1, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0, triggerT: 0, triggered: false });
+    sortCols[lockCol].splice(lockRow, 0, { type: 'lock', ci: -1, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0, triggerT: 0, triggered: false, isGolden: false, shimmerT: 0 });
   }
+
+  // Golden customers — assign after lock splice so locks are excluded.
+  var goldenCount = lvl.goldenCount;
+  if (typeof goldenCount !== 'number') {
+    var totalSlots = 0;
+    for (var gc = 0; gc < 4; gc++) for (var gr = 0; gr < sortCols[gc].length; gr++) {
+      if (sortCols[gc][gr].type !== 'lock') totalSlots++;
+    }
+    goldenCount = Math.min(Math.max(2, Math.round(totalSlots * 0.35)), totalSlots);
+  }
+  assignGoldenCustomers(goldenCount);
+  initCoinBag(goldenCount > 0);
+}
+
+function assignGoldenCustomers(n) {
+  if (!n || n <= 0) return;
+  var pool = [];
+  for (var c = 0; c < 4; c++) for (var r = 0; r < sortCols[c].length; r++) {
+    var b = sortCols[c][r];
+    if (b.type !== 'lock') pool.push(b);
+  }
+  shuffle(pool);
+  var k = Math.min(n, pool.length);
+  for (var i = 0; i < k; i++) pool[i].isGolden = true;
 }
 
 // === REVEAL — PATH TO BOTTOM ===
@@ -414,6 +438,11 @@ function update() {
           var by2 = getSortBoxY(j.targetCol, 0) + L.sBh / 2;
           spawnBurst(bx2, by2, COLORS[j.ci].fill, 20);
           spawnConfetti(bx2, by2, 15);
+          if (col[tv].isGolden && col[tv].type !== 'lock') {
+            sfx.goldBurst();
+            spawnBurst(bx2, by2, GOLD_COLOR.fill, 16);
+            spawnCoinFlight(bx2, by2, COINS_PER_GOLDEN);
+          }
           (function (box) { setTimeout(function () { box.vis = false; checkWin(); }, 600); })(col[tv]);
         }
       }
@@ -491,8 +520,11 @@ function update() {
       if (col[r].popT > 0) col[r].popT = Math.max(0, col[r].popT - 0.018);
       if (col[r].shineT > 0) col[r].shineT = Math.max(0, col[r].shineT - 0.025);
       if (col[r].squishT > 0) col[r].squishT = Math.max(0, col[r].squishT - 0.06);
+      if (col[r].shimmerT > 0) col[r].shimmerT = Math.max(0, col[r].shimmerT - 0.04);
     }
   }
+  tickCoins();
+  updateCoinBag();
 
   // Lock button trigger
   for (var c = 0; c < sortCols.length; c++) {
@@ -527,7 +559,14 @@ function checkWin() {
   }
   if (!won) {
     won = true; sfx.win();
-    document.getElementById('win-msg').textContent = 'All marbles sorted perfectly!';
+    var winMsg = 'All marbles sorted perfectly!';
+    if (coinBag.count > 0) {
+      winMsg += ' Coins: ' + coinBag.count;
+      sfx.coinJackpot();
+      spawnBurst(W / 2, H / 3, GOLD_COLOR.fill, 30);
+      spawnBurst(W / 2, H / 3, GOLD_COLOR.light, 20);
+    }
+    document.getElementById('win-msg').textContent = winMsg;
     spawnConfetti(W / 2, H / 3, 60);
     setTimeout(function () { spawnConfetti(W * 0.3, H / 2, 40); }, 200);
     setTimeout(function () { spawnConfetti(W * 0.7, H / 2, 40); }, 400);
@@ -550,8 +589,10 @@ function frame() {
     drawBlockerProgress();
     drawJumpers();
     drawSortArea();
+    drawCoinBag();
     drawBackButton();
     drawParticles();
+    drawCoins();
     drawDebugWalls();
   }
   requestAnimationFrame(frame);

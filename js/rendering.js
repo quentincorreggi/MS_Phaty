@@ -431,6 +431,35 @@ function drawSortArea() {
         var sp = L.sBw / 4, mrr = 6 * S * cal.sort.s * cal.marble.s;
         for (var j2 = 0; j2 < b.filled; j2++) drawMarble((j2 - 1) * sp, 0, mrr, b.ci);
         for (var j2 = b.filled; j2 < SORT_CAP; j2++) { ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.beginPath(); ctx.arc((j2 - 1) * sp, 0, mrr * 0.55, 0, Math.PI * 2); ctx.fill(); }
+        if (b.isGolden) {
+          var pulse2 = 0.55 + 0.35 * (0.5 + 0.5 * Math.sin(tick * 0.1 + (b.shimmerT || 0) * 6));
+          ctx.save();
+          ctx.shadowColor = GOLD_COLOR.glow;
+          ctx.shadowBlur = 10 * S;
+          ctx.strokeStyle = GOLD_COLOR.fill;
+          ctx.lineWidth = 2.4 * S;
+          ctx.globalAlpha = pulse2;
+          rRect(-L.sBw / 2 + 1 * S, -L.sBh / 2 + 1 * S, L.sBw - 2 * S, L.sBh - 2 * S, 8 * S);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+          ctx.shadowBlur = 0;
+          // corner sparkles
+          ctx.fillStyle = GOLD_COLOR.light;
+          var ss = 1.6 * S;
+          var corners = [
+            [-L.sBw / 2 + 4 * S, -L.sBh / 2 + 4 * S],
+            [L.sBw / 2 - 4 * S, -L.sBh / 2 + 4 * S],
+            [-L.sBw / 2 + 4 * S, L.sBh / 2 - 4 * S],
+            [L.sBw / 2 - 4 * S, L.sBh / 2 - 4 * S]
+          ];
+          for (var ci2 = 0; ci2 < 4; ci2++) {
+            var twk = 0.5 + 0.5 * Math.sin(tick * 0.18 + ci2 * 1.7);
+            ctx.globalAlpha = 0.4 + 0.6 * twk;
+            ctx.beginPath(); ctx.arc(corners[ci2][0], corners[ci2][1], ss * (0.7 + 0.5 * twk), 0, Math.PI * 2); ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+          ctx.restore();
+        }
       }
       ctx.restore();
     }

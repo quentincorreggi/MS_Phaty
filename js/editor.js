@@ -11,6 +11,7 @@ var editor = {
   mrbPerBox: 9,
   sortCap: 3,
   lockButtons: 0,
+  goldenCount: 0,
   activeColor: 0,      // -1=eraser, 0-7=color
   activeType: BoxTypeOrder[0],
   tunnelMode: false,    // true when placing tunnels
@@ -528,6 +529,22 @@ function editorUpdateStats() {
   }
   if (warn) html += '<span class="ed-stat-warn">' + warn + '</span>';
   el.innerHTML = html;
+
+  // Update Golden slider max to current total sort-boxes
+  var totalSort = 0;
+  for (var c = 0; c < NUM_COLORS; c++) {
+    if (regularMrb[c] > 0) totalSort += Math.ceil(regularMrb[c] / editor.sortCap);
+  }
+  var goldSlider = document.getElementById('ed-s-goldenCount');
+  var goldVal = document.getElementById('ed-s-goldenCount-v');
+  if (goldSlider) {
+    goldSlider.max = totalSort;
+    if (editor.goldenCount > totalSort) {
+      editor.goldenCount = totalSort;
+      goldSlider.value = totalSort;
+      if (goldVal) goldVal.textContent = totalSort;
+    }
+  }
 }
 
 // ── Settings ──
@@ -537,7 +554,8 @@ function editorRenderSettings() {
   var fields = [
     { label: 'Marbles/Box', key: 'mrbPerBox', min: 1, max: 25, step: 1 },
     { label: 'Sort Cap', key: 'sortCap', min: 1, max: 9, step: 1 },
-    { label: 'Lock Btns', key: 'lockButtons', min: 0, max: 5, step: 1 }
+    { label: 'Lock Btns', key: 'lockButtons', min: 0, max: 5, step: 1 },
+    { label: 'Golden', key: 'goldenCount', min: 0, max: 24, step: 1 }
   ];
   for (var i = 0; i < fields.length; i++) {
     var f = fields[i];
@@ -567,6 +585,7 @@ function editorBuildLevel() {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
+    goldenCount: editor.goldenCount,
     grid: editor.grid.slice()
   };
 }
@@ -625,6 +644,7 @@ function editorImportJSON() {
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
+      if (lvl.goldenCount !== undefined) editor.goldenCount = lvl.goldenCount;
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
       var nameEl = document.getElementById('ed-name');
