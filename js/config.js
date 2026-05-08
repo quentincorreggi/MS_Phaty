@@ -57,7 +57,7 @@ var MRB_PER_BOX = 9, SORT_CAP = 3;
 var SORT_VISIBLE_ROWS = 4;
 
 // === GOLDEN CUSTOMERS ===
-var COINS_PER_GOLDEN = 10;
+var COINS_PER_GOLDEN = 3;
 var COIN_FLIGHT_MS = 700;
 var GOLD_COLOR = { fill: '#FFD700', light: '#FFEC8B', dark: '#B8860B', glow: 'rgba(255,215,0,0.5)' };
 var coins = [];

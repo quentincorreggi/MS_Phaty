@@ -49,7 +49,7 @@ function drawCoins() {
   for (var i = 0; i < coins.length; i++) {
     var c = coins[i];
     if (c.delay > 0) continue;
-    var r = 9 * S;
+    var r = 10.8 * S;
     var thin = Math.abs(Math.cos(c.rot));
     ctx.save();
     ctx.translate(c.x, c.y);
