@@ -32,6 +32,7 @@ function initGame() {
   won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
+  if (typeof resetRocketState === 'function') resetRocketState();
   document.getElementById('win-screen').classList.remove('show');
   computeLayout(); initBeltSlots();
 
@@ -67,6 +68,7 @@ function initGame() {
   for (var c = 0; c < NUM_COLORS; c++) colorMarblesTotal.push(0);
   for (var k in boxSlots) {
     var bs = boxSlots[k];
+    if (bs.boxType === 'rocket') continue;  // rockets have no marbles
     var isBlockerBox = (bs.boxType === 'blocker');
     var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
     colorMarblesTotal[bs.ci] += regularPerBox;
@@ -77,6 +79,7 @@ function initGame() {
     var ts = tunnelSlots[k];
     for (var tc = 0; tc < ts.contents.length; tc++) {
       var tItem = ts.contents[tc];
+      if (tItem.type === 'rocket') continue;  // rockets have no marbles
       var isBlockerBox = (tItem.type === 'blocker');
       var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
       colorMarblesTotal[tItem.ci] += regularPerBox;
@@ -130,12 +133,16 @@ function initGame() {
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
-      stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
+      var isRocket = (slot.boxType === 'rocket');
+      stock.push({ ci: slot.ci, used: false,
+        remaining: isRocket ? 0 : MRB_PER_BOX,
+        spawning: false, spawnIdx: 0,
         revealed: isIce ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        rocketFired: false,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
@@ -222,6 +229,7 @@ function updateBoxReveals(animate) {
     if (!b) continue;
     if (b.isWall || b.isTunnel || b.empty || b.used) continue;
     if (b.spawning) continue;
+    if (b.boxType === 'rocket') continue;  // rockets manage their own visibility
 
     var br = Math.floor(k / L.cols), bcol = k % L.cols;
     var hasPath = false;
@@ -318,6 +326,7 @@ function isBoxTappable(idx) {
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
+  if (b.boxType === 'rocket') return false;  // rockets are triggered by neighbours
   return b.revealed;
 }
 
@@ -339,6 +348,7 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      if (typeof tryIgniteAdjacentRockets === 'function') tryIgniteAdjacentRockets(i);
       return;
     }
   }
@@ -514,6 +524,8 @@ function update() {
     if (box.type === 'lock' && box.triggerT > 0) box.triggerT = Math.max(0, box.triggerT - 0.03);
   }
 
+  if (typeof updateRockets === 'function') updateRockets();
+
   tickParticles();
   updateRollingSound();
 }
@@ -550,6 +562,7 @@ function frame() {
     drawBlockerProgress();
     drawJumpers();
     drawSortArea();
+    if (typeof drawRocketFlights === 'function') drawRocketFlights();
     drawBackButton();
     drawParticles();
     drawDebugWalls();
