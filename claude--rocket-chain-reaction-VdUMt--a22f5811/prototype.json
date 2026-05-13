@@ -1,0 +1,22 @@
+{
+  "name": "Rocket v2 — Layer-2 Helper",
+  "description": "1x2 Layer-2 rocket. Play the fuse Box behind it to fire. Hits a single target Box on the maze (magnet pick), revealing the two boxes under the rocket.",
+  "howToPlay": "Each rocket has a dashed fuse-line pointing at its fuse Box (the cell directly behind its tail). Play the fuse Box to fire the rocket — it flies to a regular box on the maze and magnet-picks it (marbles fly straight to the sort columns). If no regular box is left, it targets another rocket's fuse instead — chain reaction! When a rocket fires, the two hidden boxes under it are revealed.",
+  "author": "prototype/rocket-chain-reaction",
+  "showcaseLevel": {
+    "name": "Rocket Lab v2",
+    "desc": "Three rockets, eighteen boxes, six hidden covers",
+    "mrbPerBox": 3,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, null, { "ci": 3, "type": "default" }, null, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" },
+      null, { "rocket": true, "head": true, "dir": "up", "coverNose": { "ci": 1, "type": "default" }, "coverTail": { "ci": 2, "type": "default" } }, null, null, { "rocket": true, "head": true, "dir": "up", "coverNose": { "ci": 0, "type": "default" }, "coverTail": { "ci": 3, "type": "default" } }, null, null,
+      null, { "rocket": true, "head": false }, null, null, { "rocket": true, "head": false }, null, null,
+      null, { "ci": 0, "type": "default" }, null, null, { "ci": 1, "type": "default" }, null, null,
+      { "ci": 2, "type": "default" }, { "ci": 1, "type": "default" }, { "rocket": true, "head": true, "dir": "up", "coverNose": { "ci": 1, "type": "default" }, "coverTail": { "ci": 2, "type": "default" } }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, null, { "ci": 3, "type": "default" },
+      null, null, { "rocket": true, "head": false }, null, null, null, null,
+      { "ci": 0, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 1, "type": "default" }, null, { "ci": 3, "type": "default" }, { "ci": 2, "type": "default" }
+    ]
+  }
+}
