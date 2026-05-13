@@ -203,21 +203,38 @@ function drawStock() {
     if (b.used) { drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
 
     var bt = getBoxType(b.boxType);
+    var maRemaining = (b.boxType === 'multiarrow' && b.multiArrow) ? getMultiArrowRemainingArms(i) : null;
+    var maLocked = !!(maRemaining && maRemaining.length > 0);
+
     ctx.save();
     ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2); ctx.scale(ts, ts);
 
     if (b.revealT > 0) {
       var phase = 1 - b.revealT;
       bt.drawReveal(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, phase, b.remaining, tick);
+      if (b.boxType === 'multiarrow' && maRemaining && maRemaining.length > 0) {
+        bt.drawArrowOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, maRemaining, tick, 0.85);
+      }
     } else if (!b.revealed) {
       var idleWobble = Math.sin(tick * 0.02 + b.idlePhase) * 0.006;
       ctx.rotate(idleWobble);
       bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase);
+      // Multi-arrow's L-arrow stays visible behind blockers (planning aid)
+      if (b.boxType === 'multiarrow' && maRemaining && maRemaining.length > 0) {
+        bt.drawArrowOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, maRemaining, tick, 0.55);
+      }
+    } else if (maLocked) {
+      // Revealed but multi-arrow constraint not yet satisfied
+      bt.drawLockedRevealed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick);
+      bt.drawArrowOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, maRemaining, tick, 1.0);
     } else {
       var c = COLORS[b.ci];
       if (isBoxTappable(i) && b.hoverT > 0.01) { ctx.shadowColor = c.glow; ctx.shadowBlur = 20 * S * b.hoverT; }
       drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci);
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+      if (b.boxType === 'multiarrow' && b.multiArrow && b.multiArrow.unlockT > 0) {
+        bt.drawReadyPulse(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick);
+      }
       if (b.boxType === 'blocker' && b.blockerCount > 0) {
         ctx.save();
         ctx.globalAlpha = 0.06;

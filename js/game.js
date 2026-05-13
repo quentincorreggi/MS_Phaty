@@ -55,7 +55,7 @@ function initGame() {
       } else if (typeof cell === 'number') {
         if (cell >= 0) boxSlots[i] = { ci: cell, boxType: 'default' };
       } else if (typeof cell === 'object' && cell.ci >= 0) {
-        boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default' };
+        boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default', orient: cell.orient };
       }
     }
   }
@@ -130,12 +130,14 @@ function initGame() {
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
+      var isMultiArrow = (slot.boxType === 'multiarrow');
       stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
         revealed: isIce ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        multiArrow: isMultiArrow ? { orient: (slot.orient && MULTIARROW_ARMS[slot.orient]) ? slot.orient : 'DR', unlockT: 0, lastLocked: true } : null,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
@@ -144,6 +146,15 @@ function initGame() {
 
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
+
+  // ── Seed multi-arrow lock state so the first frame doesn't fire
+  //    a spurious unlock burst for boxes that already start unlocked.
+  for (var ma = 0; ma < stock.length; ma++) {
+    var mb = stock[ma];
+    if (mb && mb.multiArrow) {
+      mb.multiArrow.lastLocked = !isMultiArrowUnlocked(ma);
+    }
+  }
 
   // ── Sort columns ──
   var allBoxes = [];
@@ -318,7 +329,9 @@ function isBoxTappable(idx) {
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
-  return b.revealed;
+  if (!b.revealed) return false;
+  if (b.boxType === 'multiarrow' && !isMultiArrowUnlocked(idx)) return false;
+  return true;
 }
 
 function getSortBoxY(ci, vi) { return L.sTop + vi * (L.sBh + L.sGap); }
@@ -475,6 +488,32 @@ function update() {
     if (b.emptyT > 0) b.emptyT = Math.max(0, b.emptyT - 0.025);
     if (b.iceCrackT > 0) b.iceCrackT = Math.max(0, b.iceCrackT - 0.03);
     if (b.iceShatterT > 0) b.iceShatterT = Math.max(0, b.iceShatterT - 0.025);
+
+    // Multi-arrow unlock detection — fire a small burst the moment
+    // the second target gets cleared, so the player notices.
+    if (b.boxType === 'multiarrow' && b.multiArrow && !b.used) {
+      var locked = !isMultiArrowUnlocked(i);
+      if (!locked && b.multiArrow.lastLocked) {
+        b.multiArrow.unlockT = 1.0;
+        b.popT = 0.8;
+        if (typeof sfx !== 'undefined' && sfx.pop) sfx.pop();
+        var bx = b.x + L.bw / 2, by = b.y + L.bh / 2;
+        var burstColor = COLORS[b.ci].fill;
+        for (var p = 0; p < 14; p++) {
+          var ang = Math.PI * 2 * p / 14 + Math.random() * 0.3;
+          var sp = 2 + Math.random() * 3;
+          particles.push({
+            x: bx, y: by,
+            vx: Math.cos(ang) * sp * S, vy: Math.sin(ang) * sp * S,
+            r: (1.8 + Math.random() * 3) * S, color: burstColor,
+            life: 1, decay: 0.025 + Math.random() * 0.015, grav: false
+          });
+        }
+      }
+      b.multiArrow.lastLocked = locked;
+      if (b.multiArrow.unlockT > 0) b.multiArrow.unlockT = Math.max(0, b.multiArrow.unlockT - 0.02);
+    }
+
     var th = (i === hoverIdx && !b.used && isBoxTappable(i)) ? 1 : 0;
     b.hoverT += (th - b.hoverT) * 0.12;
   }

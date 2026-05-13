@@ -13,12 +13,32 @@ var editor = {
   lockButtons: 0,
   activeColor: 0,      // -1=eraser, 0-7=color
   activeType: BoxTypeOrder[0],
+  activeOrient: 'DR',   // current orientation for multi-arrow placement
   tunnelMode: false,    // true when placing tunnels
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
   visible: false
 };
+
+// Editor labels for multi-arrow orientations
+var MULTIARROW_ORIENT_LABEL = {
+  'UR': '↑→',
+  'UL': '←↑',
+  'DR': '→↓',
+  'DL': '←↓'
+};
+
+// Returns true iff a multi-arrow box at (row, col) with the given
+// orientation has both targets on the grid.
+function editorMultiArrowFits(idx, orient) {
+  var row = Math.floor(idx / 7), col = idx % 7;
+  if (orient === 'UR') return row >= 1 && col <= 5;
+  if (orient === 'UL') return row >= 1 && col >= 1;
+  if (orient === 'DR') return row <= 5 && col <= 5;
+  if (orient === 'DL') return row <= 5 && col >= 1;
+  return false;
+}
 
 function editorInit() {
   editor.grid = [];
@@ -30,6 +50,7 @@ function editorInit() {
   editor.lockButtons = 0;
   editor.activeColor = 0;
   editor.activeType = BoxTypeOrder[0];
+  editor.activeOrient = 'DR';
   editor.tunnelMode = false;
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
@@ -90,7 +111,13 @@ function editorRenderGrid() {
       var st = bt.editorCellStyle(v.ci);
       cell.style.background = st.background;
       cell.style.borderColor = st.borderColor;
-      cell.innerHTML = bt.editorCellHTML(v.ci);
+      if (v.type === 'multiarrow') {
+        var olabel = MULTIARROW_ORIENT_LABEL[v.orient || 'DR'];
+        cell.innerHTML = '<span class="ed-cell-dot" style="font-size:11px;color:#FFF6D8;text-shadow:0 1px 2px rgba(0,0,0,0.5)">' + olabel + '</span>';
+        cell.style.borderColor = '#E8A84C';
+      } else {
+        cell.innerHTML = bt.editorCellHTML(v.ci);
+      }
     } else {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
@@ -141,7 +168,21 @@ function editorCellClick(e) {
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     } else {
       var existing = editor.grid[idx];
-      if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
+      if (editor.activeType === 'multiarrow') {
+        if (!editorMultiArrowFits(idx, editor.activeOrient)) {
+          editorShowToast('Targets would be off the grid');
+          return;
+        }
+        var sameMA = existing && !existing.tunnel && !existing.wall &&
+                     existing.type === 'multiarrow' &&
+                     existing.ci === editor.activeColor &&
+                     (existing.orient || 'DR') === editor.activeOrient;
+        if (sameMA) {
+          editor.grid[idx] = null;
+        } else {
+          editor.grid[idx] = { ci: editor.activeColor, type: 'multiarrow', orient: editor.activeOrient };
+        }
+      } else if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
         editor.grid[idx] = null;
       } else {
         editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
@@ -285,6 +326,33 @@ function editorRenderToolbar() {
       colorRow.appendChild(cb);
     }
     el.appendChild(colorRow);
+
+    // Multi-arrow: extra row to pick the L-shape orientation
+    if (editor.activeType === 'multiarrow') {
+      var orientRow = document.createElement('div');
+      orientRow.className = 'ed-color-row';
+      orientRow.style.marginTop = '4px';
+      var hint = document.createElement('span');
+      hint.style.cssText = 'font-size:10px;color:#9C8A70;align-self:center;margin-right:4px';
+      hint.textContent = 'Direction:';
+      orientRow.appendChild(hint);
+      var orients = ['UR', 'UL', 'DR', 'DL'];
+      for (var oi = 0; oi < orients.length; oi++) {
+        var ob = document.createElement('button');
+        ob.className = 'ed-tool' + (editor.activeOrient === orients[oi] ? ' active' : '');
+        ob.style.background = 'linear-gradient(135deg,#E8A84C,#B87A20)';
+        ob.style.fontSize = '13px';
+        ob.innerHTML = MULTIARROW_ORIENT_LABEL[orients[oi]];
+        ob.title = orients[oi];
+        ob.setAttribute('data-orient', orients[oi]);
+        ob.addEventListener('click', function () {
+          editor.activeOrient = this.getAttribute('data-orient');
+          editorRenderToolbar();
+        });
+        orientRow.appendChild(ob);
+      }
+      el.appendChild(orientRow);
+    }
   }
 }
 

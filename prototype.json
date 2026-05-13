@@ -1,0 +1,70 @@
+{
+  "name": "Multi-Arrow Box",
+  "description": "An L-shaped variant of the Arrow Box. Locked until both boxes its arrow points at are gone.",
+  "howToPlay": "Multi-arrow boxes show a two-pronged L-shape arrow pointing at two perpendicular neighbors. Both targets must be cleared before the box becomes tappable. As you clear targets, the arms drop one by one until only the final target remains.",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Multi-Arrow Showcase",
+    "desc": "Dense grid with seven L-arrows",
+    "mrbPerBox": 3,
+    "sortCap": 9,
+    "lockButtons": 0,
+    "grid": [
+      null,
+      { "ci": 0, "type": "default" },
+      { "ci": 1, "type": "default" },
+      { "ci": 2, "type": "default" },
+      { "ci": 1, "type": "default" },
+      { "ci": 1, "type": "default" },
+      null,
+
+      { "ci": 0, "type": "default" },
+      { "ci": 1, "type": "multiarrow", "orient": "DR" },
+      { "ci": 1, "type": "default" },
+      { "ci": 0, "type": "multiarrow", "orient": "DL" },
+      { "ci": 1, "type": "default" },
+      { "ci": 2, "type": "multiarrow", "orient": "DR" },
+      { "ci": 2, "type": "default" },
+
+      { "ci": 1, "type": "default" },
+      { "ci": 0, "type": "default" },
+      { "ci": 3, "type": "default" },
+      { "ci": 3, "type": "default" },
+      { "ci": 3, "type": "default" },
+      { "ci": 0, "type": "default" },
+      { "ci": 2, "type": "default" },
+
+      { "ci": 3, "type": "default" },
+      { "ci": 2, "type": "multiarrow", "orient": "DR" },
+      { "ci": 2, "type": "default" },
+      { "ci": 0, "type": "default" },
+      { "ci": 2, "type": "default" },
+      { "ci": 2, "type": "multiarrow", "orient": "DL" },
+      { "ci": 3, "type": "default" },
+
+      { "ci": 1, "type": "default" },
+      { "ci": 0, "type": "default" },
+      { "ci": 3, "type": "default" },
+      { "ci": 0, "type": "default" },
+      { "ci": 3, "type": "default" },
+      { "ci": 0, "type": "default" },
+      { "ci": 1, "type": "default" },
+
+      { "ci": 2, "type": "default" },
+      { "ci": 3, "type": "multiarrow", "orient": "DR" },
+      { "ci": 1, "type": "default" },
+      { "ci": 3, "type": "default" },
+      { "ci": 1, "type": "default" },
+      { "ci": 3, "type": "multiarrow", "orient": "DL" },
+      { "ci": 2, "type": "default" },
+
+      null,
+      { "ci": 3, "type": "default" },
+      { "ci": 2, "type": "default" },
+      { "ci": 1, "type": "default" },
+      { "ci": 2, "type": "default" },
+      { "ci": 3, "type": "default" },
+      null
+    ]
+  }
+}
