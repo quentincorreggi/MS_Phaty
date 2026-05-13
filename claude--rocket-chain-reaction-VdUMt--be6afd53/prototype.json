@@ -1,0 +1,22 @@
+{
+  "name": "Rocket v2 — Layer-2 Helper",
+  "description": "1x2 Layer-2 rocket. Play the fuse Box behind it to fire. Hits a single target Box on the maze (magnet pick), revealing the two boxes under the rocket.",
+  "howToPlay": "Each rocket has a dashed fuse-line pointing at its fuse Box (the cell directly behind its tail). Play the fuse Box to fire the rocket — it flies to a regular box on the maze and magnet-picks it (marbles fly straight to the sort columns). The grid is full, so you'll have to peel from the bottom row up to reach the fuses. If no regular box is left, a rocket targets another rocket's fuse instead — chain reaction! When a rocket fires, the two hidden boxes under it are revealed.",
+  "author": "prototype/rocket-chain-reaction",
+  "showcaseLevel": {
+    "name": "Rocket Lab v2 — Full Board",
+    "desc": "49 cells, 3 rockets, every spot a box",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" },
+      { "ci": 1, "type": "default" }, { "rocket": true, "head": true, "dir": "up", "coverNose": { "ci": 1, "type": "default" }, "coverTail": { "ci": 2, "type": "default" } }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "rocket": true, "head": true, "dir": "up", "coverNose": { "ci": 0, "type": "default" }, "coverTail": { "ci": 3, "type": "default" } }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" },
+      { "ci": 0, "type": "default" }, { "rocket": true, "head": false }, { "ci": 1, "type": "default" }, { "ci": 3, "type": "default" }, { "rocket": true, "head": false }, { "ci": 2, "type": "default" }, { "ci": 0, "type": "default" },
+      { "ci": 2, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 2, "type": "default" },
+      { "ci": 2, "type": "default" }, { "ci": 1, "type": "default" }, { "rocket": true, "head": true, "dir": "up", "coverNose": { "ci": 1, "type": "default" }, "coverTail": { "ci": 2, "type": "default" } }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 3, "type": "default" },
+      { "ci": 0, "type": "default" }, { "ci": 3, "type": "default" }, { "rocket": true, "head": false }, { "ci": 2, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 2, "type": "default" },
+      { "ci": 0, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 2, "type": "default" }
+    ]
+  }
+}
