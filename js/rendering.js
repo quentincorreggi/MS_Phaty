@@ -177,6 +177,16 @@ function drawStock() {
       continue;
     }
 
+    // ── Rocket (1x2 layer-2 helper) ──
+    if (b.isRocket) {
+      // Draw only at the head cell; the tail cell is rendered as part
+      // of the spanning sprite.
+      if (b.isRocketHead && typeof drawRocketHeadOnGrid === 'function') {
+        drawRocketHeadOnGrid(b);
+      }
+      continue;
+    }
+
     var ox = 0;
     if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
     var breathe = 0;

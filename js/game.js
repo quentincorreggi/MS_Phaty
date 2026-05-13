@@ -39,16 +39,26 @@ function initGame() {
   var totalSlots = L.rows * L.cols;
   var lvl = LEVELS[currentLevel];
 
-  // ── Build boxSlots, tunnelSlots, wallSlots from grid or legacy random ──
+  // ── Build boxSlots, tunnelSlots, wallSlots, rocketSlots from grid ──
   var boxSlots = {};
   var tunnelSlots = {};
   var wallSlots = {};
+  var rocketSlots = {};   // idx -> { head: bool, dir?, coverNose?, coverTail? }
   if (lvl.grid) {
     for (var i = 0; i < Math.min(lvl.grid.length, totalSlots); i++) {
       var cell = lvl.grid[i];
       if (cell === null || cell === undefined) continue;
       if (cell.wall) {
         wallSlots[i] = true;
+        continue;
+      }
+      if (cell.rocket) {
+        rocketSlots[i] = {
+          head: !!cell.head,
+          dir: cell.dir || 'up',
+          coverNose: cell.coverNose || null,
+          coverTail: cell.coverTail || null
+        };
         continue;
       }
       if (cell.tunnel) {
@@ -64,27 +74,39 @@ function initGame() {
   if (lvl.sortCap) SORT_CAP = lvl.sortCap;
 
   // ── Count regular marbles per color for sort columns ──
+  // Underlying covers of rockets contribute too (they reveal once the
+  // rocket fires, so their marbles must be accounted for at init time).
   var colorMarblesTotal = [];
   for (var c = 0; c < NUM_COLORS; c++) colorMarblesTotal.push(0);
+  function countCoverInto(cover) {
+    if (!cover || cover.ci === undefined) return;
+    var isBlk = (cover.type === 'blocker');
+    var regular = isBlk ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
+    colorMarblesTotal[cover.ci] += regular;
+    if (isBlk) totalBlockerMarbles += BLOCKER_PER_BOX;
+  }
   for (var k in boxSlots) {
     var bs = boxSlots[k];
-    if (bs.boxType === 'rocket') continue;  // rockets have no marbles
     var isBlockerBox = (bs.boxType === 'blocker');
     var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
     colorMarblesTotal[bs.ci] += regularPerBox;
     if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
   }
-  // Count marbles from tunnel contents
   for (var k in tunnelSlots) {
     var ts = tunnelSlots[k];
     for (var tc = 0; tc < ts.contents.length; tc++) {
       var tItem = ts.contents[tc];
-      if (tItem.type === 'rocket') continue;  // rockets have no marbles
       var isBlockerBox = (tItem.type === 'blocker');
       var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
       colorMarblesTotal[tItem.ci] += regularPerBox;
       if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
     }
+  }
+  for (var k in rocketSlots) {
+    var rs = rocketSlots[k];
+    if (!rs.head) continue;
+    countCoverInto(rs.coverNose);
+    countCoverInto(rs.coverTail);
   }
   var sortPerColor = [];
   for (var c = 0; c < NUM_COLORS; c++) {
@@ -98,11 +120,11 @@ function initGame() {
     var slot = boxSlots[idx];
     var tSlot = tunnelSlots[idx];
     var wSlot = wallSlots[idx];
+    var rkSlot = rocketSlots[idx];
 
     if (tSlot) {
-      // Tunnel entry
       stock.push({
-        isTunnel: true, isWall: false,
+        isTunnel: true, isWall: false, isRocket: false, isRocketHead: false,
         tunnelDir: tSlot.dir,
         tunnelContents: tSlot.contents.map(function (item) { return { ci: item.ci, type: item.type || 'default' }; }),
         tunnelTotal: tSlot.contents.length,
@@ -115,39 +137,54 @@ function initGame() {
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
     } else if (wSlot) {
-      // Wall cell — inert structural element
       stock.push({
-        isWall: true, isTunnel: false,
+        isWall: true, isTunnel: false, isRocket: false, isRocketHead: false,
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: false, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
+    } else if (rkSlot) {
+      stock.push({
+        isRocket: true, isRocketHead: !!rkSlot.head,
+        isTunnel: false, isWall: false,
+        rocketDir: rkSlot.dir || 'up',
+        rocketCoverNose: rkSlot.coverNose || null,
+        rocketCoverTail: rkSlot.coverTail || null,
+        rocketObj: null,
+        ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
+        revealed: false, empty: false, boxType: 'rocket',
+        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
+        idlePhase: Math.random() * Math.PI * 2
+      });
     } else if (!slot) {
       stock.push({ ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
-        revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
+        revealed: true, empty: true, boxType: 'default',
+        isTunnel: false, isWall: false, isRocket: false, isRocketHead: false,
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
-      var isRocket = (slot.boxType === 'rocket');
-      stock.push({ ci: slot.ci, used: false,
-        remaining: isRocket ? 0 : MRB_PER_BOX,
-        spawning: false, spawnIdx: 0,
+      stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
         revealed: isIce ? true : false, empty: false,
-        boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
+        boxType: slot.boxType || 'default',
+        isTunnel: false, isWall: false, isRocket: false, isRocketHead: false,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
-        rocketFired: false,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
     }
   }
+
+  // ── Resolve rocket head/tail/fuse linkage ──
+  if (typeof initRockets === 'function') initRockets();
 
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
@@ -189,6 +226,7 @@ function updateBoxReveals(animate) {
     if (!s) { passable[i] = false; continue; }
     if (s.isWall) { passable[i] = false; continue; }
     if (s.isTunnel) { passable[i] = false; continue; }
+    if (s.isRocket) { passable[i] = false; continue; }
     passable[i] = !!(s.empty || s.used);
   }
 
@@ -227,9 +265,8 @@ function updateBoxReveals(animate) {
   for (var k = 0; k < total; k++) {
     var b = stock[k];
     if (!b) continue;
-    if (b.isWall || b.isTunnel || b.empty || b.used) continue;
+    if (b.isWall || b.isTunnel || b.isRocket || b.empty || b.used) continue;
     if (b.spawning) continue;
-    if (b.boxType === 'rocket') continue;  // rockets manage their own visibility
 
     var br = Math.floor(k / L.cols), bcol = k % L.cols;
     var hasPath = false;
@@ -281,7 +318,7 @@ function damageAdjacentIce(idx) {
   if (col < L.cols - 1) neighbors.push(row * L.cols + (col + 1));
   for (var ni = 0; ni < neighbors.length; ni++) {
     var nb = stock[neighbors[ni]];
-    if (nb.isTunnel || nb.isWall) continue;  // tunnels and walls don't have ice
+    if (nb.isTunnel || nb.isWall || nb.isRocket) continue;
     if (nb.empty || nb.used || nb.iceHP <= 0) continue;
 
     nb.iceHP--;
@@ -322,11 +359,11 @@ function damageAdjacentIce(idx) {
 function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
-  if (b.isWall) return false;      // walls are not tappable
+  if (b.isWall) return false;
+  if (b.isRocket) return false;    // rockets are triggered by playing their fuse Box
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
-  if (b.boxType === 'rocket') return false;  // rockets are triggered by neighbours
   return b.revealed;
 }
 
@@ -340,6 +377,14 @@ function handleTap(px, py) {
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
+    if (b.isRocket) {
+      // Tapping a rocket cell directly gives feedback but does nothing.
+      if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
+        b.shakeT = 0.4;
+        return;
+      }
+      continue;
+    }
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
@@ -348,7 +393,7 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
-      if (typeof tryIgniteAdjacentRockets === 'function') tryIgniteAdjacentRockets(i);
+      if (typeof tryIgniteRocketFuse === 'function') tryIgniteRocketFuse(i);
       return;
     }
   }
@@ -362,7 +407,7 @@ canvas.addEventListener('mousemove', function (e) {
   if (e.clientX >= L.bkX && e.clientX <= L.bkX + L.bkSize && e.clientY >= L.bkY && e.clientY <= L.bkY + L.bkSize) { canvas.style.cursor = 'pointer'; return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;
+    if (b.isTunnel || b.isWall || b.isRocket) continue;
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (!isBoxTappable(i)) continue;
     if (e.clientX >= b.x && e.clientX <= b.x + L.bw && e.clientY >= b.y && e.clientY <= b.y + L.bh) { hoverIdx = i; break; }
@@ -477,8 +522,13 @@ function update() {
   // Stock animations
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;  // tunnels and walls don't need stock animations
+    if (b.isTunnel || b.isWall) continue;
     if (b.empty) continue;
+    if (b.isRocket) {
+      // Rockets still benefit from shakeT decay (visible during fuse + impact-feedback).
+      if (b.shakeT > 0) b.shakeT = Math.max(0, b.shakeT - 0.04);
+      continue;
+    }
     if (b.shakeT > 0) b.shakeT = Math.max(0, b.shakeT - 0.04);
     if (b.popT > 0) b.popT = Math.max(0, b.popT - 0.025);
     if (b.revealT > 0) b.revealT = Math.max(0, b.revealT - 0.03);

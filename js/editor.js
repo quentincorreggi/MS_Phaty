@@ -5,7 +5,7 @@
 // ============================================================
 
 var editor = {
-  grid: [],            // 7x7: null = empty, { ci, type } or { tunnel: true, ... } or { wall: true }
+  grid: [],            // 7x7: null = empty, { ci, type } or { tunnel: true, ... } or { wall: true } or { rocket: true, head, dir, coverNose, coverTail }
   name: 'Custom Level',
   desc: 'My custom level',
   mrbPerBox: 9,
@@ -13,10 +13,12 @@ var editor = {
   lockButtons: 0,
   activeColor: 0,      // -1=eraser, 0-7=color
   activeType: BoxTypeOrder[0],
-  tunnelMode: false,    // true when placing tunnels
-  tunnelDir: 'bottom',  // current tunnel direction for new tunnels
-  selectedTunnel: -1,   // index of selected tunnel for content editing
-  wallMode: false,      // true when placing walls
+  tunnelMode: false,
+  tunnelDir: 'bottom',
+  selectedTunnel: -1,
+  wallMode: false,
+  rocketMode: false,
+  rocketDir: 'up',
   visible: false
 };
 
@@ -34,6 +36,8 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.rocketMode = false;
+  editor.rocketDir = 'up';
 }
 
 function showEditor(fresh) {
@@ -75,6 +79,18 @@ function editorRenderGrid() {
       cell.style.background = 'linear-gradient(135deg,#9A8D7B,#6F6355)';
       cell.style.borderColor = '#8A7D6B';
       cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,255,255,0.5);font-size:14px">&#9632;</span>';
+    } else if (v && v.rocket) {
+      // Rocket cell (head shows nose icon + dir, tail shows engine glyph)
+      cell.style.background = 'linear-gradient(135deg,#3A416A,#1F2440)';
+      cell.style.borderColor = '#FF8030';
+      var label = '';
+      if (v.head) {
+        var arrows = { up: '▲', down: '▼', left: '◀', right: '▶' };
+        label = '<span class="ed-cell-dot" style="color:#FFC080;font-size:14px;text-shadow:0 0 4px rgba(255,128,48,0.7)">' + (arrows[v.dir] || '▲') + '</span>';
+      } else {
+        label = '<span class="ed-cell-dot" style="color:#8A99D4;font-size:12px">&bull;&bull;</span>';
+      }
+      cell.innerHTML = label;
     } else if (v && v.tunnel) {
       // Tunnel cell
       var isSelected = (editor.selectedTunnel === i);
@@ -102,8 +118,84 @@ function editorRenderGrid() {
   }
 }
 
+function editorRocketTailOffset(dir) {
+  if (dir === 'up')    return { dr:  1, dc:  0 };
+  if (dir === 'down')  return { dr: -1, dc:  0 };
+  if (dir === 'left')  return { dr:  0, dc:  1 };
+  if (dir === 'right') return { dr:  0, dc: -1 };
+  return { dr: 1, dc: 0 };
+}
+
+function editorRemoveRocketAt(idx) {
+  // Remove both nose + tail cells of the rocket whose head or tail is at idx.
+  var v = editor.grid[idx];
+  if (!v || !v.rocket) return false;
+  if (v.head) {
+    var r = Math.floor(idx / 7), c = idx % 7;
+    var off = editorRocketTailOffset(v.dir);
+    var tr = r + off.dr, tc = c + off.dc;
+    var tailIdx = (tr >= 0 && tr < 7 && tc >= 0 && tc < 7) ? (tr * 7 + tc) : -1;
+    editor.grid[idx] = null;
+    if (tailIdx >= 0 && editor.grid[tailIdx] && editor.grid[tailIdx].rocket && !editor.grid[tailIdx].head) {
+      editor.grid[tailIdx] = null;
+    }
+  } else {
+    // Tail click: find the head by scanning neighbours that point at us
+    for (var d = 0; d < 4; d++) {
+      var dirs = ['up', 'down', 'left', 'right'];
+      var off2 = editorRocketTailOffset(dirs[d]);
+      var hr = Math.floor(idx / 7) - off2.dr;
+      var hc = idx % 7 - off2.dc;
+      if (hr < 0 || hr >= 7 || hc < 0 || hc >= 7) continue;
+      var head = editor.grid[hr * 7 + hc];
+      if (head && head.rocket && head.head && head.dir === dirs[d]) {
+        editor.grid[hr * 7 + hc] = null;
+        editor.grid[idx] = null;
+        return true;
+      }
+    }
+    editor.grid[idx] = null;
+  }
+  return true;
+}
+
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.rocketMode) {
+    var existing = editor.grid[idx];
+    if (existing && existing.rocket) {
+      // Toggle off
+      editorRemoveRocketAt(idx);
+    } else {
+      // Place rocket with nose at idx. Tail at idx + offset.
+      var r = Math.floor(idx / 7), c = idx % 7;
+      var off = editorRocketTailOffset(editor.rocketDir);
+      var tr = r + off.dr, tc = c + off.dc;
+      if (tr < 0 || tr >= 7 || tc < 0 || tc >= 7) {
+        editorShowToast('Tail cell is off the grid'); return;
+      }
+      var tailIdx = tr * 7 + tc;
+      var tailCell = editor.grid[tailIdx];
+      if (tailCell && (tailCell.rocket || tailCell.tunnel || tailCell.wall)) {
+        editorShowToast('Tail cell is occupied'); return;
+      }
+      // Default covers use the currently-selected color and box type
+      var ci = (editor.activeColor >= 0) ? editor.activeColor : 0;
+      var type = editor.activeType || 'default';
+      editor.grid[idx] = {
+        rocket: true, head: true, dir: editor.rocketDir,
+        coverNose: { ci: ci, type: type },
+        coverTail: { ci: ci, type: type }
+      };
+      editor.grid[tailIdx] = { rocket: true, head: false };
+    }
+    if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderTunnelPanel();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -157,7 +249,12 @@ function editorCellClick(e) {
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
-  editor.grid[idx] = null;
+  var v = editor.grid[idx];
+  if (v && v.rocket) {
+    editorRemoveRocketAt(idx);
+  } else {
+    editor.grid[idx] = null;
+  }
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
   editorRenderGrid();
   editorUpdateStats();
@@ -178,13 +275,14 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.rocketMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.rocketMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -200,6 +298,7 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.rocketMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -214,10 +313,26 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.rocketMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(tunnelBtn);
+
+  // Rocket mode button
+  var rocketBtn = document.createElement('button');
+  rocketBtn.className = 'ed-type-btn' + (editor.rocketMode ? ' active' : '');
+  rocketBtn.textContent = '\uD83D\uDE80 Rocket';
+  rocketBtn.style.borderColor = editor.rocketMode ? 'rgba(255,128,48,0.6)' : '';
+  rocketBtn.style.color = editor.rocketMode ? '#FF8030' : '';
+  rocketBtn.addEventListener('click', function () {
+    editor.rocketMode = true;
+    editor.wallMode = false;
+    editor.tunnelMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(rocketBtn);
 
   el.appendChild(typeRow);
 
@@ -260,6 +375,50 @@ function editorRenderToolbar() {
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
+  } else if (editor.rocketMode) {
+    // Rocket mode: orientation row + cover color/type picker
+    var dirRow = document.createElement('div');
+    dirRow.className = 'ed-color-row';
+    var dirs = ['up', 'left', 'down', 'right'];
+    var dirLabels = ['▲', '◀', '▼', '▶'];
+    for (var d = 0; d < dirs.length; d++) {
+      var db = document.createElement('button');
+      db.className = 'ed-tool' + (editor.rocketDir === dirs[d] ? ' active' : '');
+      db.style.background = 'linear-gradient(135deg,#3A416A,#1F2440)';
+      db.style.color = '#FFC080';
+      db.style.fontSize = '16px';
+      db.innerHTML = dirLabels[d];
+      db.title = 'Nose ' + dirs[d];
+      db.setAttribute('data-dir', dirs[d]);
+      db.addEventListener('click', function () {
+        editor.rocketDir = this.getAttribute('data-dir');
+        editorRenderToolbar();
+      });
+      dirRow.appendChild(db);
+    }
+    el.appendChild(dirRow);
+
+    var coverHint = document.createElement('div');
+    coverHint.style.cssText = 'font-size:10px;color:#9C8A70;text-align:center;margin:4px 0 2px';
+    coverHint.textContent = 'Cover color for both hidden boxes:';
+    el.appendChild(coverHint);
+
+    var coverRow = document.createElement('div');
+    coverRow.className = 'ed-color-row';
+    for (var ci = 0; ci < NUM_COLORS; ci++) {
+      var cb = document.createElement('button');
+      cb.className = 'ed-tool' + (editor.activeColor === ci ? ' active' : '');
+      cb.style.background = COLORS[ci].fill;
+      cb.innerHTML = CLR_NAMES[ci][0].toUpperCase();
+      cb.title = CLR_NAMES[ci];
+      cb.setAttribute('data-ci', ci);
+      cb.addEventListener('click', function () {
+        editor.activeColor = parseInt(this.getAttribute('data-ci'));
+        editorRenderToolbar();
+      });
+      coverRow.appendChild(cb);
+    }
+    el.appendChild(coverRow);
   } else {
     // Color palette: eraser + 8 colors
     var colorRow = document.createElement('div');
@@ -453,11 +612,29 @@ function editorUpdateStats() {
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
   var wallCount = 0;
+  var rocketCount = 0;
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
     if (v.wall) {
       wallCount++;
+      continue;
+    }
+    if (v.rocket) {
+      if (v.head) {
+        rocketCount++;
+        // Cover boxes count toward color totals and regular marbles
+        if (v.coverNose && v.coverNose.ci !== undefined) {
+          counts[v.coverNose.ci]++;
+          regularMrb[v.coverNose.ci] += (v.coverNose.type === 'blocker') ? Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX) : editor.mrbPerBox;
+          if (v.coverNose.type === 'blocker') totalBlockers += BLOCKER_PER_BOX;
+        }
+        if (v.coverTail && v.coverTail.ci !== undefined) {
+          counts[v.coverTail.ci]++;
+          regularMrb[v.coverTail.ci] += (v.coverTail.type === 'blocker') ? Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX) : editor.mrbPerBox;
+          if (v.coverTail.type === 'blocker') totalBlockers += BLOCKER_PER_BOX;
+        }
+      }
       continue;
     }
     if (v.tunnel) {
@@ -499,6 +676,9 @@ function editorUpdateStats() {
   }
   if (wallCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#8A7D6B">' + wallCount + ' wall' + (wallCount > 1 ? 's' : '') + '</span>';
+  }
+  if (rocketCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#3A416A;color:#FFC080">' + rocketCount + ' rocket' + (rocketCount > 1 ? 's' : '') + '</span>';
   }
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
@@ -618,6 +798,8 @@ function editorImportJSON() {
           if (cell === null || cell === undefined || cell === -1) editor.grid[i] = null;
           else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
           else if (cell.wall) editor.grid[i] = { wall: true };
+          else if (cell.rocket) editor.grid[i] = cell;
+          else if (cell.type === 'rocket') editor.grid[i] = null;  // legacy single-cell rocket: drop
           else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
           else editor.grid[i] = cell;
         }
