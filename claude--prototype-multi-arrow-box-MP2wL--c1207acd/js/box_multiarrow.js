@@ -134,94 +134,102 @@ registerBoxType('multiarrow', {
   },
 
   // ── Draw the L-arrow overlay showing arms whose targets remain.
-  // remainingArms is an array of arm objects from MULTIARROW_ARMS.
-  // brightness: 0..1 (used to dim when fully closed / not revealed).
+  // Two arms → a chunky L-shape with arrowheads at each tip.
+  // One arm  → a single straight arrow centered on the box.
+  // The whole shape is white-filled with a black outline; no animation.
   drawArrowOverlay: function (ctx, x, y, w, h, ci, S, remainingArms, tick, brightness) {
     if (!remainingArms || remainingArms.length === 0) return;
+    var alpha = (brightness !== undefined) ? brightness : 1;
     var cx = x + w / 2, cy = y + h / 2;
-    var armLen = Math.min(w, h) * 0.34;
-    var armW = 5 * S;
-    var headLen = 9 * S;
-    var headW = 11 * S;
-    var pulse = 0.78 + 0.22 * Math.sin(tick * 0.10);
-    var alpha = (brightness !== undefined ? brightness : 1) * pulse;
+    var size = Math.min(w, h);
+
+    // Geometry — tuned to match the reference visual
+    var bodyT  = size * 0.20;   // arm body thickness
+    var tipW   = size * 0.34;   // arrowhead base width (wider than body)
+    var tipLen = size * 0.14;   // arrowhead length past the body
+    var armLen = size * 0.30;   // distance from box-center to arrowhead base
 
     ctx.save();
-    ctx.lineCap = 'round';
+    ctx.translate(cx, cy);
     ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
 
-    for (var i = 0; i < remainingArms.length; i++) {
-      var arm = remainingArms[i];
-      var v = MULTIARROW_ARM_VEC[arm.name];
-      if (!v) continue;
-      var ex = cx + v.x * armLen;
-      var ey = cy + v.y * armLen;
-
-      // Soft outline behind the white stroke so it stays readable
-      // on light marble colors (yellow especially).
-      ctx.strokeStyle = 'rgba(40,30,15,' + (0.55 * alpha) + ')';
-      ctx.lineWidth = armW + 3 * S;
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(ex, ey);
-      ctx.stroke();
-
-      ctx.strokeStyle = 'rgba(255,248,225,' + (0.95 * alpha) + ')';
-      ctx.lineWidth = armW;
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(ex, ey);
-      ctx.stroke();
-
-      // Arrow head — filled triangle at the line tip, pointing outward.
-      var tipX = ex + v.x * headLen;
-      var tipY = ey + v.y * headLen;
-      var perpX = -v.y, perpY = v.x;
-      var bX1 = ex + perpX * (headW / 2);
-      var bY1 = ey + perpY * (headW / 2);
-      var bX2 = ex - perpX * (headW / 2);
-      var bY2 = ey - perpY * (headW / 2);
-
-      ctx.fillStyle = 'rgba(40,30,15,' + (0.55 * alpha) + ')';
-      ctx.beginPath();
-      ctx.moveTo(tipX + v.x * 1.5 * S, tipY + v.y * 1.5 * S);
-      ctx.lineTo(bX1 + perpX * 1.5 * S, bY1 + perpY * 1.5 * S);
-      ctx.lineTo(bX2 - perpX * 1.5 * S, bY2 - perpY * 1.5 * S);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.fillStyle = 'rgba(255,248,225,' + (0.98 * alpha) + ')';
-      ctx.beginPath();
-      ctx.moveTo(tipX, tipY);
-      ctx.lineTo(bX1, bY1);
-      ctx.lineTo(bX2, bY2);
-      ctx.closePath();
-      ctx.fill();
+    if (remainingArms.length >= 2) {
+      this._buildLPath(ctx, remainingArms, armLen, bodyT, tipW, tipLen);
+    } else {
+      this._buildSingleArrowPath(ctx, remainingArms[0], size * 0.34, bodyT, tipW, tipLen);
     }
 
-    // Center dot — anchors the L-shape so two arms read as one indicator
-    ctx.fillStyle = 'rgba(40,30,15,' + (0.6 * alpha) + ')';
-    ctx.beginPath();
-    ctx.arc(cx, cy, 4.5 * S, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,' + (0.98 * alpha) + ')';
     ctx.fill();
-    ctx.fillStyle = 'rgba(255,248,225,' + (0.98 * alpha) + ')';
-    ctx.beginPath();
-    ctx.arc(cx, cy, 3 * S, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.strokeStyle = 'rgba(10,10,10,' + (0.95 * alpha) + ')';
+    ctx.lineWidth = 2.5 * S;
+    ctx.stroke();
 
     ctx.restore();
   },
 
-  // ── "Ready to tap" pulse — drawn over the open box when both targets
-  // have just been cleared. Helps the player notice the unlock.
-  drawReadyPulse: function (ctx, x, y, w, h, ci, S, tick) {
-    var pulse = 0.35 + 0.35 * (0.5 + 0.5 * Math.sin(tick * 0.12));
+  // Build an L polygon for a 2-arm multi-arrow. The base polygon is the
+  // DL orientation (arms going LEFT and DOWN, bend at upper-right); other
+  // orientations are reflections of that template.
+  _buildLPath: function (ctx, arms, L, T, Tw, tipLen) {
+    var has = { up: false, down: false, left: false, right: false };
+    for (var i = 0; i < arms.length; i++) has[arms[i].name] = true;
+    var sx = 1, sy = 1;
+    if (has.down && has.left)  { sx =  1; sy =  1; }       // DL (template)
+    else if (has.down && has.right) { sx = -1; sy =  1; }  // DR
+    else if (has.up   && has.left)  { sx =  1; sy = -1; }  // UL
+    else if (has.up   && has.right) { sx = -1; sy = -1; }  // UR
+
+    var verts = [
+      [+T / 2,        -T / 2],
+      [+T / 2,        +L],
+      [+Tw / 2,       +L],
+      [0,             +L + tipLen],
+      [-Tw / 2,       +L],
+      [-T / 2,        +L],
+      [-T / 2,        +T / 2],
+      [-L,            +T / 2],
+      [-L,            +Tw / 2],
+      [-L - tipLen,   0],
+      [-L,            -Tw / 2],
+      [-L,            -T / 2]
+    ];
+
+    ctx.beginPath();
+    for (var v = 0; v < verts.length; v++) {
+      var px = verts[v][0] * sx;
+      var py = verts[v][1] * sy;
+      if (v === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  },
+
+  // Build a single straight arrow polygon centered on the box, pointing
+  // in the direction of the remaining arm.
+  _buildSingleArrowPath: function (ctx, arm, halfBody, T, Tw, tipLen) {
+    var dir = MULTIARROW_ARM_VEC[arm.name] || { x: 1, y: 0 };
+    var angle = Math.atan2(dir.y, dir.x);
     ctx.save();
-    ctx.strokeStyle = 'rgba(255,248,225,' + pulse + ')';
-    ctx.lineWidth = 2.5 * S;
-    rRect(x + 2 * S, y + 2 * S, w - 4 * S, h - 4 * S, 5 * S);
-    ctx.stroke();
+    ctx.rotate(angle);
+    // Rightward-arrow template (gets rotated into place).
+    ctx.beginPath();
+    ctx.moveTo(-halfBody,           -T / 2);
+    ctx.lineTo(+halfBody,           -T / 2);
+    ctx.lineTo(+halfBody,           -Tw / 2);
+    ctx.lineTo(+halfBody + tipLen,  0);
+    ctx.lineTo(+halfBody,           +Tw / 2);
+    ctx.lineTo(+halfBody,           +T / 2);
+    ctx.lineTo(-halfBody,           +T / 2);
+    ctx.closePath();
     ctx.restore();
+  },
+
+  // "Ready to tap" frame — static (no pulse).
+  drawReadyPulse: function (ctx, x, y, w, h, ci, S, tick) {
+    // Intentionally a no-op: the unlock particle burst already signals
+    // the moment the box becomes tappable; no continuous flashing.
   },
 
   editorCellStyle: function (ci) {

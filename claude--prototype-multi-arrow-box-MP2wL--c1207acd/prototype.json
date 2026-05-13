@@ -6,7 +6,7 @@
   "showcaseLevel": {
     "name": "Multi-Arrow Showcase",
     "desc": "Dense grid with seven L-arrows",
-    "mrbPerBox": 3,
+    "mrbPerBox": 9,
     "sortCap": 9,
     "lockButtons": 0,
     "grid": [
