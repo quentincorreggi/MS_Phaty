@@ -494,12 +494,18 @@ function drawRocketHeadOnGrid(headStock) {
   }
 
   var fuseLit = !!rk.igniting;
-  drawRocketOnGrid(ctx, x, y, w, h, rk.dir, S, tick, headStock.idlePhase, fuseLit, ox, oy);
+  // Engine flame + glow are only visible when the rocket can actually
+  // fire on the next tap — i.e. the fuse Box is currently playable.
+  var engineOn = (rk.fuseIdx >= 0)
+    && (typeof isBoxTappable === 'function')
+    && isBoxTappable(rk.fuseIdx);
+  drawRocketOnGrid(ctx, x, y, w, h, rk.dir, S, tick, headStock.idlePhase, fuseLit, ox, oy, engineOn);
 
-  // Highlight the fuse cell so the player can see where to play
-  if (rk.fuseIdx >= 0) {
+  // Highlight the fuse cell only when it is actually playable, so the
+  // hint matches the engine state.
+  if (engineOn) {
     var fc = stock[rk.fuseIdx];
-    if (fc && !fc.used && !fc.empty && !fc.isRocket) {
+    if (fc) {
       var fx = fc.x, fy = fc.y;
       var pulse = 0.4 + 0.25 * Math.sin(tick * 0.12 + headStock.idlePhase);
       ctx.save();
@@ -532,7 +538,7 @@ function drawRocketFlights() {
 
     var length = Math.min(L.bw, L.bh) * 1.1;
     var width = Math.min(L.bw, L.bh) * 0.45;
-    drawRocketSpriteAngled(ctx, pose.x, pose.y, angle, length, width, S, tick, true);
+    drawRocketSpriteAngled(ctx, pose.x, pose.y, angle, length, width, S, tick, true, true);
   }
 }
 

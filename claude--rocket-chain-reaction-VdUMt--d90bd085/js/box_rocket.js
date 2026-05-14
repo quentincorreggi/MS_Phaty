@@ -16,17 +16,19 @@ var ROCKET_NOSE_LIGHT = '#FFC080';
 // Draw an isolated rocket sprite at (cx, cy), facing in the given dir
 // ('up'|'down'|'left'|'right' — where the NOSE points). `length` is
 // the long-axis size; `width` is the short-axis size.
-function drawRocketSpriteOriented(ctx, cx, cy, dir, length, width, S, tick, fuseLit) {
+// `engineOn`: false = no flame at all (fuse not currently playable).
+// `fuseLit`: true = bright launch flame (rocket about to lift off).
+function drawRocketSpriteOriented(ctx, cx, cy, dir, length, width, S, tick, fuseLit, engineOn) {
   var angle = 0;
   if (dir === 'up')    angle = 0;
   if (dir === 'down')  angle = Math.PI;
   if (dir === 'left')  angle = -Math.PI / 2;
   if (dir === 'right') angle = Math.PI / 2;
-  drawRocketSpriteAngled(ctx, cx, cy, angle, length, width, S, tick, fuseLit);
+  drawRocketSpriteAngled(ctx, cx, cy, angle, length, width, S, tick, fuseLit, engineOn);
 }
 
 // Draw a rocket sprite at angle radians (0 = nose-up).
-function drawRocketSpriteAngled(ctx, cx, cy, angle, length, width, S, tick, fuseLit) {
+function drawRocketSpriteAngled(ctx, cx, cy, angle, length, width, S, tick, fuseLit, engineOn) {
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate(angle);
@@ -35,21 +37,23 @@ function drawRocketSpriteAngled(ctx, cx, cy, angle, length, width, S, tick, fuse
   var bh = length;
   var noseH = bh * 0.32;
 
-  // Flame
-  var flameH = bh * (fuseLit ? 0.75 : 0.22);
-  var flameW = bw * (fuseLit ? 1.0 : 0.7);
-  var flameWobble = Math.sin(tick * 0.6) * 1.5 * S;
-  var flameG = ctx.createLinearGradient(0, bh * 0.5, 0, bh * 0.5 + flameH);
-  flameG.addColorStop(0, 'rgba(255,240,140,0.95)');
-  flameG.addColorStop(0.45, 'rgba(255,170,50,0.85)');
-  flameG.addColorStop(1, 'rgba(255,40,20,0)');
-  ctx.fillStyle = flameG;
-  ctx.beginPath();
-  ctx.moveTo(-flameW / 2, bh * 0.5);
-  ctx.quadraticCurveTo(0, bh * 0.5 + flameH * 0.6, flameWobble, bh * 0.5 + flameH);
-  ctx.quadraticCurveTo(0, bh * 0.5 + flameH * 0.6, flameW / 2, bh * 0.5);
-  ctx.closePath();
-  ctx.fill();
+  // Flame — only when engine is on (fuse playable) or fuse is currently lit.
+  if (engineOn || fuseLit) {
+    var flameH = bh * (fuseLit ? 0.75 : 0.22);
+    var flameW = bw * (fuseLit ? 1.0 : 0.7);
+    var flameWobble = Math.sin(tick * 0.6) * 1.5 * S;
+    var flameG = ctx.createLinearGradient(0, bh * 0.5, 0, bh * 0.5 + flameH);
+    flameG.addColorStop(0, 'rgba(255,240,140,0.95)');
+    flameG.addColorStop(0.45, 'rgba(255,170,50,0.85)');
+    flameG.addColorStop(1, 'rgba(255,40,20,0)');
+    ctx.fillStyle = flameG;
+    ctx.beginPath();
+    ctx.moveTo(-flameW / 2, bh * 0.5);
+    ctx.quadraticCurveTo(0, bh * 0.5 + flameH * 0.6, flameWobble, bh * 0.5 + flameH);
+    ctx.quadraticCurveTo(0, bh * 0.5 + flameH * 0.6, flameW / 2, bh * 0.5);
+    ctx.closePath();
+    ctx.fill();
+  }
 
   // Fins
   ctx.fillStyle = ROCKET_BODY_DARK;
@@ -118,7 +122,10 @@ function drawRocketSpriteAngled(ctx, cx, cy, angle, length, width, S, tick, fuse
 // Draw the 1x2 rocket on the maze grid, given the bounding-box (the union
 // of the nose cell and tail cell rectangles). `dir` is where the nose
 // points. Includes the dark launch-pad panel that covers both cells.
-function drawRocketOnGrid(ctx, x, y, w, h, dir, S, tick, idlePhase, fuseLit, shakeOffsetX, shakeOffsetY) {
+// `engineOn`: true when the rocket's fuse box is currently tappable
+// (idle exhaust visible). `fuseLit`: true during the brief fuse-burn
+// before liftoff (bright exhaust).
+function drawRocketOnGrid(ctx, x, y, w, h, dir, S, tick, idlePhase, fuseLit, shakeOffsetX, shakeOffsetY, engineOn) {
   ctx.save();
   ctx.translate(shakeOffsetX || 0, shakeOffsetY || 0);
 
@@ -161,26 +168,28 @@ function drawRocketOnGrid(ctx, x, y, w, h, dir, S, tick, idlePhase, fuseLit, sha
   if (dir === 'left')  cx += bob;
   if (dir === 'right') cx -= bob;
 
-  // Exhaust glow behind the rocket
-  var glowAlpha = 0.32 + 0.18 * Math.sin(tick * 0.18 + idlePhase);
-  if (fuseLit) glowAlpha = 0.85;
-  ctx.save();
-  var gx = cx, gy = cy;
-  var gWidth = width * 1.2, gHeight = length * 0.45;
-  if (dir === 'up')    gy = cy + length * 0.45;
-  if (dir === 'down')  gy = cy - length * 0.45;
-  if (dir === 'left')  { gx = cx + length * 0.45; var t1 = gWidth; gWidth = gHeight; gHeight = t1; }
-  if (dir === 'right') { gx = cx - length * 0.45; var t2 = gWidth; gWidth = gHeight; gHeight = t2; }
-  var glowG = ctx.createRadialGradient(gx, gy, 0, gx, gy, Math.max(gWidth, gHeight) * 0.7);
-  glowG.addColorStop(0, 'rgba(255,200,80,' + glowAlpha + ')');
-  glowG.addColorStop(1, 'rgba(255,80,40,0)');
-  ctx.fillStyle = glowG;
-  ctx.beginPath();
-  ctx.ellipse(gx, gy, gWidth * 0.6, gHeight * 0.55, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
+  // Exhaust glow behind the rocket — only when engine is on or fuse is lit.
+  if (engineOn || fuseLit) {
+    var glowAlpha = 0.32 + 0.18 * Math.sin(tick * 0.18 + idlePhase);
+    if (fuseLit) glowAlpha = 0.85;
+    ctx.save();
+    var gx = cx, gy = cy;
+    var gWidth = width * 1.2, gHeight = length * 0.45;
+    if (dir === 'up')    gy = cy + length * 0.45;
+    if (dir === 'down')  gy = cy - length * 0.45;
+    if (dir === 'left')  { gx = cx + length * 0.45; var t1 = gWidth; gWidth = gHeight; gHeight = t1; }
+    if (dir === 'right') { gx = cx - length * 0.45; var t2 = gWidth; gWidth = gHeight; gHeight = t2; }
+    var glowG = ctx.createRadialGradient(gx, gy, 0, gx, gy, Math.max(gWidth, gHeight) * 0.7);
+    glowG.addColorStop(0, 'rgba(255,200,80,' + glowAlpha + ')');
+    glowG.addColorStop(1, 'rgba(255,80,40,0)');
+    ctx.fillStyle = glowG;
+    ctx.beginPath();
+    ctx.ellipse(gx, gy, gWidth * 0.6, gHeight * 0.55, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 
-  drawRocketSpriteOriented(ctx, cx, cy, dir, length, width, S, tick, fuseLit);
+  drawRocketSpriteOriented(ctx, cx, cy, dir, length, width, S, tick, fuseLit, engineOn);
 
   // Fuse-line marker: a short rope/wick extending out of the tail end,
   // pointing toward the fuse cell. Helps player understand "play the
