@@ -260,11 +260,31 @@ function drawStock() {
 
 // ── Physics marbles ──
 
+function drawBubble(x, y, r) {
+  ctx.save();
+  var grad = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.08, x, y, r);
+  grad.addColorStop(0, 'rgba(255,255,255,0.50)');
+  grad.addColorStop(0.35, 'rgba(200,235,255,0.18)');
+  grad.addColorStop(0.82, 'rgba(185,210,255,0.07)');
+  grad.addColorStop(1, 'rgba(160,205,255,0.45)');
+  ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(200,225,255,0.52)';
+  ctx.lineWidth = 1.5 * S;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.65)';
+  ctx.beginPath(); ctx.arc(x - r * 0.28, y - r * 0.30, r * 0.22, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.28)';
+  ctx.beginPath(); ctx.arc(x + r * 0.25, y + r * 0.20, r * 0.10, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
 function drawPhysMarbles() {
   for (var i = 0; i < physMarbles.length; i++) {
     var m = physMarbles[i];
     var bounce = m.spawnT > 0 ? (1 + Math.sin(m.spawnT * Math.PI) * 0.4) : 1;
     drawMarble(m.x, m.y, m.r, m.ci, bounce);
+    if (m.bubble) drawBubble(m.x, m.y, m.r * 1.65);
   }
 }
 

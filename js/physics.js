@@ -35,8 +35,15 @@ function physicsStep() {
   for (var sub = 0; sub < subSteps; sub++) {
     for (var i = 0; i < physMarbles.length; i++) {
       var m = physMarbles[i];
-      m.vy += PHYS_GRAVITY * S / subSteps;
-      m.vx *= PHYS_DAMPING; m.vy *= PHYS_DAMPING;
+      if (m.bubble) {
+        m.vy += PHYS_GRAVITY * S * PARACHUTE_FALL_MULT / subSteps;
+        m.vx += Math.sin(tick * PARACHUTE_DRIFT_FREQ + m.bubblePhase) * PARACHUTE_DRIFT_AMP * S / subSteps;
+        m.vx *= 0.975; m.vy *= 0.975;
+        if (m.vy > 3.5 * S) m.vy = 3.5 * S;
+      } else {
+        m.vy += PHYS_GRAVITY * S / subSteps;
+        m.vx *= PHYS_DAMPING; m.vy *= PHYS_DAMPING;
+      }
       m.x += m.vx / subSteps; m.y += m.vy / subSteps;
     }
     for (var i = 0; i < physMarbles.length; i++) {
@@ -71,6 +78,18 @@ function physicsStep() {
   var exitY = L.funnelBot;
   var exitL = L.funnelCx - L.funnelOpenW / 2;
   var exitR = L.funnelCx + L.funnelOpenW / 2;
+
+  // Pop bubbles that reach the conveyor transition zone
+  for (var i = 0; i < physMarbles.length; i++) {
+    var m = physMarbles[i];
+    if (!m.bubble) continue;
+    if (m.y + m.r >= exitY - 10 * S) {
+      m.bubble = false;
+      spawnBubblePop(m.x, m.y);
+      if (typeof sfx !== 'undefined') sfx.pop();
+    }
+  }
+
   for (var i = physMarbles.length - 1; i >= 0; i--) {
     var m = physMarbles[i];
     if (m.y + m.r >= exitY - 3 * S && m.x > exitL - m.r && m.x < exitR + m.r) {
@@ -94,6 +113,20 @@ function physicsStep() {
   }
 }
 
+function spawnBubblePop(x, y) {
+  var cols = ['rgba(200,240,255,0.9)', 'rgba(255,200,240,0.9)', 'rgba(200,255,220,0.9)', 'rgba(255,240,200,0.9)'];
+  for (var i = 0; i < 14; i++) {
+    var a = Math.PI * 2 * i / 14 + Math.random() * 0.4, sp = 1.5 + Math.random() * 3.5;
+    particles.push({ x: x, y: y, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
+      r: (1.5 + Math.random() * 3) * S, color: cols[i % cols.length],
+      life: 0.85, decay: 0.025 + Math.random() * 0.02, grav: false });
+  }
+  // Central shimmer flash
+  particles.push({ x: x, y: y, vx: 0, vy: 0,
+    r: 8 * S, color: 'rgba(255,255,255,0.7)',
+    life: 0.5, decay: 0.08, grav: false });
+}
+
 function spawnPhysMarbles(box) {
   box.spawning = true; box.spawnIdx = 0;
   var count = box.remaining;
@@ -115,7 +148,9 @@ function spawnPhysMarbles(box) {
         var vx = (Math.random() - 0.5) * 2 * S;
         var vy = -(2 + Math.random() * 2) * S;
         var marbleCi = (blockerCount > 0 && spawnIdx >= bStart) ? BLOCKER_CI : b.ci;
-        physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR, spawnT: 1.0 });
+        var isParachute = (box.boxType === 'parachute');
+        physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR, spawnT: 1.0,
+          bubble: isParachute, bubblePhase: Math.random() * Math.PI * 2 });
         sfx.drop();
         spawnBurst(mx, my, COLORS[marbleCi].fill, 4);
         if (b.remaining <= 0) {
