@@ -39,7 +39,7 @@ function physicsStep() {
         m.vy += PHYS_GRAVITY * S * PARACHUTE_FALL_MULT / subSteps;
         m.vx += Math.sin(tick * PARACHUTE_DRIFT_FREQ + m.bubblePhase) * PARACHUTE_DRIFT_AMP * S / subSteps;
         m.vx *= 0.975; m.vy *= 0.975;
-        if (m.vy > 3.5 * S) m.vy = 3.5 * S;
+        if (m.vy > 1.2 * S) m.vy = 1.2 * S;
       } else {
         m.vy += PHYS_GRAVITY * S / subSteps;
         m.vx *= PHYS_DAMPING; m.vy *= PHYS_DAMPING;
