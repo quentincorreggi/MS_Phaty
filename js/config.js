@@ -64,7 +64,7 @@ var SNAKE_ORDER = [
 ];
 
 // === PARACHUTE BOX ===
-var PARACHUTE_FALL_MULT = 0.28;  // fraction of normal gravity applied to bubbles
+var PARACHUTE_FALL_MULT = 0.10;  // fraction of normal gravity applied to bubbles
 var PARACHUTE_DRIFT_AMP = 0.10;  // sinusoidal x-drift amplitude (pre-S)
 var PARACHUTE_DRIFT_FREQ = 0.035; // drift oscillation frequency (radians/tick)
 
