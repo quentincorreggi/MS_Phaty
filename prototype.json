@@ -2,18 +2,21 @@
   "name": "Cannonade",
   "description": "Cannon blocks sit on top of marble boxes. Tap any box next to a Cannon and it fires a stored box into the empty slot — keeping the grid alive while slowly shrinking. When the shared ammo runs dry, the Cannons crumble and reveal the marble boxes underneath.",
   "howToPlay": "Tap the coloured boxes on either side of the grey Cannon blocks. Each tap triggers a cannon fire — watch the muzzle flash and a new box pop into place. After enough fires the Cannons crumble and reveal normal boxes underneath. Keep tapping until every marble is sorted!",
+  "author": "",
   "showcaseLevel": {
-    "name": "Cannonade Demo",
-    "mrbPerBox": 3,
+    "name": "Cannon Showcase",
+    "desc": "My custom levelCannon Showcase",
+    "mrbPerBox": 9,
     "sortCap": 3,
+    "lockButtons": 0,
     "grid": [
-      null, null, null, null, null, null, null,
-      null, {"ci":0,"type":"default"}, {"ci":0,"type":"cannon","cannonContents":[{"ci":0,"type":"default"},{"ci":0,"type":"default"},{"ci":0,"type":"default"},{"ci":0,"type":"default"},{"ci":0,"type":"default"},{"ci":0,"type":"default"}]}, {"ci":0,"type":"cannon"}, {"ci":0,"type":"default"}, null, null,
-      null, null, null, null, null, null, null,
-      null, null, null, null, null, null, null,
-      null, null, null, null, null, null, null,
-      null, null, null, null, null, null, null,
-      null, null, null, null, null, null, null
+      {"wall":true},{"wall":true},{"ci":3,"type":"default"},{"ci":2,"type":"default"},{"ci":1,"type":"default"},{"wall":true},{"wall":true},
+      {"wall":true},{"wall":true},{"ci":2,"type":"cannon","cannonContents":[{"ci":3,"type":"default"},{"ci":2,"type":"default"},{"ci":1,"type":"default"},{"ci":0,"type":"default"}]},{"ci":3,"type":"cannon","cannonContents":[]},{"ci":2,"type":"cannon","cannonContents":[]},{"wall":true},{"wall":true},
+      {"wall":true},{"ci":0,"type":"default"},{"ci":3,"type":"default"},{"ci":1,"type":"default"},{"ci":3,"type":"default"},{"ci":0,"type":"default"},{"wall":true},
+      {"wall":true},{"ci":0,"type":"cannon","cannonContents":[{"ci":0,"type":"default"},{"ci":1,"type":"default"},{"ci":2,"type":"default"}]},{"ci":3,"type":"cannon","cannonContents":[]},{"ci":3,"type":"default"},{"ci":0,"type":"default"},{"ci":0,"type":"cannon","cannonContents":[{"ci":3,"type":"default"},{"ci":2,"type":"default"},{"ci":1,"type":"default"}]},{"wall":true},
+      {"wall":true},{"ci":0,"type":"cannon","cannonContents":[]},{"ci":2,"type":"default"},{"ci":1,"type":"default"},{"ci":0,"type":"cannon","cannonContents":[]},{"ci":0,"type":"cannon","cannonContents":[]},{"wall":true},
+      {"wall":true},{"ci":3,"type":"default"},{"ci":0,"type":"default"},{"ci":1,"type":"default"},{"ci":2,"type":"default"},{"ci":3,"type":"default"},{"wall":true},
+      null,null,null,null,null,null,null
     ]
   }
 }
