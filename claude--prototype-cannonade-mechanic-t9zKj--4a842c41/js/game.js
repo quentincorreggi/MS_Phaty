@@ -55,7 +55,7 @@ function initGame() {
       } else if (typeof cell === 'number') {
         if (cell >= 0) boxSlots[i] = { ci: cell, boxType: 'default' };
       } else if (typeof cell === 'object' && cell.ci >= 0) {
-        boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default' };
+        boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default', cannonContents: cell.cannonContents };
       }
     }
   }
@@ -70,9 +70,19 @@ function initGame() {
     var bsType = bs.boxType || 'default';
     var isCannon = (bsType === 'cannon' || bsType === 'cannon_ice' || bsType === 'cannon_blocker');
     if (isCannon) {
-      // 3 stored default boxes per cannon cell + 1 underlying box
-      colorMarblesTotal[bs.ci] += 3 * MRB_PER_BOX;
-      var uType = bsType === 'cannon_ice' ? 'ice' : (bsType === 'cannon_blocker' ? 'blocker' : 'hidden');
+      // Count each stored box in the cannon's pool
+      var pool = bs.cannonContents || [];
+      for (var pc = 0; pc < pool.length; pc++) {
+        var pItem = pool[pc];
+        if (pItem.type === 'blocker') {
+          colorMarblesTotal[pItem.ci] += MRB_PER_BOX - BLOCKER_PER_BOX;
+          totalBlockerMarbles += BLOCKER_PER_BOX;
+        } else {
+          colorMarblesTotal[pItem.ci] += MRB_PER_BOX;
+        }
+      }
+      // Count underlying box
+      var uType = bsType === 'cannon_hidden' ? 'hidden' : (bsType === 'cannon_ice' ? 'ice' : (bsType === 'cannon_blocker' ? 'blocker' : 'default'));
       if (uType === 'blocker') {
         colorMarblesTotal[bs.ci] += MRB_PER_BOX - BLOCKER_PER_BOX;
         totalBlockerMarbles += BLOCKER_PER_BOX;
@@ -145,9 +155,9 @@ function initGame() {
       var slotType = slot.boxType || 'default';
       var slotIsCannon = (slotType === 'cannon' || slotType === 'cannon_ice' || slotType === 'cannon_blocker');
       if (slotIsCannon) {
-        var underlyingType = slotType === 'cannon_ice' ? 'ice' : (slotType === 'cannon_blocker' ? 'blocker' : 'hidden');
-        var contents = [];
-        for (var cc = 0; cc < 3; cc++) contents.push({ ci: slot.ci, type: 'default' });
+        var underlyingType = slotType === 'cannon_hidden' ? 'hidden' : (slotType === 'cannon_ice' ? 'ice' : (slotType === 'cannon_blocker' ? 'blocker' : 'default'));
+        var rawContents = slot.cannonContents || [];
+        var contents = rawContents.map(function (item) { return { ci: item.ci, type: item.type || 'default' }; });
         stock.push({
           ci: slot.ci, isCannon: true,
           cannonContents: contents,
