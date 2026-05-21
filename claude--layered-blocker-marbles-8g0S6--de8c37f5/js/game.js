@@ -601,6 +601,7 @@ function frame() {
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();
+    drawLayeredBlockerProgress();
     drawJumpers();
     drawSortArea();
     drawBackButton();
