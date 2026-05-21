@@ -53,6 +53,14 @@ var blockerCollectT = 0;
 var blockerCollectSlots = [];
 var blockerCollectCleared = false;
 
+// Layered Blocker tracking state
+var isLayeredBlockerLevel = false;
+var layeredBlockerCollecting = false;
+var layeredBlockerCollectT = 0;
+var layeredBlockerCollectSlots = [];
+var layeredBlockerCollectCleared = false;
+var LAYERED_BLOCKER_THRESHOLD = 9;
+
 var MRB_PER_BOX = 9, SORT_CAP = 3;
 var SORT_VISIBLE_ROWS = 4;
 
@@ -76,3 +84,20 @@ var cal = {
 // === HELPERS ===
 function getMR() { return MARBLE_R_BASE * S * cal.marble.s; }
 function shuffle(arr) { for (var i = arr.length - 1; i > 0; i--) { var j = ~~(Math.random() * (i + 1)); var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp; } }
+
+// === SHOWCASE LEVELS ===
+// Layered Blocker demo: 6 LB boxes (18 stone = 2 clear cycles) + 1 regular box.
+// All boxes sit in the bottom row so they're revealed from the start.
+(function () {
+  var g = [];
+  for (var i = 0; i < 42; i++) g.push(null); // rows 0-5 empty
+  // Row 6 (bottom): 6 Layered Blocker boxes + 1 regular
+  g.push({ ci: 0, type: 'layered_blocker' }); // pink
+  g.push({ ci: 1, type: 'layered_blocker' }); // blue
+  g.push({ ci: 2, type: 'layered_blocker' }); // green
+  g.push({ ci: 0, type: 'layered_blocker' }); // pink
+  g.push({ ci: 1, type: 'layered_blocker' }); // blue
+  g.push({ ci: 2, type: 'layered_blocker' }); // green
+  g.push({ ci: 3, type: 'default' });          // yellow
+  LEVELS.push({ name: 'Layered Blocker', grid: g });
+}());
