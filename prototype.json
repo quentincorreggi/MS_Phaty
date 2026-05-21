@@ -1,0 +1,22 @@
+{
+  "name": "Layered Blocker Marbles",
+  "description": "Stone marbles clear in repeating batches of 9 — deal with them again and again!",
+  "howToPlay": "Tap boxes to release marbles. Stone marbles jam the belt — collect 9 at once to sweep them away. Then brace yourself for the next wave.",
+  "author": "",
+  "showcaseLevel": {
+    "name": "Custom Level",
+    "desc": "My custom level",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      {"wall":true},{"wall":true},{"ci":2,"type":"layered_blocker"},{"ci":1,"type":"default"},{"ci":3,"type":"layered_blocker"},{"wall":true},{"wall":true},
+      {"wall":true},{"wall":true},{"ci":3,"type":"default"},{"ci":2,"type":"default"},{"ci":4,"type":"default"},{"wall":true},{"wall":true},
+      {"wall":true},{"ci":0,"type":"layered_blocker"},{"ci":1,"type":"default"},{"ci":0,"type":"default"},{"ci":4,"type":"default"},{"ci":1,"type":"layered_blocker"},{"wall":true},
+      {"wall":true},{"ci":3,"type":"default"},{"ci":1,"type":"default"},{"ci":4,"type":"default"},{"ci":0,"type":"default"},{"ci":2,"type":"default"},{"wall":true},
+      {"wall":true},{"ci":1,"type":"layered_blocker"},{"ci":0,"type":"default"},{"ci":2,"type":"default"},{"ci":1,"type":"default"},{"ci":0,"type":"layered_blocker"},{"wall":true},
+      {"wall":true},{"ci":3,"type":"default"},{"ci":0,"type":"default"},{"ci":4,"type":"default"},{"ci":0,"type":"default"},{"ci":3,"type":"default"},{"wall":true},
+      null,null,null,null,null,null,null
+    ]
+  }
+}
