@@ -177,6 +177,12 @@ function drawStock() {
       continue;
     }
 
+    // ── Cannon ──
+    if (b.isCannon) {
+      drawCannonOnGrid(ctx, b, i, L, S, tick);
+      continue;
+    }
+
     var ox = 0;
     if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
     var breathe = 0;

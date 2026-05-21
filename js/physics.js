@@ -94,7 +94,7 @@ function physicsStep() {
   }
 }
 
-function spawnPhysMarbles(box) {
+function spawnPhysMarbles(box, boxIdx) {
   box.spawning = true; box.spawnIdx = 0;
   var count = box.remaining;
   var blockerCount = box.blockerCount || 0;
@@ -120,12 +120,14 @@ function spawnPhysMarbles(box) {
         spawnBurst(mx, my, COLORS[marbleCi].fill, 4);
         if (b.remaining <= 0) {
           b.emptyT = 1.0;
+          var capturedIdx = boxIdx;
           setTimeout(function () {
             b.used = true;
             b.spawning = false;
-            // Re-evaluate which boxes have an open path to the bottom
-            // now that this cell is passable.
             updateBoxReveals(true);
+            if (typeof capturedIdx !== 'undefined' && typeof triggerCannonsAdjacentTo === 'function') {
+              triggerCannonsAdjacentTo(capturedIdx);
+            }
           }, 300);
         }
       }, i * 120);

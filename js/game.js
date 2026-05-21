@@ -67,10 +67,24 @@ function initGame() {
   for (var c = 0; c < NUM_COLORS; c++) colorMarblesTotal.push(0);
   for (var k in boxSlots) {
     var bs = boxSlots[k];
-    var isBlockerBox = (bs.boxType === 'blocker');
-    var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
-    colorMarblesTotal[bs.ci] += regularPerBox;
-    if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
+    var bsType = bs.boxType || 'default';
+    var isCannon = (bsType === 'cannon' || bsType === 'cannon_ice' || bsType === 'cannon_blocker');
+    if (isCannon) {
+      // 3 stored default boxes per cannon cell + 1 underlying box
+      colorMarblesTotal[bs.ci] += 3 * MRB_PER_BOX;
+      var uType = bsType === 'cannon_ice' ? 'ice' : (bsType === 'cannon_blocker' ? 'blocker' : 'hidden');
+      if (uType === 'blocker') {
+        colorMarblesTotal[bs.ci] += MRB_PER_BOX - BLOCKER_PER_BOX;
+        totalBlockerMarbles += BLOCKER_PER_BOX;
+      } else {
+        colorMarblesTotal[bs.ci] += MRB_PER_BOX;
+      }
+    } else {
+      var isBlockerBox = (bsType === 'blocker');
+      var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
+      colorMarblesTotal[bs.ci] += regularPerBox;
+      if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
+    }
   }
   // Count marbles from tunnel contents
   for (var k in tunnelSlots) {
@@ -128,22 +142,47 @@ function initGame() {
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
     } else {
-      var isIce = (slot.boxType === 'ice');
-      var isBlocker = (slot.boxType === 'blocker');
-      stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
-        revealed: isIce ? true : false, empty: false,
-        boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
-        iceHP: isIce ? 2 : 0,
-        iceCrackT: 0, iceShatterT: 0,
-        blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
-        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
-        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
-        idlePhase: Math.random() * Math.PI * 2 });
+      var slotType = slot.boxType || 'default';
+      var slotIsCannon = (slotType === 'cannon' || slotType === 'cannon_ice' || slotType === 'cannon_blocker');
+      if (slotIsCannon) {
+        var underlyingType = slotType === 'cannon_ice' ? 'ice' : (slotType === 'cannon_blocker' ? 'blocker' : 'hidden');
+        var contents = [];
+        for (var cc = 0; cc < 3; cc++) contents.push({ ci: slot.ci, type: 'default' });
+        stock.push({
+          ci: slot.ci, isCannon: true,
+          cannonContents: contents,
+          cannonUnderlying: { ci: slot.ci, type: underlyingType },
+          cannonGroupId: null, cannonOutwardDirs: ['top','bottom','left','right'],
+          cannonFlashT: 0, cannonFlashDir: null,
+          used: false, remaining: 0, spawning: false, spawnIdx: 0,
+          revealed: false, empty: false,
+          boxType: slotType, isTunnel: false, isWall: false,
+          iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+          x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+          shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
+          idlePhase: Math.random() * Math.PI * 2
+        });
+      } else {
+        var isIce = (slotType === 'ice');
+        var isBlocker = (slotType === 'blocker');
+        stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
+          revealed: isIce ? true : false, empty: false,
+          boxType: slotType, isTunnel: false, isWall: false,
+          iceHP: isIce ? 2 : 0,
+          iceCrackT: 0, iceShatterT: 0,
+          blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+          x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+          shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
+          idlePhase: Math.random() * Math.PI * 2 });
+      }
     }
   }
 
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
+
+  // ── Group adjacent cannon blocks into shared Cannonades ──
+  if (typeof initCannonGroups === 'function') initCannonGroups();
 
   // ── Sort columns ──
   var allBoxes = [];
@@ -220,7 +259,7 @@ function updateBoxReveals(animate) {
   for (var k = 0; k < total; k++) {
     var b = stock[k];
     if (!b) continue;
-    if (b.isWall || b.isTunnel || b.empty || b.used) continue;
+    if (b.isWall || b.isTunnel || b.isCannon || b.empty || b.used) continue;
     if (b.spawning) continue;
 
     var br = Math.floor(k / L.cols), bcol = k % L.cols;
@@ -314,7 +353,8 @@ function damageAdjacentIce(idx) {
 function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
-  if (b.isWall) return false;      // walls are not tappable
+  if (b.isWall) return false;
+  if (b.isCannon) return false;
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
@@ -330,14 +370,14 @@ function handleTap(px, py) {
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
+    if (b.isTunnel || b.isWall || b.isCannon) continue;
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
       b.popT = 1;
       sfx.pop();
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
-      spawnPhysMarbles(b);
+      spawnPhysMarbles(b, i);
       damageAdjacentIce(i);
       return;
     }
@@ -352,7 +392,7 @@ canvas.addEventListener('mousemove', function (e) {
   if (e.clientX >= L.bkX && e.clientX <= L.bkX + L.bkSize && e.clientY >= L.bkY && e.clientY <= L.bkY + L.bkSize) { canvas.style.cursor = 'pointer'; return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;
+    if (b.isTunnel || b.isWall || b.isCannon) continue;
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (!isBoxTappable(i)) continue;
     if (e.clientX >= b.x && e.clientX <= b.x + L.bw && e.clientY >= b.y && e.clientY <= b.y + L.bh) { hoverIdx = i; break; }
@@ -467,7 +507,11 @@ function update() {
   // Stock animations
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;  // tunnels and walls don't need stock animations
+    if (b.isTunnel || b.isWall) continue;
+    if (b.isCannon) {
+      if (b.cannonFlashT > 0) b.cannonFlashT = Math.max(0, b.cannonFlashT - 0.06);
+      continue;
+    }
     if (b.empty) continue;
     if (b.shakeT > 0) b.shakeT = Math.max(0, b.shakeT - 0.04);
     if (b.popT > 0) b.popT = Math.max(0, b.popT - 0.025);
