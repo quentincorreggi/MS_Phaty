@@ -86,18 +86,15 @@ function getMR() { return MARBLE_R_BASE * S * cal.marble.s; }
 function shuffle(arr) { for (var i = arr.length - 1; i > 0; i--) { var j = ~~(Math.random() * (i + 1)); var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp; } }
 
 // === SHOWCASE LEVELS ===
-// Layered Blocker demo: 6 LB boxes (18 stone = 2 clear cycles) + 1 regular box.
-// All boxes sit in the bottom row so they're revealed from the start.
-(function () {
-  var g = [];
-  for (var i = 0; i < 42; i++) g.push(null); // rows 0-5 empty
-  // Row 6 (bottom): 6 Layered Blocker boxes + 1 regular
-  g.push({ ci: 0, type: 'layered_blocker' }); // pink
-  g.push({ ci: 1, type: 'layered_blocker' }); // blue
-  g.push({ ci: 2, type: 'layered_blocker' }); // green
-  g.push({ ci: 0, type: 'layered_blocker' }); // pink
-  g.push({ ci: 1, type: 'layered_blocker' }); // blue
-  g.push({ ci: 2, type: 'layered_blocker' }); // green
-  g.push({ ci: 3, type: 'default' });          // yellow
-  LEVELS.push({ name: 'Layered Blocker', grid: g });
-}());
+LEVELS.push({
+  name: 'Custom Level', desc: 'My custom level', mrbPerBox: 9, sortCap: 3, lockButtons: 0,
+  grid: [
+    {wall:true},{wall:true},{ci:2,type:'layered_blocker'},{ci:1,type:'default'},{ci:3,type:'layered_blocker'},{wall:true},{wall:true},
+    {wall:true},{wall:true},{ci:3,type:'default'},{ci:2,type:'default'},{ci:4,type:'default'},{wall:true},{wall:true},
+    {wall:true},{ci:0,type:'layered_blocker'},{ci:1,type:'default'},{ci:0,type:'default'},{ci:4,type:'default'},{ci:1,type:'layered_blocker'},{wall:true},
+    {wall:true},{ci:3,type:'default'},{ci:1,type:'default'},{ci:4,type:'default'},{ci:0,type:'default'},{ci:2,type:'default'},{wall:true},
+    {wall:true},{ci:1,type:'layered_blocker'},{ci:0,type:'default'},{ci:2,type:'default'},{ci:1,type:'default'},{ci:0,type:'layered_blocker'},{wall:true},
+    {wall:true},{ci:3,type:'default'},{ci:0,type:'default'},{ci:4,type:'default'},{ci:0,type:'default'},{ci:3,type:'default'},{wall:true},
+    null,null,null,null,null,null,null
+  ]
+});
