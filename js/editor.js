@@ -17,6 +17,7 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  selectedCannonPrimary: -1, // primary index of selected cannon group
   visible: false
 };
 
@@ -34,6 +35,7 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.selectedCannonPrimary = -1;
 }
 
 function showEditor(fresh) {
@@ -60,12 +62,68 @@ function editorBuildUI() {
   editorRenderSettings();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderCannonPanel();
+}
+
+// ── Cannon group helpers ──
+
+function editorGetCannonGroup(idx) {
+  var visited = {}; var queue = [idx]; visited[idx] = true; var group = [idx];
+  while (queue.length > 0) {
+    var curr = queue.shift();
+    var row = Math.floor(curr / 7), col = curr % 7;
+    var nbrs = [];
+    if (row > 0) nbrs.push((row - 1) * 7 + col);
+    if (row < 6) nbrs.push((row + 1) * 7 + col);
+    if (col > 0) nbrs.push(row * 7 + (col - 1));
+    if (col < 6) nbrs.push(row * 7 + (col + 1));
+    for (var n = 0; n < nbrs.length; n++) {
+      var ni = nbrs[n];
+      if (!visited[ni] && editor.grid[ni] && typeof isCannonType === 'function' && isCannonType(editor.grid[ni].type)) {
+        visited[ni] = true; queue.push(ni); group.push(ni);
+      }
+    }
+  }
+  group.sort(function (a, b) { return a - b; });
+  return group;
+}
+
+function editorConsolidateCannonGroup(primaryIdx) {
+  if (!editor.grid[primaryIdx]) return;
+  var group = editorGetCannonGroup(primaryIdx);
+  var combined = (editor.grid[primaryIdx].cannonContents || []).slice();
+  for (var i = 0; i < group.length; i++) {
+    if (group[i] === primaryIdx) continue;
+    var cell = editor.grid[group[i]];
+    if (cell && cell.cannonContents && cell.cannonContents.length > 0) {
+      combined = combined.concat(cell.cannonContents);
+      cell.cannonContents = [];
+    }
+  }
+  editor.grid[primaryIdx].cannonContents = combined;
 }
 
 // ── Grid ──
 function editorRenderGrid() {
   var el = document.getElementById('ed-grid');
   el.innerHTML = '';
+
+  // Pre-compute cannon group info for badges and selection highlight
+  var cannonPoolCounts = {};
+  var cannonGroupPrimaryMap = {};
+  var cannonGroupVisited2 = {};
+  for (var k = 0; k < 49; k++) {
+    if (!editor.grid[k] || !editor.grid[k].type || !(typeof isCannonType === 'function' && isCannonType(editor.grid[k].type)) || cannonGroupVisited2[k]) continue;
+    var grp2 = editorGetCannonGroup(k);
+    var prim2 = grp2[0];
+    var poolCnt2 = (editor.grid[prim2] && editor.grid[prim2].cannonContents) ? editor.grid[prim2].cannonContents.length : 0;
+    for (var gi2 = 0; gi2 < grp2.length; gi2++) {
+      cannonPoolCounts[grp2[gi2]] = poolCnt2;
+      cannonGroupPrimaryMap[grp2[gi2]] = prim2;
+      cannonGroupVisited2[grp2[gi2]] = true;
+    }
+  }
+
   for (var i = 0; i < 49; i++) {
     var cell = document.createElement('div');
     cell.className = 'ed-cell';
@@ -91,6 +149,14 @@ function editorRenderGrid() {
       cell.style.background = st.background;
       cell.style.borderColor = st.borderColor;
       cell.innerHTML = bt.editorCellHTML(v.ci);
+      if (typeof isCannonType === 'function' && isCannonType(v.type)) {
+        var poolCnt3 = cannonPoolCounts[i] || 0;
+        cell.innerHTML += '<span class="ed-tunnel-badge">' + poolCnt3 + '</span>';
+        if (editor.selectedCannonPrimary >= 0 && cannonGroupPrimaryMap[i] === editor.selectedCannonPrimary) {
+          cell.style.borderColor = '#FFD080';
+          cell.style.boxShadow = '0 0 0 2px rgba(255,208,128,0.5)';
+        }
+      }
     } else {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
@@ -139,19 +205,46 @@ function editorCellClick(e) {
     if (editor.activeColor === -1) {
       editor.grid[idx] = null;
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+      editor.selectedCannonPrimary = -1;
     } else {
       var existing = editor.grid[idx];
-      if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
-        editor.grid[idx] = null;
+      var placingCannon = typeof isCannonType === 'function' && isCannonType(editor.activeType);
+      var clickingCannon = existing && !existing.tunnel && !existing.wall && typeof isCannonType === 'function' && isCannonType(existing.type);
+
+      if (clickingCannon) {
+        // Clicking an existing cannon cell → select its group for pool editing
+        var primary = editorGetCannonGroup(idx)[0];
+        editorConsolidateCannonGroup(primary);
+        editor.selectedCannonPrimary = primary;
+        editor.selectedTunnel = -1;
+      } else if (placingCannon) {
+        // Placing a new cannon cell (or toggling off)
+        if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
+          editor.grid[idx] = null;
+          editor.selectedCannonPrimary = -1;
+        } else {
+          editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType, cannonContents: [] };
+          var primary2 = editorGetCannonGroup(idx)[0];
+          editorConsolidateCannonGroup(primary2);
+          editor.selectedCannonPrimary = primary2;
+          editor.selectedTunnel = -1;
+        }
       } else {
-        editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
+        // Regular non-cannon box placement
+        editor.selectedCannonPrimary = -1;
+        if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
+          editor.grid[idx] = null;
+        } else {
+          editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
+        }
+        if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
       }
-      if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     }
   }
   editorRenderGrid();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderCannonPanel();
 }
 
 function editorCellErase(e) {
@@ -426,23 +519,124 @@ function editorRenderTunnelPanel() {
   }
 }
 
+// ── Cannon pool editor panel ──
+function editorRenderCannonPanel() {
+  var container = document.getElementById('ed-cannon-panel');
+  if (!container) return;
+
+  var primary = editor.selectedCannonPrimary;
+  if (primary < 0 || !editor.grid[primary] || !(typeof isCannonType === 'function' && isCannonType(editor.grid[primary].type))) {
+    container.style.display = 'none';
+    return;
+  }
+
+  container.style.display = 'block';
+  var group = editorGetCannonGroup(primary);
+  var pool = editor.grid[primary].cannonContents || [];
+  var html = '';
+
+  html += '<div class="ed-section-title"><span class="icon">&#9883;</span> Cannonade — ' + group.length + ' cell' + (group.length > 1 ? 's' : '') + ' — Shared Pool</div>';
+
+  // Pool contents list
+  html += '<div class="ed-section-title" style="margin-top:4px"><span class="icon">&#128230;</span> Stored Boxes (' + pool.length + ')</div>';
+  html += '<div class="ed-tunnel-contents">';
+  if (pool.length === 0) {
+    html += '<span style="font-size:11px;color:#9C8A70;font-style:italic">Empty — add boxes below</span>';
+  } else {
+    for (var pi = 0; pi < pool.length; pi++) {
+      var item = pool[pi];
+      var c = COLORS[item.ci];
+      var typeLabel = (BoxTypes[item.type] || BoxTypes[BoxTypeOrder[0]]).label;
+      html += '<span class="ed-tunnel-item" data-pidx="' + pi + '" title="' + CLR_NAMES[item.ci] + ' ' + typeLabel + ' — click to remove" style="background:' + c.fill + '">';
+      html += '<span style="font-size:8px;opacity:0.7">' + typeLabel[0] + '</span>';
+      html += '</span>';
+    }
+  }
+  html += '</div>';
+
+  // Add box controls
+  html += '<div class="ed-section-title" style="margin-top:8px"><span class="icon">&#10133;</span> Add Box to Pool</div>';
+  html += '<div class="ed-tunnel-add-row">';
+  html += '<select id="ed-cannon-add-type" class="ed-tunnel-select">';
+  for (var t = 0; t < BoxTypeOrder.length; t++) {
+    var tid = BoxTypeOrder[t];
+    if (typeof isCannonType === 'function' && isCannonType(tid)) continue;
+    html += '<option value="' + tid + '">' + BoxTypes[tid].label + '</option>';
+  }
+  html += '</select>';
+  html += '</div>';
+  html += '<div class="ed-tunnel-add-colors">';
+  for (var ci3 = 0; ci3 < NUM_COLORS; ci3++) {
+    html += '<button class="ed-tunnel-add-clr" data-ci="' + ci3 + '" style="background:' + COLORS[ci3].fill + '" title="Add ' + CLR_NAMES[ci3] + '">' + CLR_NAMES[ci3][0].toUpperCase() + '</button>';
+  }
+  html += '</div>';
+
+  if (pool.length > 0) {
+    html += '<div style="text-align:center;margin-top:6px"><button class="ed-qbtn" id="ed-cannon-clear">Clear All</button></div>';
+  }
+
+  container.innerHTML = html;
+
+  // Bind remove-item events
+  var items = container.querySelectorAll('.ed-tunnel-item');
+  for (var it = 0; it < items.length; it++) {
+    items[it].addEventListener('click', function () {
+      var pidx = parseInt(this.getAttribute('data-pidx'));
+      var p2 = editor.selectedCannonPrimary;
+      if (p2 >= 0 && editor.grid[p2] && editor.grid[p2].cannonContents) {
+        editor.grid[p2].cannonContents.splice(pidx, 1);
+        editorRenderGrid(); editorRenderCannonPanel(); editorUpdateStats();
+      }
+    });
+  }
+
+  // Bind add-color events
+  var addClrs = container.querySelectorAll('.ed-tunnel-add-clr');
+  for (var ac = 0; ac < addClrs.length; ac++) {
+    addClrs[ac].addEventListener('click', function () {
+      var ci4 = parseInt(this.getAttribute('data-ci'));
+      var typeEl = document.getElementById('ed-cannon-add-type');
+      var type = typeEl ? typeEl.value : 'default';
+      var p2 = editor.selectedCannonPrimary;
+      if (p2 >= 0 && editor.grid[p2]) {
+        if (!editor.grid[p2].cannonContents) editor.grid[p2].cannonContents = [];
+        editor.grid[p2].cannonContents.push({ ci: ci4, type: type });
+        editorRenderGrid(); editorRenderCannonPanel(); editorUpdateStats();
+      }
+    });
+  }
+
+  var clearBtn = document.getElementById('ed-cannon-clear');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', function () {
+      var p2 = editor.selectedCannonPrimary;
+      if (p2 >= 0 && editor.grid[p2]) {
+        editor.grid[p2].cannonContents = [];
+        editorRenderGrid(); editorRenderCannonPanel(); editorUpdateStats();
+      }
+    });
+  }
+}
+
 // ── Quick actions ──
 function editorFillRandom() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
+  editor.selectedCannonPrimary = -1;
   var cl = [];
   for (var c = 0; c < 4; c++) for (var n = 0; n < 6; n++) cl.push(c);
   shuffle(cl);
   var indices = []; for (var i = 0; i < 49; i++) indices.push(i);
   shuffle(indices);
   for (var i = 0; i < cl.length; i++) editor.grid[indices[i]] = { ci: cl[i], type: 'default' };
-  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel(); editorRenderCannonPanel();
 }
 
 function editorClearAll() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
-  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+  editor.selectedCannonPrimary = -1;
+  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel(); editorRenderCannonPanel();
 }
 
 // ── Stats ──
@@ -478,10 +672,33 @@ function editorUpdateStats() {
       continue;
     }
     if (v.ci >= 0) {
+      var vIsCannon = typeof isCannonType === 'function' && isCannonType(v.type);
       counts[v.ci]++;
       total++;
       typeCounts[v.type] = (typeCounts[v.type] || 0) + 1;
-      if (v.type === 'blocker') {
+      if (vIsCannon) {
+        // Underlying box marbles (per cell)
+        var vUType = v.type === 'cannon_hidden' ? 'hidden' : (v.type === 'cannon_ice' ? 'ice' : (v.type === 'cannon_blocker' ? 'blocker' : 'default'));
+        if (vUType === 'blocker') {
+          regularMrb[v.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
+          totalBlockers += BLOCKER_PER_BOX;
+        } else {
+          regularMrb[v.ci] += editor.mrbPerBox;
+        }
+        // Pool marbles — only count on primary cell (to avoid double-counting groups)
+        var vGroup = editorGetCannonGroup(i);
+        if (vGroup[0] === i && v.cannonContents) {
+          for (var pc2 = 0; pc2 < v.cannonContents.length; pc2++) {
+            var pItem2 = v.cannonContents[pc2];
+            if (pItem2.type === 'blocker') {
+              regularMrb[pItem2.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
+              totalBlockers += BLOCKER_PER_BOX;
+            } else {
+              regularMrb[pItem2.ci] += editor.mrbPerBox;
+            }
+          }
+        }
+      } else if (v.type === 'blocker') {
         regularMrb[v.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
         totalBlockers += BLOCKER_PER_BOX;
       } else {
@@ -632,6 +849,7 @@ function editorImportJSON() {
       if (nameEl) nameEl.value = editor.name;
       if (descEl) descEl.value = editor.desc;
       editor.selectedTunnel = -1;
+      editor.selectedCannonPrimary = -1;
       ta.style.display = 'none';
       editorBuildUI();
       editorShowToast('Imported!');

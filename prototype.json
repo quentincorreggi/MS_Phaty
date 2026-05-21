@@ -1,14 +1,14 @@
 {
   "name": "Cannonade",
-  "description": "Cannon blocks sit on top of hidden marble boxes. Tap any box next to a Cannon and it fires a replacement box into the empty slot — keeping the grid loaded while slowly shrinking. When the shared ammo runs dry, the Cannons crumble and reveal the marble boxes they were protecting.",
-  "howToPlay": "Tap the colored boxes on either side of the grey Cannon blocks. Each tap triggers a cannon fire — watch the muzzle flash and the new box pop into place. After enough fires the Cannons will crumble and reveal hidden boxes underneath. Keep tapping until every marble is sorted!",
+  "description": "Cannon blocks sit on top of marble boxes. Tap any box next to a Cannon and it fires a stored box into the empty slot — keeping the grid alive while slowly shrinking. When the shared ammo runs dry, the Cannons crumble and reveal the marble boxes underneath.",
+  "howToPlay": "Tap the coloured boxes on either side of the grey Cannon blocks. Each tap triggers a cannon fire — watch the muzzle flash and a new box pop into place. After enough fires the Cannons crumble and reveal normal boxes underneath. Keep tapping until every marble is sorted!",
   "showcaseLevel": {
     "name": "Cannonade Demo",
     "mrbPerBox": 3,
     "sortCap": 3,
     "grid": [
       null, null, null, null, null, null, null,
-      null, {"ci":0,"type":"default"}, {"ci":0,"type":"cannon"}, {"ci":0,"type":"cannon"}, {"ci":0,"type":"default"}, null, null,
+      null, {"ci":0,"type":"default"}, {"ci":0,"type":"cannon","cannonContents":[{"ci":0,"type":"default"},{"ci":0,"type":"default"},{"ci":0,"type":"default"},{"ci":0,"type":"default"},{"ci":0,"type":"default"},{"ci":0,"type":"default"}]}, {"ci":0,"type":"cannon"}, {"ci":0,"type":"default"}, null, null,
       null, null, null, null, null, null, null,
       null, null, null, null, null, null, null,
       null, null, null, null, null, null, null,

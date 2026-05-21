@@ -12,6 +12,10 @@
 
 var cannonGroups = {};
 
+function isCannonType(type) {
+  return type === 'cannon' || type === 'cannon_hidden' || type === 'cannon_ice' || type === 'cannon_blocker';
+}
+
 // ── Group computation — call from initGame after building stock ──
 
 function initCannonGroups() {
@@ -358,6 +362,21 @@ registerBoxType('cannon', {
   drawReveal: function () {},
   editorCellStyle: function () {
     return { background: 'linear-gradient(135deg,#5a6880,#2d3748)', borderColor: '#1a202c' };
+  },
+  editorCellHTML: _cannonEditorCellHTML
+});
+
+registerBoxType('cannon_hidden', {
+  label: 'Cannon/Hidden',
+  editorColor: '#4a4860',
+  drawClosed: function (ctx, x, y, w, h, ci, S, tick, idlePhase) {
+    var g = ctx.createLinearGradient(x, y, x + w, y + h);
+    g.addColorStop(0, '#5a5878'); g.addColorStop(1, '#2d2b48');
+    ctx.fillStyle = g; rRect(x, y, w, h, 6 * S); ctx.fill();
+  },
+  drawReveal: function () {},
+  editorCellStyle: function () {
+    return { background: 'linear-gradient(135deg,#5a5878,#2d2b48)', borderColor: '#FFD700' };
   },
   editorCellHTML: _cannonEditorCellHTML
 });
