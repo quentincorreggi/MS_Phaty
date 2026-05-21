@@ -45,6 +45,13 @@ var BLOCKER_CI = COLORS.length;
 COLORS.push({ fill: '#7A7068', light: '#A89E94', dark: '#4A4440', glow: 'rgba(122,112,104,0.5)' });
 var BLOCKER_PER_BOX = 3;
 
+// Puzzle Lock Chain colors
+var PUZZLE_COLORS = {
+  gold:   { fill: '#FFD700', light: '#FFE96A', dark: '#B8960C', glow: 'rgba(255,215,0,0.7)' },
+  purple: { fill: '#9B59D0', light: '#B87FE0', dark: '#6B3C9A', glow: 'rgba(155,89,208,0.7)' }
+};
+var puzzleChains = [];
+
 // Blocker tracking state
 var totalBlockerMarbles = 0;
 var blockersOnBelt = 0;

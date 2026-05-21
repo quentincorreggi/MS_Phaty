@@ -108,6 +108,8 @@ function initGame() {
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        chainColor: null, chainIdx: -1, chainUnlockT: 0,
+        puzzlePiece: null, puzzlePieceCollected: false, puzzlePiecePulseT: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
@@ -118,6 +120,8 @@ function initGame() {
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: false, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        chainColor: null, chainIdx: -1, chainUnlockT: 0,
+        puzzlePiece: null, puzzlePieceCollected: false, puzzlePiecePulseT: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
@@ -125,6 +129,8 @@ function initGame() {
       stock.push({ ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        chainColor: null, chainIdx: -1, chainUnlockT: 0,
+        puzzlePiece: null, puzzlePieceCollected: false, puzzlePiecePulseT: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
     } else {
@@ -136,9 +142,37 @@ function initGame() {
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        chainColor: null, chainIdx: -1, chainUnlockT: 0,
+        puzzlePiece: slot.puzzlePiece || null, puzzlePieceCollected: false, puzzlePiecePulseT: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
+    }
+  }
+
+  // ── Puzzle Lock Chains ──
+  puzzleChains = [];
+  if (lvl.puzzleChains) {
+    for (var pci = 0; pci < lvl.puzzleChains.length; pci++) {
+      var pcd = lvl.puzzleChains[pci];
+      var chain = {
+        color: pcd.color, cells: pcd.cells.slice(),
+        totalPieces: 0, collectedPieces: 0,
+        unlocked: false, unlockT: 0, pulseT: 0
+      };
+      for (var pcc = 0; pcc < pcd.cells.length; pcc++) {
+        var pcIdx = pcd.cells[pcc];
+        if (stock[pcIdx]) { stock[pcIdx].chainColor = pcd.color; stock[pcIdx].chainIdx = pci; }
+      }
+      puzzleChains.push(chain);
+    }
+  }
+  for (var psi = 0; psi < stock.length; psi++) {
+    var ps = stock[psi];
+    if (ps.puzzlePiece) {
+      for (var pci2 = 0; pci2 < puzzleChains.length; pci2++) {
+        if (puzzleChains[pci2].color === ps.puzzlePiece) { puzzleChains[pci2].totalPieces++; break; }
+      }
     }
   }
 
@@ -182,6 +216,7 @@ function updateBoxReveals(animate) {
     if (!s) { passable[i] = false; continue; }
     if (s.isWall) { passable[i] = false; continue; }
     if (s.isTunnel) { passable[i] = false; continue; }
+    if (s.chainColor) { passable[i] = false; continue; }
     passable[i] = !!(s.empty || s.used);
   }
 
@@ -221,6 +256,7 @@ function updateBoxReveals(animate) {
     var b = stock[k];
     if (!b) continue;
     if (b.isWall || b.isTunnel || b.empty || b.used) continue;
+    if (b.chainColor) continue;  // chain-covered boxes are never revealed
     if (b.spawning) continue;
 
     var br = Math.floor(k / L.cols), bcol = k % L.cols;
@@ -311,10 +347,36 @@ function damageAdjacentIce(idx) {
   }
 }
 
+function unlockPuzzleChain(chainIdx) {
+  var chain = puzzleChains[chainIdx];
+  chain.unlocked = true;
+  chain.unlockT = 1.0;
+  var pc = PUZZLE_COLORS[chain.color];
+  for (var ui = 0; ui < chain.cells.length; ui++) {
+    var uci = chain.cells[ui];
+    if (!stock[uci]) continue;
+    stock[uci].chainColor = null;
+    stock[uci].chainIdx = -1;
+    stock[uci].chainUnlockT = 1.0;
+    var ubx = stock[uci].x + L.bw / 2, uby = stock[uci].y + L.bh / 2;
+    for (var up = 0; up < 14; up++) {
+      var ua = Math.PI * 2 * up / 14 + Math.random() * 0.4;
+      var usp = 2 + Math.random() * 4;
+      particles.push({ x: ubx, y: uby,
+        vx: Math.cos(ua) * usp * S, vy: Math.sin(ua) * usp * S - 1 * S,
+        r: (2 + Math.random() * 4) * S, color: Math.random() > 0.4 ? pc.fill : pc.light,
+        life: 1, decay: 0.018 + Math.random() * 0.015, grav: true });
+    }
+  }
+  sfx.complete();
+  updateBoxReveals(true);
+}
+
 function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
-  if (b.isWall) return false;      // walls are not tappable
+  if (b.isWall) return false;
+  if (b.chainColor) return false;
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
@@ -339,6 +401,21 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      // Puzzle piece collection
+      if (b.puzzlePiece && !b.puzzlePieceCollected) {
+        b.puzzlePieceCollected = true;
+        b.puzzlePiecePulseT = 1.0;
+        for (var pci3 = 0; pci3 < puzzleChains.length; pci3++) {
+          if (puzzleChains[pci3].color === b.puzzlePiece && !puzzleChains[pci3].unlocked) {
+            puzzleChains[pci3].collectedPieces++;
+            puzzleChains[pci3].pulseT = 1.0;
+            if (puzzleChains[pci3].collectedPieces >= puzzleChains[pci3].totalPieces) {
+              unlockPuzzleChain(pci3);
+            }
+            break;
+          }
+        }
+      }
       return;
     }
   }
@@ -475,8 +552,17 @@ function update() {
     if (b.emptyT > 0) b.emptyT = Math.max(0, b.emptyT - 0.025);
     if (b.iceCrackT > 0) b.iceCrackT = Math.max(0, b.iceCrackT - 0.03);
     if (b.iceShatterT > 0) b.iceShatterT = Math.max(0, b.iceShatterT - 0.025);
+    if (b.puzzlePiecePulseT > 0) b.puzzlePiecePulseT = Math.max(0, b.puzzlePiecePulseT - 0.03);
+    if (b.chainUnlockT > 0) b.chainUnlockT = Math.max(0, b.chainUnlockT - 0.025);
     var th = (i === hoverIdx && !b.used && isBoxTappable(i)) ? 1 : 0;
     b.hoverT += (th - b.hoverT) * 0.12;
+  }
+
+  // Puzzle chain animations
+  for (var pani = 0; pani < puzzleChains.length; pani++) {
+    var pach = puzzleChains[pani];
+    if (pach.pulseT > 0) pach.pulseT = Math.max(0, pach.pulseT - 0.03);
+    if (pach.unlockT > 0) pach.unlockT = Math.max(0, pach.unlockT - 0.025);
   }
 
   // Phys marble spawn bounce
@@ -545,6 +631,7 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    drawPuzzleChains();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();

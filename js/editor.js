@@ -17,6 +17,12 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  chainMode: false,     // true when placing puzzle lock chains
+  activeChainColor: 'gold',
+  chainStart: -1,       // first-click cell index for chain placement
+  pieceMode: false,     // true when placing puzzle piece overlays
+  activePieceColor: 'gold',
+  puzzleChains: [],     // [{ color: 'gold'|'purple', cells: [4 indices] }]
   visible: false
 };
 
@@ -34,6 +40,12 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.chainMode = false;
+  editor.activeChainColor = 'gold';
+  editor.chainStart = -1;
+  editor.pieceMode = false;
+  editor.activePieceColor = 'gold';
+  editor.puzzleChains = [];
 }
 
 function showEditor(fresh) {
@@ -63,20 +75,30 @@ function editorBuildUI() {
 }
 
 // ── Grid ──
+function editorCellChain(i) {
+  for (var ci = 0; ci < editor.puzzleChains.length; ci++) {
+    if (editor.puzzleChains[ci].cells.indexOf(i) >= 0) return editor.puzzleChains[ci];
+  }
+  return null;
+}
+
 function editorRenderGrid() {
   var el = document.getElementById('ed-grid');
   el.innerHTML = '';
+  var CHAIN_FILL = { gold: '#FFD700', purple: '#9B59D0' };
+  var CHAIN_BORDER = { gold: '#B8960C', purple: '#6B3C9A' };
+  var PIECE_ICON = { gold: '\u2B22', purple: '\u2B22' };
+  var PIECE_COLOR = { gold: '#FFD700', purple: '#C080FF' };
+
   for (var i = 0; i < 49; i++) {
     var cell = document.createElement('div');
     cell.className = 'ed-cell';
     var v = editor.grid[i];
     if (v && v.wall) {
-      // Wall cell
       cell.style.background = 'linear-gradient(135deg,#9A8D7B,#6F6355)';
       cell.style.borderColor = '#8A7D6B';
       cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,255,255,0.5);font-size:14px">&#9632;</span>';
     } else if (v && v.tunnel) {
-      // Tunnel cell
       var isSelected = (editor.selectedTunnel === i);
       cell.style.background = 'linear-gradient(135deg,#3D3548,#252030)';
       cell.style.borderColor = isSelected ? '#FFD080' : '#6A6070';
@@ -95,6 +117,39 @@ function editorRenderGrid() {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
     }
+
+    // Chain overlay
+    var chainForCell = editorCellChain(i);
+    if (chainForCell) {
+      var cf = CHAIN_FILL[chainForCell.color];
+      var cb = CHAIN_BORDER[chainForCell.color];
+      var chainDiv = document.createElement('div');
+      chainDiv.style.cssText = 'position:absolute;inset:0;border-radius:4px;pointer-events:none;' +
+        'background:' + cf + ';opacity:0.72;border:2px solid ' + cb + ';z-index:2;' +
+        'display:flex;align-items:center;justify-content:center;';
+      chainDiv.innerHTML = '<span style="font-size:9px;color:rgba(0,0,0,0.5);font-weight:700;">\u26D3</span>';
+      cell.appendChild(chainDiv);
+    }
+
+    // Chain-start pending highlight
+    if (editor.chainMode && editor.chainStart === i) {
+      var pendDiv = document.createElement('div');
+      var pcf = CHAIN_FILL[editor.activeChainColor];
+      pendDiv.style.cssText = 'position:absolute;inset:0;border-radius:4px;pointer-events:none;' +
+        'box-shadow:0 0 0 3px ' + pcf + ';z-index:3;animation:chainPulse 0.8s ease-in-out infinite;';
+      cell.appendChild(pendDiv);
+    }
+
+    // Puzzle piece badge
+    if (v && v.ci >= 0 && v.puzzlePiece) {
+      var pieceBadge = document.createElement('span');
+      pieceBadge.style.cssText = 'position:absolute;top:1px;right:1px;font-size:8px;' +
+        'color:' + PIECE_COLOR[v.puzzlePiece] + ';z-index:4;pointer-events:none;' +
+        'text-shadow:0 1px 2px rgba(0,0,0,0.5);line-height:1;';
+      pieceBadge.textContent = '\u2B20';
+      cell.appendChild(pieceBadge);
+    }
+
     cell.setAttribute('data-idx', i);
     cell.addEventListener('click', editorCellClick);
     cell.addEventListener('contextmenu', editorCellErase);
@@ -104,6 +159,64 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.chainMode) {
+    if (editor.chainStart === -1) {
+      editor.chainStart = idx;
+    } else if (editor.chainStart === idx) {
+      editor.chainStart = -1;
+    } else {
+      var si = editor.chainStart, ei = idx;
+      var sr = Math.floor(si / 7), sc = si % 7;
+      var er = Math.floor(ei / 7), ec = ei % 7;
+      var cells = null;
+      if (sr === er) {
+        var minC = Math.min(sc, ec), maxC = Math.max(sc, ec);
+        if (maxC - minC > 3) { editorShowToast('Too far apart — max 3 cells away'); editor.chainStart = -1; editorRenderGrid(); return; }
+        if (minC + 3 > 6) minC = 3;
+        cells = [sr * 7 + minC, sr * 7 + minC + 1, sr * 7 + minC + 2, sr * 7 + minC + 3];
+      } else if (sc === ec) {
+        var minR = Math.min(sr, er), maxR = Math.max(sr, er);
+        if (maxR - minR > 3) { editorShowToast('Too far apart — max 3 cells away'); editor.chainStart = -1; editorRenderGrid(); return; }
+        if (minR + 3 > 6) minR = 3;
+        cells = [minR * 7 + sc, (minR + 1) * 7 + sc, (minR + 2) * 7 + sc, (minR + 3) * 7 + sc];
+      } else {
+        editorShowToast('Must be in same row or column');
+        editor.chainStart = -1; editorRenderGrid(); return;
+      }
+      // Check color limit (max 1 per color)
+      for (var cci = 0; cci < editor.puzzleChains.length; cci++) {
+        if (editor.puzzleChains[cci].color === editor.activeChainColor) {
+          editorShowToast('Only 1 ' + editor.activeChainColor + ' chain per level');
+          editor.chainStart = -1; editorRenderGrid(); return;
+        }
+      }
+      // Check overlap
+      for (var cci2 = 0; cci2 < editor.puzzleChains.length; cci2++) {
+        for (var ccj = 0; ccj < cells.length; ccj++) {
+          if (editor.puzzleChains[cci2].cells.indexOf(cells[ccj]) >= 0) {
+            editorShowToast('Overlaps existing chain'); editor.chainStart = -1; editorRenderGrid(); return;
+          }
+        }
+      }
+      editor.puzzleChains.push({ color: editor.activeChainColor, cells: cells });
+      editor.chainStart = -1;
+    }
+    editorRenderGrid(); editorUpdateStats(); return;
+  }
+
+  if (editor.pieceMode) {
+    var pv = editor.grid[idx];
+    if (!pv || pv.wall || pv.tunnel || pv.ci === undefined || pv.ci < 0) {
+      editorShowToast('Place a box on this cell first'); return;
+    }
+    if (pv.puzzlePiece === editor.activePieceColor) {
+      delete pv.puzzlePiece;
+    } else {
+      pv.puzzlePiece = editor.activePieceColor;
+    }
+    editorRenderGrid(); editorUpdateStats(); return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -157,7 +270,29 @@ function editorCellClick(e) {
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+  // In chain/piece mode, right-click removes chain or piece
+  if (editor.chainMode) {
+    for (var rci = 0; rci < editor.puzzleChains.length; rci++) {
+      if (editor.puzzleChains[rci].cells.indexOf(idx) >= 0) {
+        editor.puzzleChains.splice(rci, 1);
+        editor.chainStart = -1;
+        editorRenderGrid(); editorUpdateStats(); return;
+      }
+    }
+    return;
+  }
+  if (editor.pieceMode) {
+    var rpv = editor.grid[idx];
+    if (rpv && rpv.puzzlePiece) { delete rpv.puzzlePiece; editorRenderGrid(); editorUpdateStats(); }
+    return;
+  }
   editor.grid[idx] = null;
+  // Also remove puzzle pieces that referenced this cell
+  for (var rpi = 0; rpi < editor.puzzleChains.length; rpi++) {
+    if (editor.puzzleChains[rpi].cells.indexOf(idx) >= 0) {
+      editor.puzzleChains.splice(rpi, 1); rpi--;
+    }
+  }
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
   editorRenderGrid();
   editorUpdateStats();
@@ -178,15 +313,14 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.chainMode && !editor.pieceMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
-      editor.tunnelMode = false;
-      editor.wallMode = false;
-      editorRenderToolbar();
-      editorRenderTunnelPanel();
+      editor.tunnelMode = false; editor.wallMode = false;
+      editor.chainMode = false; editor.pieceMode = false; editor.chainStart = -1;
+      editorRenderToolbar(); editorRenderTunnelPanel();
     });
     typeRow.appendChild(tb);
   }
@@ -198,10 +332,9 @@ function editorRenderToolbar() {
   wallBtn.style.borderColor = editor.wallMode ? 'rgba(138,125,107,0.6)' : '';
   wallBtn.style.color = editor.wallMode ? '#6F6355' : '';
   wallBtn.addEventListener('click', function () {
-    editor.wallMode = true;
-    editor.tunnelMode = false;
-    editorRenderToolbar();
-    editorRenderTunnelPanel();
+    editor.wallMode = true; editor.tunnelMode = false;
+    editor.chainMode = false; editor.pieceMode = false; editor.chainStart = -1;
+    editorRenderToolbar(); editorRenderTunnelPanel();
   });
   typeRow.appendChild(wallBtn);
 
@@ -212,12 +345,60 @@ function editorRenderToolbar() {
   tunnelBtn.style.borderColor = editor.tunnelMode ? 'rgba(255,190,80,0.6)' : '';
   tunnelBtn.style.color = editor.tunnelMode ? '#E8A84C' : '';
   tunnelBtn.addEventListener('click', function () {
-    editor.tunnelMode = true;
-    editor.wallMode = false;
-    editorRenderToolbar();
-    editorRenderTunnelPanel();
+    editor.tunnelMode = true; editor.wallMode = false;
+    editor.chainMode = false; editor.pieceMode = false; editor.chainStart = -1;
+    editorRenderToolbar(); editorRenderTunnelPanel();
   });
   typeRow.appendChild(tunnelBtn);
+
+  // Chain mode buttons (gold / purple)
+  var chainColors = ['gold', 'purple'];
+  var chainLabels = ['\u26D3 Gold Chain', '\u26D3 Purple Chain'];
+  var chainFills = ['rgba(255,215,0,0.18)', 'rgba(155,89,208,0.18)'];
+  var chainBorders = ['rgba(184,150,12,0.6)', 'rgba(107,60,154,0.6)'];
+  var chainTextC = ['#B8960C', '#6B3C9A'];
+  for (var ci2 = 0; ci2 < chainColors.length; ci2++) {
+    (function(color, label, fill, border, textColor) {
+      var isActive = editor.chainMode && editor.activeChainColor === color;
+      var cb2 = document.createElement('button');
+      cb2.className = 'ed-type-btn' + (isActive ? ' active' : '');
+      cb2.textContent = label;
+      cb2.style.background = isActive ? fill : '';
+      cb2.style.borderColor = isActive ? border : '';
+      cb2.style.color = isActive ? textColor : '';
+      cb2.addEventListener('click', function () {
+        editor.chainMode = true; editor.activeChainColor = color;
+        editor.tunnelMode = false; editor.wallMode = false;
+        editor.pieceMode = false; editor.chainStart = -1;
+        editorRenderToolbar(); editorRenderTunnelPanel();
+      });
+      typeRow.appendChild(cb2);
+    })(chainColors[ci2], chainLabels[ci2], chainFills[ci2], chainBorders[ci2], chainTextC[ci2]);
+  }
+
+  // Piece mode buttons (gold / purple)
+  var pieceLabels = ['\u25C6 Gold Piece', '\u25C6 Purple Piece'];
+  var pieceFills = ['rgba(255,215,0,0.18)', 'rgba(155,89,208,0.18)'];
+  var pieceBorders = ['rgba(184,150,12,0.6)', 'rgba(107,60,154,0.6)'];
+  var pieceTextC = ['#B8960C', '#6B3C9A'];
+  for (var pi2 = 0; pi2 < chainColors.length; pi2++) {
+    (function(color, label, fill, border, textColor) {
+      var isActive = editor.pieceMode && editor.activePieceColor === color;
+      var pb2 = document.createElement('button');
+      pb2.className = 'ed-type-btn' + (isActive ? ' active' : '');
+      pb2.textContent = label;
+      pb2.style.background = isActive ? fill : '';
+      pb2.style.borderColor = isActive ? border : '';
+      pb2.style.color = isActive ? textColor : '';
+      pb2.addEventListener('click', function () {
+        editor.pieceMode = true; editor.activePieceColor = color;
+        editor.chainMode = false; editor.tunnelMode = false;
+        editor.wallMode = false; editor.chainStart = -1;
+        editorRenderToolbar(); editorRenderTunnelPanel();
+      });
+      typeRow.appendChild(pb2);
+    })(chainColors[pi2], pieceLabels[pi2], pieceFills[pi2], pieceBorders[pi2], pieceTextC[pi2]);
+  }
 
   el.appendChild(typeRow);
 
@@ -255,11 +436,38 @@ function editorRenderToolbar() {
     }
     el.appendChild(dirRow);
   } else if (editor.wallMode) {
-    // Wall mode: just show info hint
     var wallInfo = document.createElement('div');
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
+  } else if (editor.chainMode) {
+    var chainInfo = document.createElement('div');
+    chainInfo.className = 'ed-color-row';
+    var chainHint = editor.chainStart === -1
+      ? 'Click 1st cell, then a cell in same row/col (within 3)'
+      : 'Now click the 2nd cell to complete the chain (right-click to cancel)';
+    var cic = editor.activeChainColor === 'gold' ? '#B8960C' : '#6B3C9A';
+    chainInfo.innerHTML = '<span style="font-size:10px;color:' + cic + '">' + chainHint + '</span>';
+    el.appendChild(chainInfo);
+    if (editor.puzzleChains.length > 0) {
+      var chainList = document.createElement('div');
+      chainList.className = 'ed-color-row';
+      var chtml = '';
+      for (var clci = 0; clci < editor.puzzleChains.length; clci++) {
+        var clc = editor.puzzleChains[clci];
+        var clColor = clc.color === 'gold' ? '#FFD700' : '#9B59D0';
+        chtml += '<span style="font-size:9px;color:' + clColor + ';border:1px solid ' + clColor + ';border-radius:4px;padding:1px 5px;">' +
+          clc.color + ' chain (' + clc.cells.length + ' cells)</span>';
+      }
+      chainList.innerHTML = chtml;
+      el.appendChild(chainList);
+    }
+  } else if (editor.pieceMode) {
+    var pieceInfo = document.createElement('div');
+    pieceInfo.className = 'ed-color-row';
+    var pic = editor.activePieceColor === 'gold' ? '#B8960C' : '#6B3C9A';
+    pieceInfo.innerHTML = '<span style="font-size:10px;color:' + pic + '">Click a box cell to toggle a puzzle piece on it</span>';
+    el.appendChild(pieceInfo);
   } else {
     // Color palette: eraser + 8 colors
     var colorRow = document.createElement('div');
@@ -567,7 +775,8 @@ function editorBuildLevel() {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
-    grid: editor.grid.slice()
+    grid: editor.grid.slice(),
+    puzzleChains: editor.puzzleChains.map(function (c) { return { color: c.color, cells: c.cells.slice() }; })
   };
 }
 
@@ -627,6 +836,7 @@ function editorImportJSON() {
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
+      editor.puzzleChains = (lvl.puzzleChains || []).map(function (c) { return { color: c.color, cells: c.cells.slice() }; });
       var nameEl = document.getElementById('ed-name');
       var descEl = document.getElementById('ed-desc');
       if (nameEl) nameEl.value = editor.name;

@@ -254,6 +254,17 @@ function drawStock() {
       ctx.restore();
     }
 
+    // Puzzle piece icon (shown when revealed, not yet collected)
+    if (b.puzzlePiece && !b.puzzlePieceCollected && b.revealed) {
+      var ppc = PUZZLE_COLORS[b.puzzlePiece];
+      var pieceS = 1;
+      if (b.puzzlePiecePulseT > 0) pieceS = 1 + Math.sin(b.puzzlePiecePulseT * Math.PI * 5) * 0.18;
+      ctx.save();
+      ctx.scale(pieceS, pieceS);
+      drawPuzzlePieceIcon(0, 0, L.bw * 0.48, ppc);
+      ctx.restore();
+    }
+
     ctx.restore();
   }
 }
@@ -466,4 +477,131 @@ function drawBackButton() {
 
 function drawDebugWalls() {
   // invisible — physics walls for marble collisions
+}
+
+// ── Puzzle Lock Chains ──
+
+function drawPuzzlePieceIcon(cx, cy, size, pc) {
+  var s = size * 0.44;
+  var bump = size * 0.19;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.beginPath();
+  ctx.moveTo(-s, -s);
+  ctx.lineTo(-bump, -s);
+  ctx.arc(0, -s, bump, Math.PI, 0, true);   // top tab (outward)
+  ctx.lineTo(s, -s);
+  ctx.lineTo(s, -bump);
+  ctx.arc(s, 0, bump, -Math.PI / 2, Math.PI / 2, false);  // right tab (outward)
+  ctx.lineTo(s, s);
+  ctx.lineTo(bump, s);
+  ctx.arc(0, s, bump, 0, Math.PI, true);    // bottom blank (inward)
+  ctx.lineTo(-s, s);
+  ctx.lineTo(-s, bump);
+  ctx.arc(-s, 0, bump, Math.PI / 2, -Math.PI / 2, true);  // left blank (inward)
+  ctx.lineTo(-s, -s);
+  ctx.closePath();
+  ctx.shadowColor = 'rgba(0,0,0,0.4)';
+  ctx.shadowBlur = 5 * S;
+  ctx.fillStyle = pc.fill;
+  ctx.fill();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+  ctx.save();
+  ctx.globalAlpha = 0.45;
+  ctx.fillStyle = pc.light;
+  ctx.beginPath();
+  ctx.arc(-s * 0.28, -s * 0.28, s * 0.22, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = pc.dark;
+  ctx.lineWidth = 1.5 * S;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawChainCounter(cx, cy, chain, pc) {
+  var remaining = chain.totalPieces - chain.collectedPieces;
+  var bw = Math.min(L.bw, L.bh) * 0.54;
+  var bh = bw * 0.7;
+  var pulse = chain.pulseT > 0 ? 1 + Math.sin(chain.pulseT * Math.PI * 5) * 0.13 : 1;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(pulse, pulse);
+  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = 5 * S;
+  ctx.fillStyle = '#1A0E05';
+  rRect(-bw / 2, -bh / 2, bw, bh, 4 * S); ctx.fill();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+  ctx.strokeStyle = pc.light; ctx.lineWidth = 2 * S;
+  rRect(-bw / 2, -bh / 2, bw, bh, 4 * S); ctx.stroke();
+  ctx.fillStyle = pc.light;
+  ctx.font = 'bold ' + (bh * 0.68) + 'px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(remaining, 0, 0);
+  ctx.restore();
+}
+
+function drawPuzzleChains() {
+  if (!puzzleChains || puzzleChains.length === 0) return;
+  for (var ci = 0; ci < puzzleChains.length; ci++) {
+    var chain = puzzleChains[ci];
+    if (chain.unlocked) continue;
+    var pc = PUZZLE_COLORS[chain.color];
+    var cells = chain.cells;
+    if (!cells || cells.length < 2) continue;
+    var sorted = cells.slice().sort(function (a, b) { return a - b; });
+    var r0 = Math.floor(sorted[0] / L.cols), c0 = sorted[0] % L.cols;
+    var rN = Math.floor(sorted[sorted.length - 1] / L.cols);
+    var cN = sorted[sorted.length - 1] % L.cols;
+    var isH = (r0 === rN);
+    var sx = L.sx + Math.min(c0, cN) * (L.bw + L.bg);
+    var sy = L.sy + Math.min(r0, rN) * (L.bh + L.bg);
+    var ex = L.sx + Math.max(c0, cN) * (L.bw + L.bg) + L.bw;
+    var ey = L.sy + Math.max(r0, rN) * (L.bh + L.bg) + L.bh;
+    ctx.save();
+    if (isH) {
+      var bh2 = L.bh * 0.5;
+      var by2 = sy + (L.bh - bh2) / 2;
+      var bw2 = ex - sx;
+      var grad = ctx.createLinearGradient(sx, by2, sx, by2 + bh2);
+      grad.addColorStop(0, pc.light); grad.addColorStop(0.5, pc.fill); grad.addColorStop(1, pc.dark);
+      ctx.fillStyle = grad;
+      ctx.shadowColor = pc.glow; ctx.shadowBlur = 10 * S;
+      rRect(sx, by2, bw2, bh2, 5 * S); ctx.fill();
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+      ctx.save();
+      ctx.beginPath(); rRect(sx, by2, bw2, bh2, 5 * S); ctx.clip();
+      ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = 1.5 * S;
+      var lw = (L.bw + L.bg) * 0.52;
+      for (var lx = sx + lw * 0.25; lx < ex; lx += lw) {
+        ctx.beginPath(); ctx.ellipse(lx, by2 + bh2 * 0.5, lw * 0.36, bh2 * 0.3, 0, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.restore();
+      ctx.strokeStyle = pc.dark; ctx.lineWidth = 2 * S;
+      rRect(sx, by2, bw2, bh2, 5 * S); ctx.stroke();
+      drawChainCounter((sx + ex) / 2, by2 + bh2 / 2, chain, pc);
+    } else {
+      var bw3 = L.bw * 0.5;
+      var bx3 = sx + (L.bw - bw3) / 2;
+      var bh3 = ey - sy;
+      var grad2 = ctx.createLinearGradient(bx3, sy, bx3 + bw3, sy);
+      grad2.addColorStop(0, pc.light); grad2.addColorStop(0.5, pc.fill); grad2.addColorStop(1, pc.dark);
+      ctx.fillStyle = grad2;
+      ctx.shadowColor = pc.glow; ctx.shadowBlur = 10 * S;
+      rRect(bx3, sy, bw3, bh3, 5 * S); ctx.fill();
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+      ctx.save();
+      ctx.beginPath(); rRect(bx3, sy, bw3, bh3, 5 * S); ctx.clip();
+      ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = 1.5 * S;
+      var lh = (L.bh + L.bg) * 0.52;
+      for (var ly = sy + lh * 0.25; ly < ey; ly += lh) {
+        ctx.beginPath(); ctx.ellipse(bx3 + bw3 * 0.5, ly, bw3 * 0.3, lh * 0.36, 0, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.restore();
+      ctx.strokeStyle = pc.dark; ctx.lineWidth = 2 * S;
+      rRect(bx3, sy, bw3, bh3, 5 * S); ctx.stroke();
+      drawChainCounter(bx3 + bw3 / 2, (sy + ey) / 2, chain, pc);
+    }
+    ctx.restore();
+  }
 }
