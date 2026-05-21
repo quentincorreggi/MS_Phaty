@@ -255,7 +255,7 @@ function drawStock() {
     }
 
     // Puzzle piece icon (shown when revealed, not yet collected)
-    if (b.puzzlePiece && !b.puzzlePieceCollected && b.revealed) {
+    if (b.puzzlePiece && !b.puzzlePieceCollected) {
       var ppc = PUZZLE_COLORS[b.puzzlePiece];
       var pieceS = 1;
       if (b.puzzlePiecePulseT > 0) pieceS = 1 + Math.sin(b.puzzlePiecePulseT * Math.PI * 5) * 0.18;
