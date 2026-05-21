@@ -213,6 +213,17 @@ function drawStock() {
       var idleWobble = Math.sin(tick * 0.02 + b.idlePhase) * 0.006;
       ctx.rotate(idleWobble);
       bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase);
+    } else if (b.boxType === 'flame') {
+      // Flame box has no color and no marbles — just the orange body
+      // with an animated flame icon waiting to be tapped.
+      var flameType = getBoxType('flame');
+      if (isBoxTappable(i) && b.hoverT > 0.01) {
+        ctx.shadowColor = 'rgba(255,127,80,0.7)';
+        ctx.shadowBlur = 22 * S * b.hoverT;
+      }
+      flameType.drawFlameBody(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, tick, false);
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+      flameType.drawFlameIcon(ctx, 0, 0, L.bh * 0.34, S, tick, 1);
     } else {
       var c = COLORS[b.ci];
       if (isBoxTappable(i) && b.hoverT > 0.01) { ctx.shadowColor = c.glow; ctx.shadowBlur = 20 * S * b.hoverT; }
@@ -229,9 +240,14 @@ function drawStock() {
         }
         ctx.restore();
       }
+      if (b.boxType === 'freeze' && b.frozenCount > 0) {
+        drawFreezeFrost(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, tick, 0.65);
+      }
       if (b.remaining > 0) {
         if (b.boxType === 'blocker' && b.blockerCount > 0) {
           drawBoxMarblesWithBlockers(b.ci, b.remaining, b.blockerCount);
+        } else if (b.boxType === 'freeze' && b.frozenCount > 0) {
+          drawBoxMarblesWithFrozen(b.ci, b.remaining, b.frozenCount);
         } else {
           drawBoxMarbles(b.ci, b.remaining);
         }
@@ -265,6 +281,7 @@ function drawPhysMarbles() {
     var m = physMarbles[i];
     var bounce = m.spawnT > 0 ? (1 + Math.sin(m.spawnT * Math.PI) * 0.4) : 1;
     drawMarble(m.x, m.y, m.r, m.ci, bounce);
+    if (m.frozen) drawFrozenMarbleOverlay(m.x, m.y, m.r, bounce, tick);
   }
 }
 
@@ -295,6 +312,9 @@ function drawBelt() {
         ctx.restore();
       }
       drawMarble(pos.x, pos.y, slotR * 0.8 * cal.marble.s, slot.marble, bs);
+      if (slot.frozen) {
+        drawFrozenMarbleOverlay(pos.x, pos.y, slotR * 0.8 * cal.marble.s, bs, tick);
+      }
     }
   }
 }

@@ -32,6 +32,7 @@ function initGame() {
   won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
+  globalFlameFired = false; flameSweepT = 0;
   document.getElementById('win-screen').classList.remove('show');
   computeLayout(); initBeltSlots();
 
@@ -67,6 +68,7 @@ function initGame() {
   for (var c = 0; c < NUM_COLORS; c++) colorMarblesTotal.push(0);
   for (var k in boxSlots) {
     var bs = boxSlots[k];
+    if (bs.boxType === 'flame') continue;
     var isBlockerBox = (bs.boxType === 'blocker');
     var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
     colorMarblesTotal[bs.ci] += regularPerBox;
@@ -77,6 +79,7 @@ function initGame() {
     var ts = tunnelSlots[k];
     for (var tc = 0; tc < ts.contents.length; tc++) {
       var tItem = ts.contents[tc];
+      if (tItem.type === 'flame') continue;
       var isBlockerBox = (tItem.type === 'blocker');
       var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
       colorMarblesTotal[tItem.ci] += regularPerBox;
@@ -107,7 +110,7 @@ function initGame() {
         tunnelCooldown: 60,
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: false, boxType: 'default',
-        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0, frozenCount: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
@@ -117,25 +120,30 @@ function initGame() {
         isWall: true, isTunnel: false,
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: false, empty: false, boxType: 'default',
-        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0, frozenCount: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
     } else if (!slot) {
       stock.push({ ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
-        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0, frozenCount: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
-      stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
+      var isFreeze = (slot.boxType === 'freeze');
+      var isFlame = (slot.boxType === 'flame');
+      stock.push({ ci: slot.ci, used: false,
+        remaining: isFlame ? 0 : MRB_PER_BOX,
+        spawning: false, spawnIdx: 0,
         revealed: isIce ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        frozenCount: isFreeze ? FROZEN_PER_BOX : 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
@@ -334,6 +342,14 @@ function handleTap(px, py) {
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
+      if (b.boxType === 'flame') {
+        sfx.pop();
+        triggerFlamethrower(b);
+        damageAdjacentIce(i);
+        // Path opens once the flame box is consumed
+        setTimeout(function () { updateBoxReveals(true); }, 300);
+        return;
+      }
       b.popT = 1;
       sfx.pop();
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
@@ -377,6 +393,7 @@ function update() {
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
     var slot = beltSlots[si]; if (slot.marble < 0) continue;
+    if (slot.frozen) continue;  // frozen marbles cannot jump off the belt
     var slotT = getSlotT(si);
     for (var c = 0; c < 4; c++) {
       var col = sortCols[c]; var tv = -1;
@@ -514,6 +531,7 @@ function update() {
     if (box.type === 'lock' && box.triggerT > 0) box.triggerT = Math.max(0, box.triggerT - 0.03);
   }
 
+  tickFlame();
   tickParticles();
   updateRollingSound();
 }
@@ -551,6 +569,7 @@ function frame() {
     drawJumpers();
     drawSortArea();
     drawBackButton();
+    drawFlameSweep();
     drawParticles();
     drawDebugWalls();
   }

@@ -470,6 +470,8 @@ function editorUpdateStats() {
           if (tItem.type === 'blocker') {
             regularMrb[tItem.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
             totalBlockers += BLOCKER_PER_BOX;
+          } else if (tItem.type === 'flame') {
+            // flame boxes carry no marbles
           } else {
             regularMrb[tItem.ci] += editor.mrbPerBox;
           }
@@ -484,6 +486,8 @@ function editorUpdateStats() {
       if (v.type === 'blocker') {
         regularMrb[v.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
         totalBlockers += BLOCKER_PER_BOX;
+      } else if (v.type === 'flame') {
+        // flame boxes carry no marbles
       } else {
         regularMrb[v.ci] += editor.mrbPerBox;
       }

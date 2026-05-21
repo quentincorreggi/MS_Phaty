@@ -27,6 +27,13 @@ var sfx = {
   win: function () { [523, 659, 784, 1047, 1319, 1568].forEach(function (f, i) { setTimeout(function () { tone(f, 0.25, 'sine', 0.12); }, i * 100); }); }
 };
 
+// High glassy "tink" used when a freezing marble locks into its belt slot
+function sfxFreezeTink() {
+  if (!audioCtx) return;
+  tone(2100, 0.09, 'sine', 0.05, 3200);
+  setTimeout(function () { tone(2600, 0.07, 'sine', 0.035, 3500); }, 30);
+}
+
 function spawnMarbleClick(intensity) {
   if (!audioCtx) return;
   var t = audioCtx.currentTime;

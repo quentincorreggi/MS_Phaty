@@ -1,0 +1,22 @@
+{
+  "name": "Freezing Marbles",
+  "description": "Some boxes contain freezing marbles that stick to the conveyor. Use the Flamethrower box to thaw them.",
+  "howToPlay": "Tap the freeze boxes (snowflake icon) — the bottom 3 marbles in each will freeze in their belt slot and refuse to leave. Tap the orange Flamethrower box to thaw every frozen marble at once so they can sort normally and you can win.",
+  "author": "",
+  "showcaseLevel": {
+    "name": "Freeze & Thaw",
+    "desc": "Frozen marbles need flame to escape the belt",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null, null, null, { "ci": 0, "type": "flame" }, null, null, null,
+      null, null, null, { "ci": 4, "type": "default" }, null, null, null,
+      null, null, null, null, null, null, null,
+      null, { "ci": 0, "type": "freeze" }, null, null, null, { "ci": 3, "type": "freeze" }, null,
+      null, null, null, null, null, null, null,
+      null, null, null, { "ci": 1, "type": "freeze" }, null, null, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}

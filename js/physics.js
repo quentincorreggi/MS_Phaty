@@ -86,8 +86,15 @@ function physicsStep() {
       if (bestIdx >= 0 && bestDist < 0.08) {
         beltSlots[bestIdx].marble = m.ci;
         beltSlots[bestIdx].arriveAnim = 0.6;
-        sfx.drop();
-        spawnBurst(m.x, m.y, COLORS[m.ci].fill, 6);
+        beltSlots[bestIdx].frozen = !!m.frozen;
+        if (m.frozen) {
+          // Tinkle + frost burst when freezing into place
+          spawnBurst(m.x, m.y, 'rgba(220,240,255,0.95)', 8);
+          if (typeof sfxFreezeTink === 'function') sfxFreezeTink();
+        } else {
+          sfx.drop();
+          spawnBurst(m.x, m.y, COLORS[m.ci].fill, 6);
+        }
         physMarbles.splice(i, 1);
       }
     }
@@ -99,8 +106,10 @@ function spawnPhysMarbles(box) {
   var count = box.remaining;
   var blockerCount = box.blockerCount || 0;
   var blockerStart = MRB_PER_BOX - blockerCount;
+  var frozenCount = (globalFlameFired ? 0 : (box.frozenCount || 0));
+  var frozenStart = MRB_PER_BOX - frozenCount;
   for (var idx = 0; idx < count; idx++) {
-    (function (i, b, bStart) {
+    (function (i, b, bStart, fStart) {
       setTimeout(function () {
         if (b.remaining <= 0) return;
         var spawnIdx = MRB_PER_BOX - b.remaining;
@@ -115,9 +124,10 @@ function spawnPhysMarbles(box) {
         var vx = (Math.random() - 0.5) * 2 * S;
         var vy = -(2 + Math.random() * 2) * S;
         var marbleCi = (blockerCount > 0 && spawnIdx >= bStart) ? BLOCKER_CI : b.ci;
-        physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR, spawnT: 1.0 });
+        var isFrozen = (!globalFlameFired) && frozenCount > 0 && spawnIdx >= fStart && marbleCi === b.ci;
+        physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR, spawnT: 1.0, frozen: isFrozen });
         sfx.drop();
-        spawnBurst(mx, my, COLORS[marbleCi].fill, 4);
+        spawnBurst(mx, my, isFrozen ? 'rgba(220,240,255,0.9)' : COLORS[marbleCi].fill, 4);
         if (b.remaining <= 0) {
           b.emptyT = 1.0;
           setTimeout(function () {
@@ -129,6 +139,6 @@ function spawnPhysMarbles(box) {
           }, 300);
         }
       }, i * 120);
-    })(idx, box, blockerStart);
+    })(idx, box, blockerStart, frozenStart);
   }
 }
