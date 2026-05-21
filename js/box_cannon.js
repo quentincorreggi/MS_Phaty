@@ -294,28 +294,38 @@ function drawCannonOnGrid(ctx, b, stockIdx, L, S, tick) {
     }
   }
 
-  // ── Count badge ──
-  var remaining = group.contents.length;
-  var badgeR = Math.min(bw, bh) * 0.18;
-  var badgeX = bw / 2 - badgeR * 0.65;
-  var badgeY = -bh / 2 + badgeR * 0.65;
+  // ── Count badge — shown only on the top-right cell of the whole Cannonade ──
+  var badgeCellIdx = group.cells[0];
+  var bcRow = Math.floor(badgeCellIdx / L.cols), bcCol = badgeCellIdx % L.cols;
+  for (var gc = 1; gc < group.cells.length; gc++) {
+    var gcR = Math.floor(group.cells[gc] / L.cols), gcC = group.cells[gc] % L.cols;
+    if (gcC > bcCol || (gcC === bcCol && gcR < bcRow)) {
+      badgeCellIdx = group.cells[gc]; bcRow = gcR; bcCol = gcC;
+    }
+  }
 
-  if (remaining > 0) {
-    ctx.shadowColor = 'rgba(200,120,0,0.4)'; ctx.shadowBlur = 4 * S;
-    ctx.fillStyle = 'rgba(255,185,60,0.95)';
-    ctx.beginPath(); ctx.arc(badgeX, badgeY, badgeR, 0, Math.PI * 2); ctx.fill();
-    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(200,140,30,0.7)'; ctx.lineWidth = 1 * S;
-    ctx.beginPath(); ctx.arc(badgeX, badgeY, badgeR, 0, Math.PI * 2); ctx.stroke();
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold ' + (badgeR * 1.3) + 'px sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(remaining, badgeX, badgeY + 0.5 * S);
-  } else {
-    ctx.globalAlpha = 0.35;
-    ctx.fillStyle = 'rgba(100,90,80,0.5)';
-    ctx.beginPath(); ctx.arc(badgeX, badgeY, badgeR * 0.75, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 1;
+  if (stockIdx === badgeCellIdx) {
+    var remaining = group.contents.length;
+    var badgeR = Math.min(bw, bh) * 0.18;
+    var badgeX = bw / 2 - badgeR * 0.65;
+    var badgeY = -bh / 2 + badgeR * 0.65;
+    if (remaining > 0) {
+      ctx.shadowColor = 'rgba(200,120,0,0.4)'; ctx.shadowBlur = 4 * S;
+      ctx.fillStyle = 'rgba(255,185,60,0.95)';
+      ctx.beginPath(); ctx.arc(badgeX, badgeY, badgeR, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+      ctx.strokeStyle = 'rgba(200,140,30,0.7)'; ctx.lineWidth = 1 * S;
+      ctx.beginPath(); ctx.arc(badgeX, badgeY, badgeR, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold ' + (badgeR * 1.3) + 'px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(remaining, badgeX, badgeY + 0.5 * S);
+    } else {
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = 'rgba(100,90,80,0.5)';
+      ctx.beginPath(); ctx.arc(badgeX, badgeY, badgeR * 0.75, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
   }
 
   // ── Muzzle flash ──
