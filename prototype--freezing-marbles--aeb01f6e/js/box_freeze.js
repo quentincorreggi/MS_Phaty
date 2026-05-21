@@ -151,30 +151,85 @@ function drawBoxMarblesWithFrozen(ci, remaining, frozenCount) {
   }
 }
 
-// ── Ice overlay drawn on top of any marble to show it is frozen ──
+// ── Ice-brick overlay drawn on top of any marble to show it is frozen ──
+// Renders a bold hexagonal ice-crystal shell with sharp faceted faces.
 // Used for marbles inside freeze boxes, in flight, and stuck on the belt.
 function drawFrozenMarbleOverlay(x, y, r, scale, tick) {
   scale = scale || 1;
   tick = tick || 0;
   var rs = r * scale;
+  var pulse = 0.88 + Math.sin(tick * 0.07) * 0.12;
   ctx.save();
-  // Pale ice shell
-  var pulse = 0.55 + Math.sin(tick * 0.08) * 0.08;
-  var grad = ctx.createRadialGradient(x - rs * 0.3, y - rs * 0.3, rs * 0.1, x, y, rs * 1.15);
-  grad.addColorStop(0, 'rgba(230,245,255,' + (0.35 * pulse) + ')');
-  grad.addColorStop(0.6, 'rgba(180,225,255,' + (0.55 * pulse) + ')');
-  grad.addColorStop(1, 'rgba(140,200,240,' + (0.35 * pulse) + ')');
-  ctx.fillStyle = grad;
-  ctx.beginPath(); ctx.arc(x, y, rs * 1.15, 0, Math.PI * 2); ctx.fill();
 
-  // Bright icy rim
-  ctx.strokeStyle = 'rgba(220,240,255,' + (0.75 * pulse) + ')';
-  ctx.lineWidth = 1.4 * S;
-  ctx.beginPath(); ctx.arc(x, y, rs * 1.1, 0, Math.PI * 2); ctx.stroke();
+  // ── Build hexagon points slightly larger than the marble ──
+  var hex = rs * 1.52;
+  var pts = [];
+  for (var k = 0; k < 6; k++) {
+    var a = k * Math.PI / 3 - Math.PI / 6;  // flat-top orientation
+    pts.push({ x: x + Math.cos(a) * hex, y: y + Math.sin(a) * hex });
+  }
+  function hexPath() {
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (var i = 1; i < 6; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.closePath();
+  }
 
-  // Tiny snowflake glints
-  ctx.fillStyle = 'rgba(255,255,255,' + (0.7 * pulse) + ')';
-  ctx.beginPath(); ctx.arc(x - rs * 0.55, y - rs * 0.15, rs * 0.18, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(x + rs * 0.45, y + rs * 0.35, rs * 0.12, 0, Math.PI * 2); ctx.fill();
+  // ── Flat fill — solid icy body ──
+  var bodyGrad = ctx.createLinearGradient(x - hex, y - hex, x + hex * 0.5, y + hex);
+  bodyGrad.addColorStop(0,   'rgba(215,240,255,0.88)');
+  bodyGrad.addColorStop(0.45,'rgba(170,220,250,0.82)');
+  bodyGrad.addColorStop(1,   'rgba(120,185,235,0.78)');
+  ctx.fillStyle = bodyGrad;
+  hexPath(); ctx.fill();
+
+  // ── Shade each face individually for a faceted-ice look ──
+  // Top-left faces: bright; bottom-right faces: darker blue
+  var faceColors = [
+    'rgba(240,252,255,0.50)',  // top-right
+    'rgba(200,238,255,0.35)',  // right
+    'rgba(100,170,220,0.45)',  // bottom-right
+    'rgba(80,155,210,0.50)',   // bottom-left
+    'rgba(160,215,248,0.30)',  // left
+    'rgba(230,248,255,0.42)'   // top-left
+  ];
+  for (var f = 0; f < 6; f++) {
+    var p0 = pts[f], p1 = pts[(f + 1) % 6];
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(p0.x, p0.y);
+    ctx.lineTo(p1.x, p1.y);
+    ctx.closePath();
+    ctx.fillStyle = faceColors[f];
+    ctx.fill();
+  }
+
+  // ── Sharp outer edge ──
+  ctx.strokeStyle = 'rgba(180,228,255,' + (pulse * 0.95) + ')';
+  ctx.lineWidth = 1.8 * S;
+  ctx.lineJoin = 'miter';
+  hexPath(); ctx.stroke();
+
+  // ── Bright highlight line across top-left edge ──
+  ctx.strokeStyle = 'rgba(255,255,255,' + (pulse * 0.90) + ')';
+  ctx.lineWidth = 1.6 * S;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(pts[5].x, pts[5].y);
+  ctx.lineTo(pts[0].x, pts[0].y);
+  ctx.lineTo(pts[1].x, pts[1].y);
+  ctx.stroke();
+
+  // ── Thin inner separation ring (dark) to separate marble from ice ──
+  ctx.strokeStyle = 'rgba(60,120,180,0.55)';
+  ctx.lineWidth = 1.0 * S;
+  ctx.beginPath(); ctx.arc(x, y, rs * 1.07, 0, Math.PI * 2); ctx.stroke();
+
+  // ── Two bright glint dots (ice highlights) ──
+  ctx.fillStyle = 'rgba(255,255,255,' + (pulse * 0.92) + ')';
+  ctx.beginPath(); ctx.arc(x - rs * 0.6, y - rs * 0.5, rs * 0.20, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(220,245,255,' + (pulse * 0.70) + ')';
+  ctx.beginPath(); ctx.arc(x + rs * 0.5, y + rs * 0.4, rs * 0.13, 0, Math.PI * 2); ctx.fill();
+
   ctx.restore();
 }
