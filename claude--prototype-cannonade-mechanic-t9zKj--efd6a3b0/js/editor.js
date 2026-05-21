@@ -109,7 +109,7 @@ function editorRenderGrid() {
   el.innerHTML = '';
 
   // Pre-compute cannon group info for badges and selection highlight
-  var cannonPoolCounts = {};
+  var cannonBadgeCells = {};   // only the badge cell of each group -> pool count
   var cannonGroupPrimaryMap = {};
   var cannonGroupVisited2 = {};
   for (var k = 0; k < 49; k++) {
@@ -117,10 +117,19 @@ function editorRenderGrid() {
     var grp2 = editorGetCannonGroup(k);
     var prim2 = grp2[0];
     var poolCnt2 = (editor.grid[prim2] && editor.grid[prim2].cannonContents) ? editor.grid[prim2].cannonContents.length : 0;
-    for (var gi2 = 0; gi2 < grp2.length; gi2++) {
-      cannonPoolCounts[grp2[gi2]] = poolCnt2;
-      cannonGroupPrimaryMap[grp2[gi2]] = prim2;
-      cannonGroupVisited2[grp2[gi2]] = true;
+    // Find top-right cell of this group
+    var bdgCell = grp2[0];
+    var bdgRow = Math.floor(bdgCell / 7), bdgCol = bdgCell % 7;
+    for (var gi2 = 1; gi2 < grp2.length; gi2++) {
+      var gcR2 = Math.floor(grp2[gi2] / 7), gcC2 = grp2[gi2] % 7;
+      if (gcC2 > bdgCol || (gcC2 === bdgCol && gcR2 < bdgRow)) {
+        bdgCell = grp2[gi2]; bdgRow = gcR2; bdgCol = gcC2;
+      }
+    }
+    cannonBadgeCells[bdgCell] = poolCnt2;
+    for (var gi2b = 0; gi2b < grp2.length; gi2b++) {
+      cannonGroupPrimaryMap[grp2[gi2b]] = prim2;
+      cannonGroupVisited2[grp2[gi2b]] = true;
     }
   }
 
@@ -150,8 +159,9 @@ function editorRenderGrid() {
       cell.style.borderColor = st.borderColor;
       cell.innerHTML = bt.editorCellHTML(v.ci);
       if (typeof isCannonType === 'function' && isCannonType(v.type)) {
-        var poolCnt3 = cannonPoolCounts[i] || 0;
-        cell.innerHTML += '<span class="ed-tunnel-badge">' + poolCnt3 + '</span>';
+        if (cannonBadgeCells.hasOwnProperty(i)) {
+          cell.innerHTML += '<span class="ed-tunnel-badge">' + cannonBadgeCells[i] + '</span>';
+        }
         if (editor.selectedCannonPrimary >= 0 && cannonGroupPrimaryMap[i] === editor.selectedCannonPrimary) {
           cell.style.borderColor = '#FFD080';
           cell.style.boxShadow = '0 0 0 2px rgba(255,208,128,0.5)';
