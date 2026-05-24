@@ -90,7 +90,8 @@ function editorRenderGrid() {
         '<span class="ed-tunnel-badge" style="background:' + cpair.dark + '">' + cLabel + '</span>';
     } else if (v && v.buttonBox) {
       var bpair = CONTAINER_PAIR_COLORS[v.containerId || 0];
-      cell.style.background = 'linear-gradient(135deg,#3A3040,#1E1828)';
+      var bMarbleColor = COLORS[v.ci !== undefined ? v.ci : 0].fill;
+      cell.style.background = 'linear-gradient(135deg,' + bMarbleColor + ',#1E1828)';
       cell.style.borderColor = bpair.fill;
       cell.innerHTML = '<span class="ed-cell-dot" style="color:' + bpair.fill + ';font-size:13px">●</span>' +
         '<span class="ed-tunnel-badge" style="background:' + bpair.fill + '">' + bpair.name[0] + '</span>';
@@ -145,10 +146,11 @@ function editorCellClick(e) {
     if (isEraser) {
       editor.grid[idx] = null;
     } else if (editor.containerSubMode === 'button') {
-      if (existing && existing.buttonBox && existing.containerId === editor.containerPairId) {
+      var bci = editor.activeColor >= 0 ? editor.activeColor : 0;
+      if (existing && existing.buttonBox && existing.containerId === editor.containerPairId && existing.ci === bci) {
         editor.grid[idx] = null; // toggle off
       } else {
-        editor.grid[idx] = { buttonBox: true, containerId: editor.containerPairId };
+        editor.grid[idx] = { buttonBox: true, containerId: editor.containerPairId, ci: bci };
       }
     } else {
       if (existing && existing.containerCell && existing.containerId === editor.containerPairId &&
@@ -402,10 +404,24 @@ function editorRenderToolbar() {
       }
       el.appendChild(cRow2);
     } else {
-      var cHint = document.createElement('div');
-      cHint.className = 'ed-color-row';
-      cHint.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click a cell to place a Button Box</span>';
-      el.appendChild(cHint);
+      // Color palette for button box marble color
+      var cRow2b = document.createElement('div');
+      cRow2b.className = 'ed-color-row';
+      cRow2b.innerHTML = '<span style="font-size:10px;color:#9C8A70;margin-right:4px">Marbles:</span>';
+      for (var ci = 0; ci < NUM_COLORS; ci++) {
+        var cb3 = document.createElement('button');
+        cb3.className = 'ed-tool' + (editor.activeColor === ci ? ' active' : '');
+        cb3.style.background = COLORS[ci].fill;
+        cb3.innerHTML = CLR_NAMES[ci][0].toUpperCase();
+        cb3.title = CLR_NAMES[ci];
+        cb3.setAttribute('data-ci', ci);
+        cb3.addEventListener('click', function () {
+          editor.activeColor = parseInt(this.getAttribute('data-ci'));
+          editorRenderToolbar();
+        });
+        cRow2b.appendChild(cb3);
+      }
+      el.appendChild(cRow2b);
     }
   } else {
     // Color palette: eraser + 8 colors
@@ -626,6 +642,10 @@ function editorUpdateStats() {
     }
     if (v.buttonBox) {
       buttonBoxCount++;
+      var bci = v.ci !== undefined ? v.ci : 0;
+      counts[bci]++;
+      total++;
+      regularMrb[bci] += editor.mrbPerBox;
       continue;
     }
     if (v.tunnel) {

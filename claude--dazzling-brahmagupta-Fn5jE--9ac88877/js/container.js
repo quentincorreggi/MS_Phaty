@@ -67,56 +67,35 @@ function drawContainerCellOnGrid(ctx, b, bw, bh, S, tick) {
   ctx.restore();
 }
 
-function drawButtonBoxOnGrid(ctx, b, bw, bh, S, tick) {
-  var pair = CONTAINER_PAIR_COLORS[b.containerId] || CONTAINER_PAIR_COLORS[0];
-  var x = b.x, y = b.y;
-  var cx = x + bw / 2, cy = y + bh / 2;
-
-  ctx.save();
-
-  if (b.buttonUsed) {
-    ctx.globalAlpha = 0.35;
-    ctx.fillStyle = '#2A2030';
-    rRect(x, y, bw, bh, 8 * S);
-    ctx.fill();
-    ctx.globalAlpha = 0.2;
-    ctx.strokeStyle = pair.fill;
-    ctx.lineWidth = 1.5 * S;
-    rRect(x, y, bw, bh, 8 * S);
-    ctx.stroke();
-    ctx.restore();
-    return;
-  }
-
-  var pressDown = (b.buttonPressT > 0) ? Math.sin(b.buttonPressT * Math.PI) * 0.07 : 0;
-  ctx.translate(cx, cy);
-  ctx.scale(1 - pressDown, 1 - pressDown);
-  ctx.translate(-cx, -cy);
+// Closed/unrevealed state — center-relative coordinates (called inside ctx.translate to center)
+function drawButtonBoxClosedState(ctx, x, y, w, h, S, tick, containerId) {
+  var pair = CONTAINER_PAIR_COLORS[containerId] || CONTAINER_PAIR_COLORS[0];
+  var cx = x + w / 2, cy = y + h / 2;
 
   // Dark background
-  var bgGrad = ctx.createLinearGradient(x, y, x, y + bh);
+  var bgGrad = ctx.createLinearGradient(x, y, x, y + h);
   bgGrad.addColorStop(0, '#3A3040');
   bgGrad.addColorStop(1, '#1E1828');
   ctx.fillStyle = bgGrad;
-  rRect(x, y, bw, bh, 8 * S);
+  rRect(x, y, w, h, 8 * S);
   ctx.fill();
 
+  // Colored border
   ctx.strokeStyle = pair.fill;
   ctx.lineWidth = 1.5 * S;
-  rRect(x, y, bw, bh, 8 * S);
+  rRect(x, y, w, h, 8 * S);
   ctx.stroke();
 
+  // Pulsing button circle
   var pulse = 1 + Math.sin(tick * 0.07) * 0.035;
-  var r = Math.min(bw, bh) * 0.3 * pulse;
+  var r = Math.min(w, h) * 0.3 * pulse;
 
-  // Outer glow ring
   ctx.beginPath();
   ctx.arc(cx, cy, r + 5 * S, 0, Math.PI * 2);
   ctx.strokeStyle = pair.glow;
   ctx.lineWidth = 2.5 * S;
   ctx.stroke();
 
-  // Button fill
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   var btnGrad = ctx.createRadialGradient(cx - r * 0.25, cy - r * 0.25, r * 0.05, cx, cy, r);
@@ -126,20 +105,35 @@ function drawButtonBoxOnGrid(ctx, b, bw, bh, S, tick) {
   ctx.fillStyle = btnGrad;
   ctx.fill();
 
-  // Highlight
   ctx.beginPath();
   ctx.arc(cx - r * 0.22, cy - r * 0.28, r * 0.32, 0, Math.PI * 2);
   ctx.fillStyle = 'rgba(255,255,255,0.22)';
   ctx.fill();
 
-  // Pair letter badge bottom-right
+  // Pair letter badge
   ctx.font = 'bold ' + Math.round(9 * S) + 'px sans-serif';
   ctx.fillStyle = pair.light;
   ctx.textAlign = 'right';
   ctx.textBaseline = 'bottom';
-  ctx.fillText(pair.name[0], x + bw - 4 * S, y + bh - 3 * S);
+  ctx.fillText(pair.name[0], x + w - 4 * S, y + h - 3 * S);
+}
 
-  ctx.restore();
+// Small badge drawn on the revealed/open box to identify it as the container button
+function drawButtonBoxBadge(ctx, x, y, w, h, S, tick, containerId) {
+  var pair = CONTAINER_PAIR_COLORS[containerId] || CONTAINER_PAIR_COLORS[0];
+  var bx = x + w - 7 * S, by = y + 7 * S;
+  var r = 5 * S * (1 + Math.sin(tick * 0.1) * 0.15);
+
+  ctx.beginPath();
+  ctx.arc(bx, by, r + 2 * S, 0, Math.PI * 2);
+  ctx.strokeStyle = pair.glow;
+  ctx.lineWidth = 2 * S;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(bx, by, r, 0, Math.PI * 2);
+  ctx.fillStyle = pair.fill;
+  ctx.fill();
 }
 
 // Trigger unlock — called from handleTap

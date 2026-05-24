@@ -183,11 +183,6 @@ function drawStock() {
       continue;
     }
 
-    // ── Button box ──
-    if (b.isButtonBox) {
-      drawButtonBoxOnGrid(ctx, b, L.bw, L.bh, S, tick);
-      continue;
-    }
 
     var ox = 0;
     if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
@@ -224,7 +219,11 @@ function drawStock() {
     } else if (!b.revealed) {
       var idleWobble = Math.sin(tick * 0.02 + b.idlePhase) * 0.006;
       ctx.rotate(idleWobble);
-      bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase);
+      if (b.isButtonBox) {
+        drawButtonBoxClosedState(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, tick, b.containerId);
+      } else {
+        bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase);
+      }
     } else {
       var c = COLORS[b.ci];
       if (isBoxTappable(i) && b.hoverT > 0.01) { ctx.shadowColor = c.glow; ctx.shadowBlur = 20 * S * b.hoverT; }
@@ -264,6 +263,11 @@ function drawStock() {
       ctx.fillStyle = 'rgba(200,235,255,1)';
       rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.fill();
       ctx.restore();
+    }
+
+    // Button box badge on the revealed/open box
+    if (b.isButtonBox && b.revealed && !b.used) {
+      drawButtonBoxBadge(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, tick, b.containerId);
     }
 
     ctx.restore();
