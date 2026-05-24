@@ -177,6 +177,18 @@ function drawStock() {
       continue;
     }
 
+    // ── Container cell ──
+    if (b.isContainerCell) {
+      drawContainerCellOnGrid(ctx, b, L.bw, L.bh, S, tick);
+      continue;
+    }
+
+    // ── Button box ──
+    if (b.isButtonBox) {
+      drawButtonBoxOnGrid(ctx, b, L.bw, L.bh, S, tick);
+      continue;
+    }
+
     var ox = 0;
     if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
     var breathe = 0;

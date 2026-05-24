@@ -17,6 +17,9 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  containerMode: false, // true when placing container cells / button boxes
+  containerPairId: 0,   // 0=gold, 1=purple
+  containerSubMode: 'cell', // 'cell' or 'button'
   visible: false
 };
 
@@ -34,6 +37,9 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.containerMode = false;
+  editor.containerPairId = 0;
+  editor.containerSubMode = 'cell';
 }
 
 function showEditor(fresh) {
@@ -75,6 +81,19 @@ function editorRenderGrid() {
       cell.style.background = 'linear-gradient(135deg,#9A8D7B,#6F6355)';
       cell.style.borderColor = '#8A7D6B';
       cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,255,255,0.5);font-size:14px">&#9632;</span>';
+    } else if (v && v.containerCell) {
+      var cpair = CONTAINER_PAIR_COLORS[v.containerId || 0];
+      cell.style.background = 'linear-gradient(135deg,' + cpair.light + ',' + cpair.fill + ')';
+      cell.style.borderColor = cpair.dark;
+      var cLabel = v.contents ? (CLR_NAMES[v.contents.ci] || '')[0].toUpperCase() : '?';
+      cell.innerHTML = '<span class="ed-cell-dot" style="font-size:13px">🔒</span>' +
+        '<span class="ed-tunnel-badge" style="background:' + cpair.dark + '">' + cLabel + '</span>';
+    } else if (v && v.buttonBox) {
+      var bpair = CONTAINER_PAIR_COLORS[v.containerId || 0];
+      cell.style.background = 'linear-gradient(135deg,#3A3040,#1E1828)';
+      cell.style.borderColor = bpair.fill;
+      cell.innerHTML = '<span class="ed-cell-dot" style="color:' + bpair.fill + ';font-size:13px">●</span>' +
+        '<span class="ed-tunnel-badge" style="background:' + bpair.fill + '">' + bpair.name[0] + '</span>';
     } else if (v && v.tunnel) {
       // Tunnel cell
       var isSelected = (editor.selectedTunnel === i);
@@ -109,11 +128,36 @@ function editorCellClick(e) {
     // Wall placement mode
     var existing = editor.grid[idx];
     if (existing && existing.wall) {
-      // Toggle off: clicking existing wall removes it
       editor.grid[idx] = null;
     } else {
-      // Place wall
       editor.grid[idx] = { wall: true };
+    }
+    if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderTunnelPanel();
+    return;
+  }
+
+  if (editor.containerMode) {
+    var existing = editor.grid[idx];
+    var isEraser = (editor.activeColor === -1);
+    if (isEraser) {
+      editor.grid[idx] = null;
+    } else if (editor.containerSubMode === 'button') {
+      if (existing && existing.buttonBox && existing.containerId === editor.containerPairId) {
+        editor.grid[idx] = null; // toggle off
+      } else {
+        editor.grid[idx] = { buttonBox: true, containerId: editor.containerPairId };
+      }
+    } else {
+      if (existing && existing.containerCell && existing.containerId === editor.containerPairId &&
+          existing.contents && existing.contents.ci === editor.activeColor && existing.contents.type === editor.activeType) {
+        editor.grid[idx] = null; // toggle off
+      } else {
+        editor.grid[idx] = { containerCell: true, containerId: editor.containerPairId,
+          contents: { ci: editor.activeColor, type: editor.activeType } };
+      }
     }
     if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     editorRenderGrid();
@@ -185,6 +229,7 @@ function editorRenderToolbar() {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.containerMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -200,6 +245,7 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.containerMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -214,10 +260,28 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.containerMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(tunnelBtn);
+
+  // Container mode button
+  var containerBtn = document.createElement('button');
+  containerBtn.className = 'ed-type-btn' + (editor.containerMode ? ' active' : '');
+  containerBtn.textContent = '\uD83D\uDD11 Container';
+  var activePair = CONTAINER_PAIR_COLORS[editor.containerPairId];
+  containerBtn.style.borderColor = editor.containerMode ? activePair.fill : '';
+  containerBtn.style.color = editor.containerMode ? activePair.fill : '';
+  containerBtn.addEventListener('click', function () {
+    editor.containerMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editor.activeColor = 0;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(containerBtn);
 
   el.appendChild(typeRow);
 
@@ -260,6 +324,89 @@ function editorRenderToolbar() {
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
+  } else if (editor.containerMode) {
+    // Container mode: pair selector + cell/button toggle + color picker (for cell contents)
+    var cRow1 = document.createElement('div');
+    cRow1.className = 'ed-color-row';
+
+    // Eraser
+    var cEraser = document.createElement('button');
+    cEraser.className = 'ed-tool' + (editor.activeColor === -1 ? ' active' : '');
+    cEraser.style.background = 'rgba(180,165,145,0.5)';
+    cEraser.innerHTML = '✖';
+    cEraser.title = 'Eraser';
+    cEraser.addEventListener('click', function () { editor.activeColor = -1; editorRenderToolbar(); });
+    cRow1.appendChild(cEraser);
+
+    // Pair color buttons
+    for (var pi = 0; pi < CONTAINER_PAIR_COLORS.length; pi++) {
+      var cp = CONTAINER_PAIR_COLORS[pi];
+      var pb = document.createElement('button');
+      pb.className = 'ed-tool' + (editor.containerPairId === pi && editor.activeColor !== -1 ? ' active' : '');
+      pb.style.background = 'linear-gradient(135deg,' + cp.light + ',' + cp.fill + ')';
+      pb.style.color = cp.dark;
+      pb.style.fontSize = '10px';
+      pb.style.fontWeight = 'bold';
+      pb.textContent = cp.name;
+      pb.setAttribute('data-pairid', pi);
+      pb.addEventListener('click', function () {
+        editor.containerPairId = parseInt(this.getAttribute('data-pairid'));
+        if (editor.activeColor === -1) editor.activeColor = 0;
+        editorRenderToolbar();
+      });
+      cRow1.appendChild(pb);
+    }
+
+    // Cell / Button toggle
+    var subCell = document.createElement('button');
+    subCell.className = 'ed-tool' + (editor.containerSubMode === 'cell' && editor.activeColor !== -1 ? ' active' : '');
+    subCell.textContent = '🔒 Cell';
+    subCell.style.fontSize = '10px';
+    subCell.addEventListener('click', function () {
+      editor.containerSubMode = 'cell';
+      if (editor.activeColor === -1) editor.activeColor = 0;
+      editorRenderToolbar();
+    });
+    cRow1.appendChild(subCell);
+
+    var subBtn = document.createElement('button');
+    subBtn.className = 'ed-tool' + (editor.containerSubMode === 'button' && editor.activeColor !== -1 ? ' active' : '');
+    subBtn.textContent = '● Button';
+    subBtn.style.fontSize = '10px';
+    subBtn.addEventListener('click', function () {
+      editor.containerSubMode = 'button';
+      if (editor.activeColor === -1) editor.activeColor = 0;
+      editorRenderToolbar();
+    });
+    cRow1.appendChild(subBtn);
+
+    el.appendChild(cRow1);
+
+    // Color palette for cell contents (only shown when in cell sub-mode)
+    if (editor.containerSubMode === 'cell') {
+      var cRow2 = document.createElement('div');
+      cRow2.className = 'ed-color-row';
+      cRow2.innerHTML = '<span style="font-size:10px;color:#9C8A70;margin-right:4px">Contents:</span>';
+      for (var ci = 0; ci < NUM_COLORS; ci++) {
+        var cb2 = document.createElement('button');
+        cb2.className = 'ed-tool' + (editor.activeColor === ci ? ' active' : '');
+        cb2.style.background = COLORS[ci].fill;
+        cb2.innerHTML = CLR_NAMES[ci][0].toUpperCase();
+        cb2.title = CLR_NAMES[ci];
+        cb2.setAttribute('data-ci', ci);
+        cb2.addEventListener('click', function () {
+          editor.activeColor = parseInt(this.getAttribute('data-ci'));
+          editorRenderToolbar();
+        });
+        cRow2.appendChild(cb2);
+      }
+      el.appendChild(cRow2);
+    } else {
+      var cHint = document.createElement('div');
+      cHint.className = 'ed-color-row';
+      cHint.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click a cell to place a Button Box</span>';
+      el.appendChild(cHint);
+    }
   } else {
     // Color palette: eraser + 8 colors
     var colorRow = document.createElement('div');
@@ -453,11 +600,32 @@ function editorUpdateStats() {
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
   var wallCount = 0;
+  var containerCellCount = 0, buttonBoxCount = 0;
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
     if (v.wall) {
       wallCount++;
+      continue;
+    }
+    if (v.containerCell) {
+      containerCellCount++;
+      var cc = v.contents;
+      if (cc && cc.ci >= 0) {
+        counts[cc.ci]++;
+        total++;
+        typeCounts[cc.type || 'default'] = (typeCounts[cc.type || 'default'] || 0) + 1;
+        if (cc.type === 'blocker') {
+          regularMrb[cc.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
+          totalBlockers += BLOCKER_PER_BOX;
+        } else {
+          regularMrb[cc.ci] += editor.mrbPerBox;
+        }
+      }
+      continue;
+    }
+    if (v.buttonBox) {
+      buttonBoxCount++;
       continue;
     }
     if (v.tunnel) {
@@ -499,6 +667,12 @@ function editorUpdateStats() {
   }
   if (wallCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#8A7D6B">' + wallCount + ' wall' + (wallCount > 1 ? 's' : '') + '</span>';
+  }
+  if (containerCellCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#F5A623;color:#3A2000">' + containerCellCount + ' container cell' + (containerCellCount > 1 ? 's' : '') + '</span>';
+  }
+  if (buttonBoxCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#3A3040;border:1px solid #9B59B6">' + buttonBoxCount + ' button' + (buttonBoxCount > 1 ? 's' : '') + '</span>';
   }
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';

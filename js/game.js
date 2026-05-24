@@ -42,6 +42,8 @@ function initGame() {
   var boxSlots = {};
   var tunnelSlots = {};
   var wallSlots = {};
+  var containerCellSlots = {};
+  var buttonBoxSlots = {};
   if (lvl.grid) {
     for (var i = 0; i < Math.min(lvl.grid.length, totalSlots); i++) {
       var cell = lvl.grid[i];
@@ -52,6 +54,10 @@ function initGame() {
       }
       if (cell.tunnel) {
         tunnelSlots[i] = { dir: cell.dir || 'bottom', contents: cell.contents ? cell.contents.slice() : [] };
+      } else if (cell.containerCell) {
+        containerCellSlots[i] = { containerId: cell.containerId || 0, contents: cell.contents || null };
+      } else if (cell.buttonBox) {
+        buttonBoxSlots[i] = { containerId: cell.containerId || 0 };
       } else if (typeof cell === 'number') {
         if (cell >= 0) boxSlots[i] = { ci: cell, boxType: 'default' };
       } else if (typeof cell === 'object' && cell.ci >= 0) {
@@ -71,6 +77,16 @@ function initGame() {
     var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
     colorMarblesTotal[bs.ci] += regularPerBox;
     if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
+  }
+  // Count marbles from container cell contents
+  for (var k in containerCellSlots) {
+    var cc = containerCellSlots[k];
+    if (cc.contents && cc.contents.ci >= 0) {
+      var isBlockerBox = (cc.contents.type === 'blocker');
+      var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
+      colorMarblesTotal[cc.contents.ci] += regularPerBox;
+      if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
+    }
   }
   // Count marbles from tunnel contents
   for (var k in tunnelSlots) {
@@ -95,6 +111,8 @@ function initGame() {
     var slot = boxSlots[idx];
     var tSlot = tunnelSlots[idx];
     var wSlot = wallSlots[idx];
+    var ccSlot = containerCellSlots[idx];
+    var bbSlot = buttonBoxSlots[idx];
 
     if (tSlot) {
       // Tunnel entry
@@ -121,9 +139,35 @@ function initGame() {
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
+    } else if (ccSlot) {
+      // Container cell — covers a hidden box until Button Box is tapped
+      stock.push({
+        isContainerCell: true, isButtonBox: false, isWall: false, isTunnel: false,
+        containerId: ccSlot.containerId,
+        containerContents: ccSlot.contents || { ci: 0, type: 'default' },
+        containerUnlockT: 0,
+        ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
+        revealed: false, empty: false, boxType: 'default',
+        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
+      });
+    } else if (bbSlot) {
+      // Button Box — tap to unlock paired container
+      stock.push({
+        isButtonBox: true, isContainerCell: false, isWall: false, isTunnel: false,
+        containerId: bbSlot.containerId,
+        buttonUsed: false, buttonPressT: 0,
+        ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
+        revealed: true, empty: false, boxType: 'default',
+        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
+      });
     } else if (!slot) {
       stock.push({ ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
+        isContainerCell: false, isButtonBox: false,
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
@@ -182,6 +226,8 @@ function updateBoxReveals(animate) {
     if (!s) { passable[i] = false; continue; }
     if (s.isWall) { passable[i] = false; continue; }
     if (s.isTunnel) { passable[i] = false; continue; }
+    if (s.isContainerCell) { passable[i] = false; continue; }
+    if (s.isButtonBox) { passable[i] = s.buttonUsed; continue; }
     passable[i] = !!(s.empty || s.used);
   }
 
@@ -220,7 +266,7 @@ function updateBoxReveals(animate) {
   for (var k = 0; k < total; k++) {
     var b = stock[k];
     if (!b) continue;
-    if (b.isWall || b.isTunnel || b.empty || b.used) continue;
+    if (b.isWall || b.isTunnel || b.isContainerCell || b.isButtonBox || b.empty || b.used) continue;
     if (b.spawning) continue;
 
     var br = Math.floor(k / L.cols), bcol = k % L.cols;
@@ -328,9 +374,22 @@ function handleTap(px, py) {
   if (won || !gameActive) return;
   ensureAudio();
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
+  // Button box tap — checked before normal box loop
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
+    if (!b.isButtonBox || b.buttonUsed) continue;
+    if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
+      b.buttonUsed = true;
+      b.buttonPressT = 1.0;
+      sfx.pop();
+      unlockContainerPair(b.containerId);
+      updateBoxReveals(true);
+      return;
+    }
+  }
+  for (var i = 0; i < stock.length; i++) {
+    var b = stock[i];
+    if (b.isTunnel || b.isWall || b.isContainerCell || b.isButtonBox) continue;
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
@@ -350,9 +409,17 @@ canvas.addEventListener('mousemove', function (e) {
   hoverIdx = -1;
   if (!gameActive) return;
   if (e.clientX >= L.bkX && e.clientX <= L.bkX + L.bkSize && e.clientY >= L.bkY && e.clientY <= L.bkY + L.bkSize) { canvas.style.cursor = 'pointer'; return; }
+  // Check button boxes for pointer cursor
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;
+    if (!b.isButtonBox || b.buttonUsed) continue;
+    if (e.clientX >= b.x && e.clientX <= b.x + L.bw && e.clientY >= b.y && e.clientY <= b.y + L.bh) {
+      canvas.style.cursor = 'pointer'; return;
+    }
+  }
+  for (var i = 0; i < stock.length; i++) {
+    var b = stock[i];
+    if (b.isTunnel || b.isWall || b.isContainerCell || b.isButtonBox) continue;
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (!isBoxTappable(i)) continue;
     if (e.clientX >= b.x && e.clientX <= b.x + L.bw && e.clientY >= b.y && e.clientY <= b.y + L.bh) { hoverIdx = i; break; }
@@ -467,7 +534,32 @@ function update() {
   // Stock animations
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;  // tunnels and walls don't need stock animations
+    if (b.isTunnel || b.isWall) continue;
+    if (b.isContainerCell) {
+      if (b.containerUnlockT > 0) {
+        b.containerUnlockT = Math.max(0, b.containerUnlockT - 0.04);
+        if (b.containerUnlockT === 0) {
+          // Transform into the stored box
+          var contents = b.containerContents || { ci: 0, type: 'default' };
+          b.isContainerCell = false;
+          b.ci = contents.ci;
+          b.boxType = contents.type || 'default';
+          b.remaining = MRB_PER_BOX;
+          b.iceHP = (b.boxType === 'ice') ? 2 : 0;
+          b.blockerCount = (b.boxType === 'blocker') ? BLOCKER_PER_BOX : 0;
+          b.empty = false;
+          b.used = false;
+          b.revealed = false;
+          b.idlePhase = Math.random() * Math.PI * 2;
+          updateBoxReveals(true);
+        }
+      }
+      continue;
+    }
+    if (b.isButtonBox) {
+      if (b.buttonPressT > 0) b.buttonPressT = Math.max(0, b.buttonPressT - 0.05);
+      continue;
+    }
     if (b.empty) continue;
     if (b.shakeT > 0) b.shakeT = Math.max(0, b.shakeT - 0.04);
     if (b.popT > 0) b.popT = Math.max(0, b.popT - 0.025);
