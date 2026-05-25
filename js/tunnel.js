@@ -148,9 +148,10 @@ function getTunnelExitIdx(tunnelIdx) {
 function isTileAvailableForTunnel(idx) {
   if (idx < 0 || idx >= stock.length) return false;
   var s = stock[idx];
-  // Must be an empty slot or a fully-used box (not a tunnel, not an active box, not a wall)
+  // Must be an empty slot or a fully-used box (not a tunnel, not an active box, not a wall, not a door)
   if (s.isTunnel) return false;
   if (s.isWall) return false;  // walls block tunnel spawning
+  if (s.isDoor || s.isDoorPart) return false;  // doors block tunnel spawning regardless of state
   return s.empty || s.used;
 }
 

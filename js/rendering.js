@@ -177,6 +177,18 @@ function drawStock() {
       continue;
     }
 
+    // ── Door (parent) ──
+    if (b.isDoor) {
+      var doorW = b.doorWide ? L.bw * 2 + L.bg : L.bw;
+      drawDoorOnGrid(ctx, b.x, b.y, doorW, L.bh, S, b);
+      continue;
+    }
+
+    // ── Door part (right half of a wide door — drawn by parent) ──
+    if (b.isDoorPart) {
+      continue;
+    }
+
     var ox = 0;
     if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
     var breathe = 0;

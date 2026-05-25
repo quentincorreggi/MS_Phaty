@@ -32,22 +32,37 @@ function initGame() {
   won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
+  if (typeof resetDoorTurnCounter === 'function') resetDoorTurnCounter();
   document.getElementById('win-screen').classList.remove('show');
   computeLayout(); initBeltSlots();
 
   var totalSlots = L.rows * L.cols;
   var lvl = LEVELS[currentLevel];
 
-  // ── Build boxSlots, tunnelSlots, wallSlots from grid or legacy random ──
+  // ── Build boxSlots, tunnelSlots, wallSlots, doorSlots, doorPartSlots from grid ──
   var boxSlots = {};
   var tunnelSlots = {};
   var wallSlots = {};
+  var doorSlots = {};
+  var doorPartSlots = {};
   if (lvl.grid) {
     for (var i = 0; i < Math.min(lvl.grid.length, totalSlots); i++) {
       var cell = lvl.grid[i];
       if (cell === null || cell === undefined) continue;
       if (cell.wall) {
         wallSlots[i] = true;
+        continue;
+      }
+      if (cell.door) {
+        doorSlots[i] = {
+          period: Math.max(1, cell.period || 2),
+          initialClosed: cell.initialClosed !== false,
+          wide: !!cell.wide
+        };
+        continue;
+      }
+      if (cell.doorPart) {
+        doorPartSlots[i] = true;
         continue;
       }
       if (cell.tunnel) {
@@ -95,8 +110,39 @@ function initGame() {
     var slot = boxSlots[idx];
     var tSlot = tunnelSlots[idx];
     var wSlot = wallSlots[idx];
+    var dSlot = doorSlots[idx];
+    var dpSlot = doorPartSlots[idx];
 
-    if (tSlot) {
+    if (dSlot) {
+      // Turn-based door (1x1 or 2x1)
+      stock.push({
+        isDoor: true, isDoorPart: false,
+        isWall: false, isTunnel: false,
+        doorPeriod: dSlot.period,
+        doorTurnsLeft: dSlot.period,
+        doorClosed: dSlot.initialClosed,
+        doorWide: dSlot.wide,
+        doorAnimT: 0,
+        doorOpenLocked: false,
+        ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
+        revealed: false, empty: false, boxType: 'default',
+        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
+      });
+    } else if (dpSlot) {
+      // Right half of a 2x1 door — references the parent on its left
+      stock.push({
+        isDoor: false, isDoorPart: true,
+        doorPartParentIdx: idx - 1,
+        isWall: false, isTunnel: false,
+        ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
+        revealed: false, empty: false, boxType: 'default',
+        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
+      });
+    } else if (tSlot) {
       // Tunnel entry
       stock.push({
         isTunnel: true, isWall: false,
@@ -145,6 +191,9 @@ function initGame() {
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
 
+  // ── Door start-of-level softlock guard ──
+  if (typeof checkInitialDoorSoftlock === 'function') checkInitialDoorSoftlock();
+
   // ── Sort columns ──
   var allBoxes = [];
   for (var c = 0; c < NUM_COLORS; c++) for (var r = 0; r < sortPerColor[c]; r++)
@@ -182,6 +231,12 @@ function updateBoxReveals(animate) {
     if (!s) { passable[i] = false; continue; }
     if (s.isWall) { passable[i] = false; continue; }
     if (s.isTunnel) { passable[i] = false; continue; }
+    if (s.isDoor) { passable[i] = !s.doorClosed; continue; }
+    if (s.isDoorPart) {
+      var pParent = stock[s.doorPartParentIdx];
+      passable[i] = !!(pParent && pParent.isDoor && !pParent.doorClosed);
+      continue;
+    }
     passable[i] = !!(s.empty || s.used);
   }
 
@@ -220,7 +275,7 @@ function updateBoxReveals(animate) {
   for (var k = 0; k < total; k++) {
     var b = stock[k];
     if (!b) continue;
-    if (b.isWall || b.isTunnel || b.empty || b.used) continue;
+    if (b.isWall || b.isTunnel || b.isDoor || b.isDoorPart || b.empty || b.used) continue;
     if (b.spawning) continue;
 
     var br = Math.floor(k / L.cols), bcol = k % L.cols;
@@ -273,7 +328,7 @@ function damageAdjacentIce(idx) {
   if (col < L.cols - 1) neighbors.push(row * L.cols + (col + 1));
   for (var ni = 0; ni < neighbors.length; ni++) {
     var nb = stock[neighbors[ni]];
-    if (nb.isTunnel || nb.isWall) continue;  // tunnels and walls don't have ice
+    if (nb.isTunnel || nb.isWall || nb.isDoor || nb.isDoorPart) continue;  // these have no ice
     if (nb.empty || nb.used || nb.iceHP <= 0) continue;
 
     nb.iceHP--;
@@ -315,6 +370,7 @@ function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
   if (b.isWall) return false;      // walls are not tappable
+  if (b.isDoor || b.isDoorPart) return false;  // doors are passive
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
@@ -330,7 +386,7 @@ function handleTap(px, py) {
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
+    if (b.isTunnel || b.isWall || b.isDoor || b.isDoorPart) continue;
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
@@ -339,6 +395,7 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      if (typeof onTurnPassed === 'function') onTurnPassed();
       return;
     }
   }
@@ -352,7 +409,7 @@ canvas.addEventListener('mousemove', function (e) {
   if (e.clientX >= L.bkX && e.clientX <= L.bkX + L.bkSize && e.clientY >= L.bkY && e.clientY <= L.bkY + L.bkSize) { canvas.style.cursor = 'pointer'; return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;
+    if (b.isTunnel || b.isWall || b.isDoor || b.isDoorPart) continue;
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (!isBoxTappable(i)) continue;
     if (e.clientX >= b.x && e.clientX <= b.x + L.bw && e.clientY >= b.y && e.clientY <= b.y + L.bh) { hoverIdx = i; break; }
@@ -464,10 +521,13 @@ function update() {
     }
   }
 
+  // Door state animations
+  if (typeof tickDoors === 'function') tickDoors();
+
   // Stock animations
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;  // tunnels and walls don't need stock animations
+    if (b.isTunnel || b.isWall || b.isDoor || b.isDoorPart) continue;  // these don't need stock animations
     if (b.empty) continue;
     if (b.shakeT > 0) b.shakeT = Math.max(0, b.shakeT - 0.04);
     if (b.popT > 0) b.popT = Math.max(0, b.popT - 0.025);
