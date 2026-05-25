@@ -71,22 +71,51 @@ function drawDarkRoom() {
   // 3. Punch holes where light exists
   mctx.globalCompositeOperation = 'destination-out';
 
-  // 2a. Revealed boxes — radial light
+  // 2a. Box-cell lights — revealed active boxes + drained (used) boxes
+  //     Used boxes are slightly dimmer than active ones.
+  //     Track whether any active boxes remain for the endgame full-lit pass.
+  var hasAnyBox = false;
+  var allDone = true;
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (!b || !b.revealed || b.empty || b.used) continue;
-    if (b.isWall || b.isTunnel) continue;
+    if (!b || b.isWall || b.isTunnel || b.empty) continue;
+    hasAnyBox = true;
+    if (!b.used) allDone = false;
+
+    var emitActive = b.revealed && !b.used && !b.spawning;
+    var emitDrained = b.used;
+    if (!emitActive && !emitDrained) continue;
+
     var cx = b.x + L.bw / 2;
     var cy = b.y + L.bh / 2;
     var r = L.bw * 1.05;
+    var aMax = emitDrained ? 0.85 : 1.0;
+    var aMid = emitDrained ? 0.65 : 0.85;
     var g = mctx.createRadialGradient(cx, cy, L.bw * 0.1, cx, cy, r);
-    g.addColorStop(0, 'rgba(255,255,255,1)');
-    g.addColorStop(0.4, 'rgba(255,255,255,0.85)');
+    g.addColorStop(0, 'rgba(255,255,255,' + aMax + ')');
+    g.addColorStop(0.4, 'rgba(255,255,255,' + aMid + ')');
     g.addColorStop(1, 'rgba(255,255,255,0)');
     mctx.fillStyle = g;
     mctx.beginPath();
     mctx.arc(cx, cy, r, 0, Math.PI * 2);
     mctx.fill();
+  }
+
+  // 2a-end. Endgame: all boxes drained → flood the whole grid with light
+  if (hasAnyBox && allDone) {
+    mctx.save();
+    mctx.filter = 'blur(' + (28 * S).toFixed(1) + 'px)';
+    mctx.fillStyle = 'rgba(255,255,255,0.95)';
+    roundRectPath(
+      mctx,
+      gX - 8 * S,
+      gY - 8 * S,
+      gW + 16 * S,
+      gH + 16 * S,
+      24 * S
+    );
+    mctx.fill();
+    mctx.restore();
   }
 
   // 2b. Sort columns — tight elliptical light on front row only
@@ -197,14 +226,18 @@ function drawDarkRoom() {
   ctx.globalCompositeOperation = 'lighter';
   for (var i2 = 0; i2 < stock.length; i2++) {
     var b2 = stock[i2];
-    if (!b2 || !b2.revealed || b2.empty || b2.used) continue;
-    if (b2.isWall || b2.isTunnel) continue;
+    if (!b2 || b2.empty || b2.isWall || b2.isTunnel) continue;
+    var emitsActive = b2.revealed && !b2.used && !b2.spawning;
+    var emitsDrained = b2.used;
+    if (!emitsActive && !emitsDrained) continue;
     var hx = b2.x + L.bw / 2;
     var hy = b2.y + L.bh / 2;
     var hr = L.bw * 1.2;
     var hg = ctx.createRadialGradient(hx, hy, 0, hx, hy, hr);
-    hg.addColorStop(0, 'rgba(255,215,140,0.20)');
-    hg.addColorStop(0.6, 'rgba(255,200,120,0.08)');
+    var aHaloMax = emitsDrained ? 0.12 : 0.20;
+    var aHaloMid = emitsDrained ? 0.05 : 0.08;
+    hg.addColorStop(0, 'rgba(255,215,140,' + aHaloMax + ')');
+    hg.addColorStop(0.6, 'rgba(255,200,120,' + aHaloMid + ')');
     hg.addColorStop(1, 'rgba(255,200,120,0)');
     ctx.fillStyle = hg;
     ctx.beginPath();
