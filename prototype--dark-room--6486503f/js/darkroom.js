@@ -46,7 +46,29 @@ function drawDarkRoom() {
   mctx.fillStyle = 'rgba(6,9,18,1)';
   mctx.fillRect(0, 0, W, H);
 
-  // 2. Punch holes where light exists
+  // 2. Apply moon ambient lift FIRST (covers whole canvas)
+  var mp = moonPos();
+  mctx.globalCompositeOperation = 'destination-out';
+  var ambR = Math.max(W, H) * 0.9;
+  var amb = mctx.createRadialGradient(mp.cx, mp.cy, ambR * 0.05, mp.cx, mp.cy, ambR);
+  amb.addColorStop(0, 'rgba(255,255,255,0.20)');
+  amb.addColorStop(0.5, 'rgba(255,255,255,0.10)');
+  amb.addColorStop(1, 'rgba(255,255,255,0)');
+  mctx.fillStyle = amb;
+  mctx.fillRect(0, 0, W, H);
+
+  // 2.5. Refill stock grid area with opaque dark to keep board pitch black
+  //      (negates ambient lift inside the playing grid)
+  mctx.globalCompositeOperation = 'source-over';
+  var gPad = 4 * S;
+  var gX = L.gameLeft - gPad;
+  var gY = L.sy - gPad;
+  var gW = L.gameW + gPad * 2;
+  var gH = (L.bh + L.bg) * L.rows - L.bg + gPad * 2;
+  mctx.fillStyle = 'rgba(6,9,18,1)';
+  mctx.fillRect(gX, gY, gW, gH);
+
+  // 3. Punch holes where light exists
   mctx.globalCompositeOperation = 'destination-out';
 
   // 2a. Revealed boxes — radial light
@@ -130,17 +152,6 @@ function drawDarkRoom() {
   roundRectPath(mctx, L.bkX - 2 * S, L.bkY - 2 * S, L.bkSize + 4 * S, L.bkSize + 4 * S, 10 * S);
   mctx.fill();
   mctx.restore();
-
-  // 2f. Moon ambient lift — huge soft erase across whole canvas centered near moon
-  //     Very low alpha → only slightly lifts the deep dark to feel like moonlight
-  var mp = moonPos();
-  var ambR = Math.max(W, H) * 0.9;
-  var amb = mctx.createRadialGradient(mp.cx, mp.cy, ambR * 0.05, mp.cx, mp.cy, ambR);
-  amb.addColorStop(0, 'rgba(255,255,255,0.20)');
-  amb.addColorStop(0.5, 'rgba(255,255,255,0.10)');
-  amb.addColorStop(1, 'rgba(255,255,255,0)');
-  mctx.fillStyle = amb;
-  mctx.fillRect(0, 0, W, H);
 
   // 2g. Moon body — full erase (bright moon) + outer halo
   mctx.save();
