@@ -202,9 +202,18 @@ function drawStock() {
     // Used box (fully empty)
     if (b.used) { drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
 
+    // Slide interpolation for love box movement animation
+    var bDrawX = b.x, bDrawY = b.y;
+    if (b.loveMoveT > 0 && b.loveMoveFromX !== undefined) {
+      var lt = 1 - b.loveMoveT;
+      var ease = lt < 0.5 ? 2 * lt * lt : 1 - Math.pow(-2 * lt + 2, 2) / 2;
+      bDrawX = b.loveMoveFromX + (b.x - b.loveMoveFromX) * ease;
+      bDrawY = b.loveMoveFromY + (b.y - b.loveMoveFromY) * ease;
+    }
+
     var bt = getBoxType(b.boxType);
     ctx.save();
-    ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2); ctx.scale(ts, ts);
+    ctx.translate(bDrawX + L.bw / 2 + ox, bDrawY + L.bh / 2); ctx.scale(ts, ts);
 
     if (b.revealT > 0) {
       var phase = 1 - b.revealT;

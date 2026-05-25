@@ -67,6 +67,7 @@ function initGame() {
   for (var c = 0; c < NUM_COLORS; c++) colorMarblesTotal.push(0);
   for (var k in boxSlots) {
     var bs = boxSlots[k];
+    if (bs.boxType === 'love_right') continue; // counted via its love_left partner
     var isBlockerBox = (bs.boxType === 'blocker');
     var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
     colorMarblesTotal[bs.ci] += regularPerBox;
@@ -130,8 +131,9 @@ function initGame() {
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
-      stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
-        revealed: isIce ? true : false, empty: false,
+      var isLove = (slot.boxType === 'love_left' || slot.boxType === 'love_right');
+      stock.push({ ci: slot.ci, used: false, remaining: isLove ? 0 : MRB_PER_BOX, spawning: false, spawnIdx: 0,
+        revealed: false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
@@ -222,6 +224,7 @@ function updateBoxReveals(animate) {
     if (!b) continue;
     if (b.isWall || b.isTunnel || b.empty || b.used) continue;
     if (b.spawning) continue;
+    if (b.boxType === 'love_left' || b.boxType === 'love_right') continue;
 
     var br = Math.floor(k / L.cols), bcol = k % L.cols;
     var hasPath = false;
@@ -475,6 +478,7 @@ function update() {
     if (b.emptyT > 0) b.emptyT = Math.max(0, b.emptyT - 0.025);
     if (b.iceCrackT > 0) b.iceCrackT = Math.max(0, b.iceCrackT - 0.03);
     if (b.iceShatterT > 0) b.iceShatterT = Math.max(0, b.iceShatterT - 0.025);
+    if (b.loveMoveT > 0) b.loveMoveT = Math.max(0, b.loveMoveT - 0.07);
     var th = (i === hoverIdx && !b.used && isBoxTappable(i)) ? 1 : 0;
     b.hoverT += (th - b.hoverT) * 0.12;
   }
@@ -516,6 +520,131 @@ function update() {
 
   tickParticles();
   updateRollingSound();
+}
+
+// === LOVE BOX MECHANICS ===
+
+function findLoveBox(type, ci) {
+  for (var i = 0; i < stock.length; i++) {
+    var b = stock[i];
+    if (b && !b.empty && !b.used && b.boxType === type && b.ci === ci) return i;
+  }
+  return -1;
+}
+
+function moveLoveBoxes() {
+  var leftCIs = {};
+  for (var i = 0; i < stock.length; i++) {
+    var b = stock[i];
+    if (b && !b.empty && !b.used && b.boxType === 'love_left') leftCIs[b.ci] = true;
+  }
+
+  for (var ci in leftCIs) {
+    var ciNum = parseInt(ci);
+    var li = findLoveBox('love_left', ciNum);
+    var ri = findLoveBox('love_right', ciNum);
+    if (li < 0 || ri < 0) continue;
+
+    var lr = Math.floor(li / L.cols), lc = li % L.cols;
+    var rr = Math.floor(ri / L.cols), rc = ri % L.cols;
+    if (Math.abs(lr - rr) + Math.abs(lc - rc) === 1) { mergeLoveBoxes(li, ri); continue; }
+
+    tryMoveLoveBox(li, ri);
+
+    li = findLoveBox('love_left', ciNum);
+    ri = findLoveBox('love_right', ciNum);
+    if (li < 0 || ri < 0) continue;
+
+    tryMoveLoveBox(ri, li);
+
+    li = findLoveBox('love_left', ciNum);
+    ri = findLoveBox('love_right', ciNum);
+    if (li < 0 || ri < 0) continue;
+
+    lr = Math.floor(li / L.cols); lc = li % L.cols;
+    rr = Math.floor(ri / L.cols); rc = ri % L.cols;
+    if (Math.abs(lr - rr) + Math.abs(lc - rc) === 1) mergeLoveBoxes(li, ri);
+  }
+}
+
+function tryMoveLoveBox(fromIdx, towardIdx) {
+  var fr = Math.floor(fromIdx / L.cols), fc = fromIdx % L.cols;
+  var tr = Math.floor(towardIdx / L.cols), tc = towardIdx % L.cols;
+  var dr = tr - fr, dc = tc - fc;
+
+  // Candidates in order of preference: prefer the axis with larger delta
+  var moves = [];
+  if (Math.abs(dc) >= Math.abs(dr)) {
+    if (dc !== 0) moves.push({ dr: 0, dc: dc > 0 ? 1 : -1 });
+    if (dr !== 0) moves.push({ dr: dr > 0 ? 1 : -1, dc: 0 });
+  } else {
+    if (dr !== 0) moves.push({ dr: dr > 0 ? 1 : -1, dc: 0 });
+    if (dc !== 0) moves.push({ dr: 0, dc: dc > 0 ? 1 : -1 });
+  }
+
+  for (var m = 0; m < moves.length; m++) {
+    var nr = fr + moves[m].dr, nc = fc + moves[m].dc;
+    if (nr < 0 || nr >= L.rows || nc < 0 || nc >= L.cols) continue;
+    var ni = nr * L.cols + nc;
+    var nb = stock[ni];
+    if (nb && (nb.empty || nb.used)) { loveBoxSlide(fromIdx, ni); return; }
+  }
+}
+
+function loveBoxSlide(fromIdx, toIdx) {
+  var box = stock[fromIdx];
+  var newR = Math.floor(toIdx / L.cols), newC = toIdx % L.cols;
+  var newX = L.sx + newC * (L.bw + L.bg);
+  var newY = L.sy + newR * (L.bh + L.bg);
+
+  box.loveMoveFromX = box.x;
+  box.loveMoveFromY = box.y;
+  box.loveMoveT = 1.0;
+  box.x = newX;
+  box.y = newY;
+
+  stock[toIdx] = box;
+
+  var oldR = Math.floor(fromIdx / L.cols), oldC = fromIdx % L.cols;
+  stock[fromIdx] = {
+    ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
+    revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
+    iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+    x: L.sx + oldC * (L.bw + L.bg), y: L.sy + oldR * (L.bh + L.bg),
+    shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
+  };
+
+  updateBoxReveals(false);
+}
+
+function mergeLoveBoxes(leftIdx, rightIdx) {
+  var leftBox = stock[leftIdx];
+  var rightBox = stock[rightIdx];
+  var ci = leftBox.ci;
+  var bx = leftBox.x + L.bw / 2, by = leftBox.y + L.bh / 2;
+
+  stock[leftIdx] = {
+    ci: ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
+    revealed: false, empty: false, boxType: 'default', isTunnel: false, isWall: false,
+    iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+    x: leftBox.x, y: leftBox.y,
+    shakeT: 0, hoverT: 0, popT: 1.2, revealT: 0, emptyT: 0,
+    idlePhase: Math.random() * Math.PI * 2
+  };
+
+  var rRow = Math.floor(rightIdx / L.cols), rCol = rightIdx % L.cols;
+  stock[rightIdx] = {
+    ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
+    revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
+    iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+    x: L.sx + rCol * (L.bw + L.bg), y: L.sy + rRow * (L.bh + L.bg),
+    shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
+  };
+
+  spawnBurst(bx, by, COLORS[ci].fill, 24);
+  spawnConfetti(bx, by, 15);
+  if (typeof sfx !== 'undefined' && sfx.complete) sfx.complete();
+  updateBoxReveals(true);
 }
 
 function checkWin() {

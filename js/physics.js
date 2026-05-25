@@ -123,9 +123,8 @@ function spawnPhysMarbles(box) {
           setTimeout(function () {
             b.used = true;
             b.spawning = false;
-            // Re-evaluate which boxes have an open path to the bottom
-            // now that this cell is passable.
             updateBoxReveals(true);
+            moveLoveBoxes();
           }, 300);
         }
       }, i * 120);
