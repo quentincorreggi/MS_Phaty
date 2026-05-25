@@ -177,6 +177,21 @@ function drawStock() {
       continue;
     }
 
+    // ── Gate ──
+    if (b.isGate) {
+      if (b.gateAnchor) {
+        var gateW = L.bw * 2 + L.bg;
+        drawGate(ctx, b.x, b.y, gateW, L.bh, S, b.gateColors, b.gateTotal, tick);
+      }
+      // Right companion is covered by the anchor's drawing — skip
+      continue;
+    }
+
+    // Determine if this box is gate-fed (active gate below in same column)
+    var gateForBox = (!b.empty && !b.used) ? findGateAnchorBelowBox(i) : null;
+    var isGateFed = !!(gateForBox && gateForBox.gateColors.length > 0);
+    var displayCi = isGateFed ? BLOCKER_CI : b.ci;
+
     var ox = 0;
     if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
     var breathe = 0;
@@ -208,15 +223,15 @@ function drawStock() {
 
     if (b.revealT > 0) {
       var phase = 1 - b.revealT;
-      bt.drawReveal(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, phase, b.remaining, tick);
+      bt.drawReveal(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, displayCi, S, phase, b.remaining, tick);
     } else if (!b.revealed) {
       var idleWobble = Math.sin(tick * 0.02 + b.idlePhase) * 0.006;
       ctx.rotate(idleWobble);
-      bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase);
+      bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, displayCi, S, tick, b.idlePhase);
     } else {
-      var c = COLORS[b.ci];
+      var c = COLORS[displayCi];
       if (isBoxTappable(i) && b.hoverT > 0.01) { ctx.shadowColor = c.glow; ctx.shadowBlur = 20 * S * b.hoverT; }
-      drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci);
+      drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, displayCi);
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
       if (b.boxType === 'blocker' && b.blockerCount > 0) {
         ctx.save();
@@ -231,11 +246,24 @@ function drawStock() {
       }
       if (b.remaining > 0) {
         if (b.boxType === 'blocker' && b.blockerCount > 0) {
-          drawBoxMarblesWithBlockers(b.ci, b.remaining, b.blockerCount);
+          drawBoxMarblesWithBlockers(displayCi, b.remaining, b.blockerCount);
         } else {
-          drawBoxMarbles(b.ci, b.remaining);
+          drawBoxMarbles(displayCi, b.remaining);
         }
-        drawBoxLip(b.ci);
+        drawBoxLip(displayCi);
+      }
+      // Gate-fed indicator: small colored badge in top-right corner showing next gate color
+      if (isGateFed) {
+        var badgeR = L.bh * 0.12;
+        var badgeX = L.bw / 2 - badgeR * 0.9;
+        var badgeY = -L.bh / 2 + badgeR * 0.9;
+        var gc2 = COLORS[gateForBox.gateColors[0]];
+        ctx.shadowColor = gc2.glow; ctx.shadowBlur = 6 * S;
+        ctx.fillStyle = gc2.fill;
+        ctx.beginPath(); ctx.arc(badgeX, badgeY, badgeR, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.beginPath(); ctx.arc(badgeX - badgeR * 0.25, badgeY - badgeR * 0.25, badgeR * 0.32, 0, Math.PI * 2); ctx.fill();
       }
     }
 

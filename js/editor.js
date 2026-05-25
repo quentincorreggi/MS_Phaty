@@ -5,7 +5,7 @@
 // ============================================================
 
 var editor = {
-  grid: [],            // 7x7: null = empty, { ci, type } or { tunnel: true, ... } or { wall: true }
+  grid: [],            // 7x7: null = empty, { ci, type } or { tunnel: true, ... } or { wall: true } or { gate: 'left'|'right', ... }
   name: 'Custom Level',
   desc: 'My custom level',
   mrbPerBox: 9,
@@ -17,6 +17,8 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  gateMode: false,      // true when placing gates
+  selectedGate: -1,     // index of selected gate left-anchor for content editing
   visible: false
 };
 
@@ -34,6 +36,8 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.gateMode = false;
+  editor.selectedGate = -1;
 }
 
 function showEditor(fresh) {
@@ -60,23 +64,55 @@ function editorBuildUI() {
   editorRenderSettings();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderGatePanel();
 }
 
 // ── Grid ──
 function editorRenderGrid() {
   var el = document.getElementById('ed-grid');
   el.innerHTML = '';
+
+  // Compute gate-fed positions (boxes above a gate in its two columns)
+  var editorGateFed = {};
+  for (var gi2 = 0; gi2 < 49; gi2++) {
+    var gv = editor.grid[gi2];
+    if (!gv || gv.gate !== 'left') continue;
+    var gRow2 = Math.floor(gi2 / 7);
+    var gCol2 = gi2 % 7;
+    for (var rr = 0; rr < gRow2; rr++) {
+      editorGateFed[rr * 7 + gCol2] = gi2;
+      if (gCol2 + 1 < 7) editorGateFed[rr * 7 + (gCol2 + 1)] = gi2;
+    }
+  }
+
   for (var i = 0; i < 49; i++) {
     var cell = document.createElement('div');
     cell.className = 'ed-cell';
     var v = editor.grid[i];
     if (v && v.wall) {
-      // Wall cell
       cell.style.background = 'linear-gradient(135deg,#9A8D7B,#6F6355)';
       cell.style.borderColor = '#8A7D6B';
       cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,255,255,0.5);font-size:14px">&#9632;</span>';
+    } else if (v && v.gate === 'left') {
+      var isSelGate = (editor.selectedGate === i);
+      cell.style.background = 'linear-gradient(135deg,#2C2040,#1A1228)';
+      cell.style.borderColor = isSelGate ? '#C89CF2' : '#6A5080';
+      if (isSelGate) cell.style.boxShadow = '0 0 0 2px rgba(200,156,242,0.45)';
+      var qCount = v.gateColors ? v.gateColors.length : 0;
+      var dotHtml = '';
+      if (qCount > 0) {
+        dotHtml = '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' +
+          COLORS[v.gateColors[0]].fill + ';margin-right:1px;vertical-align:middle;border:1px solid rgba(255,255,255,0.35)"></span>';
+      }
+      cell.innerHTML = dotHtml + '<span class="ed-tunnel-badge" style="background:rgba(180,130,240,0.85)">' + qCount + '</span>';
+    } else if (v && v.gate === 'right') {
+      var leftIdx = i - 1;
+      var isSelGate = (editor.selectedGate === leftIdx);
+      cell.style.background = 'linear-gradient(135deg,#221830,#100A1A)';
+      cell.style.borderColor = isSelGate ? '#C89CF2' : '#4A3060';
+      if (isSelGate) cell.style.boxShadow = '0 0 0 2px rgba(200,156,242,0.45)';
+      cell.innerHTML = '';
     } else if (v && v.tunnel) {
-      // Tunnel cell
       var isSelected = (editor.selectedTunnel === i);
       cell.style.background = 'linear-gradient(135deg,#3D3548,#252030)';
       cell.style.borderColor = isSelected ? '#FFD080' : '#6A6070';
@@ -87,10 +123,17 @@ function editorRenderGrid() {
         '</span><span class="ed-tunnel-badge">' + count + '</span>';
     } else if (v && v.ci >= 0) {
       var bt = getBoxType(v.type);
-      var st = bt.editorCellStyle(v.ci);
-      cell.style.background = st.background;
-      cell.style.borderColor = st.borderColor;
-      cell.innerHTML = bt.editorCellHTML(v.ci);
+      if (editorGateFed[i] !== undefined) {
+        // Gray out gate-fed boxes
+        cell.style.background = 'linear-gradient(135deg,' + COLORS[BLOCKER_CI].light + ',' + COLORS[BLOCKER_CI].dark + ')';
+        cell.style.borderColor = COLORS[BLOCKER_CI].dark;
+        cell.innerHTML = bt.editorCellHTML(BLOCKER_CI);
+      } else {
+        var st = bt.editorCellStyle(v.ci);
+        cell.style.background = st.background;
+        cell.style.borderColor = st.borderColor;
+        cell.innerHTML = bt.editorCellHTML(v.ci);
+      }
     } else {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
@@ -106,19 +149,48 @@ function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
 
   if (editor.wallMode) {
-    // Wall placement mode
     var existing = editor.grid[idx];
     if (existing && existing.wall) {
-      // Toggle off: clicking existing wall removes it
       editor.grid[idx] = null;
     } else {
-      // Place wall
       editor.grid[idx] = { wall: true };
     }
     if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     editorRenderGrid();
     editorUpdateStats();
     editorRenderTunnelPanel();
+    editorRenderGatePanel();
+    return;
+  }
+
+  if (editor.gateMode) {
+    var existing = editor.grid[idx];
+    if (existing && existing.gate === 'left') {
+      // Select this gate anchor
+      editor.selectedGate = idx;
+    } else if (existing && existing.gate === 'right') {
+      // Select via companion — find left anchor
+      var leftIdx = idx - 1;
+      if (editor.grid[leftIdx] && editor.grid[leftIdx].gate === 'left') {
+        editor.selectedGate = leftIdx;
+      }
+    } else {
+      // Place new gate — needs 2 adjacent cells
+      var col = idx % 7;
+      if (col >= 6) {
+        editorShowToast('Gate needs 2 cells — not in last column');
+        editorRenderGrid();
+        editorUpdateStats();
+        editorRenderGatePanel();
+        return;
+      }
+      editor.grid[idx] = { gate: 'left', gateColors: [] };
+      editor.grid[idx + 1] = { gate: 'right' };
+      editor.selectedGate = idx;
+    }
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderGatePanel();
     return;
   }
 
@@ -139,8 +211,22 @@ function editorCellClick(e) {
     if (editor.activeColor === -1) {
       editor.grid[idx] = null;
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+      if (editor.selectedGate === idx) editor.selectedGate = -1;
     } else {
       var existing = editor.grid[idx];
+      // Don't overwrite gate cells with boxes — auto-switch to gate mode instead
+      if (existing && (existing.gate === 'left' || existing.gate === 'right')) {
+        editor.selectedGate = (existing.gate === 'right') ? idx - 1 : idx;
+        editor.gateMode = true;
+        editor.tunnelMode = false;
+        editor.wallMode = false;
+        editorRenderGrid();
+        editorUpdateStats();
+        editorRenderToolbar();
+        editorRenderTunnelPanel();
+        editorRenderGatePanel();
+        return;
+      }
       if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
         editor.grid[idx] = null;
       } else {
@@ -152,16 +238,28 @@ function editorCellClick(e) {
   editorRenderGrid();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderGatePanel();
 }
 
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+  // Remove gate pair together
+  var cell = editor.grid[idx];
+  if (cell && cell.gate === 'left' && idx + 1 < 49) {
+    editor.grid[idx + 1] = null;
+    if (editor.selectedGate === idx) editor.selectedGate = -1;
+  } else if (cell && cell.gate === 'right' && idx - 1 >= 0) {
+    editor.grid[idx - 1] = null;
+    if (editor.selectedGate === idx - 1) editor.selectedGate = -1;
+  }
   editor.grid[idx] = null;
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+  if (editor.selectedGate === idx) editor.selectedGate = -1;
   editorRenderGrid();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderGatePanel();
 }
 
 // ── Toolbar: mode toggle + type selector + color/direction palette ──
@@ -178,15 +276,17 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.gateMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.gateMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
+      editorRenderGatePanel();
     });
     typeRow.appendChild(tb);
   }
@@ -200,8 +300,10 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.gateMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
+    editorRenderGatePanel();
   });
   typeRow.appendChild(wallBtn);
 
@@ -214,10 +316,28 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.gateMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
+    editorRenderGatePanel();
   });
   typeRow.appendChild(tunnelBtn);
+
+  // Gate mode button
+  var gateBtn = document.createElement('button');
+  gateBtn.className = 'ed-type-btn' + (editor.gateMode ? ' active' : '');
+  gateBtn.textContent = '\u25A9 Gate';
+  gateBtn.style.borderColor = editor.gateMode ? 'rgba(140,100,210,0.6)' : '';
+  gateBtn.style.color = editor.gateMode ? '#9060C4' : '';
+  gateBtn.addEventListener('click', function () {
+    editor.gateMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+    editorRenderGatePanel();
+  });
+  typeRow.appendChild(gateBtn);
 
   el.appendChild(typeRow);
 
@@ -255,11 +375,15 @@ function editorRenderToolbar() {
     }
     el.appendChild(dirRow);
   } else if (editor.wallMode) {
-    // Wall mode: just show info hint
     var wallInfo = document.createElement('div');
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
+  } else if (editor.gateMode) {
+    var gateInfo = document.createElement('div');
+    gateInfo.className = 'ed-color-row';
+    gateInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click a cell to place a 2-wide gate (not in last column) &middot; right-click to erase</span>';
+    el.appendChild(gateInfo);
   } else {
     // Color palette: eraser + 8 colors
     var colorRow = document.createElement('div');
@@ -426,23 +550,109 @@ function editorRenderTunnelPanel() {
   }
 }
 
+// ── Gate panel ──
+function editorRenderGatePanel() {
+  var container = document.getElementById('ed-gate-panel');
+  if (!container) return;
+
+  if (editor.selectedGate < 0 || !editor.grid[editor.selectedGate] || editor.grid[editor.selectedGate].gate !== 'left') {
+    container.style.display = 'none';
+    return;
+  }
+
+  container.style.display = 'block';
+  var gate = editor.grid[editor.selectedGate];
+  var html = '';
+
+  html += '<div class="ed-section-title"><span class="icon">&#9641;</span> Gate #' + (editor.selectedGate + 1) + ' &mdash; Color Queue</div>';
+
+  html += '<div class="ed-tunnel-contents">';
+  if (!gate.gateColors || gate.gateColors.length === 0) {
+    html += '<span style="font-size:11px;color:#9C8A70;font-style:italic">Empty &mdash; add colors below</span>';
+  } else {
+    for (var qi = 0; qi < gate.gateColors.length; qi++) {
+      var qc = COLORS[gate.gateColors[qi]];
+      html += '<span class="ed-tunnel-item" data-gidx="' + qi + '" title="' + CLR_NAMES[gate.gateColors[qi]] + ' &mdash; click to remove" style="background:' + qc.fill + '">';
+      html += CLR_NAMES[gate.gateColors[qi]][0].toUpperCase();
+      html += '</span>';
+    }
+  }
+  html += '</div>';
+
+  html += '<div class="ed-section-title" style="margin-top:8px"><span class="icon">&#10133;</span> Add Color</div>';
+  html += '<div class="ed-tunnel-add-colors">';
+  for (var ci5 = 0; ci5 < NUM_COLORS; ci5++) {
+    html += '<button class="ed-tunnel-add-clr" data-ci="' + ci5 + '" style="background:' + COLORS[ci5].fill + '" title="Add ' + CLR_NAMES[ci5] + '">' + CLR_NAMES[ci5][0].toUpperCase() + '</button>';
+  }
+  html += '</div>';
+
+  if (gate.gateColors && gate.gateColors.length > 0) {
+    html += '<div style="text-align:center;margin-top:6px"><button class="ed-qbtn" id="ed-gate-clear">Clear All</button></div>';
+  }
+
+  container.innerHTML = html;
+
+  var items = container.querySelectorAll('.ed-tunnel-item');
+  for (var it2 = 0; it2 < items.length; it2++) {
+    items[it2].addEventListener('click', function () {
+      var gidx = parseInt(this.getAttribute('data-gidx'));
+      if (editor.selectedGate >= 0 && editor.grid[editor.selectedGate]) {
+        editor.grid[editor.selectedGate].gateColors.splice(gidx, 1);
+        editorRenderGrid();
+        editorRenderGatePanel();
+        editorUpdateStats();
+      }
+    });
+  }
+
+  var addClrs2 = container.querySelectorAll('.ed-tunnel-add-clr');
+  for (var ac2 = 0; ac2 < addClrs2.length; ac2++) {
+    addClrs2[ac2].addEventListener('click', function () {
+      var ci6 = parseInt(this.getAttribute('data-ci'));
+      if (editor.selectedGate >= 0 && editor.grid[editor.selectedGate]) {
+        if (!editor.grid[editor.selectedGate].gateColors) {
+          editor.grid[editor.selectedGate].gateColors = [];
+        }
+        editor.grid[editor.selectedGate].gateColors.push(ci6);
+        editorRenderGrid();
+        editorRenderGatePanel();
+        editorUpdateStats();
+      }
+    });
+  }
+
+  var clearBtn2 = document.getElementById('ed-gate-clear');
+  if (clearBtn2) {
+    clearBtn2.addEventListener('click', function () {
+      if (editor.selectedGate >= 0 && editor.grid[editor.selectedGate]) {
+        editor.grid[editor.selectedGate].gateColors = [];
+        editorRenderGrid();
+        editorRenderGatePanel();
+        editorUpdateStats();
+      }
+    });
+  }
+}
+
 // ── Quick actions ──
 function editorFillRandom() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
+  editor.selectedGate = -1;
   var cl = [];
   for (var c = 0; c < 4; c++) for (var n = 0; n < 6; n++) cl.push(c);
   shuffle(cl);
   var indices = []; for (var i = 0; i < 49; i++) indices.push(i);
   shuffle(indices);
   for (var i = 0; i < cl.length; i++) editor.grid[indices[i]] = { ci: cl[i], type: 'default' };
-  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel(); editorRenderGatePanel();
 }
 
 function editorClearAll() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
-  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+  editor.selectedGate = -1;
+  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel(); editorRenderGatePanel();
 }
 
 // ── Stats ──
@@ -453,13 +663,37 @@ function editorUpdateStats() {
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
   var wallCount = 0;
+  var gateCount = 0, gateColorCount = 0;
+
+  // Compute gate-fed box positions for correct marble counting
+  var statsGateFed = {};
+  for (var gi3 = 0; gi3 < 49; gi3++) {
+    var gv3 = editor.grid[gi3];
+    if (!gv3 || gv3.gate !== 'left') continue;
+    var gRow3 = Math.floor(gi3 / 7);
+    var gCol3 = gi3 % 7;
+    for (var rr3 = 0; rr3 < gRow3; rr3++) {
+      statsGateFed[rr3 * 7 + gCol3] = gi3;
+      if (gCol3 + 1 < 7) statsGateFed[rr3 * 7 + (gCol3 + 1)] = gi3;
+    }
+  }
+
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
-    if (v.wall) {
-      wallCount++;
+    if (v.wall) { wallCount++; continue; }
+    if (v.gate === 'left') {
+      gateCount++;
+      if (v.gateColors) {
+        gateColorCount += v.gateColors.length;
+        for (var gc3 = 0; gc3 < v.gateColors.length; gc3++) {
+          counts[v.gateColors[gc3]]++;
+          regularMrb[v.gateColors[gc3]] += editor.mrbPerBox;
+        }
+      }
       continue;
     }
+    if (v.gate === 'right') continue;
     if (v.tunnel) {
       tunnelCount++;
       if (v.contents) {
@@ -478,9 +712,10 @@ function editorUpdateStats() {
       continue;
     }
     if (v.ci >= 0) {
-      counts[v.ci]++;
       total++;
       typeCounts[v.type] = (typeCounts[v.type] || 0) + 1;
+      if (statsGateFed[i] !== undefined) continue;  // gate handles marble counts
+      counts[v.ci]++;
       if (v.type === 'blocker') {
         regularMrb[v.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
         totalBlockers += BLOCKER_PER_BOX;
@@ -503,6 +738,9 @@ function editorUpdateStats() {
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
   }
+  if (gateCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#2C2040;border:1px solid #6A5080;color:#C89CF2">' + gateCount + ' gate' + (gateCount > 1 ? 's' : '') + ' (' + gateColorCount + ' colors)</span>';
+  }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
   }
@@ -510,14 +748,14 @@ function editorUpdateStats() {
     if (counts[c] > 0) html += '<span class="ed-stat-chip" style="background:' + COLORS[c].fill + '">' + counts[c] + '</span>';
   }
   var warn = '';
-  var totalAll = total + tunnelBoxCount;
+  var totalAll = total + tunnelBoxCount + gateColorCount;
   if (totalAll === 0) {
     warn = 'Place some boxes to create a level';
   } else {
     for (var c = 0; c < NUM_COLORS; c++) {
       if (regularMrb[c] > 0) {
         if (regularMrb[c] % editor.sortCap !== 0) {
-          warn = CLR_NAMES[c] + ' regular marbles (' + regularMrb[c] + ') not divisible by sort cap (' + editor.sortCap + ')';
+          warn = CLR_NAMES[c] + ' marbles (' + regularMrb[c] + ') not divisible by sort cap (' + editor.sortCap + ')';
           break;
         }
       }

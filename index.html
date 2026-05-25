@@ -139,6 +139,9 @@
   /* ═══ TUNNEL EDITOR ═══ */
   #ed-tunnel-panel{display:none;background:rgba(61,53,72,0.08);border-radius:12px;padding:10px 12px;
     border:1.5px solid rgba(106,96,112,0.25)}
+  /* ═══ GATE EDITOR ═══ */
+  #ed-gate-panel{display:none;background:rgba(44,32,64,0.08);border-radius:12px;padding:10px 12px;
+    border:1.5px solid rgba(106,80,160,0.25)}
   .ed-tunnel-dir-row{display:flex;gap:5px;justify-content:center;margin-bottom:6px}
   .ed-tunnel-dir-btn{padding:5px 14px;border:2px solid rgba(106,96,112,0.3);border-radius:8px;
     font-family:'Fredoka',sans-serif;font-size:12px;font-weight:600;cursor:pointer;
@@ -232,6 +235,9 @@
     <div class="ed-section" id="ed-tunnel-panel">
       <!-- Tunnel contents editor — populated dynamically -->
     </div>
+    <div class="ed-section" id="ed-gate-panel">
+      <!-- Gate color queue editor — populated dynamically -->
+    </div>
     <div class="ed-section">
       <div class="ed-section-title"><span class="icon">&#9881;</span> Settings</div>
       <div id="ed-settings-body"></div>
@@ -267,6 +273,7 @@
 <script src="js/physics.js"></script>
 <script src="js/tunnel.js"></script>
 <script src="js/wall.js"></script>
+<script src="js/gate.js"></script>
 <script src="js/rendering.js"></script>
 <script src="js/editor.js"></script>
 <script src="js/game.js"></script>

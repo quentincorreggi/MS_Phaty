@@ -38,16 +38,25 @@ function initGame() {
   var totalSlots = L.rows * L.cols;
   var lvl = LEVELS[currentLevel];
 
-  // ── Build boxSlots, tunnelSlots, wallSlots from grid or legacy random ──
+  // ── Build boxSlots, tunnelSlots, wallSlots, gateSlots from grid ──
   var boxSlots = {};
   var tunnelSlots = {};
   var wallSlots = {};
+  var gateSlots = {};
   if (lvl.grid) {
     for (var i = 0; i < Math.min(lvl.grid.length, totalSlots); i++) {
       var cell = lvl.grid[i];
       if (cell === null || cell === undefined) continue;
       if (cell.wall) {
         wallSlots[i] = true;
+        continue;
+      }
+      if (cell.gate === 'left') {
+        gateSlots[i] = { half: 'left', gateColors: (cell.gateColors || []).slice() };
+        continue;
+      }
+      if (cell.gate === 'right') {
+        gateSlots[i] = { half: 'right' };
         continue;
       }
       if (cell.tunnel) {
@@ -63,9 +72,26 @@ function initGame() {
   if (lvl.sortCap) SORT_CAP = lvl.sortCap;
 
   // ── Count regular marbles per color for sort columns ──
+  // Gate-fed boxes (above a gate in the same column) don't contribute their own ci;
+  // the gate's color queue contributes instead.
   var colorMarblesTotal = [];
   for (var c = 0; c < NUM_COLORS; c++) colorMarblesTotal.push(0);
+
+  // Identify which box slots are gate-fed
+  var gateFedSlots = {};
+  for (var gi in gateSlots) {
+    if (gateSlots[gi].half !== 'left') continue;
+    var gIdx = parseInt(gi);
+    var gRow = Math.floor(gIdx / L.cols);
+    var gCol = gIdx % L.cols;
+    for (var br = 0; br < gRow; br++) {
+      gateFedSlots[br * L.cols + gCol] = gIdx;
+      gateFedSlots[br * L.cols + (gCol + 1)] = gIdx;
+    }
+  }
+
   for (var k in boxSlots) {
+    if (gateFedSlots[k] !== undefined) continue;  // gate colors count instead
     var bs = boxSlots[k];
     var isBlockerBox = (bs.boxType === 'blocker');
     var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
@@ -83,6 +109,15 @@ function initGame() {
       if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
     }
   }
+  // Count gate colors as marble contributors
+  for (var gi in gateSlots) {
+    if (gateSlots[gi].half !== 'left') continue;
+    var gc = gateSlots[gi].gateColors;
+    for (var gci = 0; gci < gc.length; gci++) {
+      colorMarblesTotal[gc[gci]] += MRB_PER_BOX;
+    }
+  }
+
   var sortPerColor = [];
   for (var c = 0; c < NUM_COLORS; c++) {
     sortPerColor.push(SORT_CAP > 0 ? Math.ceil(colorMarblesTotal[c] / SORT_CAP) : 0);
@@ -95,8 +130,34 @@ function initGame() {
     var slot = boxSlots[idx];
     var tSlot = tunnelSlots[idx];
     var wSlot = wallSlots[idx];
+    var gSlot = gateSlots[idx];
 
-    if (tSlot) {
+    if (gSlot) {
+      // Gate cell (2-wide: left anchor stores color queue, right companion references it)
+      if (gSlot.half === 'left') {
+        stock.push({
+          isGate: true, gateAnchor: true,
+          gateColors: gSlot.gateColors.slice(),
+          gateTotal: gSlot.gateColors.length,
+          isTunnel: false, isWall: false,
+          ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
+          revealed: false, empty: false, boxType: 'default',
+          iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+          x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+          shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
+        });
+      } else {
+        stock.push({
+          isGate: true, gateAnchor: false, gateAnchorIdx: idx - 1,
+          isTunnel: false, isWall: false,
+          ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
+          revealed: false, empty: false, boxType: 'default',
+          iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+          x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+          shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
+        });
+      }
+    } else if (tSlot) {
       // Tunnel entry
       stock.push({
         isTunnel: true, isWall: false,
@@ -182,6 +243,7 @@ function updateBoxReveals(animate) {
     if (!s) { passable[i] = false; continue; }
     if (s.isWall) { passable[i] = false; continue; }
     if (s.isTunnel) { passable[i] = false; continue; }
+    if (s.isGate) { passable[i] = false; continue; }
     passable[i] = !!(s.empty || s.used);
   }
 
@@ -220,7 +282,7 @@ function updateBoxReveals(animate) {
   for (var k = 0; k < total; k++) {
     var b = stock[k];
     if (!b) continue;
-    if (b.isWall || b.isTunnel || b.empty || b.used) continue;
+    if (b.isWall || b.isTunnel || b.isGate || b.empty || b.used) continue;
     if (b.spawning) continue;
 
     var br = Math.floor(k / L.cols), bcol = k % L.cols;
@@ -243,7 +305,10 @@ function updateBoxReveals(animate) {
       if (animate) {
         b.revealT = 1.0;
         var bx = b.x + L.bw / 2, by = b.y + L.bh / 2;
-        var burstColor = (b.boxType === 'hidden') ? '#FFD700' : COLORS[b.ci].fill;
+        var gateForReveal = findGateAnchorBelowBox(k);
+        var revealCi = (gateForReveal && gateForReveal.gateColors.length > 0)
+          ? gateForReveal.gateColors[0] : b.ci;
+        var burstColor = (b.boxType === 'hidden') ? '#FFD700' : COLORS[revealCi].fill;
         for (var p = 0; p < 12; p++) {
           var ang = Math.PI * 2 * p / 12 + Math.random() * 0.3;
           var sp = 3 + Math.random() * 4;
@@ -273,7 +338,7 @@ function damageAdjacentIce(idx) {
   if (col < L.cols - 1) neighbors.push(row * L.cols + (col + 1));
   for (var ni = 0; ni < neighbors.length; ni++) {
     var nb = stock[neighbors[ni]];
-    if (nb.isTunnel || nb.isWall) continue;  // tunnels and walls don't have ice
+    if (nb.isTunnel || nb.isWall || nb.isGate) continue;
     if (nb.empty || nb.used || nb.iceHP <= 0) continue;
 
     nb.iceHP--;
@@ -314,7 +379,8 @@ function damageAdjacentIce(idx) {
 function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
-  if (b.isWall) return false;      // walls are not tappable
+  if (b.isWall) return false;
+  if (b.isGate) return false;
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
@@ -330,13 +396,16 @@ function handleTap(px, py) {
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
+    if (b.isTunnel || b.isWall || b.isGate) continue;
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
       b.popT = 1;
       sfx.pop();
-      spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
+      var gateForTap = findGateAnchorBelowBox(i);
+      var burstCi = (gateForTap && gateForTap.gateColors && gateForTap.gateColors.length > 0)
+        ? gateForTap.gateColors[0] : b.ci;
+      spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[burstCi].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
       return;
@@ -352,7 +421,7 @@ canvas.addEventListener('mousemove', function (e) {
   if (e.clientX >= L.bkX && e.clientX <= L.bkX + L.bkSize && e.clientY >= L.bkY && e.clientY <= L.bkY + L.bkSize) { canvas.style.cursor = 'pointer'; return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;
+    if (b.isTunnel || b.isWall || b.isGate) continue;
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (!isBoxTappable(i)) continue;
     if (e.clientX >= b.x && e.clientX <= b.x + L.bw && e.clientY >= b.y && e.clientY <= b.y + L.bh) { hoverIdx = i; break; }
@@ -467,7 +536,7 @@ function update() {
   // Stock animations
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;  // tunnels and walls don't need stock animations
+    if (b.isTunnel || b.isWall || b.isGate) continue;
     if (b.empty) continue;
     if (b.shakeT > 0) b.shakeT = Math.max(0, b.shakeT - 0.04);
     if (b.popT > 0) b.popT = Math.max(0, b.popT - 0.025);
