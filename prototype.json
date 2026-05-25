@@ -1,0 +1,23 @@
+{
+  "name": "Dark Room",
+  "description": "Light only shines from revealed boxes. The board lives in darkness.",
+  "howToPlay": "The grid is pitch black. Only the bottom row of boxes is lit at start. Tap a lit box to spawn marbles — when it empties, the box above lights up. Sort columns are dimly lit only on their front tile. Belt and funnel stay visible so you can track marbles. Watch out for bats!",
+  "author": "eduardo.ribeiro",
+  "showcaseLevel": {
+    "name": "Dark Room",
+    "desc": "Light only where you've been",
+    "mrbPerBox": 6,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "darkRoom": true,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      { "ci": 0, "type": "default" }, { "wall": true }, { "ci": 1, "type": "default" }, { "wall": true }, { "ci": 2, "type": "default" }, { "wall": true }, { "ci": 3, "type": "default" },
+      { "ci": 1, "type": "default" }, { "wall": true }, { "ci": 2, "type": "default" }, { "wall": true }, { "ci": 3, "type": "default" }, { "wall": true }, { "ci": 0, "type": "default" },
+      { "ci": 2, "type": "default" }, { "wall": true }, { "ci": 3, "type": "default" }, { "wall": true }, { "ci": 0, "type": "default" }, { "wall": true }, { "ci": 1, "type": "default" }
+    ]
+  }
+}
