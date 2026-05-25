@@ -289,14 +289,35 @@ function checkInitialDoorSoftlock() {
 function drawDoorOnGrid(ctx, x, y, w, h, S, d) {
   ctx.save();
 
-  // Recessed dark interior
-  ctx.shadowColor = 'rgba(0,0,0,0.28)';
+  // doorAnimT counts down from 1 → 0 after a toggle.
+  // openness goes from 0 (fully closed) to 1 (fully open).
+  var prog = 1 - d.doorAnimT;            // 0..1 toward settled
+  var eased = 1 - Math.pow(1 - prog, 3);
+  var settledOpenness = d.doorClosed ? 0 : 1;
+  var prevOpenness = d.doorClosed ? 1 : 0;
+  var openness = prevOpenness + (settledOpenness - prevOpenness) * eased;
+  var locked = !!d.doorOpenLocked;
+
+  // Lerp helper for colors expressed as [r,g,b]
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function rgba(r, g, b, a) { return 'rgba(' + (r | 0) + ',' + (g | 0) + ',' + (b | 0) + ',' + a + ')'; }
+
+  // Interior color: dark when closed, warm beige (matches empty slot) when open.
+  // This is the biggest contrast cue — the cell visibly changes character.
+  var iR = lerp(38, 232, openness);
+  var iG = lerp(44, 217, openness);
+  var iB = lerp(52, 192, openness);
+  var iR2 = lerp(28, 208, openness);
+  var iG2 = lerp(33, 192, openness);
+  var iB2 = lerp(42, 168, openness);
+
+  // Drop shadow on the rounded cell
+  ctx.shadowColor = 'rgba(0,0,0,0.22)';
   ctx.shadowBlur = 5 * S;
   ctx.shadowOffsetY = 2 * S;
   var bgGrad = ctx.createLinearGradient(x, y, x, y + h);
-  bgGrad.addColorStop(0, '#3D4452');
-  bgGrad.addColorStop(0.55, '#2F3540');
-  bgGrad.addColorStop(1, '#262B33');
+  bgGrad.addColorStop(0, rgba(iR, iG, iB, 1));
+  bgGrad.addColorStop(1, rgba(iR2, iG2, iB2, 1));
   ctx.fillStyle = bgGrad;
   rRect(x, y, w, h, 6 * S); ctx.fill();
 
@@ -304,7 +325,22 @@ function drawDoorOnGrid(ctx, x, y, w, h, S, d) {
   ctx.shadowBlur = 0;
   ctx.shadowOffsetY = 0;
 
-  // Clip everything inside the rounded frame
+  // Inset shadow when closed to give a "recessed dark cavity" feel.
+  if (openness < 1) {
+    ctx.save();
+    ctx.beginPath();
+    rRect(x, y, w, h, 6 * S);
+    ctx.clip();
+    ctx.globalAlpha = (1 - openness) * 0.55;
+    var insGrad = ctx.createRadialGradient(x + w / 2, y + h * 0.45, w * 0.08, x + w / 2, y + h * 0.5, w * 0.7);
+    insGrad.addColorStop(0, 'rgba(0,0,0,0)');
+    insGrad.addColorStop(1, 'rgba(0,0,0,0.55)');
+    ctx.fillStyle = insGrad;
+    rRect(x, y, w, h, 6 * S); ctx.fill();
+    ctx.restore();
+  }
+
+  // Clip interior for tracks + panel + header + floor + indicators
   ctx.save();
   ctx.beginPath();
   rRect(x, y, w, h, 6 * S);
@@ -313,137 +349,205 @@ function drawDoorOnGrid(ctx, x, y, w, h, S, d) {
   var frameInset = 2.5 * S;
   var trackW = 4 * S;
 
-  // Side tracks (vertical rails)
+  // Side tracks always visible. Tint shifts: blue-dark when closed,
+  // golden when locked open, gray-light otherwise.
+  var trackColor;
+  if (locked) {
+    trackColor = ['#3F2E10', '#D9A93D', '#3F2E10'];
+  } else if (openness > 0.55) {
+    trackColor = ['#2A2F38', '#9AA5BD', '#2A2F38'];
+  } else {
+    trackColor = ['#100E14', '#3F4858', '#100E14'];
+  }
   var trackGrad = ctx.createLinearGradient(0, 0, trackW * 2, 0);
-  trackGrad.addColorStop(0, '#1A1E26');
-  trackGrad.addColorStop(0.5, '#4A5566');
-  trackGrad.addColorStop(1, '#1A1E26');
+  trackGrad.addColorStop(0, trackColor[0]);
+  trackGrad.addColorStop(0.5, trackColor[1]);
+  trackGrad.addColorStop(1, trackColor[2]);
 
-  ctx.save();
-  ctx.translate(x + frameInset, 0);
   ctx.fillStyle = trackGrad;
-  ctx.fillRect(0, y + frameInset, trackW, h - frameInset * 2);
-  ctx.restore();
+  ctx.fillRect(x + frameInset, y + frameInset, trackW, h - frameInset * 2);
+  ctx.fillRect(x + w - frameInset - trackW, y + frameInset, trackW, h - frameInset * 2);
 
-  ctx.save();
-  ctx.translate(x + w - frameInset - trackW, 0);
-  ctx.fillStyle = trackGrad;
-  ctx.fillRect(0, y + frameInset, trackW, h - frameInset * 2);
-  ctx.restore();
-
-  // Top header (where the panel hides when open)
+  // Top header (panel stows here when open).
+  // Make the header itself read as part of the door frame regardless of state.
   var topH = 7 * S;
   var thGrad = ctx.createLinearGradient(x, y, x, y + topH);
-  thGrad.addColorStop(0, '#606A80');
+  thGrad.addColorStop(0, '#5A6478');
   thGrad.addColorStop(1, '#2D3340');
   ctx.fillStyle = thGrad;
   ctx.fillRect(x + frameInset, y + frameInset, w - frameInset * 2, topH);
+  // Header bottom shadow line
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillRect(x + frameInset, y + frameInset + topH - 1 * S, w - frameInset * 2, 1 * S);
 
-  // Floor strip (counter sits here)
+  // Floor strip (always visible — the counter sits here).
   var floorH = Math.max(11 * S, h * 0.18);
+  // Floor color also shifts: dark when closed, warm tile when open.
+  var fR = lerp(30, 200, openness);
+  var fG = lerp(35, 180, openness);
+  var fB = lerp(44, 150, openness);
+  var fR2 = lerp(58, 168, openness);
+  var fG2 = lerp(66, 150, openness);
+  var fB2 = lerp(82, 122, openness);
   var flGrad = ctx.createLinearGradient(x, y + h - floorH, x, y + h);
-  flGrad.addColorStop(0, '#1E232C');
-  flGrad.addColorStop(1, '#3A4252');
+  flGrad.addColorStop(0, rgba(fR, fG, fB, 1));
+  flGrad.addColorStop(1, rgba(fR2, fG2, fB2, 1));
   ctx.fillStyle = flGrad;
   ctx.fillRect(x + frameInset, y + h - frameInset - floorH, w - frameInset * 2, floorH);
-
-  // Floor shine
-  ctx.fillStyle = 'rgba(255,255,255,0.06)';
+  // Floor top highlight
+  ctx.fillStyle = 'rgba(255,255,255,' + (0.06 + openness * 0.18) + ')';
   ctx.fillRect(x + frameInset, y + h - frameInset - floorH, w - frameInset * 2, 1.2 * S);
 
   // ── Sliding panel ──
   var innerTop = y + frameInset + topH;
   var innerBot = y + h - frameInset - floorH;
   var travelRange = innerBot - innerTop;
-  var panelMinH = Math.max(6 * S, travelRange * 0.18);
-  var panelMaxH = travelRange;
-
-  // doorAnimT counts down from 1 → 0 after a toggle.
-  // The panel eases from the prior settled height to the new one.
-  var targetH = d.doorClosed ? panelMaxH : panelMinH;
-  var fromH   = d.doorClosed ? panelMinH : panelMaxH;
-  var prog = 1 - d.doorAnimT;            // 0..1 toward settled
-  var eased = 1 - Math.pow(1 - prog, 3);
-  var panelH = fromH + (targetH - fromH) * eased;
-
+  // When open, the panel is fully tucked behind the header (height 0).
+  var panelH = travelRange * (1 - openness);
   var panelX = x + frameInset + trackW;
   var panelW = w - frameInset * 2 - trackW * 2;
   var panelTop = innerBot - panelH;
 
-  var locked = !!d.doorOpenLocked;
-
-  // Panel body
-  var panelGrad = ctx.createLinearGradient(panelX, panelTop, panelX, panelTop + panelH);
-  if (locked) {
-    panelGrad.addColorStop(0, '#F2CE6B');
-    panelGrad.addColorStop(0.55, '#D9A93D');
-    panelGrad.addColorStop(1, '#A87820');
-  } else {
-    panelGrad.addColorStop(0, '#94A0B8');
-    panelGrad.addColorStop(0.55, '#5E6A7E');
-    panelGrad.addColorStop(1, '#3B4456');
-  }
-  ctx.fillStyle = panelGrad;
-  ctx.fillRect(panelX, panelTop, panelW, panelH);
-
-  // Panel top highlight
-  ctx.fillStyle = 'rgba(255,255,255,0.22)';
-  ctx.fillRect(panelX, panelTop, panelW, 1.5 * S);
-
-  // Panel bottom shadow lip
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.fillRect(panelX, panelTop + panelH - 1.5 * S, panelW, 1.5 * S);
-
-  // Rivets on the panel (only render those inside current panel)
-  var rivetR = 2 * S;
-  var rivetMargin = 5 * S;
-  if (panelH > rivetMargin * 2 + rivetR) {
-    var rivetXs = [panelX + rivetMargin, panelX + panelW - rivetMargin];
-    if (d.doorWide) {
-      // Two extra rivets near the center of a wide door panel
-      rivetXs.push(panelX + panelW * 0.36);
-      rivetXs.push(panelX + panelW * 0.64);
+  if (panelH > 0.5 * S) {
+    var panelGrad = ctx.createLinearGradient(panelX, panelTop, panelX, panelTop + panelH);
+    if (locked) {
+      panelGrad.addColorStop(0, '#F2CE6B');
+      panelGrad.addColorStop(0.55, '#D9A93D');
+      panelGrad.addColorStop(1, '#A87820');
+    } else {
+      panelGrad.addColorStop(0, '#9CA8C2');
+      panelGrad.addColorStop(0.55, '#5C6680');
+      panelGrad.addColorStop(1, '#363F52');
     }
-    var rivetYs = [panelTop + rivetMargin, panelTop + panelH - rivetMargin];
-    for (var ri = 0; ri < rivetXs.length; ri++) {
-      for (var rj = 0; rj < rivetYs.length; rj++) {
-        var rx = rivetXs[ri], ry = rivetYs[rj];
-        ctx.fillStyle = 'rgba(20,25,35,0.7)';
-        ctx.beginPath(); ctx.arc(rx, ry, rivetR, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = 'rgba(255,255,255,0.3)';
-        ctx.beginPath(); ctx.arc(rx - rivetR * 0.35, ry - rivetR * 0.35, rivetR * 0.45, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = panelGrad;
+    ctx.fillRect(panelX, panelTop, panelW, panelH);
+
+    // Panel top highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.fillRect(panelX, panelTop, panelW, 1.5 * S);
+
+    // Panel bottom shadow lip
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(panelX, panelTop + panelH - 1.8 * S, panelW, 1.8 * S);
+
+    // Rivets only when there's room
+    var rivetR = 2 * S;
+    var rivetMargin = 5 * S;
+    if (panelH > rivetMargin * 2 + rivetR) {
+      var rivetXs = [panelX + rivetMargin, panelX + panelW - rivetMargin];
+      if (d.doorWide) {
+        rivetXs.push(panelX + panelW * 0.36);
+        rivetXs.push(panelX + panelW * 0.64);
+      }
+      var rivetYs = [panelTop + rivetMargin, panelTop + panelH - rivetMargin];
+      for (var ri = 0; ri < rivetXs.length; ri++) {
+        for (var rj = 0; rj < rivetYs.length; rj++) {
+          var rx = rivetXs[ri], ry = rivetYs[rj];
+          ctx.fillStyle = 'rgba(20,25,35,0.7)';
+          ctx.beginPath(); ctx.arc(rx, ry, rivetR, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,255,0.3)';
+          ctx.beginPath(); ctx.arc(rx - rivetR * 0.35, ry - rivetR * 0.35, rivetR * 0.45, 0, Math.PI * 2); ctx.fill();
+        }
       }
     }
+
+    // Center grip groove
+    if (panelH > 14 * S) {
+      var grY = panelTop + panelH * 0.5;
+      ctx.fillStyle = 'rgba(20,25,35,0.55)';
+      ctx.fillRect(panelX + panelW * 0.22, grY - 1 * S, panelW * 0.56, 2.2 * S);
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.fillRect(panelX + panelW * 0.22, grY - 1 * S, panelW * 0.56, 0.7 * S);
+    }
   }
 
-  // Center grip groove
-  if (panelH > 14 * S) {
-    var grY = panelTop + panelH * 0.5;
-    ctx.fillStyle = 'rgba(20,25,35,0.55)';
-    ctx.fillRect(panelX + panelW * 0.22, grY - 1 * S, panelW * 0.56, 2.2 * S);
-    ctx.fillStyle = 'rgba(255,255,255,0.18)';
-    ctx.fillRect(panelX + panelW * 0.22, grY - 1 * S, panelW * 0.56, 0.7 * S);
+  // ── Open-state passage indicators (down chevrons on the floor) ──
+  // Only visible once the door is mostly open, so they reinforce "passable".
+  if (openness > 0.55 && !locked) {
+    var indicAlpha = (openness - 0.55) / 0.45;
+    var chevSize = floorH * 0.32;
+    var chevY = y + h - frameInset - floorH * 0.5;
+    // Distribute chevrons across the floor width, leaving room for the counter badge.
+    var counterR = Math.min(floorH * 0.42, w * 0.13, 12 * S);
+    var counterCx = x + w / 2;
+    var chevCount = d.doorWide ? 3 : 1;
+    for (var ci = 0; ci < chevCount * 2; ci++) {
+      var side = ci % 2 === 0 ? -1 : 1;
+      var n = Math.floor(ci / 2);
+      var distFromCounter = counterR + chevSize * 1.5 + n * chevSize * 2.4;
+      var cx2 = counterCx + side * distFromCounter;
+      if (cx2 < x + frameInset + trackW + chevSize || cx2 > x + w - frameInset - trackW - chevSize) continue;
+      // Subtle pulse
+      var p2 = Math.sin(tick * 0.08 + ci * 0.7) * 0.25 + 0.75;
+      ctx.strokeStyle = 'rgba(100,200,120,' + (indicAlpha * p2 * 0.85) + ')';
+      ctx.lineWidth = 1.8 * S;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(cx2 - chevSize * 0.6, chevY - chevSize * 0.25);
+      ctx.lineTo(cx2, chevY + chevSize * 0.35);
+      ctx.lineTo(cx2 + chevSize * 0.6, chevY - chevSize * 0.25);
+      ctx.stroke();
+    }
+  }
+
+  // ── Closed-state hazard stripes on the floor ──
+  // Only visible when fully closed. Yellow/black tape feel.
+  if (openness < 0.4 && !locked) {
+    var hazAlpha = (0.4 - openness) / 0.4;
+    var hazY1 = y + h - frameInset - floorH + 1 * S;
+    var hazY2 = y + h - frameInset - 1 * S;
+    var hazX1 = x + frameInset + trackW + 1 * S;
+    var hazX2 = x + w - frameInset - trackW - 1 * S;
+    var stripeW = 6 * S;
+    ctx.save();
+    ctx.globalAlpha = hazAlpha * 0.4;
+    var hazStripe = 0;
+    for (var sx = hazX1 - floorH; sx < hazX2 + floorH; sx += stripeW) {
+      ctx.fillStyle = (hazStripe % 2 === 0) ? '#E8B43A' : '#1C1F26';
+      ctx.beginPath();
+      ctx.moveTo(sx, hazY1);
+      ctx.lineTo(sx + stripeW, hazY1);
+      ctx.lineTo(sx + stripeW - (hazY2 - hazY1), hazY2);
+      ctx.lineTo(sx - (hazY2 - hazY1), hazY2);
+      ctx.closePath();
+      // Clip to floor band
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(hazX1, hazY1, hazX2 - hazX1, hazY2 - hazY1);
+      ctx.clip();
+      ctx.fill();
+      ctx.restore();
+      hazStripe++;
+    }
+    ctx.restore();
   }
 
   // Warning telegraph on the last turn before the next toggle
   if (!locked && d.doorTurnsLeft <= 1 && d.doorAnimT <= 0.001) {
     var pulse = (Math.sin(tick * 0.18) * 0.5 + 0.5);
     if (d.doorClosed) {
-      // Door about to open — soft cyan
-      ctx.fillStyle = 'rgba(120,220,255,' + (pulse * 0.32) + ')';
+      // Door about to open — green tint over the panel
+      ctx.fillStyle = 'rgba(120,255,160,' + (pulse * 0.32) + ')';
+      ctx.fillRect(panelX, panelTop, panelW, panelH);
     } else {
-      // Door about to close — soft red
-      ctx.fillStyle = 'rgba(255,90,90,' + (pulse * 0.42) + ')';
+      // Door about to close — red tint along the side rails + floor edges
+      ctx.fillStyle = 'rgba(255,90,90,' + (pulse * 0.55) + ')';
+      ctx.fillRect(x + frameInset, y + frameInset, trackW, h - frameInset * 2);
+      ctx.fillRect(x + w - frameInset - trackW, y + frameInset, trackW, h - frameInset * 2);
     }
-    ctx.fillRect(panelX, panelTop, panelW, panelH);
   }
 
-  ctx.restore(); // end clip
+  ctx.restore(); // end interior clip
 
   // Frame border (outside clip)
-  ctx.strokeStyle = locked ? 'rgba(190,140,40,0.7)' : 'rgba(40,46,56,0.85)';
-  ctx.lineWidth = 1.6 * S;
-  rRect(x + 0.8 * S, y + 0.8 * S, w - 1.6 * S, h - 1.6 * S, 5.5 * S);
+  var frameStroke;
+  if (locked) frameStroke = 'rgba(190,140,40,0.85)';
+  else if (openness > 0.55) frameStroke = 'rgba(70,82,100,0.85)';
+  else frameStroke = 'rgba(20,24,32,0.95)';
+  ctx.strokeStyle = frameStroke;
+  ctx.lineWidth = 1.8 * S;
+  rRect(x + 0.9 * S, y + 0.9 * S, w - 1.8 * S, h - 1.8 * S, 5.5 * S);
   ctx.stroke();
 
   // Locked-open golden glow
@@ -456,38 +560,41 @@ function drawDoorOnGrid(ctx, x, y, w, h, S, d) {
   }
 
   // ── Counter badge on the floor ──
-  var counterCx = x + w / 2;
-  var counterCy = y + h - frameInset - floorH / 2;
-  var counterR = Math.min(floorH * 0.42, w * 0.13, 12 * S);
+  var counterCx2 = x + w / 2;
+  var floorH2 = Math.max(11 * S, h * 0.18);
+  var counterCy2 = y + h - frameInset - floorH2 / 2;
+  var counterR2 = Math.min(floorH2 * 0.42, w * 0.13, 12 * S);
 
-  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowColor = 'rgba(0,0,0,0.55)';
   ctx.shadowBlur = 3 * S;
   ctx.shadowOffsetY = 1 * S;
 
   if (locked) {
     ctx.fillStyle = 'rgba(255,215,100,0.96)';
-    ctx.beginPath(); ctx.arc(counterCx, counterCy, counterR, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(counterCx2, counterCy2, counterR2, 0, Math.PI * 2); ctx.fill();
     ctx.shadowColor = 'transparent';
     ctx.strokeStyle = 'rgba(140,100,40,0.7)';
     ctx.lineWidth = 1 * S;
-    ctx.beginPath(); ctx.arc(counterCx, counterCy, counterR, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(counterCx2, counterCy2, counterR2, 0, Math.PI * 2); ctx.stroke();
     ctx.fillStyle = '#5A3A10';
-    ctx.font = 'bold ' + (counterR * 1.6) + 'px sans-serif';
+    ctx.font = 'bold ' + (counterR2 * 1.6) + 'px sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('∞', counterCx, counterCy + counterR * 0.05);
+    ctx.fillText('∞', counterCx2, counterCy2 + counterR2 * 0.05);
   } else {
-    var badgeFill = d.doorClosed ? 'rgba(120,220,255,0.96)' : 'rgba(255,180,60,0.96)';
-    var badgeStroke = d.doorClosed ? 'rgba(40,100,140,0.65)' : 'rgba(180,110,30,0.65)';
+    // Badge color depends on the state the door is currently IN, not its target.
+    // Use a stronger green/red contrast so the counter itself signals state.
+    var badgeFill = d.doorClosed ? 'rgba(255,110,110,0.97)' : 'rgba(80,210,120,0.97)';
+    var badgeStroke = d.doorClosed ? 'rgba(150,40,40,0.7)' : 'rgba(30,120,55,0.7)';
     ctx.fillStyle = badgeFill;
-    ctx.beginPath(); ctx.arc(counterCx, counterCy, counterR, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(counterCx2, counterCy2, counterR2, 0, Math.PI * 2); ctx.fill();
     ctx.shadowColor = 'transparent';
     ctx.strokeStyle = badgeStroke;
     ctx.lineWidth = 1 * S;
-    ctx.beginPath(); ctx.arc(counterCx, counterCy, counterR, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(counterCx2, counterCy2, counterR2, 0, Math.PI * 2); ctx.stroke();
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold ' + (counterR * 1.4) + 'px sans-serif';
+    ctx.font = 'bold ' + (counterR2 * 1.4) + 'px sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(String(d.doorTurnsLeft), counterCx, counterCy + counterR * 0.05);
+    ctx.fillText(String(d.doorTurnsLeft), counterCx2, counterCy2 + counterR2 * 0.05);
   }
   ctx.shadowColor = 'transparent';
   ctx.shadowBlur = 0;
