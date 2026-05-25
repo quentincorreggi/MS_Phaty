@@ -124,10 +124,18 @@ function editorRenderGrid() {
     } else if (v && v.ci >= 0) {
       var bt = getBoxType(v.type);
       if (editorGateFed[i] !== undefined) {
-        // Gray out gate-fed boxes
-        cell.style.background = 'linear-gradient(135deg,' + COLORS[BLOCKER_CI].light + ',' + COLORS[BLOCKER_CI].dark + ')';
-        cell.style.borderColor = COLORS[BLOCKER_CI].dark;
-        cell.innerHTML = bt.editorCellHTML(BLOCKER_CI);
+        // Gray out gate-fed boxes — cannot use BLOCKER_CI with editorCellHTML (no CLR_NAME)
+        var gateAnchorIdx = editorGateFed[i];
+        var gv4 = editor.grid[gateAnchorIdx];
+        var nextColorDot = '';
+        if (gv4 && gv4.gateColors && gv4.gateColors.length > 0) {
+          nextColorDot = '<span style="position:absolute;top:2px;right:2px;width:8px;height:8px;border-radius:50%;background:' +
+            COLORS[gv4.gateColors[0]].fill + ';border:1px solid rgba(255,255,255,0.4)"></span>';
+        }
+        cell.style.background = 'linear-gradient(135deg,#A89E94,#6A6055)';
+        cell.style.borderColor = '#7A6E64';
+        cell.style.position = 'relative';
+        cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,255,255,0.5)">?</span>' + nextColorDot;
       } else {
         var st = bt.editorCellStyle(v.ci);
         cell.style.background = st.background;
