@@ -17,6 +17,7 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  darkRoom: false,      // dark room visual mode
   visible: false
 };
 
@@ -34,6 +35,7 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.darkRoom = false;
 }
 
 function showEditor(fresh) {
@@ -559,6 +561,20 @@ function editorRenderSettings() {
       });
     })(fields[i]);
   }
+
+  // Dark Room toggle (checkbox row)
+  var darkRow = document.createElement('div');
+  darkRow.className = 'ed-setting-row';
+  darkRow.style.marginTop = '6px';
+  darkRow.innerHTML =
+    '<label style="width:auto">Dark Room</label>' +
+    '<input type="checkbox" id="ed-s-darkRoom"' + (editor.darkRoom ? ' checked' : '') + ' style="margin-left:6px;cursor:pointer">' +
+    '<span class="ed-s-val" style="width:auto;font-size:10px;color:#9C8A70">Only revealed boxes + belt are lit</span>';
+  el.appendChild(darkRow);
+  var dr = document.getElementById('ed-s-darkRoom');
+  dr.addEventListener('change', function () {
+    editor.darkRoom = dr.checked;
+  });
 }
 
 // ── Build level definition ──
@@ -567,6 +583,7 @@ function editorBuildLevel() {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
+    darkRoom: !!editor.darkRoom,
     grid: editor.grid.slice()
   };
 }
@@ -625,6 +642,7 @@ function editorImportJSON() {
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
+      editor.darkRoom = !!lvl.darkRoom;
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
       var nameEl = document.getElementById('ed-name');

@@ -550,8 +550,9 @@ function frame() {
     drawBlockerProgress();
     drawJumpers();
     drawSortArea();
-    drawBackButton();
     drawParticles();
+    drawDarkRoom();
+    drawBackButton();
     drawDebugWalls();
   }
   requestAnimationFrame(frame);
