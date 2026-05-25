@@ -43,7 +43,7 @@ function drawDarkRoom() {
   // 1. Fill mask with cool blue-black (slightly lifted from pure black for ambient feel)
   mctx.globalCompositeOperation = 'source-over';
   mctx.clearRect(0, 0, W, H);
-  mctx.fillStyle = 'rgba(6,9,18,0.96)';
+  mctx.fillStyle = 'rgba(6,9,18,1)';
   mctx.fillRect(0, 0, W, H);
 
   // 2. Punch holes where light exists
@@ -154,7 +154,7 @@ function drawDarkRoom() {
 
   // 2h. Crescent bite — restore darkness on left side of moon disc
   mctx.globalCompositeOperation = 'source-over';
-  mctx.fillStyle = 'rgba(6,9,18,0.96)';
+  mctx.fillStyle = 'rgba(6,9,18,1)';
   mctx.beginPath();
   mctx.arc(mp.cx - mp.r * 0.42, mp.cy - mp.r * 0.05, mp.r * 0.92, 0, Math.PI * 2);
   mctx.fill();
