@@ -43,7 +43,7 @@ function drawDarkRoom() {
   // 1. Fill mask with cool blue-black (slightly lifted from pure black for ambient feel)
   mctx.globalCompositeOperation = 'source-over';
   mctx.clearRect(0, 0, W, H);
-  mctx.fillStyle = 'rgba(6,9,18,0.92)';
+  mctx.fillStyle = 'rgba(6,9,18,0.96)';
   mctx.fillRect(0, 0, W, H);
 
   // 2. Punch holes where light exists
@@ -91,40 +91,44 @@ function drawDarkRoom() {
     mctx.restore();
   }
 
-  // 2c. Belt
+  // 2c. Belt — soft-edged rounded rect via filter blur
   mctx.save();
-  mctx.shadowColor = 'rgba(255,255,255,1)';
-  mctx.shadowBlur = 36 * S;
+  mctx.filter = 'blur(' + (18 * S).toFixed(1) + 'px)';
   mctx.fillStyle = 'rgba(255,255,255,1)';
-  var bPadX = 22 * S, bPadY = 18 * S;
-  mctx.fillRect(
+  var bPadX = 14 * S, bPadY = 10 * S;
+  roundRectPath(
+    mctx,
     L.beltLeft - bPadX,
     L.beltTopY - bPadY,
     (L.beltRight - L.beltLeft) + bPadX * 2,
-    (L.beltBotY - L.beltTopY) + bPadY * 2
+    (L.beltBotY - L.beltTopY) + bPadY * 2,
+    20 * S
   );
+  mctx.fill();
   mctx.restore();
 
-  // 2d. Funnel
+  // 2d. Funnel — soft-edged
   mctx.save();
-  mctx.shadowColor = 'rgba(255,255,255,1)';
-  mctx.shadowBlur = 28 * S;
+  mctx.filter = 'blur(' + (14 * S).toFixed(1) + 'px)';
   mctx.fillStyle = 'rgba(255,255,255,0.92)';
-  var fPad = 8 * S;
-  mctx.fillRect(
+  var fPad = 4 * S;
+  roundRectPath(
+    mctx,
     L.funnelLeft - fPad,
     L.funnelTop - fPad,
     (L.funnelRight - L.funnelLeft) + fPad * 2,
-    L.funnelH + fPad * 2
+    L.funnelH + fPad * 2,
+    14 * S
   );
+  mctx.fill();
   mctx.restore();
 
-  // 2e. Back button
+  // 2e. Back button — soft-edged
   mctx.save();
-  mctx.shadowColor = 'rgba(255,255,255,1)';
-  mctx.shadowBlur = 14 * S;
+  mctx.filter = 'blur(' + (8 * S).toFixed(1) + 'px)';
   mctx.fillStyle = 'rgba(255,255,255,1)';
-  mctx.fillRect(L.bkX - 4 * S, L.bkY - 4 * S, L.bkSize + 8 * S, L.bkSize + 8 * S);
+  roundRectPath(mctx, L.bkX - 2 * S, L.bkY - 2 * S, L.bkSize + 4 * S, L.bkSize + 4 * S, 10 * S);
+  mctx.fill();
   mctx.restore();
 
   // 2f. Moon ambient lift — huge soft erase across whole canvas centered near moon
@@ -150,7 +154,7 @@ function drawDarkRoom() {
 
   // 2h. Crescent bite — restore darkness on left side of moon disc
   mctx.globalCompositeOperation = 'source-over';
-  mctx.fillStyle = 'rgba(6,9,18,0.92)';
+  mctx.fillStyle = 'rgba(6,9,18,0.96)';
   mctx.beginPath();
   mctx.arc(mp.cx - mp.r * 0.42, mp.cy - mp.r * 0.05, mp.r * 0.92, 0, Math.PI * 2);
   mctx.fill();
@@ -320,17 +324,17 @@ function drawBats() {
 function drawFog() {
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  var bandY = H - 90 * S;
-  var bandH = 120 * S;
+  // Position fog just above the 2nd sort row
+  var bandY = L.sTop + L.sBh + L.sGap * 0.4;
   for (var i = 0; i < 4; i++) {
     var phase = (tick * 0.0015 + i * 0.25) % 1;
     var x = (phase * (W + 400 * S)) - 200 * S;
-    var y = bandY + i * 18 * S - 20 * S;
+    var y = bandY + i * 10 * S - 10 * S;
     var rx = 220 * S;
-    var ry = 30 * S;
+    var ry = 22 * S;
     var g = ctx.createRadialGradient(x, y, 0, x, y, rx);
-    g.addColorStop(0, 'rgba(140,150,170,0.10)');
-    g.addColorStop(0.4, 'rgba(140,150,170,0.06)');
+    g.addColorStop(0, 'rgba(140,150,170,0.12)');
+    g.addColorStop(0.4, 'rgba(140,150,170,0.07)');
     g.addColorStop(1, 'rgba(140,150,170,0)');
     ctx.fillStyle = g;
     ctx.beginPath();
@@ -341,11 +345,11 @@ function drawFog() {
   for (var j = 0; j < 3; j++) {
     var phase2 = ((1 - (tick * 0.001 + j * 0.33)) % 1 + 1) % 1;
     var x2 = (phase2 * (W + 400 * S)) - 200 * S;
-    var y2 = bandY + 40 * S + j * 22 * S;
+    var y2 = bandY + 14 * S + j * 12 * S;
     var rx2 = 260 * S;
-    var ry2 = 36 * S;
+    var ry2 = 28 * S;
     var g2 = ctx.createRadialGradient(x2, y2, 0, x2, y2, rx2);
-    g2.addColorStop(0, 'rgba(120,135,160,0.09)');
+    g2.addColorStop(0, 'rgba(120,135,160,0.10)');
     g2.addColorStop(1, 'rgba(120,135,160,0)');
     ctx.fillStyle = g2;
     ctx.beginPath();
@@ -401,12 +405,13 @@ function drawDarkRoomFrame() {
 
   ctx.restore();
 
-  // Candles at corners — replace studs with flickering flames
+  // Candles at corners — slightly offset outward from frame so they don't touch the board
+  var off = 14 * S;
   var corners = [
-    { cx: x, cy: y, seed: 0.0 },
-    { cx: x + w, cy: y, seed: 1.7 },
-    { cx: x, cy: y + h, seed: 3.1 },
-    { cx: x + w, cy: y + h, seed: 4.9 }
+    { cx: x - off, cy: y - off, seed: 0.0 },
+    { cx: x + w + off, cy: y - off, seed: 1.7 },
+    { cx: x - off, cy: y + h + off, seed: 3.1 },
+    { cx: x + w + off, cy: y + h + off, seed: 4.9 }
   ];
   for (var k = 0; k < corners.length; k++) {
     drawCandle(corners[k].cx, corners[k].cy, corners[k].seed);
