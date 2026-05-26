@@ -1,6 +1,7 @@
 // ============================================================
 // plate.js — Rotating Plate mechanic
-// A 2x2 group of boxes that rotates 90deg clockwise after every tap.
+// A 2x2 group of boxes linked by a bronze frame.
+// The whole plate rotates 90deg clockwise after every tap anywhere.
 // Positions: 0=top-left, 1=top-right, 2=bottom-right, 3=bottom-left
 // ============================================================
 
