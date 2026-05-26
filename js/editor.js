@@ -17,6 +17,8 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  plateMode: false,     // true when placing 2x2 plates
+  nextPlateId: 0,       // counter for unique plate IDs
   visible: false
 };
 
@@ -34,6 +36,8 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.plateMode = false;
+  editor.nextPlateId = 0;
 }
 
 function showEditor(fresh) {
@@ -85,6 +89,13 @@ function editorRenderGrid() {
       var count = v.contents ? v.contents.length : 0;
       cell.innerHTML = '<span class="ed-cell-dot" style="color:#FFD080;font-size:13px">' + arrow +
         '</span><span class="ed-tunnel-badge">' + count + '</span>';
+    } else if (v && v.plate) {
+      var bt = getBoxType(v.type || 'default');
+      var st = bt.editorCellStyle(v.ci);
+      cell.style.background = st.background;
+      cell.style.borderColor = '#CD8B3C';
+      cell.style.borderWidth = '2.5px';
+      cell.innerHTML = bt.editorCellHTML(v.ci) + '<span style="position:absolute;bottom:1px;right:2px;font-size:7px;color:#CD8B3C;opacity:0.9;pointer-events:none">&#9654;</span>';
     } else if (v && v.ci >= 0) {
       var bt = getBoxType(v.type);
       var st = bt.editorCellStyle(v.ci);
@@ -104,6 +115,36 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.plateMode) {
+    var existing = editor.grid[idx];
+    if (existing && existing.plate) {
+      var pid = existing.plateId;
+      for (var j = 0; j < 49; j++) {
+        if (editor.grid[j] && editor.grid[j].plate && editor.grid[j].plateId === pid) editor.grid[j] = null;
+      }
+    } else {
+      var row = Math.floor(idx / 7), col = idx % 7;
+      if (row < 6 && col < 6) {
+        var i0 = row * 7 + col, i1 = row * 7 + col + 1;
+        var i2 = (row + 1) * 7 + col + 1, i3 = (row + 1) * 7 + col;
+        if (!editor.grid[i0] && !editor.grid[i1] && !editor.grid[i2] && !editor.grid[i3]) {
+          var pid = editor.nextPlateId++;
+          editor.grid[i0] = { plate: true, plateId: pid, platePos: 0, ci: 0, type: 'default' };
+          editor.grid[i1] = { plate: true, plateId: pid, platePos: 1, ci: 1, type: 'default' };
+          editor.grid[i2] = { plate: true, plateId: pid, platePos: 2, ci: 2, type: 'default' };
+          editor.grid[i3] = { plate: true, plateId: pid, platePos: 3, ci: 3, type: 'default' };
+        } else {
+          editorShowToast('Need 2×2 empty space for a plate');
+        }
+      } else {
+        editorShowToast('Not enough room at edge');
+      }
+    }
+    if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+    editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -137,11 +178,21 @@ function editorCellClick(e) {
   } else {
     // Normal box painting mode
     if (editor.activeColor === -1) {
-      editor.grid[idx] = null;
+      var eraseTarget = editor.grid[idx];
+      if (eraseTarget && eraseTarget.plate) {
+        var epid = eraseTarget.plateId;
+        for (var ej = 0; ej < 49; ej++) {
+          if (editor.grid[ej] && editor.grid[ej].plate && editor.grid[ej].plateId === epid) editor.grid[ej] = null;
+        }
+      } else {
+        editor.grid[idx] = null;
+      }
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     } else {
       var existing = editor.grid[idx];
-      if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
+      if (existing && existing.plate) {
+        editor.grid[idx] = { plate: true, plateId: existing.plateId, platePos: existing.platePos, ci: editor.activeColor, type: editor.activeType };
+      } else if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
         editor.grid[idx] = null;
       } else {
         editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
@@ -157,7 +208,15 @@ function editorCellClick(e) {
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
-  editor.grid[idx] = null;
+  var v = editor.grid[idx];
+  if (v && v.plate) {
+    var pid = v.plateId;
+    for (var j = 0; j < 49; j++) {
+      if (editor.grid[j] && editor.grid[j].plate && editor.grid[j].plateId === pid) editor.grid[j] = null;
+    }
+  } else {
+    editor.grid[idx] = null;
+  }
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
   editorRenderGrid();
   editorUpdateStats();
@@ -200,10 +259,26 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.plateMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(wallBtn);
+
+  // Plate mode button
+  var plateBtn = document.createElement('button');
+  plateBtn.className = 'ed-type-btn' + (editor.plateMode ? ' active' : '');
+  plateBtn.textContent = '\u229E Plate';
+  plateBtn.style.borderColor = editor.plateMode ? 'rgba(205,139,60,0.6)' : '';
+  plateBtn.style.color = editor.plateMode ? '#CD8B3C' : '';
+  plateBtn.addEventListener('click', function () {
+    editor.plateMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(plateBtn);
 
   // Tunnel mode button
   var tunnelBtn = document.createElement('button');
@@ -255,11 +330,15 @@ function editorRenderToolbar() {
     }
     el.appendChild(dirRow);
   } else if (editor.wallMode) {
-    // Wall mode: just show info hint
     var wallInfo = document.createElement('div');
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
+  } else if (editor.plateMode) {
+    var plateInfo = document.createElement('div');
+    plateInfo.className = 'ed-color-row';
+    plateInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click top-left of a 2×2 empty area to place · click plate to remove · switch to box mode to repaint colors</span>';
+    el.appendChild(plateInfo);
   } else {
     // Color palette: eraser + 8 colors
     var colorRow = document.createElement('div');
@@ -477,6 +556,12 @@ function editorUpdateStats() {
       }
       continue;
     }
+    if (v.plate) {
+      counts[v.ci]++;
+      total++;
+      regularMrb[v.ci] += editor.mrbPerBox;
+      continue;
+    }
     if (v.ci >= 0) {
       counts[v.ci]++;
       total++;
@@ -490,12 +575,20 @@ function editorUpdateStats() {
     }
   }
   var el = document.getElementById('ed-stats');
+  var plateIds = {}, plateCount = 0;
+  for (var pi = 0; pi < 49; pi++) {
+    var pv = editor.grid[pi];
+    if (pv && pv.plate && !plateIds[pv.plateId]) { plateIds[pv.plateId] = true; plateCount++; }
+  }
   var html = '<span class="ed-stat-total">' + total + ' boxes</span>';
   for (var t = 0; t < BoxTypeOrder.length; t++) {
     var tid = BoxTypeOrder[t];
     if (typeCounts[tid]) {
       html += '<span class="ed-stat-chip" style="background:' + BoxTypes[tid].editorColor + '">' + typeCounts[tid] + ' ' + BoxTypes[tid].label.toLowerCase() + '</span>';
     }
+  }
+  if (plateCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#CD8B3C">' + plateCount + ' plate' + (plateCount > 1 ? 's' : '') + '</span>';
   }
   if (wallCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#8A7D6B">' + wallCount + ' wall' + (wallCount > 1 ? 's' : '') + '</span>';
@@ -632,6 +725,11 @@ function editorImportJSON() {
       if (nameEl) nameEl.value = editor.name;
       if (descEl) descEl.value = editor.desc;
       editor.selectedTunnel = -1;
+      var maxPid = -1;
+      for (var pi2 = 0; pi2 < 49; pi2++) {
+        if (editor.grid[pi2] && editor.grid[pi2].plate && editor.grid[pi2].plateId > maxPid) maxPid = editor.grid[pi2].plateId;
+      }
+      editor.nextPlateId = maxPid + 1;
       ta.style.display = 'none';
       editorBuildUI();
       editorShowToast('Imported!');

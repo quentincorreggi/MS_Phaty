@@ -1,0 +1,22 @@
+{
+  "name": "Rotating Plate",
+  "description": "A 2×2 group of boxes linked by a bronze frame. Every time you tap any box on the board — anywhere — all plates rotate 90° clockwise.",
+  "howToPlay": "Tap any box to collect its marbles. Watch the plate spin after every move! Plan your tap order carefully — the plate rotates whether you tap it or not.",
+  "author": "prototype",
+  "showcaseLevel": {
+    "name": "Rotating Plate Demo",
+    "desc": "Every tap rotates the plate!",
+    "mrbPerBox": 6,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, null, {"plate":true,"plateId":0,"platePos":0,"ci":0,"type":"default"}, {"plate":true,"plateId":0,"platePos":1,"ci":1,"type":"default"}, null, null, null,
+      null, null, {"plate":true,"plateId":0,"platePos":3,"ci":3,"type":"default"}, {"plate":true,"plateId":0,"platePos":2,"ci":2,"type":"default"}, null, null, null,
+      null, null, null, null, null, null, null,
+      null, {"ci":0,"type":"default"}, {"ci":1,"type":"default"}, null, {"ci":2,"type":"default"}, {"ci":3,"type":"default"}, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}

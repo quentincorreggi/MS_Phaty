@@ -42,6 +42,7 @@ function initGame() {
   var boxSlots = {};
   var tunnelSlots = {};
   var wallSlots = {};
+  var plateSlots = {};
   if (lvl.grid) {
     for (var i = 0; i < Math.min(lvl.grid.length, totalSlots); i++) {
       var cell = lvl.grid[i];
@@ -52,6 +53,8 @@ function initGame() {
       }
       if (cell.tunnel) {
         tunnelSlots[i] = { dir: cell.dir || 'bottom', contents: cell.contents ? cell.contents.slice() : [] };
+      } else if (cell.plate) {
+        plateSlots[i] = { plateId: cell.plateId, platePos: cell.platePos, ci: cell.ci, boxType: cell.type || 'default' };
       } else if (typeof cell === 'number') {
         if (cell >= 0) boxSlots[i] = { ci: cell, boxType: 'default' };
       } else if (typeof cell === 'object' && cell.ci >= 0) {
@@ -70,6 +73,13 @@ function initGame() {
     var isBlockerBox = (bs.boxType === 'blocker');
     var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
     colorMarblesTotal[bs.ci] += regularPerBox;
+    if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
+  }
+  for (var k in plateSlots) {
+    var ps = plateSlots[k];
+    var isBlockerBox = (ps.boxType === 'blocker');
+    var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
+    colorMarblesTotal[ps.ci] += regularPerBox;
     if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
   }
   // Count marbles from tunnel contents
@@ -95,6 +105,7 @@ function initGame() {
     var slot = boxSlots[idx];
     var tSlot = tunnelSlots[idx];
     var wSlot = wallSlots[idx];
+    var pSlot = plateSlots[idx];
 
     if (tSlot) {
       // Tunnel entry
@@ -121,6 +132,18 @@ function initGame() {
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
+    } else if (pSlot) {
+      var isIceP = (pSlot.boxType === 'ice');
+      var isBlockerP = (pSlot.boxType === 'blocker');
+      stock.push({ ci: pSlot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
+        revealed: false, empty: false,
+        boxType: pSlot.boxType, isTunnel: false, isWall: false,
+        isPlate: true, plateId: pSlot.plateId, platePos: pSlot.platePos,
+        iceHP: isIceP ? 2 : 0, iceCrackT: 0, iceShatterT: 0,
+        blockerCount: isBlockerP ? BLOCKER_PER_BOX : 0,
+        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
+        idlePhase: Math.random() * Math.PI * 2 });
     } else if (!slot) {
       stock.push({ ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
@@ -141,6 +164,9 @@ function initGame() {
         idlePhase: Math.random() * Math.PI * 2 });
     }
   }
+
+  // ── Initialize plates ──
+  if (typeof initPlates === 'function' && lvl.grid) initPlates(lvl.grid, totalSlots);
 
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
@@ -339,6 +365,7 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      if (typeof triggerAllPlateRotations === 'function') triggerAllPlateRotations();
       return;
     }
   }
@@ -373,6 +400,9 @@ function update() {
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
+
+  // ── Plate rotation animations ──
+  if (typeof updatePlates === 'function') updatePlates();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -544,7 +574,9 @@ function frame() {
     ctx.clearRect(0, 0, W, H);
     drawBackground();
     drawFunnel();
+    if (typeof drawPlateBgs === 'function') drawPlateBgs();
     drawStock();
+    if (typeof drawPlateOverlays === 'function') drawPlateOverlays();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();
