@@ -32,6 +32,7 @@ function initGame() {
   won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
+  initRocketBlockers();
   document.getElementById('win-screen').classList.remove('show');
   computeLayout(); initBeltSlots();
 
@@ -42,12 +43,22 @@ function initGame() {
   var boxSlots = {};
   var tunnelSlots = {};
   var wallSlots = {};
+  var rbSlots = {};       // primary rocket blocker cells
+  var rbSlaveSlots = {};  // slave rocket blocker cells
   if (lvl.grid) {
     for (var i = 0; i < Math.min(lvl.grid.length, totalSlots); i++) {
       var cell = lvl.grid[i];
       if (cell === null || cell === undefined) continue;
       if (cell.wall) {
         wallSlots[i] = true;
+        continue;
+      }
+      if (cell.rocketBlocker) {
+        rbSlots[i] = { colors: cell.colors || [0,1,2,3], hiddenBoxes: cell.hiddenBoxes || [null,null,null,null] };
+        continue;
+      }
+      if (cell.rocketBlockerSlave) {
+        rbSlaveSlots[i] = true;
         continue;
       }
       if (cell.tunnel) {
@@ -81,6 +92,19 @@ function initGame() {
       var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
       colorMarblesTotal[tItem.ci] += regularPerBox;
       if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
+    }
+  }
+  // Count marbles from rocket blocker hidden boxes
+  for (var k in rbSlots) {
+    var rbs0 = rbSlots[k];
+    for (var h = 0; h < rbs0.hiddenBoxes.length; h++) {
+      var hb0 = rbs0.hiddenBoxes[h];
+      if (hb0 && hb0.ci >= 0) {
+        var isHBBlocker = (hb0.type === 'blocker');
+        var hbRegular = isHBBlocker ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
+        colorMarblesTotal[hb0.ci] += hbRegular;
+        if (isHBBlocker) totalBlockerMarbles += BLOCKER_PER_BOX;
+      }
     }
   }
   var sortPerColor = [];
@@ -121,9 +145,39 @@ function initGame() {
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
+    } else if (rbSlaveSlots[idx]) {
+      stock.push({ isRocketBlockerSlave: true, isRocketBlocker: false,
+        isTunnel: false, isWall: false,
+        ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
+        revealed: false, empty: false, boxType: 'default',
+        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
+    } else if (rbSlots[idx]) {
+      var rbs1 = rbSlots[idx];
+      stock.push({ isRocketBlocker: true, isRocketBlockerSlave: false,
+        isTunnel: false, isWall: false,
+        ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
+        revealed: false, empty: false, boxType: 'default',
+        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
+      rocketBlockers.push({
+        primaryIdx: idx,
+        row: r, col: c,
+        colors: rbs1.colors.slice(),
+        hiddenBoxes: rbs1.hiddenBoxes.map(function(hb) {
+          return hb ? { ci: hb.ci, type: hb.type || 'default' } : null;
+        }),
+        satisfied: [false, false, false, false],
+        satisfiedT: [0, 0, 0, 0],
+        fired: false, revealed: false,
+        fireT: 0, shakeT: 0
+      });
     } else if (!slot) {
       stock.push({ ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
+        isRocketBlocker: false, isRocketBlockerSlave: false,
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
@@ -221,6 +275,7 @@ function updateBoxReveals(animate) {
     var b = stock[k];
     if (!b) continue;
     if (b.isWall || b.isTunnel || b.empty || b.used) continue;
+    if (b.isRocketBlocker || b.isRocketBlockerSlave) continue;
     if (b.spawning) continue;
 
     var br = Math.floor(k / L.cols), bcol = k % L.cols;
@@ -314,7 +369,8 @@ function damageAdjacentIce(idx) {
 function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
-  if (b.isWall) return false;      // walls are not tappable
+  if (b.isWall) return false;
+  if (b.isRocketBlocker || b.isRocketBlockerSlave) return false;
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
@@ -330,7 +386,8 @@ function handleTap(px, py) {
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
+    if (b.isTunnel || b.isWall) continue;
+    if (b.isRocketBlocker || b.isRocketBlockerSlave) continue;
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
@@ -353,6 +410,7 @@ canvas.addEventListener('mousemove', function (e) {
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;
+    if (b.isRocketBlocker || b.isRocketBlockerSlave) continue;
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (!isBoxTappable(i)) continue;
     if (e.clientX >= b.x && e.clientX <= b.x + L.bw && e.clientY >= b.y && e.clientY <= b.y + L.bh) { hoverIdx = i; break; }
@@ -370,6 +428,9 @@ function update() {
   for (var i = 0; i < BELT_SLOTS; i++) {
     if (beltSlots[i].arriveAnim > 0) beltSlots[i].arriveAnim = Math.max(0, beltSlots[i].arriveAnim - 0.025);
   }
+
+  // ── Rocket Blockers ──
+  updateRocketBlockers();
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
@@ -414,6 +475,7 @@ function update() {
           var by2 = getSortBoxY(j.targetCol, 0) + L.sBh / 2;
           spawnBurst(bx2, by2, COLORS[j.ci].fill, 20);
           spawnConfetti(bx2, by2, 15);
+          onSortColumnCleared(j.ci);
           (function (box) { setTimeout(function () { box.vis = false; checkWin(); }, 600); })(col[tv]);
         }
       }
@@ -467,7 +529,8 @@ function update() {
   // Stock animations
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;  // tunnels and walls don't need stock animations
+    if (b.isTunnel || b.isWall) continue;
+    if (b.isRocketBlocker || b.isRocketBlockerSlave) continue;
     if (b.empty) continue;
     if (b.shakeT > 0) b.shakeT = Math.max(0, b.shakeT - 0.04);
     if (b.popT > 0) b.popT = Math.max(0, b.popT - 0.025);
@@ -545,6 +608,7 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    drawRocketBlockers();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();

@@ -177,6 +177,9 @@ function drawStock() {
       continue;
     }
 
+    // ── Rocket Blocker (drawn separately by drawRocketBlockers) ──
+    if (b.isRocketBlocker || b.isRocketBlockerSlave) continue;
+
     var ox = 0;
     if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
     var breathe = 0;

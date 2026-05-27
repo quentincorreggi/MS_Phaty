@@ -17,6 +17,8 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  rocketMode: false,    // true when placing rocket blockers
+  selectedRocketBlocker: -1,  // index of selected rb TL cell
   visible: false
 };
 
@@ -34,6 +36,8 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.rocketMode = false;
+  editor.selectedRocketBlocker = -1;
 }
 
 function showEditor(fresh) {
@@ -60,6 +64,7 @@ function editorBuildUI() {
   editorRenderSettings();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderRocketBlockerPanel();
 }
 
 // ── Grid ──
@@ -70,7 +75,17 @@ function editorRenderGrid() {
     var cell = document.createElement('div');
     cell.className = 'ed-cell';
     var v = editor.grid[i];
-    if (v && v.wall) {
+    if (v && v.rocketBlocker) {
+      var isSelRB = (editor.selectedRocketBlocker === i);
+      cell.style.background = 'linear-gradient(135deg,#3c3f52,#1c1f2e)';
+      cell.style.borderColor = isSelRB ? '#FFD080' : '#5c5f72';
+      if (isSelRB) cell.style.boxShadow = '0 0 0 2px rgba(255,208,128,0.5)';
+      cell.innerHTML = '<span class="ed-cell-dot" style="font-size:12px">🚀</span>';
+    } else if (v && v.rocketBlockerSlave) {
+      cell.style.background = 'linear-gradient(135deg,#2a2d3e,#1a1d2a)';
+      cell.style.borderColor = '#4c4f62';
+      cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(100,105,130,0.6);font-size:9px">&#9632;</span>';
+    } else if (v && v.wall) {
       // Wall cell
       cell.style.background = 'linear-gradient(135deg,#9A8D7B,#6F6355)';
       cell.style.borderColor = '#8A7D6B';
@@ -105,14 +120,53 @@ function editorRenderGrid() {
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
 
+  if (editor.rocketMode) {
+    var existing = editor.grid[idx];
+    // Click on existing rb primary → select it
+    if (existing && existing.rocketBlocker) {
+      editor.selectedRocketBlocker = idx;
+      editorRenderGrid();
+      editorRenderRocketBlockerPanel();
+      return;
+    }
+    // Click on slave → select primary
+    if (existing && existing.rocketBlockerSlave) {
+      editor.selectedRocketBlocker = existing.primaryIdx;
+      editorRenderGrid();
+      editorRenderRocketBlockerPanel();
+      return;
+    }
+    // Place new rocket blocker (2x2 starting at this cell)
+    var row = Math.floor(idx / 7), col = idx % 7;
+    if (col > 5 || row > 5) { editorShowToast('Need 2×2 space here!'); return; }
+    var cells2 = [idx, idx+1, idx+7, idx+8];
+    for (var ci5 = 0; ci5 < cells2.length; ci5++) {
+      var c2 = editor.grid[cells2[ci5]];
+      if (c2 && !c2.rocketBlockerSlave && !c2.rocketBlocker) {
+        editorShowToast('Need 2×2 empty space!'); return;
+      }
+    }
+    // Default colors = first 4 sort colors
+    editor.grid[idx] = { rocketBlocker: true, colors: [0,1,2,3],
+      hiddenBoxes: [{ci:0,type:'default'},{ci:1,type:'default'},{ci:2,type:'default'},{ci:3,type:'default'}] };
+    editor.grid[idx+1] = { rocketBlockerSlave: true, primaryIdx: idx };
+    editor.grid[idx+7] = { rocketBlockerSlave: true, primaryIdx: idx };
+    editor.grid[idx+8] = { rocketBlockerSlave: true, primaryIdx: idx };
+    editor.selectedRocketBlocker = idx;
+    if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderTunnelPanel();
+    editorRenderRocketBlockerPanel();
+    return;
+  }
+
   if (editor.wallMode) {
     // Wall placement mode
     var existing = editor.grid[idx];
     if (existing && existing.wall) {
-      // Toggle off: clicking existing wall removes it
       editor.grid[idx] = null;
     } else {
-      // Place wall
       editor.grid[idx] = { wall: true };
     }
     if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
@@ -157,11 +211,29 @@ function editorCellClick(e) {
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
-  editor.grid[idx] = null;
+  var v = editor.grid[idx];
+  // Erase entire rocket blocker (primary + 3 slaves)
+  if (v && v.rocketBlocker) {
+    editor.grid[idx] = null;
+    editor.grid[idx+1] = null;
+    editor.grid[idx+7] = null;
+    editor.grid[idx+8] = null;
+    if (editor.selectedRocketBlocker === idx) editor.selectedRocketBlocker = -1;
+  } else if (v && v.rocketBlockerSlave) {
+    var pi = v.primaryIdx;
+    editor.grid[pi] = null;
+    editor.grid[pi+1] = null;
+    editor.grid[pi+7] = null;
+    editor.grid[pi+8] = null;
+    if (editor.selectedRocketBlocker === pi) editor.selectedRocketBlocker = -1;
+  } else {
+    editor.grid[idx] = null;
+  }
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
   editorRenderGrid();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderRocketBlockerPanel();
 }
 
 // ── Toolbar: mode toggle + type selector + color/direction palette ──
@@ -185,11 +257,29 @@ function editorRenderToolbar() {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.rocketMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
+      editorRenderRocketBlockerPanel();
     });
     typeRow.appendChild(tb);
   }
+
+  // Rocket blocker mode button
+  var rocketBtn = document.createElement('button');
+  rocketBtn.className = 'ed-type-btn' + (editor.rocketMode ? ' active' : '');
+  rocketBtn.textContent = '\uD83D\uDE80 Rocket';
+  rocketBtn.style.borderColor = editor.rocketMode ? 'rgba(108,111,130,0.7)' : '';
+  rocketBtn.style.color = editor.rocketMode ? '#9c9fbe' : '';
+  rocketBtn.addEventListener('click', function () {
+    editor.rocketMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+    editorRenderRocketBlockerPanel();
+  });
+  typeRow.appendChild(rocketBtn);
 
   // Wall mode button
   var wallBtn = document.createElement('button');
@@ -200,8 +290,10 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.rocketMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
+    editorRenderRocketBlockerPanel();
   });
   typeRow.appendChild(wallBtn);
 
@@ -214,8 +306,10 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.rocketMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
+    editorRenderRocketBlockerPanel();
   });
   typeRow.appendChild(tunnelBtn);
 
@@ -254,8 +348,12 @@ function editorRenderToolbar() {
       dirRow.appendChild(db);
     }
     el.appendChild(dirRow);
+  } else if (editor.rocketMode) {
+    var rocketInfo = document.createElement('div');
+    rocketInfo.className = 'ed-color-row';
+    rocketInfo.innerHTML = '<span style="font-size:11px;color:#9c9fbe">Click a cell to place a 2×2 rocket blocker · right-click to erase</span>';
+    el.appendChild(rocketInfo);
   } else if (editor.wallMode) {
-    // Wall mode: just show info hint
     var wallInfo = document.createElement('div');
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
@@ -452,10 +550,30 @@ function editorUpdateStats() {
   for (var c = 0; c < NUM_COLORS; c++) { counts.push(0); regularMrb.push(0); }
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
-  var wallCount = 0;
+  var wallCount = 0, rbCount = 0;
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
+    if (v.rocketBlocker) {
+      rbCount++;
+      if (v.hiddenBoxes) {
+        for (var h = 0; h < v.hiddenBoxes.length; h++) {
+          var hb2 = v.hiddenBoxes[h];
+          if (hb2 && hb2.ci >= 0) {
+            counts[hb2.ci]++;
+            total++;
+            if (hb2.type === 'blocker') {
+              regularMrb[hb2.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
+              totalBlockers += BLOCKER_PER_BOX;
+            } else {
+              regularMrb[hb2.ci] += editor.mrbPerBox;
+            }
+          }
+        }
+      }
+      continue;
+    }
+    if (v.rocketBlockerSlave) { continue; }
     if (v.wall) {
       wallCount++;
       continue;
@@ -496,6 +614,9 @@ function editorUpdateStats() {
     if (typeCounts[tid]) {
       html += '<span class="ed-stat-chip" style="background:' + BoxTypes[tid].editorColor + '">' + typeCounts[tid] + ' ' + BoxTypes[tid].label.toLowerCase() + '</span>';
     }
+  }
+  if (rbCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#2c2f3e;border:1px solid #5c5f72">🚀 ' + rbCount + ' rocket blocker' + (rbCount > 1 ? 's' : '') + '</span>';
   }
   if (wallCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#8A7D6B">' + wallCount + ' wall' + (wallCount > 1 ? 's' : '') + '</span>';
@@ -619,6 +740,8 @@ function editorImportJSON() {
           else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
           else if (cell.wall) editor.grid[i] = { wall: true };
           else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
+          else if (cell.rocketBlocker) editor.grid[i] = cell;
+          else if (cell.rocketBlockerSlave) editor.grid[i] = cell;
           else editor.grid[i] = cell;
         }
       }
@@ -688,3 +811,90 @@ function editorSaveShowcase() {
 
 function editorSetName(val) { editor.name = val; }
 function editorSetDesc(val) { editor.desc = val; }
+
+// ── Rocket Blocker Panel ──────────────────────────────────────
+function editorRenderRocketBlockerPanel() {
+  var container = document.getElementById('ed-rocketblocker-panel');
+  if (!container) return;
+  var idx = editor.selectedRocketBlocker;
+  if (idx < 0 || !editor.grid[idx] || !editor.grid[idx].rocketBlocker) {
+    container.style.display = 'none';
+    return;
+  }
+  container.style.display = 'block';
+  var rb = editor.grid[idx];
+  if (!rb.colors) rb.colors = [0,1,2,3];
+  if (!rb.hiddenBoxes) rb.hiddenBoxes = [{ci:0,type:'default'},{ci:1,type:'default'},{ci:2,type:'default'},{ci:3,type:'default'}];
+
+  var html = '<div class="ed-section-title"><span class="icon">🚀</span> Rocket Blocker — Requirements & Hidden Boxes</div>';
+  html += '<div style="font-size:11px;color:#9C8A70;margin-bottom:8px">Each rocket charges when its colour\'s sort column clears.</div>';
+
+  // 4 rockets: colour selector
+  html += '<div class="ed-section-title" style="margin-top:4px;font-size:11px">Rocket Colours (requirements)</div>';
+  var quadLabels = ['↖ TL','↗ TR','↙ BL','↘ BR'];
+  for (var r = 0; r < 4; r++) {
+    html += '<div style="display:flex;align-items:center;gap:6px;margin:4px 0">';
+    html += '<span style="font-size:11px;color:#9C8A70;width:28px">' + quadLabels[r] + '</span>';
+    for (var ci6 = 0; ci6 < NUM_COLORS; ci6++) {
+      var isSel = (rb.colors[r] === ci6);
+      html += '<button class="ed-tool rb-req-btn' + (isSel ? ' active' : '') + '" data-r="' + r + '" data-ci="' + ci6 + '" style="background:' + COLORS[ci6].fill + ';width:24px;height:24px;font-size:9px">' + CLR_NAMES[ci6][0].toUpperCase() + '</button>';
+    }
+    html += '</div>';
+  }
+
+  // 4 hidden boxes: colour selector
+  html += '<div class="ed-section-title" style="margin-top:10px;font-size:11px">Hidden Boxes (revealed after launch)</div>';
+  for (var r = 0; r < 4; r++) {
+    var hb3 = rb.hiddenBoxes[r] || { ci: 0, type: 'default' };
+    html += '<div style="display:flex;align-items:center;gap:6px;margin:4px 0">';
+    html += '<span style="font-size:11px;color:#9C8A70;width:28px">' + quadLabels[r] + '</span>';
+    for (var ci7 = 0; ci7 < NUM_COLORS; ci7++) {
+      var isHSel = (hb3.ci === ci7);
+      html += '<button class="ed-tool rb-hid-btn' + (isHSel ? ' active' : '') + '" data-r="' + r + '" data-ci="' + ci7 + '" style="background:' + COLORS[ci7].fill + ';width:24px;height:24px;opacity:' + (isHSel ? '1' : '0.45') + ';font-size:9px">' + CLR_NAMES[ci7][0].toUpperCase() + '</button>';
+    }
+    html += '</div>';
+  }
+
+  html += '<div style="text-align:center;margin-top:8px"><button class="ed-qbtn" id="ed-rb-remove">🗑 Remove Blocker</button></div>';
+  container.innerHTML = html;
+
+  // Bind requirement buttons
+  var reqBtns = container.querySelectorAll('.rb-req-btn');
+  for (var b = 0; b < reqBtns.length; b++) {
+    reqBtns[b].addEventListener('click', function () {
+      var r2 = parseInt(this.getAttribute('data-r'));
+      var ci8 = parseInt(this.getAttribute('data-ci'));
+      if (editor.grid[idx] && editor.grid[idx].rocketBlocker) {
+        editor.grid[idx].colors[r2] = ci8;
+        editorRenderRocketBlockerPanel();
+      }
+    });
+  }
+  // Bind hidden box buttons
+  var hidBtns = container.querySelectorAll('.rb-hid-btn');
+  for (var b2 = 0; b2 < hidBtns.length; b2++) {
+    hidBtns[b2].addEventListener('click', function () {
+      var r3 = parseInt(this.getAttribute('data-r'));
+      var ci9 = parseInt(this.getAttribute('data-ci'));
+      if (editor.grid[idx] && editor.grid[idx].rocketBlocker) {
+        if (!editor.grid[idx].hiddenBoxes[r3]) editor.grid[idx].hiddenBoxes[r3] = { ci: 0, type: 'default' };
+        editor.grid[idx].hiddenBoxes[r3].ci = ci9;
+        editorUpdateStats();
+        editorRenderRocketBlockerPanel();
+      }
+    });
+  }
+  var rmBtn = document.getElementById('ed-rb-remove');
+  if (rmBtn) {
+    rmBtn.addEventListener('click', function () {
+      editor.grid[idx] = null;
+      editor.grid[idx+1] = null;
+      editor.grid[idx+7] = null;
+      editor.grid[idx+8] = null;
+      editor.selectedRocketBlocker = -1;
+      editorRenderGrid();
+      editorUpdateStats();
+      editorRenderRocketBlockerPanel();
+    });
+  }
+}
