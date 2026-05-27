@@ -1,0 +1,22 @@
+{
+  "name": "Rocket Blocker",
+  "description": "A 2×2 metallic panel hides 4 boxes beneath it. Four colour-coded rockets sit on top — one per required sort colour. Clear all 4 required colours and the rockets fire, destroying random boxes and revealing what was hidden!",
+  "howToPlay": "Sort the coloured marbles into their sort columns. Each time a column clears, the matching rocket charges up. When all 4 rockets are charged they launch — blasting 4 random boxes and revealing the 4 hidden boxes underneath the panel!",
+  "author": "Prototype",
+  "showcaseLevel": {
+    "name": "Rocket Launch",
+    "desc": "Charge all 4 rockets to reveal hidden boxes!",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      {"ci":0,"type":"default"}, null, {"rocketBlocker":true,"colors":[0,1,2,3],"hiddenBoxes":[{"ci":0,"type":"default"},{"ci":1,"type":"default"},{"ci":2,"type":"default"},{"ci":3,"type":"default"}]}, {"rocketBlockerSlave":true,"primaryIdx":16}, null, {"ci":1,"type":"default"}, null,
+      {"ci":2,"type":"default"}, null, {"rocketBlockerSlave":true,"primaryIdx":16}, {"rocketBlockerSlave":true,"primaryIdx":16}, null, {"ci":3,"type":"default"}, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}
