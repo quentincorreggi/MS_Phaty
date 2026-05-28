@@ -56,35 +56,39 @@ registerBoxType('parachute', {
 
   _drawBubbleCrown: function (ctx, x, y, w, h, S, tick) {
     var cx = x + w / 2;
-    var bob = Math.sin(tick * 0.055) * 2.5 * S;
-    var cr = w * 0.21;
-    var cy = y - cr * 0.55 + bob;
+    var bob = Math.sin(tick * 0.055) * 3 * S;
+    var cr = w * 0.34;
+    var cy = y - cr * 0.6 + bob;
 
     ctx.save();
-    var grad = ctx.createRadialGradient(cx - cr * 0.3, cy - cr * 0.35, cr * 0.08, cx, cy, cr);
-    grad.addColorStop(0, 'rgba(255,255,255,0.65)');
-    grad.addColorStop(0.35, 'rgba(200,235,255,0.22)');
-    grad.addColorStop(0.8, 'rgba(190,210,255,0.10)');
-    grad.addColorStop(1, 'rgba(160,205,255,0.42)');
+    // Outer glow
+    ctx.shadowColor = 'rgba(160,220,255,0.7)';
+    ctx.shadowBlur = cr * 0.8;
+    var grad = ctx.createRadialGradient(cx - cr * 0.3, cy - cr * 0.35, cr * 0.05, cx, cy, cr);
+    grad.addColorStop(0, 'rgba(255,255,255,0.90)');
+    grad.addColorStop(0.3, 'rgba(210,240,255,0.55)');
+    grad.addColorStop(0.75, 'rgba(185,215,255,0.30)');
+    grad.addColorStop(1, 'rgba(150,200,255,0.70)');
     ctx.fillStyle = grad;
     ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
 
     // Iridescent edge — shifts hue with tick
     var t = tick * 0.025;
-    var ir = ~~(210 + Math.sin(t) * 40);
-    var ig = ~~(210 + Math.sin(t + 2.1) * 40);
-    var ib = ~~(220 + Math.sin(t + 4.2) * 30);
-    ctx.strokeStyle = 'rgba(' + ir + ',' + ig + ',' + ib + ',0.55)';
-    ctx.lineWidth = 1.5 * S;
+    var ir = ~~(200 + Math.sin(t) * 55);
+    var ig = ~~(200 + Math.sin(t + 2.1) * 55);
+    var ib = ~~(220 + Math.sin(t + 4.2) * 35);
+    ctx.strokeStyle = 'rgba(' + ir + ',' + ig + ',' + ib + ',0.85)';
+    ctx.lineWidth = 2.5 * S;
     ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI * 2); ctx.stroke();
 
     // White specular highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.72)';
-    ctx.beginPath(); ctx.arc(cx - cr * 0.27, cy - cr * 0.30, cr * 0.22, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.90)';
+    ctx.beginPath(); ctx.arc(cx - cr * 0.27, cy - cr * 0.30, cr * 0.26, 0, Math.PI * 2); ctx.fill();
 
-    // Tiny secondary highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.35)';
-    ctx.beginPath(); ctx.arc(cx + cr * 0.28, cy + cr * 0.22, cr * 0.10, 0, Math.PI * 2); ctx.fill();
+    // Secondary highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.beginPath(); ctx.arc(cx + cr * 0.28, cy + cr * 0.22, cr * 0.12, 0, Math.PI * 2); ctx.fill();
 
     ctx.restore();
   },
