@@ -1,0 +1,228 @@
+{
+  "name": "Double Boxes",
+  "description": "Two-layer boxes pack twice the punch — one tap empties the top color (body), tap again for the bottom color (frame).",
+  "howToPlay": "Tap any revealed box to spill its 9 marbles onto the belt. Double boxes (with a colored frame) take two taps — the first sends the top color, then the box transforms into a single-layer box of the frame color for the second tap.",
+  "author": "ilayda",
+  "showcaseLevel": {
+    "name": "Double Trouble",
+    "desc": "A full grid packed with double boxes",
+    "mrbPerBox": 9,
+    "sortCap": 9,
+    "lockButtons": 0,
+    "grid": [
+      {
+        "ci": 0,
+        "ci2": 1,
+        "type": "double"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "ci2": 0,
+        "type": "double"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "ci2": 3,
+        "type": "double"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "ci2": 2,
+        "type": "double"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "ci2": 1,
+        "type": "double"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "ci2": 0,
+        "type": "double"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "ci2": 3,
+        "type": "double"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "ci2": 2,
+        "type": "double"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "ci2": 1,
+        "type": "double"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "ci2": 0,
+        "type": "double"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "ci2": 3,
+        "type": "double"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "ci2": 2,
+        "type": "double"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "ci2": 1,
+        "type": "double"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "ci2": 0,
+        "type": "double"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "ci2": 3,
+        "type": "double"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "ci2": 2,
+        "type": "double"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "ci2": 1,
+        "type": "double"
+      }
+    ]
+  }
+}
