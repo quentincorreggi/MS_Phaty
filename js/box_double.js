@@ -9,23 +9,23 @@
 
 function drawDoubleFrame(ctx, x, y, w, h, ci2, S) {
   var c2 = COLORS[ci2];
-  var fp = 6 * S;
+  var fp = 3 * S;
   ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,0.18)';
-  ctx.shadowBlur = 5 * S;
-  ctx.shadowOffsetY = 2 * S;
+  ctx.shadowColor = 'rgba(0,0,0,0.15)';
+  ctx.shadowBlur = 4 * S;
+  ctx.shadowOffsetY = 1 * S;
   var grad = ctx.createLinearGradient(x - fp, y - fp, x - fp, y + h + fp);
   grad.addColorStop(0, c2.light);
   grad.addColorStop(1, c2.dark);
   ctx.fillStyle = grad;
-  rRect(x - fp, y - fp, w + fp * 2, h + fp * 2, 10 * S);
+  rRect(x - fp, y - fp, w + fp * 2, h + fp * 2, 8 * S);
   ctx.fill();
   ctx.shadowColor = 'transparent';
   ctx.shadowBlur = 0;
   ctx.shadowOffsetY = 0;
   ctx.strokeStyle = c2.dark;
   ctx.lineWidth = 1.5 * S;
-  rRect(x - fp, y - fp, w + fp * 2, h + fp * 2, 10 * S);
+  rRect(x - fp, y - fp, w + fp * 2, h + fp * 2, 8 * S);
   ctx.stroke();
   ctx.restore();
 }
