@@ -58,7 +58,7 @@ registerBoxType('parachute', {
     var cx = x + w / 2;
     var bob = Math.sin(tick * 0.055) * 3 * S;
     var cr = w * 0.34;
-    var cy = y - cr * 0.6 + bob;
+    var cy = y + h / 2 + bob;
 
     ctx.save();
     // Outer glow
