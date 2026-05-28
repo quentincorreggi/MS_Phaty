@@ -12,6 +12,7 @@ var editor = {
   sortCap: 3,
   lockButtons: 0,
   activeColor: 0,      // -1=eraser, 0-7=color
+  activeColor2: 1,     // second color for double boxes
   activeType: BoxTypeOrder[0],
   tunnelMode: false,    // true when placing tunnels
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
@@ -29,6 +30,7 @@ function editorInit() {
   editor.sortCap = 3;
   editor.lockButtons = 0;
   editor.activeColor = 0;
+  editor.activeColor2 = 1;
   editor.activeType = BoxTypeOrder[0];
   editor.tunnelMode = false;
   editor.tunnelDir = 'bottom';
@@ -87,10 +89,10 @@ function editorRenderGrid() {
         '</span><span class="ed-tunnel-badge">' + count + '</span>';
     } else if (v && v.ci >= 0) {
       var bt = getBoxType(v.type);
-      var st = bt.editorCellStyle(v.ci);
+      var st = bt.editorCellStyle(v.ci, v.ci2);
       cell.style.background = st.background;
       cell.style.borderColor = st.borderColor;
-      cell.innerHTML = bt.editorCellHTML(v.ci);
+      cell.innerHTML = bt.editorCellHTML(v.ci, v.ci2);
     } else {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
@@ -141,8 +143,13 @@ function editorCellClick(e) {
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     } else {
       var existing = editor.grid[idx];
-      if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
+      var isDouble = (editor.activeType === 'double');
+      if (existing && !existing.tunnel && !existing.wall &&
+          existing.ci === editor.activeColor && existing.type === editor.activeType &&
+          (!isDouble || existing.ci2 === editor.activeColor2)) {
         editor.grid[idx] = null;
+      } else if (isDouble) {
+        editor.grid[idx] = { ci: editor.activeColor, ci2: editor.activeColor2, type: 'double' };
       } else {
         editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
       }
@@ -285,6 +292,31 @@ function editorRenderToolbar() {
       colorRow.appendChild(cb);
     }
     el.appendChild(colorRow);
+
+    // Second color row for double boxes
+    if (editor.activeType === 'double') {
+      var label = document.createElement('div');
+      label.style.cssText = 'font-size:10px;color:#9C8A70;margin-top:4px;text-align:center';
+      label.textContent = 'Top color (above) — Bottom color / frame (below)';
+      el.appendChild(label);
+      var color2Row = document.createElement('div');
+      color2Row.className = 'ed-color-row';
+      for (var ci = 0; ci < NUM_COLORS; ci++) {
+        var cb2 = document.createElement('button');
+        cb2.className = 'ed-tool' + (editor.activeColor2 === ci ? ' active' : '');
+        cb2.style.background = COLORS[ci].fill;
+        cb2.style.boxShadow = editor.activeColor2 === ci ? '0 0 0 2px rgba(212,144,96,0.6) inset' : '';
+        cb2.innerHTML = CLR_NAMES[ci][0].toUpperCase();
+        cb2.title = CLR_NAMES[ci] + ' (frame)';
+        cb2.setAttribute('data-ci', ci);
+        cb2.addEventListener('click', function () {
+          editor.activeColor2 = parseInt(this.getAttribute('data-ci'));
+          editorRenderToolbar();
+        });
+        color2Row.appendChild(cb2);
+      }
+      el.appendChild(color2Row);
+    }
   }
 }
 
@@ -405,7 +437,9 @@ function editorRenderTunnelPanel() {
       var typeEl = document.getElementById('ed-tunnel-add-type');
       var type = typeEl ? typeEl.value : 'default';
       if (editor.selectedTunnel >= 0 && editor.grid[editor.selectedTunnel]) {
-        editor.grid[editor.selectedTunnel].contents.push({ ci: ci4, type: type });
+        var item = { ci: ci4, type: type };
+        if (type === 'double') item.ci2 = (ci4 + 1) % NUM_COLORS;
+        editor.grid[editor.selectedTunnel].contents.push(item);
         editorRenderGrid();
         editorRenderTunnelPanel();
         editorUpdateStats();
@@ -473,6 +507,9 @@ function editorUpdateStats() {
           } else {
             regularMrb[tItem.ci] += editor.mrbPerBox;
           }
+          if (tItem.type === 'double' && tItem.ci2 != null && tItem.ci2 >= 0 && tItem.ci2 < NUM_COLORS) {
+            regularMrb[tItem.ci2] += editor.mrbPerBox;
+          }
         }
       }
       continue;
@@ -486,6 +523,9 @@ function editorUpdateStats() {
         totalBlockers += BLOCKER_PER_BOX;
       } else {
         regularMrb[v.ci] += editor.mrbPerBox;
+      }
+      if (v.type === 'double' && v.ci2 != null && v.ci2 >= 0 && v.ci2 < NUM_COLORS) {
+        regularMrb[v.ci2] += editor.mrbPerBox;
       }
     }
   }

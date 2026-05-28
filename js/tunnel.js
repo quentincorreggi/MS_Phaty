@@ -177,6 +177,7 @@ function trySpawnFromTunnels() {
     var exitCol = exitIdx % L.cols;
     var isIce = (nextBox.type === 'ice');
     var isBlocker = (nextBox.type === 'blocker');
+    var isDouble = (nextBox.type === 'double');
 
     stock[exitIdx] = {
       ci: nextBox.ci,
@@ -193,6 +194,7 @@ function trySpawnFromTunnels() {
       iceCrackT: 0,
       iceShatterT: 0,
       blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+      layer2Ci: (isDouble && nextBox.ci2 != null) ? nextBox.ci2 : null,
       isTunnel: false,
       isWall: false,
       x: L.sx + exitCol * (L.bw + L.bg),

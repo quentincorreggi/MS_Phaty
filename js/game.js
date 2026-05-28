@@ -55,7 +55,7 @@ function initGame() {
       } else if (typeof cell === 'number') {
         if (cell >= 0) boxSlots[i] = { ci: cell, boxType: 'default' };
       } else if (typeof cell === 'object' && cell.ci >= 0) {
-        boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default' };
+        boxSlots[i] = { ci: cell.ci, ci2: cell.ci2, boxType: cell.type || 'default' };
       }
     }
   }
@@ -68,9 +68,13 @@ function initGame() {
   for (var k in boxSlots) {
     var bs = boxSlots[k];
     var isBlockerBox = (bs.boxType === 'blocker');
+    var isDoubleBox = (bs.boxType === 'double');
     var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
     colorMarblesTotal[bs.ci] += regularPerBox;
     if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
+    if (isDoubleBox && bs.ci2 != null && bs.ci2 >= 0 && bs.ci2 < NUM_COLORS) {
+      colorMarblesTotal[bs.ci2] += MRB_PER_BOX;
+    }
   }
   // Count marbles from tunnel contents
   for (var k in tunnelSlots) {
@@ -78,9 +82,13 @@ function initGame() {
     for (var tc = 0; tc < ts.contents.length; tc++) {
       var tItem = ts.contents[tc];
       var isBlockerBox = (tItem.type === 'blocker');
+      var isDoubleBox = (tItem.type === 'double');
       var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
       colorMarblesTotal[tItem.ci] += regularPerBox;
       if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
+      if (isDoubleBox && tItem.ci2 != null && tItem.ci2 >= 0 && tItem.ci2 < NUM_COLORS) {
+        colorMarblesTotal[tItem.ci2] += MRB_PER_BOX;
+      }
     }
   }
   var sortPerColor = [];
@@ -130,12 +138,14 @@ function initGame() {
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
+      var isDouble = (slot.boxType === 'double');
       stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
         revealed: isIce ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        layer2Ci: (isDouble && slot.ci2 != null) ? slot.ci2 : null,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });

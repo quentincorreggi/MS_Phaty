@@ -119,14 +119,32 @@ function spawnPhysMarbles(box) {
         sfx.drop();
         spawnBurst(mx, my, COLORS[marbleCi].fill, 4);
         if (b.remaining <= 0) {
-          b.emptyT = 1.0;
-          setTimeout(function () {
-            b.used = true;
-            b.spawning = false;
-            // Re-evaluate which boxes have an open path to the bottom
-            // now that this cell is passable.
-            updateBoxReveals(true);
-          }, 300);
+          if (b.boxType === 'double' && b.layer2Ci != null) {
+            setTimeout(function () {
+              var newCi = b.layer2Ci;
+              b.ci = newCi;
+              b.layer2Ci = null;
+              b.boxType = 'default';
+              b.remaining = MRB_PER_BOX;
+              b.spawnIdx = 0;
+              b.spawning = false;
+              b.popT = 1.0;
+              b.shakeT = 0.45;
+              b.idlePhase = Math.random() * Math.PI * 2;
+              var bx = b.x + L.bw / 2, by = b.y + L.bh / 2;
+              spawnBurst(bx, by, COLORS[newCi].fill, 16);
+              if (sfx && sfx.pop) sfx.pop();
+            }, 250);
+          } else {
+            b.emptyT = 1.0;
+            setTimeout(function () {
+              b.used = true;
+              b.spawning = false;
+              // Re-evaluate which boxes have an open path to the bottom
+              // now that this cell is passable.
+              updateBoxReveals(true);
+            }, 300);
+          }
         }
       }, i * 120);
     })(idx, box, blockerStart);
