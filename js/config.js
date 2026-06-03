@@ -54,9 +54,12 @@ var blockerCollectSlots = [];
 var blockerCollectCleared = false;
 
 var MRB_PER_BOX = 9, SORT_CAP = 3;
-// Half marble box: number of half-marbles inside one box. Two same-color
-// halves combine into one full marble on the belt.
+// Half marble box: holds MRB_PER_BOX marbles, of which HALF_PER_BOX are
+// half-marbles (the rest are whole). Two halves of the same color combine
+// into one full marble on the belt — but only if they came from DIFFERENT
+// boxes (each box tap is one "batch", tracked by halfBatchSeq).
 var HALF_PER_BOX = 3;
+var halfBatchSeq = 0;
 var SORT_VISIBLE_ROWS = 4;
 
 // Snake order for 3x3 grid

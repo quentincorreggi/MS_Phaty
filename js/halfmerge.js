@@ -1,9 +1,11 @@
 // ============================================================
 // halfmerge.js — Half-marble combining on the belt
 // A belt slot whose `half` flag is set holds a half-marble. It
-// cannot sort. When two same-color halves are riding the belt at
-// once, they combine: one slides into the other, leaving a single
-// full marble that sorts normally.
+// cannot sort. When two halves of the same color — and from two
+// DIFFERENT boxes (different `srcBox` batch ids) — are riding the
+// belt at once, they combine: one slides into the other, leaving a
+// single full marble that sorts normally. Two halves from the same
+// box can never fuse with each other.
 //
 // Update hook: updateHalfMerges() — called each frame from game.js
 // Draw hook:   drawHalfMerges()   — called each frame from game.js
@@ -20,6 +22,7 @@ function updateHalfMerges() {
         // The two halves are now whole — promote to a full marble.
         slot.half = false;
         slot.merging = false;
+        slot.srcBox = -1;
         slot.arriveAnim = 0.6;
         var pos = getSlotPos(mg.targetSlot);
         spawnBurst(pos.x, pos.y, COLORS[mg.ci].light, 12);
@@ -31,7 +34,7 @@ function updateHalfMerges() {
     }
   }
 
-  // ── Pair up available halves by color ──
+  // ── Pair up available halves: same color, different box ──
   var byColor = {};
   for (var s = 0; s < BELT_SLOTS; s++) {
     var sl = beltSlots[s];
@@ -40,16 +43,26 @@ function updateHalfMerges() {
     byColor[sl.marble].push(s);
   }
   for (var key in byColor) {
-    var list = byColor[key];
-    while (list.length >= 2) {
-      var src = list.pop();   // slides away
-      var tgt = list.pop();   // becomes the full marble
+    var list = byColor[key];   // belt-slot indices holding halves of this color
+    var guard = 0;
+    while (list.length >= 2 && guard++ < 200) {
+      var tgt = list[0];                       // becomes the full marble
+      var tgtBox = beltSlots[tgt].srcBox;
+      var bp = -1;
+      for (var p = 1; p < list.length; p++) {
+        if (beltSlots[list[p]].srcBox !== tgtBox) { bp = p; break; }
+      }
+      if (bp < 0) break;                       // all remaining are same-box — wait
+      var src = list[bp];                      // slides into the target
+      list.splice(bp, 1);
+      list.splice(0, 1);
       var ci = beltSlots[tgt].marble;
       var srcPos = getSlotPos(src);
       // Free the source slot immediately so the belt ignores it.
       beltSlots[src].marble = -1;
       beltSlots[src].half = false;
       beltSlots[src].merging = false;
+      beltSlots[src].srcBox = -1;
       // Hold the target as a (still un-sortable) half until the slide
       // finishes; `merging` keeps it from being re-paired or sorted.
       beltSlots[tgt].merging = true;
