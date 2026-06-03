@@ -1,0 +1,19 @@
+{
+  "name": "Half Marble Box",
+  "description": "Boxes filled with half-marbles. A half can't be sorted on its own — two halves of the same color must meet on the belt and combine into one full marble first.",
+  "howToPlay": "Tap the open boxes on the bottom row to drop their 3 half-marbles onto the belt. They circle but slide past the trays. When two halves of the same color are on the belt together, they snap into one full marble — which then drops into its matching tray. Emptying a box opens the ghost box above it, holding the other halves you need. Clear every tray to win!",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Two Halves Make a Whole",
+    "desc": "Combine matching half-marbles on the belt to complete them.",
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, { "wall": true }, { "wall": true }, { "wall": true }, { "wall": true }, null, null,
+      { "wall": true }, { "ci": 0, "type": "half" }, { "ci": 1, "type": "half" }, { "ci": 2, "type": "half" }, { "ci": 3, "type": "half" }, { "wall": true }, null,
+      { "wall": true }, { "ci": 0, "type": "half" }, { "ci": 1, "type": "half" }, { "ci": 2, "type": "half" }, { "ci": 3, "type": "half" }, { "wall": true }, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}
