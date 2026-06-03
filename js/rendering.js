@@ -264,7 +264,34 @@ function drawPhysMarbles() {
   for (var i = 0; i < physMarbles.length; i++) {
     var m = physMarbles[i];
     var bounce = m.spawnT > 0 ? (1 + Math.sin(m.spawnT * Math.PI) * 0.4) : 1;
+    // Heavy marble: faint motion trail when falling fast
+    if (m.heavy && m.vy > 6 * S) {
+      ctx.save();
+      ctx.globalAlpha = 0.18;
+      drawMarble(m.x, m.y - m.vy * 0.4, m.r * 0.92, m.ci, bounce);
+      ctx.globalAlpha = 0.30;
+      drawMarble(m.x, m.y - m.vy * 0.2, m.r * 0.96, m.ci, bounce);
+      ctx.restore();
+    }
     drawMarble(m.x, m.y, m.r, m.ci, bounce);
+    // Anchor attached
+    if (m.heavy) {
+      drawAnchorIcon(ctx, m.x, m.y, m.r * 1.7, 'rgba(30,22,16,0.85)',
+        Math.max(1.2, m.r * 0.32));
+      // Bright outline highlight so it reads against any color
+      drawAnchorIcon(ctx, m.x, m.y, m.r * 1.7, 'rgba(255,255,255,0.5)',
+        Math.max(0.6, m.r * 0.12));
+    }
+    // Anchor detachment puff: a small anchor falling away
+    if (m.anchorDropT > 0) {
+      var t = 1 - m.anchorDropT;
+      ctx.save();
+      ctx.globalAlpha = m.anchorDropT;
+      drawAnchorIcon(ctx, m.x, m.y + m.r * (1.5 + t * 2.5), m.r * 1.7 * (1 - t * 0.5),
+        'rgba(30,22,16,0.7)', Math.max(1, m.r * 0.3));
+      ctx.restore();
+      m.anchorDropT = Math.max(0, m.anchorDropT - 0.05);
+    }
   }
 }
 

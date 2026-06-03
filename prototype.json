@@ -1,0 +1,21 @@
+{
+  "name": "Heavy Marbles Box",
+  "description": "A new box type whose marbles fall faster than normal.",
+  "howToPlay": "Tap any box in the bottom row first — those are the new Heavy boxes (anchor icon). Their marbles are weighed down by anchors and drop straight through the funnel. Once a marble hits the funnel its anchor falls off and it becomes a regular marble. Compare with the normal boxes above (revealed as the heavy row clears) to see the speed difference.",
+  "showcaseLevel": {
+    "name": "Heavy Marbles Showcase",
+    "desc": "Heavy box mechanic demo",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" },
+      { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" },
+      { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" },
+      { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" },
+      { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" },
+      { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" },
+      { "ci": 0, "type": "heavy" }, { "ci": 1, "type": "heavy" }, { "ci": 2, "type": "heavy" }, { "ci": 3, "type": "heavy" }, { "ci": 0, "type": "heavy" }, { "ci": 1, "type": "heavy" }, { "ci": 2, "type": "heavy" }
+    ]
+  }
+}

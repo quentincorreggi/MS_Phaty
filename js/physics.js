@@ -35,9 +35,19 @@ function physicsStep() {
   for (var sub = 0; sub < subSteps; sub++) {
     for (var i = 0; i < physMarbles.length; i++) {
       var m = physMarbles[i];
-      m.vy += PHYS_GRAVITY * S / subSteps;
+      var gMult = m.heavy ? HEAVY_GRAVITY_MULT : 1;
+      m.vy += PHYS_GRAVITY * S * gMult / subSteps;
       m.vx *= PHYS_DAMPING; m.vy *= PHYS_DAMPING;
       m.x += m.vx / subSteps; m.y += m.vy / subSteps;
+      // Heavy marble loses its anchor on entering the narrow part of the funnel.
+      if (m.heavy && m.y >= L.funnelBendY) {
+        m.heavy = false;
+        m.anchorDropT = 1.0;
+        if (typeof spawnBurst === 'function') {
+          spawnBurst(m.x, m.y, 'rgba(60,50,40,0.9)', 6);
+        }
+        if (typeof sfx !== 'undefined' && sfx.pop) sfx.pop();
+      }
     }
     for (var i = 0; i < physMarbles.length; i++) {
       for (var j = i + 1; j < physMarbles.length; j++) {
@@ -112,10 +122,13 @@ function spawnPhysMarbles(box) {
         var mgY = mg * MRB_GAP_FACTOR;
         var mx = b.x + L.bw / 2 + (si.c - 1) * mg;
         var my = b.y + L.bh / 2 + (si.r - 1) * mgY - 2 * S;
+        var isHeavy = (b.boxType === 'heavy');
         var vx = (Math.random() - 0.5) * 2 * S;
-        var vy = -(2 + Math.random() * 2) * S;
+        // Normal marbles get a small upward pop; heavy marbles drop immediately.
+        var vy = isHeavy ? (3 + Math.random() * 2) * S : -(2 + Math.random() * 2) * S;
         var marbleCi = (blockerCount > 0 && spawnIdx >= bStart) ? BLOCKER_CI : b.ci;
-        physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR, spawnT: 1.0 });
+        physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR, spawnT: 1.0,
+          heavy: isHeavy, anchorDropT: 0 });
         sfx.drop();
         spawnBurst(mx, my, COLORS[marbleCi].fill, 4);
         if (b.remaining <= 0) {
