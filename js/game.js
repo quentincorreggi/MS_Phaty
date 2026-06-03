@@ -204,6 +204,13 @@ function updateBoxReveals(animate) {
     var bIdx = bottomRow * L.cols + bc;
     if (passable[bIdx]) { reachable[bIdx] = true; queue.push(bIdx); }
   }
+  // swUnlocked boxes are new entry points — seed the flood-fill from them
+  // so their neighbours become reachable even with no path from the bottom.
+  for (var si = 0; si < total; si++) {
+    if (stock[si] && stock[si].swUnlocked && !reachable[si]) {
+      reachable[si] = true; queue.push(si);
+    }
+  }
   var head = 0;
   while (head < queue.length) {
     var cur = queue[head++];

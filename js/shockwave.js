@@ -66,6 +66,7 @@ function updateWaves() {
           });
         }
         if (typeof sfx !== 'undefined' && sfx.complete) sfx.complete();
+        updateBoxReveals(true);
       }
       w.done = true;
     }
