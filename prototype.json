@@ -1,7 +1,7 @@
 {
   "name": "Heavy Marbles Box",
   "description": "A new box type whose marbles fall faster than normal.",
-  "howToPlay": "Heavy boxes (anchor icon) sit in the second row from the top. Clear the bottom rows first to reveal them. When you tap a heavy box its marbles drop straight down weighed by anchors — way faster than regular marbles. Once they reach the funnel the anchors fall off and they become normal marbles on the belt.",
+  "howToPlay": "Heavy boxes (anchor icon) sit in the back row (immediately tappable) and the second row from the top. When you tap a heavy box its marbles drop straight down weighed by anchors — way faster than regular marbles. Once they reach the funnel the anchors fall off and they become normal marbles on the belt.",
   "showcaseLevel": {
     "name": "Heavy Marbles Showcase",
     "desc": "Heavy box mechanic demo",
@@ -15,7 +15,7 @@
       { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" },
       { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" },
       { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" },
-      { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }
+      { "ci": 3, "type": "heavy" }, { "ci": 0, "type": "heavy" }, { "ci": 1, "type": "heavy" }, { "ci": 2, "type": "heavy" }, { "ci": 3, "type": "heavy" }, { "ci": 0, "type": "heavy" }, { "ci": 1, "type": "heavy" }
     ]
   }
 }
