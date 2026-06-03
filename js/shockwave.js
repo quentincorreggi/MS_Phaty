@@ -5,7 +5,7 @@
 var activeWaves = [];
 
 // ~2 grid tiles per second at 60 fps
-var SW_SPEED = 2 / 60;
+var SW_SPEED = 4 / 60;
 
 // Called from handleTap when a shockwave box is tapped.
 function emitShockwave(stockIdx) {
