@@ -55,8 +55,11 @@ function drawBoxMarblesWithAnchors(ci, remaining, S) {
     var mx = (sp.c - 1) * mg;
     var my = (sp.r - 1) * mgY - 2 * S;
     drawMarble(mx, my, mr, ci);
-    // Tiny anchor mark on top of each marble
-    drawAnchorIcon(ctx, mx, my, mr * 1.4, 'rgba(255,255,255,0.9)', Math.max(1, mr * 0.22));
+    // Two-pass anchor: bright outline so it pops on any color, dark fill on top.
+    drawAnchorIcon(ctx, mx, my, mr * 1.6, 'rgba(255,255,255,0.9)',
+      Math.max(1.4, mr * 0.4));
+    drawAnchorIcon(ctx, mx, my, mr * 1.6, 'rgba(30,22,16,0.95)',
+      Math.max(0.9, mr * 0.22));
   }
 }
 
