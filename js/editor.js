@@ -11,6 +11,7 @@ var editor = {
   mrbPerBox: 9,
   sortCap: 3,
   lockButtons: 0,
+  unfriendlyCols: [false, false, false, false], // toggle per sort column
   activeColor: 0,      // -1=eraser, 0-7=color
   activeType: BoxTypeOrder[0],
   tunnelMode: false,    // true when placing tunnels
@@ -28,6 +29,7 @@ function editorInit() {
   editor.mrbPerBox = 9;
   editor.sortCap = 3;
   editor.lockButtons = 0;
+  editor.unfriendlyCols = [false, false, false, false];
   editor.activeColor = 0;
   editor.activeType = BoxTypeOrder[0];
   editor.tunnelMode = false;
@@ -559,6 +561,33 @@ function editorRenderSettings() {
       });
     })(fields[i]);
   }
+
+  // Unfriendly tray toggles per sort column.
+  var ufRow = document.createElement('div');
+  ufRow.className = 'ed-setting-row';
+  var togHTML = '<label>Unfriendly Cols</label><div style="display:flex;gap:6px;flex:1">';
+  for (var c = 0; c < 4; c++) {
+    var on = !!editor.unfriendlyCols[c];
+    togHTML += '<button id="ed-uf-' + c + '" data-col="' + c + '" type="button" ' +
+      'style="flex:1;padding:6px 0;border-radius:6px;border:1px solid ' +
+      (on ? '#8B2B2B' : '#9C8A70') + ';background:' +
+      (on ? 'linear-gradient(135deg,#E84545,#B83030)' : '#FFF5E5') +
+      ';color:' + (on ? '#FFF' : '#6B5A48') +
+      ';font-weight:bold;cursor:pointer;font-size:12px">' +
+      (c + 1) + (on ? ' ☠' : '') + '</button>';
+  }
+  togHTML += '</div>';
+  ufRow.innerHTML = togHTML;
+  el.appendChild(ufRow);
+  for (var c2 = 0; c2 < 4; c2++) {
+    (function (cIdx) {
+      var btn = document.getElementById('ed-uf-' + cIdx);
+      btn.addEventListener('click', function () {
+        editor.unfriendlyCols[cIdx] = !editor.unfriendlyCols[cIdx];
+        editorRenderSettings();
+      });
+    })(c2);
+  }
 }
 
 // ── Build level definition ──
@@ -567,6 +596,7 @@ function editorBuildLevel() {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
+    unfriendlyCols: editor.unfriendlyCols.slice(),
     grid: editor.grid.slice()
   };
 }
@@ -625,6 +655,9 @@ function editorImportJSON() {
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
+      if (lvl.unfriendlyCols && lvl.unfriendlyCols.length === 4) {
+        editor.unfriendlyCols = lvl.unfriendlyCols.slice();
+      }
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
       var nameEl = document.getElementById('ed-name');

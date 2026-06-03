@@ -391,8 +391,13 @@ function drawSortArea() {
       var ps = 1 + b.popT * 0.25; var al = b.popT > 0.6 ? (1 - b.popT) * 2.5 : 1;
       var sqX = 1, sqY = 1;
       if (b.squishT > 0) { var sq = Math.sin(b.squishT * Math.PI); sqX = 1 + sq * 0.12; sqY = 1 - sq * 0.08; }
+      var shakeX = 0, shakeY = 0;
+      if (b.shakeT && b.shakeT > 0) {
+        shakeX = Math.sin(tick * 0.9 + vi) * b.shakeT * 4 * S;
+        shakeY = Math.cos(tick * 1.1 + vi) * b.shakeT * 2 * S;
+      }
       ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, al));
-      ctx.translate(x + L.sBw / 2, byy + L.sBh / 2); ctx.scale(ps * sqX, ps * sqY);
+      ctx.translate(x + L.sBw / 2 + shakeX, byy + L.sBh / 2 + shakeY); ctx.scale(ps * sqX, ps * sqY);
 
       if (b.type === 'lock') {
         var isTop = (vi === 0);
@@ -428,9 +433,13 @@ function drawSortArea() {
         ctx.strokeStyle = sc.dark; ctx.lineWidth = 1 * S;
         rRect(-L.sBw / 2, -L.sBh / 2, L.sBw, L.sBh, 8 * S); ctx.stroke();
         if (b.shineT > 0) { ctx.fillStyle = 'rgba(255,255,255,' + b.shineT * 0.35 + ')'; rRect(-L.sBw / 2, -L.sBh / 2, L.sBw, L.sBh, 8 * S); ctx.fill(); }
-        var sp = L.sBw / 4, mrr = 6 * S * cal.sort.s * cal.marble.s;
-        for (var j2 = 0; j2 < b.filled; j2++) drawMarble((j2 - 1) * sp, 0, mrr, b.ci);
-        for (var j2 = b.filled; j2 < SORT_CAP; j2++) { ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.beginPath(); ctx.arc((j2 - 1) * sp, 0, mrr * 0.55, 0, Math.PI * 2); ctx.fill(); }
+        if (b.unfriendly) {
+          drawUnfriendlyTrayOverlay(b);
+        } else {
+          var sp = L.sBw / 4, mrr = 6 * S * cal.sort.s * cal.marble.s;
+          for (var j2 = 0; j2 < b.filled; j2++) drawMarble((j2 - 1) * sp, 0, mrr, b.ci);
+          for (var j2 = b.filled; j2 < SORT_CAP; j2++) { ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.beginPath(); ctx.arc((j2 - 1) * sp, 0, mrr * 0.55, 0, Math.PI * 2); ctx.fill(); }
+        }
       }
       ctx.restore();
     }

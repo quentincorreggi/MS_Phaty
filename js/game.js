@@ -160,6 +160,10 @@ function initGame() {
     var lockRow = Math.min(2 + Math.floor(Math.random() * 4), sortCols[lockCol].length);
     sortCols[lockCol].splice(lockRow, 0, { type: 'lock', ci: -1, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0, triggerT: 0, triggered: false });
   }
+
+  // Unfriendly trays — every 5th tray in toggled columns starts unfriendly.
+  flyingBoxes = [];
+  applyUnfriendlyMarkers(lvl.unfriendlyCols);
 }
 
 // === REVEAL — PATH TO BOTTOM ===
@@ -382,16 +386,20 @@ function update() {
       var col = sortCols[c]; var tv = -1;
       for (var r = 0; r < col.length; r++) { if (col[r].vis) { tv = r; break; } }
       if (tv < 0 || col[tv].ci !== slot.marble) continue;
+      if (col[tv].returning) continue;
       var inFlight = 0;
       for (var j = 0; j < jumpers.length; j++) if (jumpers[j].targetCol === c) inFlight++;
-      if (col[tv].filled + inFlight >= SORT_CAP) continue;
+      var trayCap = col[tv].unfriendly ? UNFRIENDLY_CAP : SORT_CAP;
+      var trayCurr = col[tv].unfriendly ? (col[tv].collected || 0) : col[tv].filled;
+      if (trayCurr + inFlight >= trayCap) continue;
       var bt = L.sortBeltT[c]; var diff = Math.abs(slotT - bt); var wdiff = Math.min(diff, 1 - diff);
       if (wdiff < 0.015) {
         var aj = false;
         for (var j = 0; j < jumpers.length; j++) if (jumpers[j].slotIdx === si) { aj = true; break; }
         if (aj) continue;
         var pos = getSlotPos(si);
-        jumpers.push({ ci: slot.marble, slotIdx: si, startX: pos.x, startY: pos.y, targetCol: c, targetSlot: col[tv].filled + inFlight, t: 0 });
+        var jTargetSlot = col[tv].unfriendly ? 1 : (col[tv].filled + inFlight);
+        jumpers.push({ ci: slot.marble, slotIdx: si, startX: pos.x, startY: pos.y, targetCol: c, targetSlot: jTargetSlot, t: 0, unfriendlyTarget: !!col[tv].unfriendly });
         slot.marble = -1; break;
       }
     }
@@ -404,17 +412,28 @@ function update() {
       var col = sortCols[j.targetCol]; var tv = -1;
       for (var r = 0; r < col.length; r++) { if (col[r].vis) { tv = r; break; } }
       if (tv >= 0 && col[tv].ci === j.ci) {
-        col[tv].filled++;
         col[tv].squishT = 1;
-        sfx.sort();
-        if (col[tv].filled >= SORT_CAP) {
-          col[tv].popT = 1; col[tv].shineT = 1;
-          sfx.complete();
-          var bx2 = L.sSx + j.targetCol * (L.sBw + L.sColGap) + L.sBw / 2;
-          var by2 = getSortBoxY(j.targetCol, 0) + L.sBh / 2;
-          spawnBurst(bx2, by2, COLORS[j.ci].fill, 20);
-          spawnConfetti(bx2, by2, 15);
-          (function (box) { setTimeout(function () { box.vis = false; checkWin(); }, 600); })(col[tv]);
+        if (col[tv].unfriendly) {
+          if (!col[tv].returning) {
+            col[tv].collected = (col[tv].collected || 0) + 1;
+            col[tv].shineT = 0.5;
+            sfx.pop();
+            if (col[tv].collected >= UNFRIENDLY_CAP) {
+              triggerUnfriendlyReturn(col[tv], j.targetCol);
+            }
+          }
+        } else {
+          col[tv].filled++;
+          sfx.sort();
+          if (col[tv].filled >= SORT_CAP) {
+            col[tv].popT = 1; col[tv].shineT = 1;
+            sfx.complete();
+            var bx2 = L.sSx + j.targetCol * (L.sBw + L.sColGap) + L.sBw / 2;
+            var by2 = getSortBoxY(j.targetCol, 0) + L.sBh / 2;
+            spawnBurst(bx2, by2, COLORS[j.ci].fill, 20);
+            spawnConfetti(bx2, by2, 15);
+            (function (box) { setTimeout(function () { box.vis = false; checkWin(); }, 600); })(col[tv]);
+          }
         }
       }
       jumpers.splice(i, 1);
@@ -491,8 +510,12 @@ function update() {
       if (col[r].popT > 0) col[r].popT = Math.max(0, col[r].popT - 0.018);
       if (col[r].shineT > 0) col[r].shineT = Math.max(0, col[r].shineT - 0.025);
       if (col[r].squishT > 0) col[r].squishT = Math.max(0, col[r].squishT - 0.06);
+      if (col[r].shakeT > 0) col[r].shakeT = Math.max(0, col[r].shakeT - 0.04);
     }
   }
+
+  // Unfriendly tray flying-box returns
+  updateFlyingBoxes();
 
   // Lock button trigger
   for (var c = 0; c < sortCols.length; c++) {
@@ -550,6 +573,7 @@ function frame() {
     drawBlockerProgress();
     drawJumpers();
     drawSortArea();
+    drawFlyingBoxes();
     drawBackButton();
     drawParticles();
     drawDebugWalls();
