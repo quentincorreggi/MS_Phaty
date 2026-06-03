@@ -1,0 +1,23 @@
+{
+  "name": "Unfriendly Customers",
+  "description": "Some trays refuse to play nice. They eat 9 matching marbles, then spit them back into the maze as a fresh box — only after that do they become regular trays.",
+  "howToPlay": "Watch the top of columns 1 and 3 — those trays have jagged thorny borders and a counter (0/9) over their color. Feed them matching marbles; at 9 they fling a box back into the grid. After that they're normal trays needing 3 more matching marbles.",
+  "author": "Marble Sorter Prototype",
+  "showcaseLevel": {
+    "name": "Unfriendly Customers Showcase",
+    "desc": "Full grid, unfriendly trays on columns 1 & 3",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "unfriendlyCols": [true, false, true, false],
+    "grid": [
+      { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 4, "type": "default" }, { "ci": 5, "type": "default" }, { "ci": 6, "type": "default" },
+      { "ci": 7, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 4, "type": "default" }, { "ci": 5, "type": "default" },
+      { "ci": 6, "type": "default" }, { "ci": 7, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 4, "type": "default" },
+      { "ci": 5, "type": "default" }, { "ci": 6, "type": "default" }, { "ci": 7, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" },
+      { "ci": 4, "type": "default" }, { "ci": 5, "type": "default" }, { "ci": 6, "type": "default" }, { "ci": 7, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" },
+      { "ci": 3, "type": "default" }, { "ci": 4, "type": "default" }, { "ci": 5, "type": "default" }, { "ci": 6, "type": "default" }, { "ci": 7, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" },
+      { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 4, "type": "default" }, { "ci": 5, "type": "default" }, { "ci": 6, "type": "default" }, { "ci": 7, "type": "default" }, { "ci": 0, "type": "default" }
+    ]
+  }
+}
