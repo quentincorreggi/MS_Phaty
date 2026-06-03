@@ -17,6 +17,8 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  selectedShockwave: -1, // index of selected shockwave box
+  swPathPickMode: false,  // true while user is clicking tiles to define path
   visible: false
 };
 
@@ -34,6 +36,8 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.selectedShockwave = -1;
+  editor.swPathPickMode = false;
 }
 
 function showEditor(fresh) {
@@ -60,6 +64,7 @@ function editorBuildUI() {
   editorRenderSettings();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderShockwavePanel();
 }
 
 // ── Grid ──
@@ -95,6 +100,40 @@ function editorRenderGrid() {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
     }
+    // Shockwave path overlays
+    if (editor.selectedShockwave >= 0) {
+      var sw = editor.grid[editor.selectedShockwave];
+      if (sw && sw.swPath) {
+        var pathPos = sw.swPath.indexOf(i);
+        if (i === editor.selectedShockwave) {
+          // Source: lightning icon already drawn; add subtle ring
+          cell.style.outline = '2px solid rgba(255,255,255,0.6)';
+          cell.style.outlineOffset = '-2px';
+        } else if (pathPos >= 0) {
+          var isTarget = (pathPos === sw.swPath.length - 1);
+          var badge = document.createElement('span');
+          badge.style.cssText = 'position:absolute;top:2px;right:3px;font-size:9px;font-weight:700;' +
+            'color:#fff;text-shadow:0 0 3px rgba(0,0,0,0.8);pointer-events:none;z-index:2;';
+          badge.textContent = isTarget ? '◎' : (pathPos + 1);
+          cell.style.position = 'relative';
+          cell.appendChild(badge);
+          if (isTarget) {
+            cell.style.outline = '2px solid rgba(255,255,255,0.85)';
+            cell.style.outlineOffset = '-2px';
+          } else {
+            cell.style.outline = '2px solid rgba(255,255,255,0.45)';
+            cell.style.outlineOffset = '-2px';
+          }
+        }
+      }
+      // Highlight mode: dim non-path cells slightly when in pick mode
+      if (editor.swPathPickMode && i !== editor.selectedShockwave) {
+        var sw2 = editor.grid[editor.selectedShockwave];
+        var inPath = sw2 && sw2.swPath && sw2.swPath.indexOf(i) >= 0;
+        if (!inPath) cell.style.opacity = '0.55';
+      }
+    }
+
     cell.setAttribute('data-idx', i);
     cell.addEventListener('click', editorCellClick);
     cell.addEventListener('contextmenu', editorCellErase);
@@ -104,6 +143,28 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  // Path pick mode: clicking any cell appends to or trims the shockwave path
+  if (editor.swPathPickMode && editor.selectedShockwave >= 0) {
+    if (idx === editor.selectedShockwave) {
+      // Clicking the source exits pick mode
+      editor.swPathPickMode = false;
+      editorRenderGrid(); editorRenderShockwavePanel();
+      return;
+    }
+    var sw = editor.grid[editor.selectedShockwave];
+    if (!sw || !sw.swPath) return;
+    var existingPos = sw.swPath.indexOf(idx);
+    if (existingPos >= 0) {
+      // Trim path up to (but not including) this tile
+      sw.swPath = sw.swPath.slice(0, existingPos);
+    } else {
+      sw.swPath.push(idx);
+    }
+    sw.swTarget = sw.swPath.length > 0 ? sw.swPath[sw.swPath.length - 1] : -1;
+    editorRenderGrid(); editorRenderShockwavePanel(); editorUpdateStats();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -137,8 +198,24 @@ function editorCellClick(e) {
   } else {
     // Normal box painting mode
     if (editor.activeColor === -1) {
-      editor.grid[idx] = null;
+      if (editor.selectedShockwave === idx) { editor.selectedShockwave = -1; editor.swPathPickMode = false; }
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+      editor.grid[idx] = null;
+    } else if (editor.activeType === 'shockwave') {
+      var existing = editor.grid[idx];
+      if (existing && !existing.tunnel && !existing.wall && existing.type === 'shockwave') {
+        // Click existing shockwave: select it for path editing
+        editor.selectedShockwave = idx;
+        editor.swPathPickMode = false;
+        if (!existing.swPath) existing.swPath = [];
+        if (existing.swTarget === undefined) existing.swTarget = -1;
+      } else {
+        // Place new shockwave box
+        editor.grid[idx] = { ci: editor.activeColor, type: 'shockwave', swTarget: -1, swPath: [] };
+        editor.selectedShockwave = idx;
+        editor.swPathPickMode = false;
+        if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+      }
     } else {
       var existing = editor.grid[idx];
       if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
@@ -147,21 +224,38 @@ function editorCellClick(e) {
         editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
       }
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+      if (editor.selectedShockwave === idx) { editor.selectedShockwave = -1; editor.swPathPickMode = false; }
     }
   }
   editorRenderGrid();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderShockwavePanel();
 }
 
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
-  editor.grid[idx] = null;
+
+  // In path pick mode: right-click removes this tile from path (and all after it)
+  if (editor.swPathPickMode && editor.selectedShockwave >= 0 && idx !== editor.selectedShockwave) {
+    var sw = editor.grid[editor.selectedShockwave];
+    if (sw && sw.swPath) {
+      var pos = sw.swPath.indexOf(idx);
+      if (pos >= 0) sw.swPath = sw.swPath.slice(0, pos);
+      sw.swTarget = sw.swPath.length > 0 ? sw.swPath[sw.swPath.length - 1] : -1;
+      editorRenderGrid(); editorRenderShockwavePanel(); editorUpdateStats();
+      return;
+    }
+  }
+
+  if (editor.selectedShockwave === idx) { editor.selectedShockwave = -1; editor.swPathPickMode = false; }
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+  editor.grid[idx] = null;
   editorRenderGrid();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderShockwavePanel();
 }
 
 // ── Toolbar: mode toggle + type selector + color/direction palette ──
@@ -422,6 +516,91 @@ function editorRenderTunnelPanel() {
         editorRenderTunnelPanel();
         editorUpdateStats();
       }
+    });
+  }
+}
+
+// ── Shockwave path editor panel ──
+function editorRenderShockwavePanel() {
+  var container = document.getElementById('ed-shockwave-panel');
+  if (!container) return;
+
+  if (editor.selectedShockwave < 0 || !editor.grid[editor.selectedShockwave] ||
+      editor.grid[editor.selectedShockwave].type !== 'shockwave') {
+    container.style.display = 'none';
+    return;
+  }
+
+  container.style.display = 'block';
+  var sw = editor.grid[editor.selectedShockwave];
+  var path = sw.swPath || [];
+  var target = path.length > 0 ? path[path.length - 1] : -1;
+
+  var html = '<div class="ed-section-title"><span class="icon">&#9889;</span> Shockwave #' +
+    (editor.selectedShockwave + 1) + ' — Wave Path</div>';
+
+  // Pick mode toggle button
+  if (editor.swPathPickMode) {
+    html += '<button class="ed-qbtn" id="sw-done-btn" style="background:#2A1F6F;color:#fff;border:1px solid rgba(255,150,30,0.7);width:100%;margin-bottom:6px">&#9989; Done picking — click tile to add/remove</button>';
+  } else {
+    html += '<button class="ed-qbtn" id="sw-pick-btn" style="background:#3B2D8F;color:#fff;border:1px solid rgba(255,150,30,0.5);width:100%;margin-bottom:6px">&#128247; Define Path Tiles</button>';
+  }
+
+  // Path summary
+  if (path.length === 0) {
+    html += '<div style="font-size:11px;color:#9C8A70;font-style:italic;margin-bottom:6px">No path defined — click Define Path, then tap tiles in order.</div>';
+  } else {
+    html += '<div style="font-size:11px;color:#C8B89A;margin-bottom:4px">Path: ' + path.length + ' tile' + (path.length > 1 ? 's' : '');
+    if (target >= 0) {
+      var tr = Math.floor(target / 7) + 1, tc = (target % 7) + 1;
+      html += ' &nbsp;&#9679;&nbsp; Target: row ' + tr + ', col ' + tc;
+    }
+    html += '</div>';
+
+    html += '<div class="ed-tunnel-contents" style="margin-bottom:6px">';
+    for (var p = 0; p < path.length; p++) {
+      var pIdx = path[p];
+      var pr = Math.floor(pIdx / 7) + 1, pc = (pIdx % 7) + 1;
+      var cell = editor.grid[pIdx];
+      var isTarget = (p === path.length - 1);
+      var bg = isTarget ? 'rgba(255,255,255,0.20)' : 'rgba(255,255,255,0.10)';
+      var label = isTarget ? '&#9678;' : (p + 1);
+      html += '<span title="r' + pr + ' c' + pc + '" style="display:inline-flex;align-items:center;justify-content:center;' +
+        'width:28px;height:28px;border-radius:5px;background:' + bg + ';border:1px solid rgba(255,255,255,' + (isTarget ? '0.5' : '0.25') + ');' +
+        'font-size:10px;font-weight:700;color:#fff;margin:2px;cursor:default">' + label + '</span>';
+    }
+    html += '</div>';
+  }
+
+  if (path.length > 0) {
+    html += '<div style="text-align:center"><button class="ed-qbtn" id="sw-clear-btn">&#128465; Clear Path</button></div>';
+  }
+
+  container.innerHTML = html;
+
+  var pickBtn = document.getElementById('sw-pick-btn');
+  if (pickBtn) {
+    pickBtn.addEventListener('click', function () {
+      editor.swPathPickMode = true;
+      editorRenderGrid(); editorRenderShockwavePanel();
+    });
+  }
+
+  var doneBtn = document.getElementById('sw-done-btn');
+  if (doneBtn) {
+    doneBtn.addEventListener('click', function () {
+      editor.swPathPickMode = false;
+      editorRenderGrid(); editorRenderShockwavePanel();
+    });
+  }
+
+  var clearBtn = document.getElementById('sw-clear-btn');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', function () {
+      var sw2 = editor.grid[editor.selectedShockwave];
+      if (sw2) { sw2.swPath = []; sw2.swTarget = -1; }
+      editor.swPathPickMode = false;
+      editorRenderGrid(); editorRenderShockwavePanel(); editorUpdateStats();
     });
   }
 }

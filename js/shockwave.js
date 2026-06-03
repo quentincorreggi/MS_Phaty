@@ -85,12 +85,14 @@ function drawShockwaveIndicators() {
     if (b.used || b.empty) continue;
     if (!b.swPath || b.swPath.length === 0 || b.swTarget < 0) continue;
 
-    // Dotted path line
+    // White path line through tile centers
     ctx.save();
-    ctx.strokeStyle = 'rgba(255,150,30,0.50)';
-    ctx.lineWidth = 2 * S;
-    ctx.setLineDash([3 * S, 4 * S]);
+    ctx.strokeStyle = 'rgba(255,255,255,0.70)';
+    ctx.lineWidth = 2.5 * S;
     ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.shadowColor = 'rgba(255,255,255,0.35)';
+    ctx.shadowBlur = 4 * S;
     ctx.beginPath();
     ctx.moveTo(b.x + L.bw / 2, b.y + L.bh / 2);
     for (var p = 0; p < b.swPath.length; p++) {
@@ -98,18 +100,17 @@ function drawShockwaveIndicators() {
       if (pb) ctx.lineTo(pb.x + L.bw / 2, pb.y + L.bh / 2);
     }
     ctx.stroke();
-    ctx.setLineDash([]);
     ctx.restore();
 
-    // Target glow ring
+    // Target glow ring (white)
     var tgt = stock[b.swTarget];
     if (tgt) {
       var pulse = Math.sin(tick * 0.07 + 1.5) * 0.35 + 0.55;
       ctx.save();
-      ctx.strokeStyle = 'rgba(255,150,30,' + pulse + ')';
+      ctx.strokeStyle = 'rgba(255,255,255,' + pulse + ')';
       ctx.lineWidth = 3 * S;
-      ctx.shadowColor = 'rgba(255,150,30,0.4)';
-      ctx.shadowBlur = 6 * S;
+      ctx.shadowColor = 'rgba(255,255,255,0.5)';
+      ctx.shadowBlur = 8 * S;
       rRect(tgt.x - 3 * S, tgt.y - 3 * S, L.bw + 6 * S, L.bh + 6 * S, 9 * S);
       ctx.stroke();
       ctx.restore();
