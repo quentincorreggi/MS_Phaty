@@ -1,0 +1,17 @@
+{
+  "name": "Shockwave Box",
+  "desc": "Tap the glowing indigo box to send a seismic wave across the board and unlock a distant box.",
+  "showcaseLevel": {
+    "name": "SHK_Basic — Shockwave Demo",
+    "desc": "Tap the shockwave box to open the top-right target.",
+    "grid": [
+      null, null, null, null, null, null, {"ci":0,"type":"default"},
+      null, null, null, null, null, null, null,
+      null, null, {"ci":3,"type":"default"}, null, null, null, null,
+      null, null, null, {"ci":4,"type":"default"}, null, null, null,
+      null, {"ci":1,"type":"default"}, null, null, {"ci":5,"type":"default"}, null, null,
+      null, {"ci":2,"type":"default"}, null, {"ci":3,"type":"default"}, null, {"ci":0,"type":"default"}, null,
+      {"ci":2,"type":"shockwave","swTarget":6,"swPath":[43,44,45,46,47,48,41,34,27,20,13,6]}, {"ci":1,"type":"default"}, {"ci":4,"type":"default"}, {"ci":5,"type":"default"}, {"ci":0,"type":"default"}, {"ci":3,"type":"default"}, null
+    ]
+  }
+}
