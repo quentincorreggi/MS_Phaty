@@ -1,0 +1,19 @@
+{
+  "name": "Half Marble Box",
+  "description": "A box holds 9 marbles — 6 whole and 3 halves. A half can't be sorted on its own; two halves of the same color must meet on the belt and fuse into one full marble. Crucially, halves only fuse with halves from a DIFFERENT box.",
+  "howToPlay": "Tap a box to drop its marbles — the whole ones sort as usual, but the 3 halves just circle the belt. Two halves of the same color fuse into a full marble ONLY if they came from different boxes, so you'll need to open a second box of that color. Tip: empty the bottom box to open the ghost box stacked above it. Clear every tray to win!",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Two Halves Make a Whole",
+    "desc": "Halves only fuse with a half from a different box — open both boxes of a color!",
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, { "wall": true }, { "wall": true }, null, null,
+      null, null, { "wall": true }, { "ci": 0, "type": "half" }, { "ci": 1, "type": "half" }, { "wall": true }, null,
+      null, null, { "wall": true }, { "ci": 0, "type": "half" }, { "ci": 1, "type": "half" }, { "wall": true }, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}

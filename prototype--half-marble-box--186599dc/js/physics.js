@@ -86,6 +86,7 @@ function physicsStep() {
       if (bestIdx >= 0 && bestDist < 0.08) {
         beltSlots[bestIdx].marble = m.ci;
         beltSlots[bestIdx].half = !!m.half;
+        beltSlots[bestIdx].srcBox = m.half ? m.srcBox : -1;
         beltSlots[bestIdx].merging = false;
         beltSlots[bestIdx].arriveAnim = 0.6;
         sfx.drop();
@@ -101,6 +102,12 @@ function spawnPhysMarbles(box) {
   var count = box.remaining;
   var blockerCount = box.blockerCount || 0;
   var blockerStart = MRB_PER_BOX - blockerCount;
+  // Half-marbles occupy the last `halfCount` spawn slots. Every marble
+  // from this tap shares one batch id so two halves from the SAME box
+  // can never fuse with each other.
+  var halfCount = box.halfCount || 0;
+  var halfStart = MRB_PER_BOX - halfCount;
+  var batchId = ++halfBatchSeq;
   for (var idx = 0; idx < count; idx++) {
     (function (i, b, bStart) {
       setTimeout(function () {
@@ -117,8 +124,9 @@ function spawnPhysMarbles(box) {
         var vx = (Math.random() - 0.5) * 2 * S;
         var vy = -(2 + Math.random() * 2) * S;
         var marbleCi = (blockerCount > 0 && spawnIdx >= bStart) ? BLOCKER_CI : b.ci;
-        var isHalf = (b.boxType === 'half');
-        physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR, spawnT: 1.0, half: isHalf });
+        var isHalf = (halfCount > 0 && spawnIdx >= halfStart);
+        physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR, spawnT: 1.0,
+          half: isHalf, srcBox: isHalf ? batchId : -1 });
         sfx.drop();
         spawnBurst(mx, my, COLORS[marbleCi].fill, 4);
         if (b.remaining <= 0) {

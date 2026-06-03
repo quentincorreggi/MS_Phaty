@@ -29,7 +29,7 @@ function startLevel(idx) {
 
 // === GAME INIT ===
 function initGame() {
-  won = false; score = 0; particles = []; physMarbles = []; jumpers = []; halfMerges = []; tick = 0; hoverIdx = -1;
+  won = false; score = 0; particles = []; physMarbles = []; jumpers = []; halfMerges = []; halfBatchSeq = 0; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
   document.getElementById('win-screen').classList.remove('show');
@@ -68,7 +68,12 @@ function initGame() {
   for (var c = 0; c < NUM_COLORS; c++) { colorMarblesTotal.push(0); halfMarblesTotal.push(0); }
   for (var k in boxSlots) {
     var bs = boxSlots[k];
-    if (bs.boxType === 'half') { halfMarblesTotal[bs.ci] += HALF_PER_BOX; continue; }
+    if (bs.boxType === 'half') {
+      // 6 whole marbles count directly; 3 halves pair up 2:1 below.
+      colorMarblesTotal[bs.ci] += (MRB_PER_BOX - HALF_PER_BOX);
+      halfMarblesTotal[bs.ci] += HALF_PER_BOX;
+      continue;
+    }
     var isBlockerBox = (bs.boxType === 'blocker');
     var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
     colorMarblesTotal[bs.ci] += regularPerBox;
@@ -79,7 +84,11 @@ function initGame() {
     var ts = tunnelSlots[k];
     for (var tc = 0; tc < ts.contents.length; tc++) {
       var tItem = ts.contents[tc];
-      if (tItem.type === 'half') { halfMarblesTotal[tItem.ci] += HALF_PER_BOX; continue; }
+      if (tItem.type === 'half') {
+        colorMarblesTotal[tItem.ci] += (MRB_PER_BOX - HALF_PER_BOX);
+        halfMarblesTotal[tItem.ci] += HALF_PER_BOX;
+        continue;
+      }
       var isBlockerBox = (tItem.type === 'blocker');
       var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
       colorMarblesTotal[tItem.ci] += regularPerBox;
@@ -138,12 +147,13 @@ function initGame() {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
       var isHalf = (slot.boxType === 'half');
-      stock.push({ ci: slot.ci, used: false, remaining: isHalf ? HALF_PER_BOX : MRB_PER_BOX, spawning: false, spawnIdx: 0,
+      stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
         revealed: isIce ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        halfCount: isHalf ? HALF_PER_BOX : 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });

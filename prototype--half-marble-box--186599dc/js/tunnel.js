@@ -181,7 +181,8 @@ function trySpawnFromTunnels() {
     stock[exitIdx] = {
       ci: nextBox.ci,
       used: false,
-      remaining: (nextBox.type === 'half') ? HALF_PER_BOX : MRB_PER_BOX,
+      remaining: MRB_PER_BOX,
+      halfCount: (nextBox.type === 'half') ? HALF_PER_BOX : 0,
       spawning: false,
       spawnIdx: 0,
       // Start closed; updateBoxReveals will open it if the exit cell

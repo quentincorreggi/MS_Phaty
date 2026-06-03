@@ -50,7 +50,7 @@ registerBoxType('half', {
     ctx.globalAlpha = 1;
     if (remaining > 0 && phase > 0.3) {
       ctx.globalAlpha = Math.min(1, (phase - 0.3) / 0.5);
-      drawBoxHalfMarbles(ci, remaining);
+      drawBoxMarblesWithHalves(ci, remaining, HALF_PER_BOX);
       ctx.globalAlpha = 1;
       drawBoxLip(ci);
     }

@@ -105,18 +105,25 @@ function drawBoxMarbles(ci, remaining) {
   }
 }
 
-function drawBoxHalfMarbles(ci, remaining) {
+// A half box holds MRB_PER_BOX marbles, the last `halfCount` of which (in
+// snake order) are halves — matching how spawnPhysMarbles emits them.
+function drawBoxMarblesWithHalves(ci, remaining, halfCount) {
   if (remaining <= 0) return;
   var mr = Math.min(7 * S, L.bw / 8.5);
   var mg = Math.min(14 * S, L.bw / 4.2);
   var mgY = mg * MRB_GAP_FACTOR;
   var gone = MRB_PER_BOX - remaining;
+  var halfStart = MRB_PER_BOX - (halfCount || 0);
   var mrbsToDraw = [];
-  for (var si = gone; si < MRB_PER_BOX; si++) mrbsToDraw.push(SNAKE_ORDER[si]);
+  for (var si = gone; si < MRB_PER_BOX; si++) {
+    mrbsToDraw.push({ r: SNAKE_ORDER[si].r, c: SNAKE_ORDER[si].c, isHalf: si >= halfStart });
+  }
   mrbsToDraw.sort(function (a, b) { return a.r - b.r; });
   for (var si = 0; si < mrbsToDraw.length; si++) {
     var sp = mrbsToDraw[si];
-    drawHalfMarble((sp.c - 1) * mg, (sp.r - 1) * mgY - 2 * S, mr, ci);
+    var mx = (sp.c - 1) * mg, my = (sp.r - 1) * mgY - 2 * S;
+    if (sp.isHalf) drawHalfMarble(mx, my, mr, ci);
+    else drawMarble(mx, my, mr, ci);
   }
 }
 
@@ -273,7 +280,7 @@ function drawStock() {
         if (b.boxType === 'blocker' && b.blockerCount > 0) {
           drawBoxMarblesWithBlockers(b.ci, b.remaining, b.blockerCount);
         } else if (b.boxType === 'half') {
-          drawBoxHalfMarbles(b.ci, b.remaining);
+          drawBoxMarblesWithHalves(b.ci, b.remaining, b.halfCount);
         } else {
           drawBoxMarbles(b.ci, b.remaining);
         }
