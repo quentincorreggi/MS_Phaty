@@ -87,32 +87,35 @@ function drawShockwaveIndicators() {
     if (b.used || b.empty) continue;
     if (!b.swPath || b.swPath.length === 0 || b.swTarget < 0) continue;
 
-    // White path line through tile centers
+    // White path line — two passes (wide semi-transparent + narrow opaque) instead of shadowBlur
     ctx.save();
-    ctx.strokeStyle = 'rgba(255,255,255,0.70)';
-    ctx.lineWidth = 2.5 * S;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.shadowColor = 'rgba(255,255,255,0.35)';
-    ctx.shadowBlur = 4 * S;
     ctx.beginPath();
     ctx.moveTo(b.x + L.bw / 2, b.y + L.bh / 2);
     for (var p = 0; p < b.swPath.length; p++) {
       var pb = stock[b.swPath[p]];
       if (pb) ctx.lineTo(pb.x + L.bw / 2, pb.y + L.bh / 2);
     }
+    ctx.strokeStyle = 'rgba(255,255,255,0.20)';
+    ctx.lineWidth = 6 * S;
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.lineWidth = 2 * S;
     ctx.stroke();
     ctx.restore();
 
-    // Target glow ring (white)
+    // Target ring — pulsing alpha, no shadowBlur
     var tgt = stock[b.swTarget];
     if (tgt) {
       var pulse = Math.sin(tick * 0.07 + 1.5) * 0.35 + 0.55;
       ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,' + (pulse * 0.4) + ')';
+      ctx.lineWidth = 6 * S;
+      rRect(tgt.x - 3 * S, tgt.y - 3 * S, L.bw + 6 * S, L.bh + 6 * S, 9 * S);
+      ctx.stroke();
       ctx.strokeStyle = 'rgba(255,255,255,' + pulse + ')';
-      ctx.lineWidth = 3 * S;
-      ctx.shadowColor = 'rgba(255,255,255,0.5)';
-      ctx.shadowBlur = 8 * S;
+      ctx.lineWidth = 2 * S;
       rRect(tgt.x - 3 * S, tgt.y - 3 * S, L.bw + 6 * S, L.bh + 6 * S, 9 * S);
       ctx.stroke();
       ctx.restore();
@@ -130,7 +133,6 @@ function drawWavePulses() {
     var tileIdx = Math.floor(w.progress);
     var frac = w.progress - tileIdx;
 
-    // Clamp so we don't go out of bounds
     if (tileIdx >= w.path.length) tileIdx = w.path.length - 1;
 
     var prevB = stock[tileIdx > 0 ? w.path[tileIdx - 1] : w.originIdx];
@@ -143,24 +145,22 @@ function drawWavePulses() {
     var rBase = L.bw * 0.44;
 
     ctx.save();
-    // Outer ring
-    ctx.strokeStyle = 'rgba(255,165,30,0.80)';
-    ctx.lineWidth = 3 * S;
-    ctx.shadowColor = 'rgba(255,165,30,0.55)';
-    ctx.shadowBlur = 10 * S;
+    // Outer ring — wide semi-transparent + narrow bright (no shadowBlur)
+    ctx.strokeStyle = 'rgba(255,165,30,0.30)';
+    ctx.lineWidth = 7 * S;
+    ctx.beginPath(); ctx.arc(wx, wy, rBase, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,165,30,0.90)';
+    ctx.lineWidth = 2.5 * S;
     ctx.beginPath(); ctx.arc(wx, wy, rBase, 0, Math.PI * 2); ctx.stroke();
 
     // Inner ring
-    ctx.strokeStyle = 'rgba(255,230,100,0.55)';
+    ctx.strokeStyle = 'rgba(255,230,100,0.50)';
     ctx.lineWidth = 1.5 * S;
-    ctx.shadowBlur = 0;
     ctx.beginPath(); ctx.arc(wx, wy, rBase * 0.55, 0, Math.PI * 2); ctx.stroke();
 
-    // Leading edge dot
-    ctx.fillStyle = 'rgba(255,220,80,0.9)';
-    ctx.shadowColor = 'rgba(255,200,0,0.7)';
-    ctx.shadowBlur = 8 * S;
-    ctx.beginPath(); ctx.arc(wx, wy, 3 * S, 0, Math.PI * 2); ctx.fill();
+    // Leading dot
+    ctx.fillStyle = 'rgba(255,240,120,0.95)';
+    ctx.beginPath(); ctx.arc(wx, wy, 3.5 * S, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 }
