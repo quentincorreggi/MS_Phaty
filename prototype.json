@@ -11,13 +11,13 @@
     "lockButtons": 0,
     "unfriendlyCols": [true, false, true, false],
     "grid": [
-      { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 4, "type": "default" }, { "ci": 5, "type": "default" }, { "ci": 6, "type": "default" },
-      { "ci": 7, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 4, "type": "default" }, { "ci": 5, "type": "default" },
-      { "ci": 6, "type": "default" }, { "ci": 7, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 4, "type": "default" },
-      { "ci": 5, "type": "default" }, { "ci": 6, "type": "default" }, { "ci": 7, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" },
-      { "ci": 4, "type": "default" }, { "ci": 5, "type": "default" }, { "ci": 6, "type": "default" }, { "ci": 7, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" },
-      { "ci": 3, "type": "default" }, { "ci": 4, "type": "default" }, { "ci": 5, "type": "default" }, { "ci": 6, "type": "default" }, { "ci": 7, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" },
-      { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 4, "type": "default" }, { "ci": 5, "type": "default" }, { "ci": 6, "type": "default" }, { "ci": 7, "type": "default" }, { "ci": 0, "type": "default" }
+      { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" },
+      { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" },
+      { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" },
+      { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" },
+      { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" },
+      { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" },
+      { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }
     ]
   }
 }
