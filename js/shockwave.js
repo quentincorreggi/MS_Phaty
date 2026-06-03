@@ -4,8 +4,8 @@
 
 var activeWaves = [];
 
-// ~8 grid tiles per second at 60 fps
-var SW_SPEED = 8 / 60;
+// ~2 grid tiles per second at 60 fps
+var SW_SPEED = 2 / 60;
 
 // Called from handleTap when a shockwave box is tapped.
 function emitShockwave(stockIdx) {
@@ -39,7 +39,8 @@ function updateWaves() {
       var pb = stock[pIdx];
       if (pb && !pb.empty && !pb.used && !pb.isTunnel && !pb.isWall) {
         pb.swLiftT = 1.0;
-        if (typeof sfx !== 'undefined' && sfx.sort) sfx.sort();
+        pb.shakeT = 0.35;
+        if (typeof sfx !== 'undefined' && sfx.pop) sfx.pop();
       }
     }
 
@@ -72,7 +73,7 @@ function updateWaves() {
 
   // Tick lift animations on all stock tiles
   for (var i = 0; i < stock.length; i++) {
-    if (stock[i].swLiftT > 0) stock[i].swLiftT = Math.max(0, stock[i].swLiftT - 0.07);
+    if (stock[i].swLiftT > 0) stock[i].swLiftT = Math.max(0, stock[i].swLiftT - 0.025);
   }
 }
 

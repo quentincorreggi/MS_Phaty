@@ -179,7 +179,7 @@ function drawStock() {
 
     var ox = 0, oy = 0;
     if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
-    if (b.swLiftT > 0) oy = -Math.sin(b.swLiftT * Math.PI) * 6 * S;
+    if (b.swLiftT > 0) oy = -Math.sin(b.swLiftT * Math.PI) * 20 * S;
     var breathe = 0;
     if (!b.used && !b.spawning && b.revealT <= 0 && b.revealed && isBoxTappable(i)) {
       breathe = Math.sin(tick * 0.04 + b.idlePhase) * 0.02;

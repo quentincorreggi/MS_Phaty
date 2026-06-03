@@ -190,7 +190,7 @@ function updateBoxReveals(animate) {
     if (!s) { passable[i] = false; continue; }
     if (s.isWall) { passable[i] = false; continue; }
     if (s.isTunnel) { passable[i] = false; continue; }
-    passable[i] = !!(s.empty || s.used);
+    passable[i] = !!(s.empty || s.used || s.swUnlocked);
   }
 
   // 2. Flood-fill from the bottom row. Passable cells in the bottom
