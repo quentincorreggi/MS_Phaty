@@ -29,7 +29,7 @@ function startLevel(idx) {
 
 // === GAME INIT ===
 function initGame() {
-  won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
+  won = false; score = 0; particles = []; physMarbles = []; jumpers = []; halfMerges = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
   document.getElementById('win-screen').classList.remove('show');
@@ -64,9 +64,11 @@ function initGame() {
 
   // ── Count regular marbles per color for sort columns ──
   var colorMarblesTotal = [];
-  for (var c = 0; c < NUM_COLORS; c++) colorMarblesTotal.push(0);
+  var halfMarblesTotal = [];   // half-marbles per color (combine 2:1 into full marbles)
+  for (var c = 0; c < NUM_COLORS; c++) { colorMarblesTotal.push(0); halfMarblesTotal.push(0); }
   for (var k in boxSlots) {
     var bs = boxSlots[k];
+    if (bs.boxType === 'half') { halfMarblesTotal[bs.ci] += HALF_PER_BOX; continue; }
     var isBlockerBox = (bs.boxType === 'blocker');
     var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
     colorMarblesTotal[bs.ci] += regularPerBox;
@@ -77,11 +79,16 @@ function initGame() {
     var ts = tunnelSlots[k];
     for (var tc = 0; tc < ts.contents.length; tc++) {
       var tItem = ts.contents[tc];
+      if (tItem.type === 'half') { halfMarblesTotal[tItem.ci] += HALF_PER_BOX; continue; }
       var isBlockerBox = (tItem.type === 'blocker');
       var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
       colorMarblesTotal[tItem.ci] += regularPerBox;
       if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
     }
+  }
+  // Two same-color halves combine into one full (sortable) marble.
+  for (var c = 0; c < NUM_COLORS; c++) {
+    colorMarblesTotal[c] += Math.floor(halfMarblesTotal[c] / 2);
   }
   var sortPerColor = [];
   for (var c = 0; c < NUM_COLORS; c++) {
@@ -130,7 +137,8 @@ function initGame() {
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
-      stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
+      var isHalf = (slot.boxType === 'half');
+      stock.push({ ci: slot.ci, used: false, remaining: isHalf ? HALF_PER_BOX : MRB_PER_BOX, spawning: false, spawnIdx: 0,
         revealed: isIce ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
@@ -374,9 +382,13 @@ function update() {
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
 
+  // ── Half-marble combining ──
+  updateHalfMerges();
+
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
     var slot = beltSlots[si]; if (slot.marble < 0) continue;
+    if (slot.half) continue;  // half-marbles can't sort until completed
     var slotT = getSlotT(si);
     for (var c = 0; c < 4; c++) {
       var col = sortCols[c]; var tv = -1;
@@ -547,6 +559,7 @@ function frame() {
     drawStock();
     drawPhysMarbles();
     drawBelt();
+    drawHalfMerges();
     drawBlockerProgress();
     drawJumpers();
     drawSortArea();

@@ -85,6 +85,8 @@ function physicsStep() {
       }
       if (bestIdx >= 0 && bestDist < 0.08) {
         beltSlots[bestIdx].marble = m.ci;
+        beltSlots[bestIdx].half = !!m.half;
+        beltSlots[bestIdx].merging = false;
         beltSlots[bestIdx].arriveAnim = 0.6;
         sfx.drop();
         spawnBurst(m.x, m.y, COLORS[m.ci].fill, 6);
@@ -115,7 +117,8 @@ function spawnPhysMarbles(box) {
         var vx = (Math.random() - 0.5) * 2 * S;
         var vy = -(2 + Math.random() * 2) * S;
         var marbleCi = (blockerCount > 0 && spawnIdx >= bStart) ? BLOCKER_CI : b.ci;
-        physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR, spawnT: 1.0 });
+        var isHalf = (b.boxType === 'half');
+        physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR, spawnT: 1.0, half: isHalf });
         sfx.drop();
         spawnBurst(mx, my, COLORS[marbleCi].fill, 4);
         if (b.remaining <= 0) {

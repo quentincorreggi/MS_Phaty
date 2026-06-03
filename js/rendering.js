@@ -32,6 +32,31 @@ function drawMarble(x, y, r, ci, es) {
   ctx.restore();
 }
 
+// A marble sliced down the middle: solid left half, faded "ghost" right
+// half, with a dashed seam — so it visibly reads as only half a marble.
+function drawHalfMarble(x, y, r, ci, es) {
+  var rs = r * (es || 1);
+  // Faded right half (drawn first).
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x, y - rs - 1, rs + 2, rs * 2 + 2); ctx.clip();
+  ctx.globalAlpha = 0.25;
+  drawMarble(x, y, r, ci, es);
+  ctx.restore();
+  // Solid left half.
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x - rs - 1, y - rs - 1, rs + 1, rs * 2 + 2); ctx.clip();
+  drawMarble(x, y, r, ci, es);
+  ctx.restore();
+  // Dashed seam down the cut.
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+  ctx.lineWidth = Math.max(1, rs * 0.14);
+  ctx.setLineDash([rs * 0.34, rs * 0.26]);
+  ctx.beginPath(); ctx.moveTo(x, y - rs * 0.92); ctx.lineTo(x, y + rs * 0.92); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
 function drawBackground() {
   ctx.fillStyle = '#EDE5D8';
   ctx.fillRect(0, 0, W, H);
@@ -77,6 +102,21 @@ function drawBoxMarbles(ci, remaining) {
   for (var si = 0; si < mrbsToDraw.length; si++) {
     var sp = mrbsToDraw[si];
     drawMarble((sp.c - 1) * mg, (sp.r - 1) * mgY - 2 * S, mr, ci);
+  }
+}
+
+function drawBoxHalfMarbles(ci, remaining) {
+  if (remaining <= 0) return;
+  var mr = Math.min(7 * S, L.bw / 8.5);
+  var mg = Math.min(14 * S, L.bw / 4.2);
+  var mgY = mg * MRB_GAP_FACTOR;
+  var gone = MRB_PER_BOX - remaining;
+  var mrbsToDraw = [];
+  for (var si = gone; si < MRB_PER_BOX; si++) mrbsToDraw.push(SNAKE_ORDER[si]);
+  mrbsToDraw.sort(function (a, b) { return a.r - b.r; });
+  for (var si = 0; si < mrbsToDraw.length; si++) {
+    var sp = mrbsToDraw[si];
+    drawHalfMarble((sp.c - 1) * mg, (sp.r - 1) * mgY - 2 * S, mr, ci);
   }
 }
 
@@ -232,6 +272,8 @@ function drawStock() {
       if (b.remaining > 0) {
         if (b.boxType === 'blocker' && b.blockerCount > 0) {
           drawBoxMarblesWithBlockers(b.ci, b.remaining, b.blockerCount);
+        } else if (b.boxType === 'half') {
+          drawBoxHalfMarbles(b.ci, b.remaining);
         } else {
           drawBoxMarbles(b.ci, b.remaining);
         }
@@ -264,7 +306,8 @@ function drawPhysMarbles() {
   for (var i = 0; i < physMarbles.length; i++) {
     var m = physMarbles[i];
     var bounce = m.spawnT > 0 ? (1 + Math.sin(m.spawnT * Math.PI) * 0.4) : 1;
-    drawMarble(m.x, m.y, m.r, m.ci, bounce);
+    if (m.half) drawHalfMarble(m.x, m.y, m.r, m.ci, bounce);
+    else drawMarble(m.x, m.y, m.r, m.ci, bounce);
   }
 }
 
@@ -294,7 +337,8 @@ function drawBelt() {
         ctx.beginPath(); ctx.arc(pos.x, pos.y, slotR * 1.6 * pulse, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
       }
-      drawMarble(pos.x, pos.y, slotR * 0.8 * cal.marble.s, slot.marble, bs);
+      if (slot.half) drawHalfMarble(pos.x, pos.y, slotR * 0.8 * cal.marble.s, slot.marble, bs);
+      else drawMarble(pos.x, pos.y, slotR * 0.8 * cal.marble.s, slot.marble, bs);
     }
   }
 }

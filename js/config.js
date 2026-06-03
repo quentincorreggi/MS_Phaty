@@ -7,7 +7,7 @@ var ctx = canvas.getContext('2d');
 var W = 0, H = 0, S = 1;
 var L = {};
 var beltPath = [];
-var stock = [], sortCols = [], particles = [], physMarbles = [], jumpers = [];
+var stock = [], sortCols = [], particles = [], physMarbles = [], jumpers = [], halfMerges = [];
 var score = 0, won = false, tick = 0, hoverIdx = -1;
 var audioCtx = null;
 
@@ -54,6 +54,9 @@ var blockerCollectSlots = [];
 var blockerCollectCleared = false;
 
 var MRB_PER_BOX = 9, SORT_CAP = 3;
+// Half marble box: number of half-marbles inside one box. Two same-color
+// halves combine into one full marble on the belt.
+var HALF_PER_BOX = 3;
 var SORT_VISIBLE_ROWS = 4;
 
 // Snake order for 3x3 grid

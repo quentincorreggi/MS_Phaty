@@ -4,7 +4,7 @@
 
 function initBeltSlots() {
   beltSlots = [];
-  for (var i = 0; i < BELT_SLOTS; i++) beltSlots.push({ marble: -1, arriveAnim: 0 });
+  for (var i = 0; i < BELT_SLOTS; i++) beltSlots.push({ marble: -1, arriveAnim: 0, half: false, merging: false });
   beltOffset = 0;
 }
 
