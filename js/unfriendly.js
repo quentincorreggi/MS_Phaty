@@ -36,7 +36,13 @@ function pickRandomEmptyStockIndex() {
   var empties = [];
   for (var i = 0; i < stock.length; i++) {
     var s = stock[i];
-    if (s && s.empty && !s.isWall && !s.isTunnel) empties.push(i);
+    if (!s) continue;
+    if (s.isWall || s.isTunnel) continue;
+    if (s.spawning) continue;
+    // Cells without an active box are valid targets:
+    // truly empty slots, plus used-up boxes (which are passable
+    // and visually inert).
+    if (s.empty || s.used) empties.push(i);
   }
   if (empties.length === 0) return -1;
   return empties[Math.floor(Math.random() * empties.length)];
@@ -97,8 +103,10 @@ function updateFlyingBoxes() {
 
 function landFlyingBox(f) {
   var idx = f.toIdx;
-  if (idx < 0 || !stock[idx] || !stock[idx].empty) {
-    // Original target gone — try another empty slot.
+  var ok = (idx >= 0 && stock[idx] && !stock[idx].isWall && !stock[idx].isTunnel
+            && !stock[idx].spawning && (stock[idx].empty || stock[idx].used));
+  if (!ok) {
+    // Original target no longer valid — pick a different slot.
     idx = pickRandomEmptyStockIndex();
   }
   if (idx < 0) {
