@@ -232,10 +232,18 @@ function drawStock() {
       if (b.remaining > 0) {
         if (b.boxType === 'blocker' && b.blockerCount > 0) {
           drawBoxMarblesWithBlockers(b.ci, b.remaining, b.blockerCount);
+        } else if (b.boxType === 'heavy') {
+          drawBoxMarblesWithAnchors(b.ci, b.remaining, S);
         } else {
           drawBoxMarbles(b.ci, b.remaining);
         }
         drawBoxLip(b.ci);
+        if (b.boxType === 'heavy') {
+          // Anchor badge on the lip, so the heavy type reads at a glance.
+          drawAnchorIcon(ctx, 0, L.bh / 2 - L.bh * LIP_PCT / 2,
+            Math.min(L.bw, L.bh) * 0.28, 'rgba(255,255,255,0.95)',
+            Math.max(1.2, Math.min(L.bw, L.bh) * 0.04));
+        }
       }
     }
 
