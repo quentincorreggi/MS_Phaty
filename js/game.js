@@ -33,7 +33,13 @@ function initGame() {
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
   document.getElementById('win-screen').classList.remove('show');
-  computeLayout(); initBeltSlots();
+
+  // Snap tube capacity is per-level (default 9); set before layout so
+  // tube geometry is sized correctly.
+  var lvl0 = LEVELS[currentLevel];
+  TUBE_CAP = (lvl0 && lvl0.tubeCapacity) ? lvl0.tubeCapacity : 9;
+
+  computeLayout(); initBeltSlots(); snapInit();
 
   var totalSlots = L.rows * L.cols;
   var lvl = LEVELS[currentLevel];
@@ -328,6 +334,7 @@ function handleTap(px, py) {
   if (won || !gameActive) return;
   ensureAudio();
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
+  if (handleSnapTap(px, py)) return;
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
@@ -514,6 +521,7 @@ function update() {
     if (box.type === 'lock' && box.triggerT > 0) box.triggerT = Math.max(0, box.triggerT - 0.03);
   }
 
+  updateSnap();
   tickParticles();
   updateRollingSound();
 }
@@ -550,8 +558,11 @@ function frame() {
     drawBlockerProgress();
     drawJumpers();
     drawSortArea();
+    drawSnapTubes();
     drawBackButton();
     drawParticles();
+    drawSnapFlights();
+    drawSnapHints();
     drawDebugWalls();
   }
   requestAnimationFrame(frame);

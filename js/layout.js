@@ -86,6 +86,23 @@ function computeLayout() {
   var stw = 4 * L.sBw + 3 * L.sColGap;
   L.sSx = sortCx - stw / 2;
 
+  // SNAP TUBES — vertical capsules in the screen-edge margins, clear of
+  // the (near full-width) sort columns.
+  var tubeMarbleR = 7 * S;
+  L.tubeMarbleR = tubeMarbleR;
+  L.tubeSlotGap = tubeMarbleR * 2.05;
+  L.tubePad = tubeMarbleR * 0.7;
+  L.tubeW = tubeMarbleR * 2 + L.tubePad * 2;
+  L.tubeH = TUBE_CAP * L.tubeSlotGap + L.tubePad * 2;
+  L.tubeTop = beltBotY + 18 * S;
+  // Hug the screen edges, but never spill over the sort columns.
+  L.tubeLeftX = Math.max(3 * S, Math.min(4 * S, L.sSx - L.tubeW - 3 * S));
+  L.tubeRightX = Math.min(W - L.tubeW - 3 * S, Math.max(W - L.tubeW - 4 * S, L.sSx + stw + 3 * S));
+  L.tubeReturn = [
+    { x: L.tubeLeftX + L.tubeW / 2, y: beltBotY },
+    { x: L.tubeRightX + L.tubeW / 2, y: beltBotY }
+  ];
+
   // BACK BUTTON
   var bkCal = cal.back;
   var bkSize = 40 * S * bkCal.s;

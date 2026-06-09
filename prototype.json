@@ -1,0 +1,19 @@
+{
+  "name": "Snap Mechanic — Storage Tubes",
+  "description": "Tap a marble on the belt to snap every marble of that color into a side tube. Tap a tube to send its top color group back. Two tubes, 9 each, LIFO order.",
+  "howToPlay": "Tap any marble on the conveyor to store all marbles of that color in the active tube (left fills first, then right). Tap a tube to release its top color group back onto the belt. Use it to relieve a crowded belt or set up clean sorting runs.",
+  "showcaseLevel": {
+    "name": "Snap Showcase",
+    "desc": "Store and return colors to keep the belt clear",
+    "tubeCapacity": 9,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, null, null,
+      null, null, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, null, null,
+      null, null, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, null, null,
+      null, null, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, null, null
+    ]
+  }
+}

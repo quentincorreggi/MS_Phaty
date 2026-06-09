@@ -77,7 +77,7 @@ function physicsStep() {
       var entryT = getBeltEntryT();
       var bestIdx = -1, bestDist = Infinity;
       for (var k = 0; k < BELT_SLOTS; k++) {
-        if (beltSlots[k].marble >= 0) continue;
+        if (beltSlots[k].marble >= 0 || beltSlots[k].reserved) continue;
         var st = getSlotT(k);
         var diff = Math.abs(st - entryT);
         diff = Math.min(diff, 1 - diff);

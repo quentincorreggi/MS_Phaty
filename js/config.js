@@ -56,6 +56,16 @@ var blockerCollectCleared = false;
 var MRB_PER_BOX = 9, SORT_CAP = 3;
 var SORT_VISIBLE_ROWS = 4;
 
+// === SNAP TUBES ===
+// Two temporary-storage tubes (index 0 = left, 1 = right). Capacity is
+// per-level (lvl.tubeCapacity), defaulting to 9. Marbles in tubes do NOT
+// count toward belt capacity.
+var TUBE_CAP = 9;
+var snapTubes = [];        // [{ marbles:[ci...], reservedIn, shakeT, settleIndex, settleT }, ...]
+var snapFlights = [];      // in-flight marbles: { ci, x0,y0, x1,y1, t, dur, toTube, tubeIdx|slotIdx }
+var snapHasStored = false, snapHasReturned = false;
+var snapBothFullHintT = 0, snapBothFullShown = false;
+
 // Snake order for 3x3 grid
 var SNAKE_ORDER = [
   { r: 0, c: 0 }, { r: 0, c: 1 }, { r: 0, c: 2 },
