@@ -24,8 +24,24 @@ function spawnConfetti(x, y, n) {
 function tickParticles() {
   for (var i = particles.length - 1; i >= 0; i--) {
     var p = particles[i];
-    p.x += p.vx; p.y += p.vy;
-    p.vy += p.grav ? 0.2 * S : 0.08 * S;
+    if (p.homing) {
+      var dx = p.homingTx - p.x, dy = p.homingTy - p.y;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > 1) {
+        var force = (p.homingForce || 0.55);
+        p.vx += (dx / dist) * force * S;
+        p.vy += (dy / dist) * force * S;
+      }
+      p.vx *= 0.86; p.vy *= 0.86;
+      p.x += p.vx; p.y += p.vy;
+      if (dist < (p.homingArriveR || 5 * S)) {
+        if (p.onArrive) { try { p.onArrive(); } catch (e) {} p.onArrive = null; }
+        p.life = 0;
+      }
+    } else {
+      p.x += p.vx; p.y += p.vy;
+      p.vy += p.grav ? 0.2 * S : 0.08 * S;
+    }
     p.life -= p.decay; p.r *= 0.985;
     if (p.life <= 0) particles.splice(i, 1);
   }
