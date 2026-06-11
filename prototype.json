@@ -6,7 +6,7 @@
   "showcaseLevel": {
     "name": "Color Safe Showcase",
     "desc": "Pay the safe with 2 pink, 2 green, 2 yellow, and 2 purple taps to unlock it.",
-    "mrbPerBox": 3,
+    "mrbPerBox": 9,
     "sortCap": 3,
     "lockButtons": 0,
     "grid": [
