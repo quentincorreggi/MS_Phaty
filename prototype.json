@@ -1,0 +1,96 @@
+{
+  "name": "Color Safe",
+  "description": "A 2×2 safe locks away 4 boxes until you pay its color toll.",
+  "howToPlay": "Tap boxes of the colors shown on the safe to count down its requirements. When every counter hits zero, the safe pops open and the 4 boxes underneath become playable. Clear all the marbles to win.",
+  "author": "",
+  "showcaseLevel": {
+    "name": "Color Safe Showcase",
+    "desc": "Pay the safe with 2 pink, 2 green, 2 yellow, and 2 purple taps to unlock it.",
+    "mrbPerBox": 3,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      { "ci": 0, "type": "default" },
+      { "ci": 1, "type": "default" },
+      { "ci": 2, "type": "default" },
+      { "ci": 3, "type": "default" },
+      { "ci": 4, "type": "default" },
+      { "ci": 5, "type": "default" },
+      { "ci": 6, "type": "default" },
+
+      { "ci": 7, "type": "default" },
+      { "ci": 0, "type": "default" },
+      { "ci": 1, "type": "default" },
+      { "ci": 2, "type": "default" },
+      { "ci": 3, "type": "default" },
+      { "ci": 4, "type": "default" },
+      { "ci": 5, "type": "default" },
+
+      { "ci": 6, "type": "default" },
+      { "ci": 7, "type": "default" },
+      {
+        "safe": true,
+        "anchor": true,
+        "anchorIdx": 16,
+        "reqs": [
+          { "ci": 0, "target": 2 },
+          { "ci": 2, "target": 2 },
+          { "ci": 3, "target": 2 },
+          { "ci": 4, "target": 2 }
+        ],
+        "inner": { "ci": 0, "type": "default" }
+      },
+      {
+        "safe": true,
+        "anchor": false,
+        "anchorIdx": 16,
+        "inner": { "ci": 1, "type": "default" }
+      },
+      { "ci": 4, "type": "default" },
+      { "ci": 5, "type": "default" },
+      { "ci": 6, "type": "default" },
+
+      { "ci": 3, "type": "default" },
+      { "ci": 4, "type": "default" },
+      {
+        "safe": true,
+        "anchor": false,
+        "anchorIdx": 16,
+        "inner": { "ci": 2, "type": "default" }
+      },
+      {
+        "safe": true,
+        "anchor": false,
+        "anchorIdx": 16,
+        "inner": { "ci": 3, "type": "default" }
+      },
+      { "ci": 6, "type": "default" },
+      { "ci": 7, "type": "default" },
+      { "ci": 0, "type": "default" },
+
+      { "ci": 1, "type": "default" },
+      { "ci": 2, "type": "default" },
+      { "ci": 3, "type": "default" },
+      { "ci": 4, "type": "default" },
+      { "ci": 5, "type": "default" },
+      { "ci": 6, "type": "default" },
+      { "ci": 7, "type": "default" },
+
+      { "ci": 0, "type": "default" },
+      { "ci": 1, "type": "default" },
+      { "ci": 2, "type": "default" },
+      { "ci": 3, "type": "default" },
+      { "ci": 4, "type": "default" },
+      { "ci": 5, "type": "default" },
+      { "ci": 6, "type": "default" },
+
+      { "ci": 7, "type": "default" },
+      { "ci": 0, "type": "default" },
+      { "ci": 1, "type": "default" },
+      { "ci": 2, "type": "default" },
+      { "ci": 3, "type": "default" },
+      { "ci": 4, "type": "default" },
+      { "ci": 5, "type": "default" }
+    ]
+  }
+}
