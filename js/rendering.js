@@ -177,6 +177,19 @@ function drawStock() {
       continue;
     }
 
+    // ── Door ──
+    if (b.isDoor) {
+      var doorObj = (typeof doors !== 'undefined') ? doors[b.doorId] : null;
+      if (doorObj && doorObj.cellIdxs[0] === i) {
+        // Main (leftmost) cell — draw the full door spanning all its cells.
+        var firstStock = stock[doorObj.cellIdxs[0]];
+        var lastStock = stock[doorObj.cellIdxs[doorObj.cellIdxs.length - 1]];
+        var doorPxW = (lastStock.x + L.bw) - firstStock.x;
+        drawDoorOnGrid(ctx, firstStock.x, firstStock.y, doorPxW, L.bh, S, doorObj, tick);
+      }
+      continue;
+    }
+
     var ox = 0;
     if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
     var breathe = 0;

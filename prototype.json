@@ -1,0 +1,44 @@
+{
+  "name": "Turn-Based Door",
+  "description": "Doors toggle open ↔ closed on every box pick. The maze becomes a timing puzzle.",
+  "howToPlay": "A 3-wide door at row 2 controls access to the top row. Every box you pick flips all active doors. Pick the purples (always reachable) to advance the door's rhythm; pick a top-row box when the door is open. Soft-lock warning: time your picks carefully — there are exactly enough purples for one full clear.",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Door Rhythm",
+    "desc": "Time the door — purples flip it, colored boxes need it open.",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null,
+      { "ci": 0, "type": "default" },
+      { "ci": 2, "type": "default" },
+      null,
+      { "ci": 1, "type": "default" },
+      { "ci": 3, "type": "default" },
+      null,
+
+      { "wall": true },
+      { "wall": true },
+      { "door": true, "doorId": "sd1", "w": 3, "start": "open" },
+      { "door": true, "doorId": "sd1", "w": 3, "start": "open" },
+      { "door": true, "doorId": "sd1", "w": 3, "start": "open" },
+      { "wall": true },
+      { "wall": true },
+
+      null, null, null, null, null, null, null,
+
+      null,
+      null,
+      { "ci": 4, "type": "default" },
+      { "ci": 4, "type": "default" },
+      { "ci": 4, "type": "default" },
+      null,
+      null,
+
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}

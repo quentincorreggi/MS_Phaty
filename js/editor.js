@@ -5,7 +5,7 @@
 // ============================================================
 
 var editor = {
-  grid: [],            // 7x7: null = empty, { ci, type } or { tunnel: true, ... } or { wall: true }
+  grid: [],            // 7x7: null = empty, { ci, type } / tunnel / wall / door
   name: 'Custom Level',
   desc: 'My custom level',
   mrbPerBox: 9,
@@ -17,6 +17,9 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  doorMode: false,      // true when placing doors
+  doorWidth: 2,         // 1..4 cells
+  doorStart: 'open',    // 'open' | 'closed'
   visible: false
 };
 
@@ -34,6 +37,9 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.doorMode = false;
+  editor.doorWidth = 2;
+  editor.doorStart = 'open';
 }
 
 function showEditor(fresh) {
@@ -75,6 +81,17 @@ function editorRenderGrid() {
       cell.style.background = 'linear-gradient(135deg,#9A8D7B,#6F6355)';
       cell.style.borderColor = '#8A7D6B';
       cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,255,255,0.5);font-size:14px">&#9632;</span>';
+    } else if (v && v.door) {
+      // Door cell
+      var isOpen = (v.start === 'open');
+      var bg = isOpen
+        ? 'linear-gradient(135deg,#C8C0B5,#7A736A)'
+        : 'linear-gradient(135deg,#9A938A,#3F3934)';
+      cell.style.background = bg;
+      cell.style.borderColor = isOpen ? '#5BD16A' : '#E25E5E';
+      var dot = isOpen ? '&#9711;' : '&#9608;';
+      cell.innerHTML = '<span class="ed-cell-dot" style="color:' +
+        (isOpen ? '#2DB866' : '#C44') + ';font-size:13px">' + dot + '</span>';
     } else if (v && v.tunnel) {
       // Tunnel cell
       var isSelected = (editor.selectedTunnel === i);
@@ -104,6 +121,43 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.doorMode) {
+    var existing = editor.grid[idx];
+    if (existing && existing.door) {
+      // Click on existing door: remove entire door group
+      var rmId = existing.doorId;
+      for (var ri = 0; ri < 49; ri++) {
+        var rc = editor.grid[ri];
+        if (rc && rc.door && rc.doorId === rmId) editor.grid[ri] = null;
+      }
+      editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+      return;
+    }
+    // Place new door starting at idx, extending right by doorWidth.
+    var row = Math.floor(idx / 7);
+    var col = idx % 7;
+    var w = Math.max(1, Math.min(4, editor.doorWidth));
+    if (col + w > 7) {
+      editorShowToast("Door doesn't fit (extends past right edge)");
+      return;
+    }
+    // Check all target cells are free
+    for (var di = 0; di < w; di++) {
+      var ti = row * 7 + col + di;
+      if (editor.grid[ti]) {
+        editorShowToast('Door area must be empty');
+        return;
+      }
+    }
+    var newId = nextDoorUid();
+    for (var di2 = 0; di2 < w; di2++) {
+      var pi = row * 7 + col + di2;
+      editor.grid[pi] = { door: true, doorId: newId, w: w, start: editor.doorStart };
+    }
+    editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -157,7 +211,17 @@ function editorCellClick(e) {
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
-  editor.grid[idx] = null;
+  var v = editor.grid[idx];
+  if (v && v.door) {
+    // Remove entire door group
+    var rmId = v.doorId;
+    for (var ri = 0; ri < 49; ri++) {
+      var rc = editor.grid[ri];
+      if (rc && rc.door && rc.doorId === rmId) editor.grid[ri] = null;
+    }
+  } else {
+    editor.grid[idx] = null;
+  }
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
   editorRenderGrid();
   editorUpdateStats();
@@ -178,13 +242,14 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.doorMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.doorMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -200,10 +265,27 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.doorMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(wallBtn);
+
+  // Door mode button
+  var doorBtn = document.createElement('button');
+  doorBtn.className = 'ed-type-btn' + (editor.doorMode ? ' active' : '');
+  doorBtn.textContent = '\u2630 Door';
+  doorBtn.style.borderColor = editor.doorMode ? 'rgba(90,210,106,0.6)' : '';
+  doorBtn.style.color = editor.doorMode ? '#2DB866' : '';
+  doorBtn.addEventListener('click', function () {
+    editor.doorMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editor.selectedTunnel = -1;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(doorBtn);
 
   // Tunnel mode button
   var tunnelBtn = document.createElement('button');
@@ -214,6 +296,7 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.doorMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -260,6 +343,62 @@ function editorRenderToolbar() {
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
+  } else if (editor.doorMode) {
+    // Door mode: width selector + start state toggle
+    var doorRow1 = document.createElement('div');
+    doorRow1.className = 'ed-color-row';
+    var wLabel = document.createElement('span');
+    wLabel.style.cssText = 'font-size:10px;color:#9C8A70;align-self:center;margin-right:4px';
+    wLabel.textContent = 'Width:';
+    doorRow1.appendChild(wLabel);
+    for (var dw = 1; dw <= 4; dw++) {
+      var wb = document.createElement('button');
+      wb.className = 'ed-tool' + (editor.doorWidth === dw ? ' active' : '');
+      wb.style.background = 'linear-gradient(135deg,#9A938A,#5F5852)';
+      wb.style.color = '#fff';
+      wb.innerHTML = dw;
+      wb.title = dw + ' cell' + (dw > 1 ? 's' : '') + ' wide';
+      wb.setAttribute('data-w', dw);
+      wb.addEventListener('click', function () {
+        editor.doorWidth = parseInt(this.getAttribute('data-w'));
+        editorRenderToolbar();
+      });
+      doorRow1.appendChild(wb);
+    }
+    el.appendChild(doorRow1);
+
+    var doorRow2 = document.createElement('div');
+    doorRow2.className = 'ed-color-row';
+    var sLabel = document.createElement('span');
+    sLabel.style.cssText = 'font-size:10px;color:#9C8A70;align-self:center;margin-right:4px';
+    sLabel.textContent = 'Start:';
+    doorRow2.appendChild(sLabel);
+    var startStates = [
+      { id: 'open', label: '○ Open', color: '#5BD16A' },
+      { id: 'closed', label: '■ Closed', color: '#E25E5E' }
+    ];
+    for (var ss = 0; ss < startStates.length; ss++) {
+      var sb = document.createElement('button');
+      var st = startStates[ss];
+      sb.className = 'ed-type-btn' + (editor.doorStart === st.id ? ' active' : '');
+      sb.textContent = st.label;
+      if (editor.doorStart === st.id) {
+        sb.style.borderColor = st.color;
+        sb.style.color = st.color;
+      }
+      sb.setAttribute('data-s', st.id);
+      sb.addEventListener('click', function () {
+        editor.doorStart = this.getAttribute('data-s');
+        editorRenderToolbar();
+      });
+      doorRow2.appendChild(sb);
+    }
+    el.appendChild(doorRow2);
+
+    var doorInfo = document.createElement('div');
+    doorInfo.className = 'ed-color-row';
+    doorInfo.innerHTML = '<span style="font-size:10px;color:#9C8A70;text-align:center">Click empty cell to place door extending right. Click an existing door to remove it.</span>';
+    el.appendChild(doorInfo);
   } else {
     // Color palette: eraser + 8 colors
     var colorRow = document.createElement('div');
@@ -453,11 +592,18 @@ function editorUpdateStats() {
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
   var wallCount = 0;
+  var doorCellCount = 0;
+  var doorIds = {};
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
     if (v.wall) {
       wallCount++;
+      continue;
+    }
+    if (v.door) {
+      doorCellCount++;
+      doorIds[v.doorId] = true;
       continue;
     }
     if (v.tunnel) {
@@ -499,6 +645,11 @@ function editorUpdateStats() {
   }
   if (wallCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#8A7D6B">' + wallCount + ' wall' + (wallCount > 1 ? 's' : '') + '</span>';
+  }
+  var doorCount = 0;
+  for (var dk in doorIds) doorCount++;
+  if (doorCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#7A736A">' + doorCount + ' door' + (doorCount > 1 ? 's' : '') + ' (' + doorCellCount + ' cells)</span>';
   }
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
@@ -618,6 +769,7 @@ function editorImportJSON() {
           if (cell === null || cell === undefined || cell === -1) editor.grid[i] = null;
           else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
           else if (cell.wall) editor.grid[i] = { wall: true };
+          else if (cell.door) editor.grid[i] = { door: true, doorId: cell.doorId || ('d_' + i), w: cell.w || 1, start: cell.start || 'open' };
           else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
           else editor.grid[i] = cell;
         }
