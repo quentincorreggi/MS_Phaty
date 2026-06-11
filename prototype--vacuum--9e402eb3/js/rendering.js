@@ -438,16 +438,18 @@ function drawSortArea() {
       }
       ctx.restore();
     }
+    // VACUUM MODE \u2014 queue grows upward, so the "+N more" hint sits on
+    // top and the column count sits below, next to the active box.
     if (hiddenCount > 0) {
       ctx.fillStyle = 'rgba(120,100,80,0.5)'; ctx.font = 9 * S + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('+' + hiddenCount + ' more', x + L.sBw / 2, L.sTop + showCount * (L.sBh + L.sGap) + 6 * S);
+      ctx.fillText('+' + hiddenCount + ' more', x + L.sBw / 2, L.sTop + (SORT_VISIBLE_ROWS - showCount) * (L.sBh + L.sGap) - 8 * S);
     }
     if (visibleBoxes.length > 0) {
       var topBox = visibleBoxes[0];
       ctx.fillStyle = topBox.type === 'lock' ? 'rgba(200,180,100,0.6)' : 'rgba(120,100,80,0.3)';
       ctx.font = 'bold ' + (8 * S) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       var label = topBox.type === 'lock' ? '\uD83D\uDD13' : visibleBoxes.length.toString();
-      ctx.fillText(label, x + L.sBw / 2, L.sTop - 8 * S);
+      ctx.fillText(label, x + L.sBw / 2, L.sTop + SORT_VISIBLE_ROWS * (L.sBh + L.sGap) + 4 * S);
     }
   }
 }

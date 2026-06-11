@@ -321,7 +321,9 @@ function isBoxTappable(idx) {
   return b.revealed;
 }
 
-function getSortBoxY(ci, vi) { return L.sTop + vi * (L.sBh + L.sGap); }
+// VACUUM MODE — consumer columns are flipped: the active box (vi=0)
+// sits on the BOTTOM row, right next to the belt; the queue grows upward.
+function getSortBoxY(ci, vi) { return L.sTop + (SORT_VISIBLE_ROWS - 1 - vi) * (L.sBh + L.sGap); }
 
 // === INPUT ===
 function handleTap(px, py) {
