@@ -6,7 +6,7 @@
   "showcaseLevel": {
     "name": "Door Rhythm",
     "desc": "Pick from below to flip the door, then time your picks to reach the top.",
-    "mrbPerBox": 3,
+    "mrbPerBox": 9,
     "sortCap": 3,
     "lockButtons": 0,
     "grid": [
