@@ -5,7 +5,7 @@
 // ============================================================
 
 var editor = {
-  grid: [],            // 7x7: null = empty, { ci, type } or { tunnel: true, ... } or { wall: true }
+  grid: [],            // 7x7: null = empty, { ci, type } or { tunnel: true, ... } or { wall: true } or { safe: true, ... }
   name: 'Custom Level',
   desc: 'My custom level',
   mrbPerBox: 9,
@@ -17,6 +17,8 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  safeMode: false,      // true when placing/editing color safes
+  selectedSafe: -1,     // anchor idx of selected safe for editing reqs
   visible: false
 };
 
@@ -34,6 +36,57 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.safeMode = false;
+  editor.selectedSafe = -1;
+}
+
+// ── Safe helpers (editor) ──
+function safeAnchorCellsFor(anchorIdx) {
+  var r = Math.floor(anchorIdx / 7), c = anchorIdx % 7;
+  return [anchorIdx, r * 7 + (c + 1), (r + 1) * 7 + c, (r + 1) * 7 + (c + 1)];
+}
+function canPlaceSafeAt(anchorIdx) {
+  var r = Math.floor(anchorIdx / 7), c = anchorIdx % 7;
+  if (r > 5 || c > 5) return false;
+  var cells = safeAnchorCellsFor(anchorIdx);
+  for (var i = 0; i < cells.length; i++) {
+    var v = editor.grid[cells[i]];
+    if (v && v.safe) return false;
+  }
+  return true;
+}
+function placeSafeAt(anchorIdx) {
+  var cells = safeAnchorCellsFor(anchorIdx);
+  for (var i = 0; i < cells.length; i++) {
+    var ci = cells[i];
+    var inner = editor.grid[ci];
+    if (ci === anchorIdx) {
+      editor.grid[ci] = {
+        safe: true, anchor: true, anchorIdx: anchorIdx,
+        reqs: [{ ci: 0, target: 2 }, { ci: 1, target: 2 }],
+        inner: inner || null
+      };
+    } else {
+      editor.grid[ci] = { safe: true, anchor: false, anchorIdx: anchorIdx, inner: inner || null };
+    }
+  }
+  editor.selectedSafe = anchorIdx;
+}
+function removeSafeAt(anyCellIdx) {
+  var v = editor.grid[anyCellIdx];
+  if (!v || !v.safe) return;
+  var anchorIdx = v.anchorIdx;
+  var cells = safeAnchorCellsFor(anchorIdx);
+  for (var i = 0; i < cells.length; i++) {
+    var cell = editor.grid[cells[i]];
+    editor.grid[cells[i]] = cell && cell.inner ? cell.inner : null;
+  }
+  if (editor.selectedSafe === anchorIdx) editor.selectedSafe = -1;
+}
+function findSafeAnchorAt(idx) {
+  var v = editor.grid[idx];
+  if (v && v.safe) return v.anchorIdx;
+  return -1;
 }
 
 function showEditor(fresh) {
@@ -60,6 +113,7 @@ function editorBuildUI() {
   editorRenderSettings();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderSafePanel();
 }
 
 // ── Grid ──
@@ -70,7 +124,37 @@ function editorRenderGrid() {
     var cell = document.createElement('div');
     cell.className = 'ed-cell';
     var v = editor.grid[i];
-    if (v && v.wall) {
+    if (v && v.safe) {
+      // Safe cell — show inner-box style as faded backdrop + red overlay
+      var inner = v.inner;
+      if (inner && inner.ci !== undefined) {
+        var bt = getBoxType(inner.type);
+        var st = bt.editorCellStyle(inner.ci);
+        cell.style.background = st.background;
+        cell.style.borderColor = st.borderColor;
+        cell.innerHTML = bt.editorCellHTML(inner.ci);
+      } else if (inner && inner.wall) {
+        cell.style.background = 'linear-gradient(135deg,#9A8D7B,#6F6355)';
+        cell.style.borderColor = '#8A7D6B';
+      } else {
+        cell.style.background = 'rgba(180,165,145,0.2)';
+        cell.style.borderColor = 'rgba(160,140,120,0.3)';
+      }
+      var anchorSelected = (editor.selectedSafe === v.anchorIdx);
+      var overlay = document.createElement('div');
+      overlay.style.cssText = 'position:absolute;inset:0;background:rgba(232,80,80,0.55);border:2px solid #B83030;border-radius:6px;pointer-events:none;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:11px;text-shadow:0 1px 2px rgba(0,0,0,0.4)';
+      if (v.anchor) {
+        var rqStr = '';
+        if (v.reqs) {
+          for (var rq = 0; rq < v.reqs.length; rq++) rqStr += v.reqs[rq].target + ' ';
+        }
+        overlay.innerHTML = '<span style="font-size:9px;line-height:1.1;text-align:center">SAFE<br>' + (rqStr.trim() || '—') + '</span>';
+      } else {
+        overlay.innerHTML = '<span style="opacity:0.5;font-size:14px">▦</span>';
+      }
+      if (anchorSelected) overlay.style.boxShadow = '0 0 0 2px #FFD080';
+      cell.appendChild(overlay);
+    } else if (v && v.wall) {
       // Wall cell
       cell.style.background = 'linear-gradient(135deg,#9A8D7B,#6F6355)';
       cell.style.borderColor = '#8A7D6B';
@@ -104,6 +188,26 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.safeMode) {
+    var existing = editor.grid[idx];
+    if (existing && existing.safe) {
+      // Select existing safe for editing
+      editor.selectedSafe = existing.anchorIdx;
+    } else if (editor.activeColor === -1) {
+      // No-op in safe mode with eraser
+    } else {
+      if (canPlaceSafeAt(idx)) {
+        placeSafeAt(idx);
+      } else {
+        editorShowToast('Safe needs a 2×2 area — anchor must be in rows 1–6 and cols 1–6, no overlap');
+      }
+    }
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderSafePanel();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -157,11 +261,17 @@ function editorCellClick(e) {
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
-  editor.grid[idx] = null;
+  var v = editor.grid[idx];
+  if (v && v.safe) {
+    removeSafeAt(idx);
+  } else {
+    editor.grid[idx] = null;
+  }
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
   editorRenderGrid();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderSafePanel();
 }
 
 // ── Toolbar: mode toggle + type selector + color/direction palette ──
@@ -178,15 +288,17 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.safeMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.safeMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
+      editorRenderSafePanel();
     });
     typeRow.appendChild(tb);
   }
@@ -200,8 +312,10 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.safeMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
+    editorRenderSafePanel();
   });
   typeRow.appendChild(wallBtn);
 
@@ -214,10 +328,29 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.safeMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
+    editorRenderSafePanel();
   });
   typeRow.appendChild(tunnelBtn);
+
+  // Color Safe mode button
+  var safeBtn = document.createElement('button');
+  safeBtn.className = 'ed-type-btn' + (editor.safeMode ? ' active' : '');
+  safeBtn.textContent = '\uD83D\uDD12 Safe';
+  safeBtn.style.borderColor = editor.safeMode ? 'rgba(232,80,80,0.6)' : '';
+  safeBtn.style.color = editor.safeMode ? '#B83030' : '';
+  safeBtn.addEventListener('click', function () {
+    editor.safeMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editor.activeColor = 0;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+    editorRenderSafePanel();
+  });
+  typeRow.appendChild(safeBtn);
 
   el.appendChild(typeRow);
 
@@ -260,6 +393,12 @@ function editorRenderToolbar() {
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
+  } else if (editor.safeMode) {
+    // Safe mode: hint
+    var safeInfo = document.createElement('div');
+    safeInfo.className = 'ed-color-row';
+    safeInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click a cell to place a 2×2 safe (anchor = top-left). Right-click to remove.</span>';
+    el.appendChild(safeInfo);
   } else {
     // Color palette: eraser + 8 colors
     var colorRow = document.createElement('div');
@@ -426,6 +565,89 @@ function editorRenderTunnelPanel() {
   }
 }
 
+// ── Color Safe panel ──
+function editorRenderSafePanel() {
+  var container = document.getElementById('ed-safe-panel');
+  if (!container) return;
+
+  var anchor = (editor.selectedSafe >= 0 ? editor.grid[editor.selectedSafe] : null);
+  var hasSelected = !!(anchor && anchor.safe && anchor.anchor);
+
+  if (!hasSelected) {
+    container.style.display = 'none';
+    return;
+  }
+  container.style.display = 'block';
+
+  var reqs = anchor.reqs || [];
+  var html = '';
+  html += '<div class="ed-section-title"><span class="icon">🔒</span> Color Safe — Required Colors</div>';
+  html += '<div style="font-size:11px;color:#9C8A70;margin-bottom:6px">Pick boxes of these colors elsewhere on the maze to unlock the safe. Add 2–4 colors.</div>';
+  html += '<div style="text-align:center">';
+  for (var r = 0; r < reqs.length; r++) {
+    var rq = reqs[r];
+    var c = COLORS[rq.ci];
+    html += '<span class="ed-safe-req">';
+    html += '<span class="swatch" style="background:' + c.fill + '"></span>';
+    html += '<input type="number" min="1" max="20" value="' + rq.target + '" data-rqi="' + r + '" class="ed-safe-count">';
+    html += '<button class="rm" data-rmi="' + r + '" title="Remove">✕</button>';
+    html += '</span>';
+  }
+  if (reqs.length === 0) {
+    html += '<span style="font-size:11px;color:#9C8A70;font-style:italic">No colors yet — add one below</span>';
+  }
+  html += '</div>';
+
+  if (reqs.length < 4) {
+    html += '<div class="ed-section-title" style="margin-top:10px"><span class="icon">➕</span> Add Color</div>';
+    html += '<div class="ed-safe-addrow">';
+    for (var ci = 0; ci < NUM_COLORS; ci++) {
+      html += '<button class="ed-safe-add-clr" data-ci="' + ci + '" style="background:' + COLORS[ci].fill + '" title="Add ' + CLR_NAMES[ci] + '">' + CLR_NAMES[ci][0].toUpperCase() + '</button>';
+    }
+    html += '</div>';
+  } else {
+    html += '<div style="font-size:11px;color:#9C8A70;text-align:center;margin-top:6px">Max 4 colors.</div>';
+  }
+
+  container.innerHTML = html;
+
+  // Wire events
+  var inputs = container.querySelectorAll('.ed-safe-count');
+  for (var i = 0; i < inputs.length; i++) {
+    inputs[i].addEventListener('input', function () {
+      var idx = parseInt(this.getAttribute('data-rqi'));
+      var n = Math.max(1, Math.min(20, parseInt(this.value) || 1));
+      if (editor.selectedSafe >= 0 && editor.grid[editor.selectedSafe] && editor.grid[editor.selectedSafe].reqs) {
+        editor.grid[editor.selectedSafe].reqs[idx].target = n;
+        editorRenderGrid();
+      }
+    });
+  }
+  var rms = container.querySelectorAll('.rm');
+  for (var i = 0; i < rms.length; i++) {
+    rms[i].addEventListener('click', function () {
+      var idx = parseInt(this.getAttribute('data-rmi'));
+      if (editor.selectedSafe >= 0 && editor.grid[editor.selectedSafe] && editor.grid[editor.selectedSafe].reqs) {
+        editor.grid[editor.selectedSafe].reqs.splice(idx, 1);
+        editorRenderGrid();
+        editorRenderSafePanel();
+      }
+    });
+  }
+  var addBtns = container.querySelectorAll('.ed-safe-add-clr');
+  for (var i = 0; i < addBtns.length; i++) {
+    addBtns[i].addEventListener('click', function () {
+      var ci = parseInt(this.getAttribute('data-ci'));
+      if (editor.selectedSafe >= 0 && editor.grid[editor.selectedSafe] && editor.grid[editor.selectedSafe].reqs) {
+        if (editor.grid[editor.selectedSafe].reqs.length >= 4) return;
+        editor.grid[editor.selectedSafe].reqs.push({ ci: ci, target: 2 });
+        editorRenderGrid();
+        editorRenderSafePanel();
+      }
+    });
+  }
+}
+
 // ── Quick actions ──
 function editorFillRandom() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
@@ -442,7 +664,8 @@ function editorFillRandom() {
 function editorClearAll() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
-  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+  editor.selectedSafe = -1;
+  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel(); editorRenderSafePanel();
 }
 
 // ── Stats ──
@@ -453,9 +676,15 @@ function editorUpdateStats() {
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
   var wallCount = 0;
+  var safeAnchors = 0;
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
+    if (v.safe) {
+      if (v.anchor) safeAnchors++;
+      v = v.inner;  // count the underlying box, if any
+      if (!v) continue;
+    }
     if (v.wall) {
       wallCount++;
       continue;
@@ -502,6 +731,9 @@ function editorUpdateStats() {
   }
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
+  }
+  if (safeAnchors > 0) {
+    html += '<span class="ed-stat-chip" style="background:#E85050;border:1px solid #B83030">' + safeAnchors + ' safe' + (safeAnchors > 1 ? 's' : '') + '</span>';
   }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
@@ -617,6 +849,13 @@ function editorImportJSON() {
           var cell = lvl.grid[i];
           if (cell === null || cell === undefined || cell === -1) editor.grid[i] = null;
           else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
+          else if (cell.safe) editor.grid[i] = {
+              safe: true,
+              anchor: !!cell.anchor,
+              anchorIdx: cell.anchorIdx !== undefined ? cell.anchorIdx : i,
+              reqs: cell.reqs ? cell.reqs.slice() : undefined,
+              inner: cell.inner || null
+            };
           else if (cell.wall) editor.grid[i] = { wall: true };
           else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
           else editor.grid[i] = cell;

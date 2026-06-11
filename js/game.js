@@ -46,6 +46,16 @@ function initGame() {
     for (var i = 0; i < Math.min(lvl.grid.length, totalSlots); i++) {
       var cell = lvl.grid[i];
       if (cell === null || cell === undefined) continue;
+      // Safe cells: unwrap inner box payload, remember safe metadata for later
+      if (cell.safe) {
+        var inner = cell.inner;
+        if (inner) {
+          if (inner.wall) wallSlots[i] = true;
+          else if (inner.tunnel) tunnelSlots[i] = { dir: inner.dir || 'bottom', contents: inner.contents ? inner.contents.slice() : [] };
+          else if (inner.ci >= 0) boxSlots[i] = { ci: inner.ci, boxType: inner.type || 'default' };
+        }
+        continue;
+      }
       if (cell.wall) {
         wallSlots[i] = true;
         continue;
@@ -142,6 +152,11 @@ function initGame() {
     }
   }
 
+  // ── Apply Color Safe metadata onto stock cells ──
+  if (lvl.grid && typeof initSafesFromGrid === 'function') {
+    initSafesFromGrid(lvl.grid);
+  }
+
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
 
@@ -182,6 +197,7 @@ function updateBoxReveals(animate) {
     if (!s) { passable[i] = false; continue; }
     if (s.isWall) { passable[i] = false; continue; }
     if (s.isTunnel) { passable[i] = false; continue; }
+    if (s.safeCover && !s.safeOpen) { passable[i] = false; continue; }
     passable[i] = !!(s.empty || s.used);
   }
 
@@ -222,6 +238,7 @@ function updateBoxReveals(animate) {
     if (!b) continue;
     if (b.isWall || b.isTunnel || b.empty || b.used) continue;
     if (b.spawning) continue;
+    if (b.safeCover && !b.safeOpen) continue;
 
     var br = Math.floor(k / L.cols), bcol = k % L.cols;
     var hasPath = false;
@@ -315,6 +332,7 @@ function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
   if (b.isWall) return false;      // walls are not tappable
+  if (b.safeCover && !b.safeOpen) return false;  // hidden under a closed safe
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
@@ -328,17 +346,22 @@ function handleTap(px, py) {
   if (won || !gameActive) return;
   ensureAudio();
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
+  // Closed Color Safe: shake on tap, no further action
+  if (typeof tryTapClosedSafe === 'function' && tryTapClosedSafe(px, py)) return;
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
+    if (b.safeCover && !b.safeOpen) continue;  // skip cells under a closed safe
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
       b.popT = 1;
       sfx.pop();
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
+      var tappedCi = b.ci;
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      if (typeof decrementSafes === 'function') decrementSafes(tappedCi);
       return;
     }
   }
@@ -353,6 +376,7 @@ canvas.addEventListener('mousemove', function (e) {
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;
+    if (b.safeCover && !b.safeOpen) continue;
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (!isBoxTappable(i)) continue;
     if (e.clientX >= b.x && e.clientX <= b.x + L.bw && e.clientY >= b.y && e.clientY <= b.y + L.bh) { hoverIdx = i; break; }
@@ -514,6 +538,8 @@ function update() {
     if (box.type === 'lock' && box.triggerT > 0) box.triggerT = Math.max(0, box.triggerT - 0.03);
   }
 
+  if (typeof updateSafes === 'function') updateSafes();
+
   tickParticles();
   updateRollingSound();
 }
@@ -545,6 +571,7 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    if (typeof drawSafes === 'function') drawSafes();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();

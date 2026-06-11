@@ -163,6 +163,9 @@ function drawStock() {
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
 
+    // ── Hidden under a closed Color Safe ──
+    if (b.safeCover && !b.safeOpen) continue;
+
     // ── Tunnel ──
     if (b.isTunnel) {
       var tRemain = b.tunnelContents ? b.tunnelContents.length : 0;
