@@ -35,7 +35,8 @@ function physicsStep() {
   for (var sub = 0; sub < subSteps; sub++) {
     for (var i = 0; i < physMarbles.length; i++) {
       var m = physMarbles[i];
-      m.vy += PHYS_GRAVITY * S / subSteps;
+      // VACUUM MODE — suction pulls marbles upward instead of gravity down
+      m.vy -= PHYS_GRAVITY * S / subSteps;
       m.vx *= PHYS_DAMPING; m.vy *= PHYS_DAMPING;
       m.x += m.vx / subSteps; m.y += m.vy / subSteps;
     }
@@ -68,12 +69,13 @@ function physicsStep() {
     }
   }
 
-  var exitY = L.funnelBot;
+  // VACUUM MODE — marbles exit through the nozzle at the TOP of the funnel
+  var exitY = L.funnelTop;
   var exitL = L.funnelCx - L.funnelOpenW / 2;
   var exitR = L.funnelCx + L.funnelOpenW / 2;
   for (var i = physMarbles.length - 1; i >= 0; i--) {
     var m = physMarbles[i];
-    if (m.y + m.r >= exitY - 3 * S && m.x > exitL - m.r && m.x < exitR + m.r) {
+    if (m.y - m.r <= exitY + 3 * S && m.x > exitL - m.r && m.x < exitR + m.r) {
       var entryT = getBeltEntryT();
       var bestIdx = -1, bestDist = Infinity;
       for (var k = 0; k < BELT_SLOTS; k++) {
@@ -113,7 +115,8 @@ function spawnPhysMarbles(box) {
         var mx = b.x + L.bw / 2 + (si.c - 1) * mg;
         var my = b.y + L.bh / 2 + (si.r - 1) * mgY - 2 * S;
         var vx = (Math.random() - 0.5) * 2 * S;
-        var vy = -(2 + Math.random() * 2) * S;
+        // small downward pluck out of the box, then the suction takes over
+        var vy = (2 + Math.random() * 2) * S;
         var marbleCi = (blockerCount > 0 && spawnIdx >= bStart) ? BLOCKER_CI : b.ci;
         physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR, spawnT: 1.0 });
         sfx.drop();

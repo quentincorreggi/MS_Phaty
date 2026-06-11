@@ -185,7 +185,7 @@ function trySpawnFromTunnels() {
       spawning: false,
       spawnIdx: 0,
       // Start closed; updateBoxReveals will open it if the exit cell
-      // still has a passable path to the bottom of the grid.
+      // still has a passable path to the top of the grid (vacuum).
       revealed: false,
       empty: false,
       boxType: nextBox.type || 'default',
@@ -212,9 +212,9 @@ function trySpawnFromTunnels() {
     spawnBurst(ex, ey, '#FFD080', 10);
     sfx.pop();
 
-    // Re-evaluate reveals: the new box may itself be open (path below),
+    // Re-evaluate reveals: the new box may itself be open (path above),
     // and any boxes that relied on the now-occupied exit cell as their
-    // path to the bottom must close.
+    // path to the top must close.
     if (typeof updateBoxReveals === 'function') updateBoxReveals(true);
 
     // End spawning animation after a short delay

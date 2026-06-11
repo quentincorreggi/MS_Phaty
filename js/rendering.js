@@ -108,52 +108,56 @@ function drawBoxLip(ci) {
 }
 
 // ── Funnel (always visible) ──
+// VACUUM MODE — drawn inverted: wide mouth at the bottom over the
+// boxes, nozzle at the top feeding the belt.
 
 function drawFunnel() {
   var exitL = L.funnelCx - L.funnelOpenW / 2;
   var exitR = L.funnelCx + L.funnelOpenW / 2;
   ctx.save();
   ctx.beginPath();
-  ctx.moveTo(L.funnelLeft, L.funnelTop);
+  ctx.moveTo(L.funnelLeft, L.funnelBot);
   ctx.lineTo(L.funnelLeft, L.funnelBendY);
-  ctx.lineTo(exitL, L.funnelBot);
-  ctx.lineTo(exitR, L.funnelBot);
+  ctx.lineTo(exitL, L.funnelTop);
+  ctx.lineTo(exitR, L.funnelTop);
   ctx.lineTo(L.funnelRight, L.funnelBendY);
-  ctx.lineTo(L.funnelRight, L.funnelTop);
+  ctx.lineTo(L.funnelRight, L.funnelBot);
   ctx.closePath();
   ctx.fillStyle = 'rgba(180,165,145,0.12)';
   ctx.fill();
+  drawVacuumStreams(exitL, exitR);
   ctx.strokeStyle = 'rgba(140,120,95,0.5)';
   ctx.lineWidth = 2.5 * S;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.beginPath();
-  ctx.moveTo(L.funnelLeft, L.funnelTop);
+  ctx.moveTo(L.funnelLeft, L.funnelBot);
   ctx.lineTo(L.funnelLeft, L.funnelBendY);
-  ctx.lineTo(exitL, L.funnelBot);
+  ctx.lineTo(exitL, L.funnelTop);
   ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(L.funnelRight, L.funnelTop);
+  ctx.moveTo(L.funnelRight, L.funnelBot);
   ctx.lineTo(L.funnelRight, L.funnelBendY);
-  ctx.lineTo(exitR, L.funnelBot);
+  ctx.lineTo(exitR, L.funnelTop);
   ctx.stroke();
   ctx.strokeStyle = 'rgba(140,120,95,0.35)';
   ctx.lineWidth = 2 * S;
   ctx.beginPath();
-  ctx.moveTo(0, L.funnelBot);
-  ctx.lineTo(exitL, L.funnelBot);
+  ctx.moveTo(0, L.funnelTop);
+  ctx.lineTo(exitL, L.funnelTop);
   ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(exitR, L.funnelBot);
-  ctx.lineTo(W, L.funnelBot);
+  ctx.moveTo(exitR, L.funnelTop);
+  ctx.lineTo(W, L.funnelTop);
   ctx.stroke();
   ctx.strokeStyle = 'rgba(255,255,255,0.15)';
   ctx.lineWidth = 1 * S;
   ctx.beginPath();
-  ctx.moveTo(L.funnelLeft + 2 * S, L.funnelTop);
+  ctx.moveTo(L.funnelLeft + 2 * S, L.funnelBot);
   ctx.lineTo(L.funnelLeft + 2 * S, L.funnelBendY);
-  ctx.lineTo(exitL + 2 * S, L.funnelBot - 2 * S);
+  ctx.lineTo(exitL + 2 * S, L.funnelTop + 2 * S);
   ctx.stroke();
+  drawVacuumNozzleGlow(exitL, exitR);
   ctx.restore();
 }
 
@@ -304,7 +308,7 @@ function drawBelt() {
 function drawBlockerProgress() {
   if (totalBlockerMarbles <= 0) return;
   var cx = L.beltCx;
-  var cy = (L.beltBotY + L.sTop) / 2;
+  var cy = (L.sBot + L.beltTopY) / 2;
   var total = totalBlockerMarbles;
   var filled = blockersOnBelt;
   var dotR = 3.5 * S;

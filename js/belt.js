@@ -26,9 +26,11 @@ function getSlotT(i) {
 }
 
 function getBeltEntryT() {
+  // VACUUM MODE — the nozzle feeds the belt from below, so marbles
+  // enter on the belt's BOTTOM edge
   var best = 0, bd = Infinity;
   for (var i = 0; i < beltPath.length; i++) {
-    var dx = beltPath[i].x - L.beltCx, dy = beltPath[i].y - L.beltTopY;
+    var dx = beltPath[i].x - L.beltCx, dy = beltPath[i].y - L.beltBotY;
     var d2 = dx * dx + dy * dy;
     if (d2 < bd) { bd = d2; best = i; }
   }

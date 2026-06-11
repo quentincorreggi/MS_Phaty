@@ -142,7 +142,7 @@ function initGame() {
     }
   }
 
-  // ── Reveal boxes that currently have an open path to the bottom ──
+  // ── Reveal boxes that currently have an open path to the top (vacuum) ──
   updateBoxReveals(false);
 
   // ── Sort columns ──
@@ -162,10 +162,11 @@ function initGame() {
   }
 }
 
-// === REVEAL — PATH TO BOTTOM ===
-// A box is "open" (revealed and interactable) only when there is a
-// chain of passable grid cells from its position to below the bottom
-// edge of the grid. Passable cells are:
+// === REVEAL — PATH TO TOP (VACUUM) ===
+// The vacuum sits ABOVE the grid, so a box is "open" (revealed and
+// interactable) only when there is a chain of passable grid cells
+// from its position to above the TOP edge of the grid. Passable
+// cells are:
 //   • empty slots
 //   • used-up boxes
 // Walls, active (non-used) boxes, and tunnels (even depleted ones)
@@ -185,15 +186,14 @@ function updateBoxReveals(animate) {
     passable[i] = !!(s.empty || s.used);
   }
 
-  // 2. Flood-fill from the bottom row. Passable cells in the bottom
-  //    row sit directly on the grid's lower edge, so they connect to
-  //    "below the grid" which is the path's destination.
+  // 2. Flood-fill from the TOP row. Passable cells in the top row
+  //    sit directly under the vacuum mouth, so they connect to
+  //    "above the grid" which is the path's destination.
   var reachable = new Array(total);
   for (var j = 0; j < total; j++) reachable[j] = false;
   var queue = [];
-  var bottomRow = L.rows - 1;
   for (var bc = 0; bc < L.cols; bc++) {
-    var bIdx = bottomRow * L.cols + bc;
+    var bIdx = bc;
     if (passable[bIdx]) { reachable[bIdx] = true; queue.push(bIdx); }
   }
   var head = 0;
@@ -215,8 +215,8 @@ function updateBoxReveals(animate) {
   }
 
   // 3. For each active box, open it iff a passable neighbor reaches
-  //    the bottom (or the box is itself in the bottom row, sitting
-  //    on the lower edge). Close boxes whose path is now blocked.
+  //    the top (or the box is itself in the top row, sitting right
+  //    under the vacuum mouth). Close boxes whose path is now blocked.
   for (var k = 0; k < total; k++) {
     var b = stock[k];
     if (!b) continue;
@@ -225,7 +225,7 @@ function updateBoxReveals(animate) {
 
     var br = Math.floor(k / L.cols), bcol = k % L.cols;
     var hasPath = false;
-    if (br === L.rows - 1) {
+    if (br === 0) {
       hasPath = true;
     } else {
       var bnbrs = [];
@@ -336,6 +336,7 @@ function handleTap(px, py) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
       b.popT = 1;
       sfx.pop();
+      vacuumWhoosh();
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);

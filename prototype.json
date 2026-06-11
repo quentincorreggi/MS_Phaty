@@ -1,0 +1,17 @@
+{
+  "name": "Vacuum",
+  "description": "The whole game plays upside down: boxes sit at the bottom of the screen (easy thumb reach), consumers wait at the top, and marbles are sucked UP through an inverted vacuum funnel onto the belt.",
+  "howToPlay": "Tap a glowing box at the bottom — its marbles get sucked upward into the vacuum nozzle and drop onto the belt. Boxes open when they have a clear path UP to the vacuum mouth, so each column clears from top to bottom, moving toward your thumb.",
+  "showcaseLevel": {
+    "name": "Vacuum Cascade",
+    "grid": [
+      { "ci": 0, "type": "default" }, { "wall": true }, { "ci": 1, "type": "default" }, { "wall": true }, { "ci": 2, "type": "default" }, { "wall": true }, { "ci": 3, "type": "default" },
+      { "ci": 0, "type": "default" }, { "wall": true }, { "ci": 1, "type": "default" }, { "wall": true }, { "ci": 2, "type": "default" }, { "wall": true }, { "ci": 3, "type": "default" },
+      { "ci": 0, "type": "default" }, { "wall": true }, { "ci": 1, "type": "default" }, { "wall": true }, { "ci": 2, "type": "default" }, { "wall": true }, { "ci": 3, "type": "default" },
+      null, { "wall": true }, null, { "wall": true }, null, { "wall": true }, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}
