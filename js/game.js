@@ -359,9 +359,11 @@ function handleTap(px, py) {
       sfx.pop();
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       var tappedCi = b.ci;
+      var tappedCx = b.x + L.bw / 2;
+      var tappedCy = b.y + L.bh / 2;
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
-      if (typeof decrementSafes === 'function') decrementSafes(tappedCi);
+      if (typeof decrementSafes === 'function') decrementSafes(tappedCi, tappedCx, tappedCy);
       return;
     }
   }

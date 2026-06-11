@@ -75,7 +75,7 @@ function initSafesFromGrid(grid) {
 
 // ── Tap interaction: decrement counters when player taps a box ──
 
-function decrementSafes(ci) {
+function decrementSafes(ci, sourceX, sourceY) {
   for (var i = 0; i < stock.length; i++) {
     var s = stock[i];
     if (!s.safeAnchor || s.safeOpen || !s.safeReqs) continue;
@@ -85,16 +85,76 @@ function decrementSafes(ci) {
       if (req.ci === ci && req.count > 0) {
         req.count--;
         changed = true;
-        spawnSafeTickParticles(s, r);
+        if (sourceX !== undefined && sourceY !== undefined) {
+          spawnSafeHomingParticles(sourceX, sourceY, s, r);
+        } else {
+          spawnSafeTickParticles(s, r);
+        }
       }
     }
     if (changed) {
-      s.safeFlashT = 1.0;
       if (typeof sfx !== 'undefined' && sfx.pop) {
         try { tone(1200 + Math.random() * 200, 0.06, 'sine', 0.05, 600); } catch (e) {}
       }
       if (isSafeSatisfied(s)) openSafe(i);
     }
+  }
+}
+
+// World position of a chip on a closed safe (for particle targeting)
+function getSafeChipPos(anchor, reqIdx) {
+  var rect = getSafeAnchorRect(anchor);
+  var pad = 14 * S;
+  var x = rect.x + pad, y = rect.y + pad;
+  var w = rect.w - pad * 2, h = rect.h - pad * 2;
+  var slot = chipSlotForIndex(reqIdx, anchor.safeReqs.length);
+  return { x: x + (slot.c + 0.5) * (w / 2), y: y + (slot.r + 0.5) * (h / 2) };
+}
+
+function spawnSafeHomingParticles(sx, sy, anchor, reqIdx) {
+  var chip = getSafeChipPos(anchor, reqIdx);
+  var c = COLORS[anchor.safeReqs[reqIdx].ci];
+  var n = 9;
+  for (var i = 0; i < n; i++) {
+    var ang = Math.random() * Math.PI * 2;
+    var burst = 1.5 + Math.random() * 2.0;
+    var jitterX = (Math.random() - 0.5) * 7 * S;
+    var jitterY = (Math.random() - 0.5) * 7 * S;
+    var delayTicks = Math.floor(Math.random() * 4);
+    particles.push({
+      x: sx + Math.cos(ang) * 4 * S,
+      y: sy + Math.sin(ang) * 4 * S,
+      vx: Math.cos(ang) * burst * S,
+      vy: Math.sin(ang) * burst * S - (1.2 + Math.random()) * S,
+      r: (2.5 + Math.random() * 1.8) * S,
+      color: c.light,
+      life: 1.6,
+      decay: 0.008,
+      grav: false,
+      homing: true,
+      homingTx: chip.x + jitterX,
+      homingTy: chip.y + jitterY,
+      homingForce: 0.55 + Math.random() * 0.35,
+      homingArriveR: 5 * S,
+      _delay: delayTicks,
+      onArrive: (function (a, idx, col) {
+        return function () {
+          a.safeFlashT = Math.max(a.safeFlashT || 0, 0.6);
+          if (!a.safeChipPulse) a.safeChipPulse = [];
+          a.safeChipPulse[idx] = 1.0;
+          var arrivePos = getSafeChipPos(a, idx);
+          for (var k = 0; k < 4; k++) {
+            var pa = Math.random() * Math.PI * 2, ps = 0.8 + Math.random() * 1.4;
+            particles.push({
+              x: arrivePos.x, y: arrivePos.y,
+              vx: Math.cos(pa) * ps * S, vy: Math.sin(pa) * ps * S,
+              r: (1.4 + Math.random() * 1.6) * S, color: col.fill,
+              life: 0.5, decay: 0.04, grav: false
+            });
+          }
+        };
+      })(anchor, reqIdx, c)
+    });
   }
 }
 
@@ -170,6 +230,11 @@ function updateSafes() {
     if (s.safeShakeT > 0) s.safeShakeT = Math.max(0, s.safeShakeT - 0.04);
     if (s.safeOpenT > 0) s.safeOpenT = Math.max(0, s.safeOpenT - 0.022);
     if (s.safeFlashT > 0) s.safeFlashT = Math.max(0, s.safeFlashT - 0.035);
+    if (s.safeChipPulse) {
+      for (var p = 0; p < s.safeChipPulse.length; p++) {
+        if (s.safeChipPulse[p] > 0) s.safeChipPulse[p] = Math.max(0, s.safeChipPulse[p] - 0.04);
+      }
+    }
   }
 }
 
@@ -291,9 +356,19 @@ function drawSafeChips(anchor, x, y, w, h) {
     var c = COLORS[req.ci];
     var done = req.count <= 0;
     var chipS = Math.min(w, h) * 0.34;
+    var pulse = (anchor.safeChipPulse && anchor.safeChipPulse[i]) || 0;
+    var pulseScale = 1 + pulse * 0.25;
 
     ctx.save();
     if (done) ctx.globalAlpha = 0.55;
+    if (pulse > 0) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(pulseScale, pulseScale);
+      ctx.translate(-cx, -cy);
+      ctx.shadowColor = c.glow || c.light;
+      ctx.shadowBlur = 14 * S * pulse;
+    }
 
     // Chip body (color swatch)
     var swX = cx - chipS * 0.65, swY = cy - chipS / 2;
@@ -325,6 +400,7 @@ function drawSafeChips(anchor, x, y, w, h) {
     ctx.strokeText(label, cx + chipS * 0.40, cy);
     ctx.fillText(label, cx + chipS * 0.40, cy);
 
+    if (pulse > 0) ctx.restore();
     ctx.restore();
   }
 }
