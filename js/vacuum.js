@@ -2,10 +2,18 @@
 // vacuum.js — Vacuum mode: suction visuals + sound
 // The whole prototype plays upside down: boxes at the bottom
 // (thumb zone), consumers on top, marbles sucked UP through the
-// inverted funnel. The layout flip lives in layout.js, inverted
-// gravity in physics.js, top-edge reveal path in game.js. This
-// file holds only the vacuum-specific presentation.
+// inverted funnel. The layout flip lives in layout.js, the
+// suction physics in physics.js, top-edge reveal path in
+// game.js. This file holds the vacuum tuning constants and the
+// vacuum-specific presentation.
 // ============================================================
+
+// Suction tuning (used by physics.js)
+var VAC_VIBRATE_FRAMES = 18;  // brief in-place shiver before the pull kicks in
+var VAC_RAMP = 0.05;          // suction acceleration gained per frame
+var VAC_MAX_ACCEL = 1.1;      // acceleration cap (PHYS_GRAVITY is 0.67 for scale)
+var VAC_SPEED_CAP = 9;        // max marble speed under suction
+var VAC_WALL_BOUNCE = 0.15;   // funnel walls swallow energy — no rubbery ceiling
 
 // Animated air streams rising through the funnel toward the nozzle.
 // Called from drawFunnel() while the funnel body is being drawn.
@@ -55,8 +63,28 @@ function drawVacuumNozzleGlow(exitL, exitR) {
   ctx.restore();
 }
 
-// Rising whoosh when a box releases its marbles into the vacuum.
+// Suck sound when a box releases its marbles into the vacuum:
+// white noise swept upward through a bandpass, low sawtooth body.
 function vacuumWhoosh() {
-  tone(140, 0.45, 'sawtooth', 0.035, 950);
-  setTimeout(function () { tone(320, 0.3, 'sine', 0.05, 1400); }, 70);
+  ensureAudio();
+  var t = audioCtx.currentTime;
+  var dur = 0.7;
+  var len = Math.floor(audioCtx.sampleRate * dur);
+  var buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+  var data = buf.getChannelData(0);
+  for (var i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  var src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  var bp = audioCtx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.Q.value = 1.2;
+  bp.frequency.setValueAtTime(250, t);
+  bp.frequency.exponentialRampToValueAtTime(2200, t + dur);
+  var g = audioCtx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.16, t + 0.12);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(bp); bp.connect(g); g.connect(audioCtx.destination);
+  src.start(t); src.stop(t + dur);
+  tone(90, dur, 'sawtooth', 0.03, 480);
 }

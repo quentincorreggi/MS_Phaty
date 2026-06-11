@@ -21,8 +21,10 @@ function resolveWallCollision(m, col) {
   m.x += col.nx * col.pen; m.y += col.ny * col.pen;
   var vn = m.vx * col.nx + m.vy * col.ny;
   if (vn < 0) {
-    m.vx -= (1 + PHYS_BOUNCE) * vn * col.nx;
-    m.vy -= (1 + PHYS_BOUNCE) * vn * col.ny;
+    // VACUUM MODE — funnel walls swallow energy so marbles slide
+    // along the ceiling into the nozzle instead of bouncing off it
+    m.vx -= (1 + VAC_WALL_BOUNCE) * vn * col.nx;
+    m.vy -= (1 + VAC_WALL_BOUNCE) * vn * col.ny;
     var tx = -col.ny, ty = col.nx;
     var vt = m.vx * tx + m.vy * ty;
     m.vx -= vt * (1 - PHYS_FRICTION) * tx;
@@ -35,8 +37,22 @@ function physicsStep() {
   for (var sub = 0; sub < subSteps; sub++) {
     for (var i = 0; i < physMarbles.length; i++) {
       var m = physMarbles[i];
-      // VACUUM MODE — suction pulls marbles upward instead of gravity down
-      m.vy -= PHYS_GRAVITY * S / subSteps;
+      // VACUUM MODE — marbles shiver in place for a beat, then get
+      // yanked along a ramping pull vector aimed at the nozzle hole
+      if (m.vibrateT > 0) {
+        m.vibrateT -= 1 / subSteps;
+        m.vx = (Math.random() - 0.5) * 1.6 * S;
+        m.vy = (Math.random() - 0.5) * 1.6 * S;
+      } else {
+        var sdx = L.funnelCx - m.x, sdy = L.funnelTop - m.y;
+        var sd = Math.sqrt(sdx * sdx + sdy * sdy) || 1;
+        m.suckPow = Math.min(m.suckPow + VAC_RAMP / subSteps, VAC_MAX_ACCEL);
+        m.vx += (sdx / sd) * m.suckPow * S / subSteps;
+        m.vy += (sdy / sd) * m.suckPow * S / subSteps;
+        var spd = Math.sqrt(m.vx * m.vx + m.vy * m.vy);
+        var spdCap = VAC_SPEED_CAP * S;
+        if (spd > spdCap) { m.vx *= spdCap / spd; m.vy *= spdCap / spd; }
+      }
       m.vx *= PHYS_DAMPING; m.vy *= PHYS_DAMPING;
       m.x += m.vx / subSteps; m.y += m.vy / subSteps;
     }
@@ -114,11 +130,11 @@ function spawnPhysMarbles(box) {
         var mgY = mg * MRB_GAP_FACTOR;
         var mx = b.x + L.bw / 2 + (si.c - 1) * mg;
         var my = b.y + L.bh / 2 + (si.r - 1) * mgY - 2 * S;
-        var vx = (Math.random() - 0.5) * 2 * S;
-        // small downward pluck out of the box, then the suction takes over
-        var vy = (2 + Math.random() * 2) * S;
         var marbleCi = (blockerCount > 0 && spawnIdx >= bStart) ? BLOCKER_CI : b.ci;
-        physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR, spawnT: 1.0 });
+        // marbles start at rest: they shiver for vibrateT frames, then
+        // the suction in physicsStep yanks them toward the nozzle
+        physMarbles.push({ x: mx, y: my, vx: 0, vy: 0, ci: marbleCi, r: MR, spawnT: 1.0,
+          vibrateT: VAC_VIBRATE_FRAMES, suckPow: 0 });
         sfx.drop();
         spawnBurst(mx, my, COLORS[marbleCi].fill, 4);
         if (b.remaining <= 0) {
