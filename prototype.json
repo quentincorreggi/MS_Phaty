@@ -1,22 +1,46 @@
 {
   "name": "Turn-Based Door",
   "description": "Doors toggle open ↔ closed on every box pick. The maze becomes a timing puzzle.",
-  "howToPlay": "A 3-wide door at row 2 controls access to the top row. Every box you pick flips all active doors. Pick the purples (always reachable) to advance the door's rhythm; pick a top-row box when the door is open. Soft-lock warning: time your picks carefully — there are exactly enough purples for one full clear.",
+  "howToPlay": "A 3-wide door on row 5 separates the top of the grid from the bottom. Start by clearing the boxes below; the door is dormant until a box right below it is picked, which activates it. From that point on, every box pick flips the door — and the only way to reach the boxes above is to pick when the door is open.",
   "author": "Claude",
   "showcaseLevel": {
     "name": "Door Rhythm",
-    "desc": "Time the door — purples flip it, colored boxes need it open.",
-    "mrbPerBox": 9,
+    "desc": "Pick from below to flip the door, then time your picks to reach the top.",
+    "mrbPerBox": 3,
     "sortCap": 3,
     "lockButtons": 0,
     "grid": [
-      null,
       { "ci": 0, "type": "default" },
       { "ci": 2, "type": "default" },
-      null,
       { "ci": 1, "type": "default" },
       { "ci": 3, "type": "default" },
-      null,
+      { "ci": 4, "type": "default" },
+      { "ci": 0, "type": "default" },
+      { "ci": 2, "type": "default" },
+
+      { "ci": 1, "type": "default" },
+      { "ci": 3, "type": "default" },
+      { "ci": 4, "type": "default" },
+      { "ci": 0, "type": "default" },
+      { "ci": 2, "type": "default" },
+      { "ci": 1, "type": "default" },
+      { "ci": 3, "type": "default" },
+
+      { "ci": 4, "type": "default" },
+      { "ci": 0, "type": "default" },
+      { "ci": 2, "type": "default" },
+      { "ci": 1, "type": "default" },
+      { "ci": 3, "type": "default" },
+      { "ci": 4, "type": "default" },
+      { "ci": 0, "type": "default" },
+
+      { "ci": 2, "type": "default" },
+      { "ci": 1, "type": "default" },
+      { "ci": 3, "type": "default" },
+      { "ci": 4, "type": "default" },
+      { "ci": 0, "type": "default" },
+      { "ci": 2, "type": "default" },
+      { "ci": 1, "type": "default" },
 
       { "wall": true },
       { "wall": true },
@@ -26,19 +50,21 @@
       { "wall": true },
       { "wall": true },
 
-      null, null, null, null, null, null, null,
+      { "ci": 3, "type": "default" },
+      { "ci": 4, "type": "default" },
+      { "ci": 0, "type": "default" },
+      { "ci": 2, "type": "default" },
+      { "ci": 1, "type": "default" },
+      { "ci": 3, "type": "default" },
+      { "ci": 4, "type": "default" },
 
-      null,
-      null,
+      { "ci": 0, "type": "default" },
+      { "ci": 2, "type": "default" },
+      { "ci": 1, "type": "default" },
+      { "ci": 3, "type": "default" },
       { "ci": 4, "type": "default" },
-      { "ci": 4, "type": "default" },
-      { "ci": 4, "type": "default" },
-      null,
-      null,
-
-      null, null, null, null, null, null, null,
-      null, null, null, null, null, null, null,
-      null, null, null, null, null, null, null
+      { "ci": 0, "type": "default" },
+      { "ci": 2, "type": "default" }
     ]
   }
 }
