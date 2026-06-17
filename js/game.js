@@ -32,22 +32,38 @@ function initGame() {
   won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
+  if (typeof replacerSpawnAnims !== 'undefined') replacerSpawnAnims = [];
   document.getElementById('win-screen').classList.remove('show');
   computeLayout(); initBeltSlots();
 
   var totalSlots = L.rows * L.cols;
   var lvl = LEVELS[currentLevel];
 
-  // ── Build boxSlots, tunnelSlots, wallSlots from grid or legacy random ──
+  // ── Build boxSlots, tunnelSlots, wallSlots, replacerSlots from grid ──
   var boxSlots = {};
   var tunnelSlots = {};
   var wallSlots = {};
+  var replacerSlots = {};     // primaryIdx -> { orientation, ci, count, covered }
+  var replacerSecondary = {}; // secondaryIdx -> primaryIdx
   if (lvl.grid) {
     for (var i = 0; i < Math.min(lvl.grid.length, totalSlots); i++) {
       var cell = lvl.grid[i];
       if (cell === null || cell === undefined) continue;
       if (cell.wall) {
         wallSlots[i] = true;
+        continue;
+      }
+      if (cell.replacer) {
+        replacerSlots[i] = {
+          orientation: cell.orientation || 'h',
+          ci: (typeof cell.ci === 'number') ? cell.ci : 0,
+          count: (typeof cell.count === 'number') ? cell.count : 3,
+          covered: (cell.covered && cell.covered.length === 2) ? [cell.covered[0] || null, cell.covered[1] || null] : [null, null]
+        };
+        continue;
+      }
+      if (cell.replacerRef !== undefined) {
+        replacerSecondary[i] = cell.replacerRef;
         continue;
       }
       if (cell.tunnel) {
@@ -83,6 +99,12 @@ function initGame() {
       if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
     }
   }
+  // Count marbles from Replacer-spawned boxes + covered boxes
+  var bRef = { v: totalBlockerMarbles };
+  for (var k in replacerSlots) {
+    countReplacerMarbles(replacerSlots[k], colorMarblesTotal, bRef);
+  }
+  totalBlockerMarbles = bRef.v;
   var sortPerColor = [];
   for (var c = 0; c < NUM_COLORS; c++) {
     sortPerColor.push(SORT_CAP > 0 ? Math.ceil(colorMarblesTotal[c] / SORT_CAP) : 0);
@@ -95,8 +117,41 @@ function initGame() {
     var slot = boxSlots[idx];
     var tSlot = tunnelSlots[idx];
     var wSlot = wallSlots[idx];
+    var rSlot = replacerSlots[idx];
+    var rSecondaryRef = replacerSecondary[idx];
 
-    if (tSlot) {
+    if (rSlot) {
+      var secIdx = getReplacerSecondaryIdx(idx, rSlot.orientation);
+      stock.push({
+        isReplacer: true, isReplacerSecondary: false,
+        isTunnel: false, isWall: false,
+        replacerOrientation: rSlot.orientation,
+        replacerCi: rSlot.ci,
+        replacerCount: rSlot.count,
+        replacerCountMax: rSlot.count,
+        replacerCovered: [rSlot.covered[0] ? { ci: rSlot.covered[0].ci, type: rSlot.covered[0].type || 'default' } : null,
+                          rSlot.covered[1] ? { ci: rSlot.covered[1].ci, type: rSlot.covered[1].type || 'default' } : null],
+        replacerSecondaryIdx: secIdx,
+        replacerShakeT: 0, replacerFlashT: 0, replacerCounterPopT: 0, replacerRemovingT: 0,
+        replacerIdlePhase: Math.random() * Math.PI * 2,
+        ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
+        revealed: false, empty: false, boxType: 'default',
+        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
+      });
+    } else if (rSecondaryRef !== undefined) {
+      stock.push({
+        isReplacer: false, isReplacerSecondary: true,
+        isTunnel: false, isWall: false,
+        replacerPrimaryIdx: rSecondaryRef,
+        ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
+        revealed: false, empty: false, boxType: 'default',
+        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
+      });
+    } else if (tSlot) {
       // Tunnel entry
       stock.push({
         isTunnel: true, isWall: false,
@@ -182,6 +237,7 @@ function updateBoxReveals(animate) {
     if (!s) { passable[i] = false; continue; }
     if (s.isWall) { passable[i] = false; continue; }
     if (s.isTunnel) { passable[i] = false; continue; }
+    if (s.isReplacer || s.isReplacerSecondary) { passable[i] = false; continue; }
     passable[i] = !!(s.empty || s.used);
   }
 
@@ -220,7 +276,7 @@ function updateBoxReveals(animate) {
   for (var k = 0; k < total; k++) {
     var b = stock[k];
     if (!b) continue;
-    if (b.isWall || b.isTunnel || b.empty || b.used) continue;
+    if (b.isWall || b.isTunnel || b.isReplacer || b.isReplacerSecondary || b.empty || b.used) continue;
     if (b.spawning) continue;
 
     var br = Math.floor(k / L.cols), bcol = k % L.cols;
@@ -273,7 +329,7 @@ function damageAdjacentIce(idx) {
   if (col < L.cols - 1) neighbors.push(row * L.cols + (col + 1));
   for (var ni = 0; ni < neighbors.length; ni++) {
     var nb = stock[neighbors[ni]];
-    if (nb.isTunnel || nb.isWall) continue;  // tunnels and walls don't have ice
+    if (nb.isTunnel || nb.isWall || nb.isReplacer || nb.isReplacerSecondary) continue;
     if (nb.empty || nb.used || nb.iceHP <= 0) continue;
 
     nb.iceHP--;
@@ -315,6 +371,7 @@ function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
   if (b.isWall) return false;      // walls are not tappable
+  if (b.isReplacer || b.isReplacerSecondary) return false;  // covers are not tappable
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
@@ -330,15 +387,17 @@ function handleTap(px, py) {
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
+    if (b.isTunnel || b.isWall || b.isReplacer || b.isReplacerSecondary) continue;
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
       b.popT = 1;
       sfx.pop();
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
+      var playedCi = b.ci;
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      if (typeof notifyReplacers === 'function') notifyReplacers(playedCi);
       return;
     }
   }
@@ -352,7 +411,7 @@ canvas.addEventListener('mousemove', function (e) {
   if (e.clientX >= L.bkX && e.clientX <= L.bkX + L.bkSize && e.clientY >= L.bkY && e.clientY <= L.bkY + L.bkSize) { canvas.style.cursor = 'pointer'; return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;
+    if (b.isTunnel || b.isWall || b.isReplacer || b.isReplacerSecondary) continue;
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (!isBoxTappable(i)) continue;
     if (e.clientX >= b.x && e.clientX <= b.x + L.bw && e.clientY >= b.y && e.clientY <= b.y + L.bh) { hoverIdx = i; break; }
@@ -373,6 +432,9 @@ function update() {
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
+
+  // ── Replacer animations + spawn animations ──
+  if (typeof updateReplacers === 'function') updateReplacers();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -467,7 +529,7 @@ function update() {
   // Stock animations
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;  // tunnels and walls don't need stock animations
+    if (b.isTunnel || b.isWall || b.isReplacer || b.isReplacerSecondary) continue;
     if (b.empty) continue;
     if (b.shakeT > 0) b.shakeT = Math.max(0, b.shakeT - 0.04);
     if (b.popT > 0) b.popT = Math.max(0, b.popT - 0.025);
@@ -524,6 +586,7 @@ function checkWin() {
       if (sortCols[c][r].vis) return;
   for (var i = 0; i < stock.length; i++) {
     if (stock[i].isTunnel && stock[i].tunnelContents && stock[i].tunnelContents.length > 0) return;
+    if (stock[i].isReplacer) return;
   }
   if (!won) {
     won = true; sfx.win();
@@ -545,6 +608,8 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    if (typeof drawAllReplacerCovers === 'function') drawAllReplacerCovers();
+    if (typeof drawReplacerSpawnAnims === 'function') drawReplacerSpawnAnims();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();

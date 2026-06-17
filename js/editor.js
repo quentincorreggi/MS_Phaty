@@ -5,7 +5,7 @@
 // ============================================================
 
 var editor = {
-  grid: [],            // 7x7: null = empty, { ci, type } or { tunnel: true, ... } or { wall: true }
+  grid: [],            // 7x7: null = empty, { ci, type } or { tunnel: true, ... } or { wall: true } or { replacer: true, ... } or { replacerRef: <primaryIdx> }
   name: 'Custom Level',
   desc: 'My custom level',
   mrbPerBox: 9,
@@ -17,6 +17,9 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  replacerMode: false,  // true when placing replacers
+  replacerOrientation: 'h',
+  selectedReplacer: -1, // primary idx of selected replacer for editing
   visible: false
 };
 
@@ -34,6 +37,9 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.replacerMode = false;
+  editor.replacerOrientation = 'h';
+  editor.selectedReplacer = -1;
 }
 
 function showEditor(fresh) {
@@ -60,6 +66,7 @@ function editorBuildUI() {
   editorRenderSettings();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderReplacerPanel();
 }
 
 // ── Grid ──
@@ -75,6 +82,23 @@ function editorRenderGrid() {
       cell.style.background = 'linear-gradient(135deg,#9A8D7B,#6F6355)';
       cell.style.borderColor = '#8A7D6B';
       cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,255,255,0.5);font-size:14px">&#9632;</span>';
+    } else if (v && v.replacer) {
+      var isSelectedR = (editor.selectedReplacer === i);
+      var rc = COLORS[v.ci || 0];
+      cell.style.background = 'linear-gradient(135deg,#52525E,#2C2C36)';
+      cell.style.borderColor = isSelectedR ? '#FFD080' : '#3F3F4A';
+      if (isSelectedR) cell.style.boxShadow = '0 0 0 2px rgba(255,208,128,0.55)';
+      var dirBadge = (v.orientation === 'h') ? '⇒' : '⇓';  // ⇒ / ⇓
+      cell.innerHTML = '<span class="ed-cell-dot" style="color:' + rc.fill + ';font-size:12px;font-weight:700">' + (v.count || 0) + '</span>' +
+        '<span class="ed-tunnel-badge" style="background:' + rc.fill + ';color:#fff">' + dirBadge + '</span>';
+    } else if (v && v.replacerRef !== undefined) {
+      var primary = editor.grid[v.replacerRef];
+      var rc2 = (primary && typeof primary.ci === 'number') ? COLORS[primary.ci] : COLORS[0];
+      var isSelR2 = (editor.selectedReplacer === v.replacerRef);
+      cell.style.background = 'linear-gradient(135deg,#4A4A56,#28282E)';
+      cell.style.borderColor = isSelR2 ? '#FFD080' : '#3F3F4A';
+      if (isSelR2) cell.style.boxShadow = '0 0 0 2px rgba(255,208,128,0.55)';
+      cell.innerHTML = '<span class="ed-cell-dot" style="color:' + rc2.fill + ';font-size:10px;opacity:0.7">…</span>';
     } else if (v && v.tunnel) {
       // Tunnel cell
       var isSelected = (editor.selectedTunnel === i);
@@ -105,6 +129,62 @@ function editorRenderGrid() {
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
 
+  if (editor.replacerMode) {
+    var existing = editor.grid[idx];
+    if (existing && existing.replacer) {
+      // Select for editing
+      editor.selectedReplacer = idx;
+      editorRenderGrid();
+      editorRenderReplacerPanel();
+      editorUpdateStats();
+      return;
+    }
+    if (existing && existing.replacerRef !== undefined) {
+      // Select its primary
+      editor.selectedReplacer = existing.replacerRef;
+      editorRenderGrid();
+      editorRenderReplacerPanel();
+      editorUpdateStats();
+      return;
+    }
+    // Eraser
+    if (editor.activeColor === -1) {
+      editor.grid[idx] = null;
+      if (editor.selectedReplacer === idx) editor.selectedReplacer = -1;
+      editorRenderGrid();
+      editorRenderReplacerPanel();
+      editorUpdateStats();
+      return;
+    }
+    // Place a new replacer at idx with current orientation; secondary is to the right (h) or below (v)
+    var orient = editor.replacerOrientation;
+    var row = Math.floor(idx / 7), col = idx % 7;
+    var secIdx = -1;
+    if (orient === 'h') {
+      if (col + 1 >= 7) { editorShowToast('Not enough room — pick a cell with space to the right, or switch to vertical.'); return; }
+      secIdx = idx + 1;
+    } else {
+      if (row + 1 >= 7) { editorShowToast('Not enough room — pick a cell with space below, or switch to horizontal.'); return; }
+      secIdx = idx + 7;
+    }
+    if (editor.grid[idx]) { editorShowToast('This cell is occupied — clear it first.'); return; }
+    if (editor.grid[secIdx]) { editorShowToast('The neighbour cell is occupied — clear it first.'); return; }
+    editor.grid[idx] = {
+      replacer: true,
+      orientation: orient,
+      ci: (editor.activeColor >= 0 ? editor.activeColor : 0),
+      count: 3,
+      covered: [null, null]
+    };
+    editor.grid[secIdx] = { replacerRef: idx };
+    editor.selectedReplacer = idx;
+    if (editor.selectedTunnel === idx || editor.selectedTunnel === secIdx) editor.selectedTunnel = -1;
+    editorRenderGrid();
+    editorRenderReplacerPanel();
+    editorUpdateStats();
+    return;
+  }
+
   if (editor.wallMode) {
     // Wall placement mode
     var existing = editor.grid[idx];
@@ -112,13 +192,15 @@ function editorCellClick(e) {
       // Toggle off: clicking existing wall removes it
       editor.grid[idx] = null;
     } else {
-      // Place wall
+      // Place wall — clean up replacer pair if overwriting
+      editorEraseAt(idx);
       editor.grid[idx] = { wall: true };
     }
     if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     editorRenderGrid();
     editorUpdateStats();
     editorRenderTunnelPanel();
+    editorRenderReplacerPanel();
     return;
   }
 
@@ -128,22 +210,22 @@ function editorCellClick(e) {
     if (existing && existing.tunnel) {
       editor.selectedTunnel = idx;
     } else if (editor.activeColor === -1) {
-      editor.grid[idx] = null;
-      if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+      editorEraseAt(idx);
     } else {
+      editorEraseAt(idx);
       editor.grid[idx] = { tunnel: true, dir: editor.tunnelDir, contents: [] };
       editor.selectedTunnel = idx;
     }
   } else {
     // Normal box painting mode
     if (editor.activeColor === -1) {
-      editor.grid[idx] = null;
-      if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+      editorEraseAt(idx);
     } else {
       var existing = editor.grid[idx];
-      if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
+      if (existing && !existing.tunnel && !existing.wall && !existing.replacer && existing.replacerRef === undefined && existing.ci === editor.activeColor && existing.type === editor.activeType) {
         editor.grid[idx] = null;
       } else {
+        editorEraseAt(idx);
         editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
       }
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
@@ -152,16 +234,37 @@ function editorCellClick(e) {
   editorRenderGrid();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderReplacerPanel();
 }
 
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
-  editor.grid[idx] = null;
-  if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+  editorEraseAt(idx);
   editorRenderGrid();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderReplacerPanel();
+}
+
+// Erase one cell, but if it's part of a replacer pair, clear both cells.
+function editorEraseAt(idx) {
+  var v = editor.grid[idx];
+  if (v && v.replacer) {
+    var row = Math.floor(idx / 7), col = idx % 7;
+    var secIdx = (v.orientation === 'h') ? idx + 1 : idx + 7;
+    if (secIdx >= 0 && secIdx < 49) editor.grid[secIdx] = null;
+    editor.grid[idx] = null;
+    if (editor.selectedReplacer === idx) editor.selectedReplacer = -1;
+  } else if (v && v.replacerRef !== undefined) {
+    var primaryIdx = v.replacerRef;
+    editor.grid[primaryIdx] = null;
+    editor.grid[idx] = null;
+    if (editor.selectedReplacer === primaryIdx) editor.selectedReplacer = -1;
+  } else {
+    editor.grid[idx] = null;
+  }
+  if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
 }
 
 // ── Toolbar: mode toggle + type selector + color/direction palette ──
@@ -178,15 +281,18 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.replacerMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.replacerMode = false;
+      editor.selectedReplacer = -1;
       editorRenderToolbar();
       editorRenderTunnelPanel();
+      editorRenderReplacerPanel();
     });
     typeRow.appendChild(tb);
   }
@@ -200,8 +306,11 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.replacerMode = false;
+    editor.selectedReplacer = -1;
     editorRenderToolbar();
     editorRenderTunnelPanel();
+    editorRenderReplacerPanel();
   });
   typeRow.appendChild(wallBtn);
 
@@ -214,10 +323,29 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.replacerMode = false;
+    editor.selectedReplacer = -1;
     editorRenderToolbar();
     editorRenderTunnelPanel();
+    editorRenderReplacerPanel();
   });
   typeRow.appendChild(tunnelBtn);
+
+  // Replacer mode button
+  var replBtn = document.createElement('button');
+  replBtn.className = 'ed-type-btn' + (editor.replacerMode ? ' active' : '');
+  replBtn.textContent = '\u21BB Replacer';
+  replBtn.style.borderColor = editor.replacerMode ? 'rgba(82,82,94,0.7)' : '';
+  replBtn.style.color = editor.replacerMode ? '#3F3F4A' : '';
+  replBtn.addEventListener('click', function () {
+    editor.replacerMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+    editorRenderReplacerPanel();
+  });
+  typeRow.appendChild(replBtn);
 
   el.appendChild(typeRow);
 
@@ -260,6 +388,55 @@ function editorRenderToolbar() {
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
+  } else if (editor.replacerMode) {
+    // Replacer mode: orientation toggle + color palette
+    var orientRow = document.createElement('div');
+    orientRow.className = 'ed-color-row';
+    orientRow.style.justifyContent = 'center';
+
+    var orientations = [{ k: 'h', label: '⇒ Horizontal' }, { k: 'v', label: '⇓ Vertical' }];
+    for (var oi = 0; oi < orientations.length; oi++) {
+      var ob = document.createElement('button');
+      ob.className = 'ed-tunnel-dir-btn' + (editor.replacerOrientation === orientations[oi].k ? ' active' : '');
+      ob.textContent = orientations[oi].label;
+      ob.setAttribute('data-o', orientations[oi].k);
+      ob.addEventListener('click', function () {
+        editor.replacerOrientation = this.getAttribute('data-o');
+        editorRenderToolbar();
+      });
+      orientRow.appendChild(ob);
+    }
+    el.appendChild(orientRow);
+
+    // Color palette (eraser + 8 colors) — sets the cover color for new placements
+    var colorRowR = document.createElement('div');
+    colorRowR.className = 'ed-color-row';
+    var eraserR = document.createElement('button');
+    eraserR.className = 'ed-tool' + (editor.activeColor === -1 ? ' active' : '');
+    eraserR.style.background = 'rgba(180,165,145,0.5)';
+    eraserR.innerHTML = '✖';
+    eraserR.title = 'Eraser';
+    eraserR.addEventListener('click', function () { editor.activeColor = -1; editorRenderToolbar(); });
+    colorRowR.appendChild(eraserR);
+    for (var ciR = 0; ciR < NUM_COLORS; ciR++) {
+      var cbR = document.createElement('button');
+      cbR.className = 'ed-tool' + (editor.activeColor === ciR ? ' active' : '');
+      cbR.style.background = COLORS[ciR].fill;
+      cbR.innerHTML = CLR_NAMES[ciR][0].toUpperCase();
+      cbR.title = CLR_NAMES[ciR];
+      cbR.setAttribute('data-ci', ciR);
+      cbR.addEventListener('click', function () {
+        editor.activeColor = parseInt(this.getAttribute('data-ci'));
+        editorRenderToolbar();
+      });
+      colorRowR.appendChild(cbR);
+    }
+    el.appendChild(colorRowR);
+
+    var rInfo = document.createElement('div');
+    rInfo.className = 'ed-color-row';
+    rInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click empty cell to place a 2-cell cover. Click an existing cover to edit it.</span>';
+    el.appendChild(rInfo);
   } else {
     // Color palette: eraser + 8 colors
     var colorRow = document.createElement('div');
@@ -426,6 +603,178 @@ function editorRenderTunnelPanel() {
   }
 }
 
+// ── Replacer contents editor panel ──
+function editorRenderReplacerPanel() {
+  var container = document.getElementById('ed-replacer-panel');
+  if (!container) return;
+
+  var idx = editor.selectedReplacer;
+  if (idx < 0 || !editor.grid[idx] || !editor.grid[idx].replacer) {
+    container.style.display = 'none';
+    return;
+  }
+  container.style.display = 'block';
+  var r = editor.grid[idx];
+  var rc = COLORS[r.ci];
+  var html = '';
+
+  // Title
+  html += '<div class="ed-section-title"><span class="icon">↻</span> Replacer #' + (idx + 1) + ' — ' + CLR_NAMES[r.ci] + ' · count ' + r.count + '</div>';
+
+  // Orientation toggle (with safety: only switch if new pair cell is free or is the current pair)
+  html += '<div class="ed-tunnel-dir-row">';
+  html += '<button class="ed-tunnel-dir-btn' + (r.orientation === 'h' ? ' active' : '') + '" data-r-orient="h">⇒ Horizontal</button>';
+  html += '<button class="ed-tunnel-dir-btn' + (r.orientation === 'v' ? ' active' : '') + '" data-r-orient="v">⇓ Vertical</button>';
+  html += '</div>';
+
+  // Color buttons
+  html += '<div class="ed-section-title" style="margin-top:8px"><span class="icon">🎨</span> Cover Color</div>';
+  html += '<div class="ed-tunnel-add-colors">';
+  for (var ci = 0; ci < NUM_COLORS; ci++) {
+    var sel = (ci === r.ci) ? ' style="background:' + COLORS[ci].fill + ';border-color:rgba(0,0,0,0.5);outline:2px solid #FFD080"' : ' style="background:' + COLORS[ci].fill + '"';
+    html += '<button class="ed-tunnel-add-clr" data-r-ci="' + ci + '"' + sel + '>' + CLR_NAMES[ci][0].toUpperCase() + '</button>';
+  }
+  html += '</div>';
+
+  // Counter slider
+  html += '<div class="ed-section-title" style="margin-top:8px"><span class="icon">#</span> Counter (matching plays to clear)</div>';
+  html += '<div class="ed-setting-row" style="margin:0">';
+  html += '<input type="range" id="ed-r-count" min="1" max="9" step="1" value="' + r.count + '" style="flex:1">';
+  html += '<span class="ed-s-val" id="ed-r-count-v">' + r.count + '</span>';
+  html += '</div>';
+
+  // Covered slots
+  html += '<div class="ed-section-title" style="margin-top:8px"><span class="icon">📦</span> Boxes Hidden Underneath</div>';
+  for (var sl = 0; sl < 2; sl++) {
+    var co = r.covered ? r.covered[sl] : null;
+    html += '<div style="margin:4px 0;padding:6px 8px;background:rgba(0,0,0,0.04);border-radius:8px">';
+    html += '<div style="font-size:11px;color:#5A4A38;margin-bottom:4px;font-weight:600">Slot ' + (sl + 1) + ': ';
+    if (co) {
+      var coCol = COLORS[co.ci];
+      var coLab = (BoxTypes[co.type] || BoxTypes['default']).label;
+      html += '<span style="color:' + coCol.fill + ';font-weight:700">' + CLR_NAMES[co.ci] + '</span> ';
+      html += '<span style="opacity:0.6">' + coLab + '</span> ';
+      html += '<button class="ed-qbtn" data-r-clear="' + sl + '" style="padding:1px 6px;font-size:10px;margin-left:4px">clear</button>';
+    } else {
+      html += '<span style="opacity:0.55">(empty when revealed)</span>';
+    }
+    html += '</div>';
+    html += '<div class="ed-tunnel-add-row" style="margin-bottom:4px"><select class="ed-tunnel-select" data-r-slot-type="' + sl + '">';
+    for (var t = 0; t < BoxTypeOrder.length; t++) {
+      var sel2 = (co && co.type === BoxTypeOrder[t]) ? ' selected' : '';
+      html += '<option value="' + BoxTypeOrder[t] + '"' + sel2 + '>' + BoxTypes[BoxTypeOrder[t]].label + '</option>';
+    }
+    html += '</select></div>';
+    html += '<div class="ed-tunnel-add-colors">';
+    for (var ci2 = 0; ci2 < NUM_COLORS; ci2++) {
+      html += '<button class="ed-tunnel-add-clr" data-r-set="' + sl + '-' + ci2 + '" style="background:' + COLORS[ci2].fill + '">' + CLR_NAMES[ci2][0].toUpperCase() + '</button>';
+    }
+    html += '</div>';
+    html += '</div>';
+  }
+
+  // Remove replacer button
+  html += '<div style="text-align:center;margin-top:6px"><button class="ed-qbtn" id="ed-r-remove">Remove Replacer</button></div>';
+
+  container.innerHTML = html;
+
+  // Bind orientation
+  var oBtns = container.querySelectorAll('[data-r-orient]');
+  for (var i = 0; i < oBtns.length; i++) {
+    oBtns[i].addEventListener('click', function () {
+      var newOr = this.getAttribute('data-r-orient');
+      var p = editor.selectedReplacer;
+      var rr = editor.grid[p];
+      if (!rr || !rr.replacer) return;
+      if (rr.orientation === newOr) return;
+      var oldSec = (rr.orientation === 'h') ? p + 1 : p + 7;
+      var row = Math.floor(p / 7), col = p % 7;
+      var newSec = (newOr === 'h') ? p + 1 : p + 7;
+      if (newOr === 'h' && col + 1 >= 7) { editorShowToast('No room to the right for horizontal.'); return; }
+      if (newOr === 'v' && row + 1 >= 7) { editorShowToast('No room below for vertical.'); return; }
+      // Validate the new pair cell is free (other than the current pair cell)
+      if (editor.grid[newSec] && newSec !== oldSec) { editorShowToast('Cell needed for new orientation is occupied.'); return; }
+      // Move pair
+      if (oldSec !== newSec) editor.grid[oldSec] = null;
+      editor.grid[newSec] = { replacerRef: p };
+      rr.orientation = newOr;
+      editorRenderGrid();
+      editorRenderReplacerPanel();
+      editorUpdateStats();
+    });
+  }
+  // Color
+  var cBtns = container.querySelectorAll('[data-r-ci]');
+  for (var i = 0; i < cBtns.length; i++) {
+    cBtns[i].addEventListener('click', function () {
+      var p = editor.selectedReplacer;
+      var rr = editor.grid[p];
+      if (!rr) return;
+      rr.ci = parseInt(this.getAttribute('data-r-ci'));
+      editorRenderGrid();
+      editorRenderReplacerPanel();
+      editorUpdateStats();
+    });
+  }
+  // Count slider
+  var sl = document.getElementById('ed-r-count');
+  if (sl) {
+    sl.addEventListener('input', function () {
+      var p = editor.selectedReplacer;
+      var rr = editor.grid[p];
+      if (!rr) return;
+      rr.count = parseInt(sl.value);
+      document.getElementById('ed-r-count-v').textContent = sl.value;
+      editorRenderGrid();
+      editorUpdateStats();
+    });
+  }
+  // Covered slot setters
+  var setBtns = container.querySelectorAll('[data-r-set]');
+  for (var i = 0; i < setBtns.length; i++) {
+    setBtns[i].addEventListener('click', function () {
+      var p = editor.selectedReplacer;
+      var rr = editor.grid[p];
+      if (!rr) return;
+      var parts = this.getAttribute('data-r-set').split('-');
+      var slIdx = parseInt(parts[0]);
+      var ciSet = parseInt(parts[1]);
+      var typeEl = container.querySelector('[data-r-slot-type="' + slIdx + '"]');
+      var type = typeEl ? typeEl.value : 'default';
+      if (!rr.covered) rr.covered = [null, null];
+      rr.covered[slIdx] = { ci: ciSet, type: type };
+      editorRenderReplacerPanel();
+      editorUpdateStats();
+    });
+  }
+  // Covered slot clears
+  var clrBtns = container.querySelectorAll('[data-r-clear]');
+  for (var i = 0; i < clrBtns.length; i++) {
+    clrBtns[i].addEventListener('click', function () {
+      var p = editor.selectedReplacer;
+      var rr = editor.grid[p];
+      if (!rr || !rr.covered) return;
+      var slIdx = parseInt(this.getAttribute('data-r-clear'));
+      rr.covered[slIdx] = null;
+      editorRenderReplacerPanel();
+      editorUpdateStats();
+    });
+  }
+  // Remove replacer
+  var remBtn = document.getElementById('ed-r-remove');
+  if (remBtn) {
+    remBtn.addEventListener('click', function () {
+      var p = editor.selectedReplacer;
+      if (p < 0) return;
+      editorEraseAt(p);
+      editor.selectedReplacer = -1;
+      editorRenderGrid();
+      editorRenderReplacerPanel();
+      editorUpdateStats();
+    });
+  }
+}
+
 // ── Quick actions ──
 function editorFillRandom() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
@@ -453,11 +802,38 @@ function editorUpdateStats() {
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
   var wallCount = 0;
+  var replacerCount = 0, replacerCoveredCount = 0;
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
     if (v.wall) {
       wallCount++;
+      continue;
+    }
+    if (v.replacerRef !== undefined) {
+      // counted via primary
+      continue;
+    }
+    if (v.replacer) {
+      replacerCount++;
+      var rci = v.ci;
+      // Replacer-spawned marbles: count * MRB_PER_BOX of color rci
+      regularMrb[rci] += (v.count || 0) * editor.mrbPerBox;
+      // Covered boxes
+      if (v.covered) {
+        for (var sIdx = 0; sIdx < v.covered.length; sIdx++) {
+          var co = v.covered[sIdx];
+          if (!co) continue;
+          replacerCoveredCount++;
+          if (co.type === 'blocker') {
+            regularMrb[co.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
+            totalBlockers += BLOCKER_PER_BOX;
+          } else {
+            regularMrb[co.ci] += editor.mrbPerBox;
+          }
+          counts[co.ci]++;
+        }
+      }
       continue;
     }
     if (v.tunnel) {
@@ -503,6 +879,9 @@ function editorUpdateStats() {
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
   }
+  if (replacerCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#3F3F4A">' + replacerCount + ' replacer' + (replacerCount > 1 ? 's' : '') + ' (' + replacerCoveredCount + ' covered)</span>';
+  }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
   }
@@ -510,7 +889,7 @@ function editorUpdateStats() {
     if (counts[c] > 0) html += '<span class="ed-stat-chip" style="background:' + COLORS[c].fill + '">' + counts[c] + '</span>';
   }
   var warn = '';
-  var totalAll = total + tunnelBoxCount;
+  var totalAll = total + tunnelBoxCount + replacerCount;
   if (totalAll === 0) {
     warn = 'Place some boxes to create a level';
   } else {
@@ -618,6 +997,8 @@ function editorImportJSON() {
           if (cell === null || cell === undefined || cell === -1) editor.grid[i] = null;
           else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
           else if (cell.wall) editor.grid[i] = { wall: true };
+          else if (cell.replacer) editor.grid[i] = { replacer: true, orientation: cell.orientation || 'h', ci: cell.ci || 0, count: cell.count || 3, covered: (cell.covered && cell.covered.length === 2) ? cell.covered : [null, null] };
+          else if (cell.replacerRef !== undefined) editor.grid[i] = { replacerRef: cell.replacerRef };
           else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
           else editor.grid[i] = cell;
         }
@@ -632,6 +1013,7 @@ function editorImportJSON() {
       if (nameEl) nameEl.value = editor.name;
       if (descEl) descEl.value = editor.desc;
       editor.selectedTunnel = -1;
+      editor.selectedReplacer = -1;
       ta.style.display = 'none';
       editorBuildUI();
       editorShowToast('Imported!');
