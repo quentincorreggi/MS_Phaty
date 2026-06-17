@@ -254,10 +254,15 @@ function drawReplacerSpawnAnims() {
 }
 
 // ── Trigger replacers when a colored box is played ──
-// originIdx is the grid cell of the box that was just tapped — used as
-// a fallback spawn target when the board has no truly-open cells yet.
+// originIdx is the grid cell of the box that was just tapped. The
+// replacement box always spawns at exactly that cell, so the player
+// sees "the box I just played has been refilled with the same color".
 function notifyReplacers(playedCi, originIdx) {
   if (playedCi < 0 || playedCi >= NUM_COLORS) return;
+  if (originIdx === undefined || originIdx < 0 || originIdx >= stock.length) return;
+  var origin = stock[originIdx];
+  if (!origin || origin.isReplacer || origin.isReplacerSecondary || origin.isTunnel || origin.isWall) return;
+
   for (var i = 0; i < stock.length; i++) {
     var s = stock[i];
     if (!s || !s.isReplacer) continue;
@@ -275,43 +280,18 @@ function notifyReplacers(playedCi, originIdx) {
     var cx = rect.x + rect.w / 2;
     var cy = rect.y + rect.h / 2;
 
-    // Pick a random open cell to spawn into. Falls back to the cell of
-    // the box that triggered this tick (originIdx) — that cell is about
-    // to become empty as its marbles dispense, so the spawn anim simply
-    // hovers at the endpoint until the cell is free.
-    var openIdxs = [];
-    for (var k = 0; k < stock.length; k++) {
-      if (k === i || k === s.replacerSecondaryIdx) continue;
-      if (k === originIdx) continue;
-      var t = stock[k];
-      if (!t) continue;
-      if (t.isReplacer || t.isReplacerSecondary) continue;
-      if (t.isTunnel || t.isWall) continue;
-      if (t.empty || t.used) openIdxs.push(k);
-    }
-
-    var pick = -1;
-    if (openIdxs.length > 0) {
-      pick = openIdxs[Math.floor(Math.random() * openIdxs.length)];
-    } else if (originIdx !== undefined && originIdx >= 0 && originIdx < stock.length) {
-      var ot = stock[originIdx];
-      if (ot && !ot.isReplacer && !ot.isReplacerSecondary && !ot.isTunnel && !ot.isWall) {
-        pick = originIdx;
-      }
-    }
-
-    if (pick >= 0) {
-      var tgt = stock[pick];
-      replacerSpawnAnims.push({
-        ci: s.replacerCi,
-        startX: cx, startY: cy,
-        endX: tgt.x + L.bw / 2,
-        endY: tgt.y + L.bh / 2,
-        endIdx: pick,
-        t: 0,
-        holdT: 0
-      });
-    }
+    // Spawn at the tapped box's cell. The fly-out anim arcs to that
+    // cell, then hovers until the cell finishes dispensing, then the
+    // fresh box materializes in the exact same spot.
+    replacerSpawnAnims.push({
+      ci: s.replacerCi,
+      startX: cx, startY: cy,
+      endX: origin.x + L.bw / 2,
+      endY: origin.y + L.bh / 2,
+      endIdx: originIdx,
+      t: 0,
+      holdT: 0
+    });
 
     // Particles + sound on the cover itself
     var bc = COLORS[s.replacerCi];
@@ -459,10 +439,9 @@ function updateReplacers() {
       }
     }
   }
-  // Animate fly-out spawns. After the arc finishes, the anim holds at
-  // the endpoint until the target cell becomes empty/used, then the new
-  // box materializes. A safety cap (~5s of waiting) re-targets to any
-  // open cell, or drops the spawn if nothing is available.
+  // Animate fly-out spawns. After the arc finishes, the anim hovers at
+  // the endpoint until the tapped cell finishes dispensing, then the
+  // new box materializes in place.
   for (var k = replacerSpawnAnims.length - 1; k >= 0; k--) {
     var a = replacerSpawnAnims[k];
     if (a.t < REPLACER_SPAWN_FRAMES) {
@@ -479,26 +458,9 @@ function updateReplacers() {
       continue;
     }
     a.holdT++;
-    if (a.holdT > 300) {
-      // Look for any open cell to retarget to
-      var alt = [];
-      for (var n = 0; n < stock.length; n++) {
-        var nt = stock[n];
-        if (!nt) continue;
-        if (nt.isReplacer || nt.isReplacerSecondary || nt.isTunnel || nt.isWall) continue;
-        if (nt.empty || nt.used) alt.push(n);
-      }
-      if (alt.length > 0) {
-        var npick = alt[Math.floor(Math.random() * alt.length)];
-        var nt2 = stock[npick];
-        a.endIdx = npick;
-        a.endX = nt2.x + L.bw / 2;
-        a.endY = nt2.y + L.bh / 2;
-        a.holdT = 0;
-      } else {
-        replacerSpawnAnims.splice(k, 1);
-      }
-    }
+    // Safety: drop the spawn if the cell never opens (e.g. overwritten
+    // by a tunnel spawn during the wait).
+    if (a.holdT > 600) replacerSpawnAnims.splice(k, 1);
   }
 }
 
