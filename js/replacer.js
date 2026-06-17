@@ -204,30 +204,59 @@ function drawAllReplacerCovers() {
   }
 }
 
-// ── Fly-out animation (marble flying from cover to spawn cell) ──
+// ── Fly-out animation (marble flying from cover to spawn cell, then
+//    hovering at the cell until it's free) ──
 function drawReplacerSpawnAnims() {
   var mr = 7 * S * cal.marble.s;
   for (var i = 0; i < replacerSpawnAnims.length; i++) {
     var a = replacerSpawnAnims[i];
-    var t = a.t / REPLACER_SPAWN_FRAMES;
-    if (t < 0) t = 0; if (t > 1) t = 1;
-    var e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-    var x = a.startX + (a.endX - a.startX) * e;
-    var y = a.startY + (a.endY - a.startY) * e - Math.sin(t * Math.PI) * 40 * S;
-    var sc = 1 + Math.sin(t * Math.PI) * 0.25;
-    if (tick % 3 === 0) {
-      particles.push({
-        x: x, y: y, vx: (Math.random() - 0.5) * 0.6 * S, vy: 0.4 * S,
-        r: (2 + Math.random() * 2) * S, color: COLORS[a.ci].light,
-        life: 0.6, decay: 0.04, grav: false
-      });
+    if (a.t < REPLACER_SPAWN_FRAMES) {
+      var t = a.t / REPLACER_SPAWN_FRAMES;
+      if (t < 0) t = 0; if (t > 1) t = 1;
+      var e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      var x = a.startX + (a.endX - a.startX) * e;
+      var y = a.startY + (a.endY - a.startY) * e - Math.sin(t * Math.PI) * 40 * S;
+      var sc = 1 + Math.sin(t * Math.PI) * 0.25;
+      if (tick % 3 === 0) {
+        particles.push({
+          x: x, y: y, vx: (Math.random() - 0.5) * 0.6 * S, vy: 0.4 * S,
+          r: (2 + Math.random() * 2) * S, color: COLORS[a.ci].light,
+          life: 0.6, decay: 0.04, grav: false
+        });
+      }
+      drawMarble(x, y, mr, a.ci, sc);
+    } else {
+      // Hover at endpoint, pulsing while waiting for cell to clear
+      var h = a.holdT || 0;
+      var bob = Math.sin(h * 0.12) * 3 * S;
+      var pulse = 1 + Math.sin(h * 0.18) * 0.15;
+      var x2 = a.endX;
+      var y2 = a.endY + bob;
+      ctx.save();
+      ctx.globalAlpha = 0.85;
+      // Soft halo
+      var hg = ctx.createRadialGradient(x2, y2, 0, x2, y2, mr * 2.4);
+      hg.addColorStop(0, COLORS[a.ci].glow);
+      hg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = hg;
+      ctx.beginPath(); ctx.arc(x2, y2, mr * 2.4 * pulse, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      drawMarble(x2, y2, mr, a.ci, pulse);
+      if (tick % 6 === 0) {
+        particles.push({
+          x: x2, y: y2, vx: (Math.random() - 0.5) * 0.4 * S, vy: -0.3 * S,
+          r: (1.5 + Math.random() * 2) * S, color: COLORS[a.ci].light,
+          life: 0.5, decay: 0.05, grav: false
+        });
+      }
     }
-    drawMarble(x, y, mr, a.ci, sc);
   }
 }
 
 // ── Trigger replacers when a colored box is played ──
-function notifyReplacers(playedCi) {
+// originIdx is the grid cell of the box that was just tapped — used as
+// a fallback spawn target when the board has no truly-open cells yet.
+function notifyReplacers(playedCi, originIdx) {
   if (playedCi < 0 || playedCi >= NUM_COLORS) return;
   for (var i = 0; i < stock.length; i++) {
     var s = stock[i];
@@ -246,10 +275,14 @@ function notifyReplacers(playedCi) {
     var cx = rect.x + rect.w / 2;
     var cy = rect.y + rect.h / 2;
 
-    // Pick a random open cell to spawn into
+    // Pick a random open cell to spawn into. Falls back to the cell of
+    // the box that triggered this tick (originIdx) — that cell is about
+    // to become empty as its marbles dispense, so the spawn anim simply
+    // hovers at the endpoint until the cell is free.
     var openIdxs = [];
     for (var k = 0; k < stock.length; k++) {
       if (k === i || k === s.replacerSecondaryIdx) continue;
+      if (k === originIdx) continue;
       var t = stock[k];
       if (!t) continue;
       if (t.isReplacer || t.isReplacerSecondary) continue;
@@ -257,8 +290,17 @@ function notifyReplacers(playedCi) {
       if (t.empty || t.used) openIdxs.push(k);
     }
 
+    var pick = -1;
     if (openIdxs.length > 0) {
-      var pick = openIdxs[Math.floor(Math.random() * openIdxs.length)];
+      pick = openIdxs[Math.floor(Math.random() * openIdxs.length)];
+    } else if (originIdx !== undefined && originIdx >= 0 && originIdx < stock.length) {
+      var ot = stock[originIdx];
+      if (ot && !ot.isReplacer && !ot.isReplacerSecondary && !ot.isTunnel && !ot.isWall) {
+        pick = originIdx;
+      }
+    }
+
+    if (pick >= 0) {
       var tgt = stock[pick];
       replacerSpawnAnims.push({
         ci: s.replacerCi,
@@ -266,7 +308,8 @@ function notifyReplacers(playedCi) {
         endX: tgt.x + L.bw / 2,
         endY: tgt.y + L.bh / 2,
         endIdx: pick,
-        t: 0
+        t: 0,
+        holdT: 0
       });
     }
 
@@ -416,13 +459,45 @@ function updateReplacers() {
       }
     }
   }
-  // Animate fly-out spawns
+  // Animate fly-out spawns. After the arc finishes, the anim holds at
+  // the endpoint until the target cell becomes empty/used, then the new
+  // box materializes. A safety cap (~5s of waiting) re-targets to any
+  // open cell, or drops the spawn if nothing is available.
   for (var k = replacerSpawnAnims.length - 1; k >= 0; k--) {
     var a = replacerSpawnAnims[k];
-    a.t++;
-    if (a.t >= REPLACER_SPAWN_FRAMES) {
+    if (a.t < REPLACER_SPAWN_FRAMES) {
+      a.t++;
+      continue;
+    }
+    var tgt = stock[a.endIdx];
+    var ready = tgt && (tgt.empty || tgt.used) &&
+                !tgt.isReplacer && !tgt.isReplacerSecondary &&
+                !tgt.isTunnel && !tgt.isWall;
+    if (ready) {
       materializeReplacerBox(a.ci, a.endIdx);
       replacerSpawnAnims.splice(k, 1);
+      continue;
+    }
+    a.holdT++;
+    if (a.holdT > 300) {
+      // Look for any open cell to retarget to
+      var alt = [];
+      for (var n = 0; n < stock.length; n++) {
+        var nt = stock[n];
+        if (!nt) continue;
+        if (nt.isReplacer || nt.isReplacerSecondary || nt.isTunnel || nt.isWall) continue;
+        if (nt.empty || nt.used) alt.push(n);
+      }
+      if (alt.length > 0) {
+        var npick = alt[Math.floor(Math.random() * alt.length)];
+        var nt2 = stock[npick];
+        a.endIdx = npick;
+        a.endX = nt2.x + L.bw / 2;
+        a.endY = nt2.y + L.bh / 2;
+        a.holdT = 0;
+      } else {
+        replacerSpawnAnims.splice(k, 1);
+      }
     }
   }
 }
