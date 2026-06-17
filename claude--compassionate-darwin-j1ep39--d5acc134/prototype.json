@@ -1,0 +1,22 @@
+{
+  "name": "Box Replacer",
+  "description": "A 2-cell cover hides two boxes. Play matching color to chip the counter and spawn replacement boxes — at zero, the cover lifts off.",
+  "howToPlay": "Tap the bottom row first (no Replacer-matching colors there) to free up space. Once the row above opens up, tap a Pink, Blue, or Green box — the matching Replacer's counter ticks down and a new same-color box spawns on a freed cell. Clear each Replacer to reveal the two boxes underneath.",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Replacer — Packed Grid",
+    "desc": "Full board, 3 Replacers. Clear the bottom row first to open spawn space, then chip each cover.",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      { "ci": 6, "type": "default" }, { "ci": 7, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 4, "type": "default" },
+      { "replacer": true, "orientation": "h", "ci": 0, "count": 3, "covered": [ { "ci": 4, "type": "default" }, { "ci": 5, "type": "default" } ] }, { "replacerRef": 7 }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 4, "type": "default" }, { "ci": 5, "type": "default" },
+      { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 4, "type": "default" }, { "ci": 5, "type": "default" }, { "ci": 6, "type": "default" }, { "ci": 7, "type": "default" }, { "ci": 0, "type": "default" },
+      { "ci": 5, "type": "default" }, { "ci": 6, "type": "default" }, { "replacer": true, "orientation": "h", "ci": 1, "count": 3, "covered": [ { "ci": 6, "type": "default" }, { "ci": 7, "type": "default" } ] }, { "replacerRef": 23 }, { "ci": 7, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" },
+      { "ci": 6, "type": "default" }, { "ci": 7, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 4, "type": "default" },
+      { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 4, "type": "default" }, { "replacer": true, "orientation": "h", "ci": 2, "count": 3, "covered": [ { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" } ] }, { "replacerRef": 39 }, { "ci": 6, "type": "default" },
+      { "ci": 3, "type": "default" }, { "ci": 4, "type": "default" }, { "ci": 5, "type": "default" }, { "ci": 6, "type": "default" }, { "ci": 7, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 4, "type": "default" }
+    ]
+  }
+}

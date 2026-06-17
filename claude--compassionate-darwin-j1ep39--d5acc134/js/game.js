@@ -397,7 +397,7 @@ function handleTap(px, py) {
       var playedCi = b.ci;
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
-      if (typeof notifyReplacers === 'function') notifyReplacers(playedCi);
+      if (typeof notifyReplacers === 'function') notifyReplacers(playedCi, i);
       return;
     }
   }
