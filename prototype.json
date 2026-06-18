@@ -6,7 +6,7 @@
   "showcaseLevel": {
     "name": "Double Pin Showcase",
     "desc": "Two horizontal pins on top, a vertical pin in the middle.",
-    "mrbPerBox": 3,
+    "mrbPerBox": 9,
     "sortCap": 3,
     "lockButtons": 0,
     "grid": [
