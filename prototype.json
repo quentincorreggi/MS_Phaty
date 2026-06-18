@@ -5,7 +5,7 @@
   "author": "Claude",
   "showcaseLevel": {
     "name": "Double Pin Showcase",
-    "desc": "Two horizontal pins on top, a vertical pin in the middle.",
+    "desc": "Two vertical pins running through the middle rows.",
     "mrbPerBox": 9,
     "sortCap": 3,
     "lockButtons": 0,
@@ -208,31 +208,22 @@
     "pins": [
       {
         "cells": [
-          1,
-          2
-        ],
-        "orient": "h",
-        "keyA": 0,
-        "keyB": 3
-      },
-      {
-        "cells": [
-          4,
-          5,
-          6
-        ],
-        "orient": "h",
-        "keyA": 3,
-        "keyB": 13
-      },
-      {
-        "cells": [
-          24,
-          31
+          16,
+          23
         ],
         "orient": "v",
-        "keyA": 17,
-        "keyB": 38
+        "keyA": 9,
+        "keyB": 30
+      },
+      {
+        "cells": [
+          18,
+          25,
+          32
+        ],
+        "orient": "v",
+        "keyA": 11,
+        "keyB": 39
       }
     ]
   }
