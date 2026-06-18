@@ -136,6 +136,31 @@
     transition:transform 0.35s cubic-bezier(.34,1.56,.64,1),opacity 0.3s}
   #ed-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
+  /* ═══ PIN EDITOR ═══ */
+  .ed-pin-overlay{
+    align-self:stretch;justify-self:stretch;
+    margin:18% 4%;
+    background:linear-gradient(180deg,rgba(244,246,250,0.88) 0%,rgba(200,206,214,0.92) 45%,rgba(166,174,185,0.92) 55%,rgba(106,114,128,0.92) 100%);
+    border:1.5px solid rgba(40,50,64,0.7);
+    border-radius:999px;
+    box-shadow:0 3px 7px rgba(0,0,0,0.30),inset 0 1px 0 rgba(255,255,255,0.55);
+    pointer-events:auto;cursor:pointer;
+    z-index:2;transition:transform 0.12s;
+  }
+  .ed-pin-overlay.vert{
+    margin:4% 18%;
+    background:linear-gradient(90deg,rgba(244,246,250,0.88) 0%,rgba(200,206,214,0.92) 45%,rgba(166,174,185,0.92) 55%,rgba(106,114,128,0.92) 100%);
+  }
+  .ed-pin-overlay:hover{transform:scale(1.04)}
+  .ed-pin-overlay.selected{box-shadow:0 0 0 2px #FFD080,0 3px 7px rgba(0,0,0,0.30),inset 0 1px 0 rgba(255,255,255,0.55)}
+  .ed-key-badge{position:absolute;left:-2px;top:-2px;background:#8A92A0;color:#fff;
+    font-size:10px;font-weight:700;min-width:15px;height:15px;border-radius:8px;padding:0 3px;
+    display:flex;align-items:center;justify-content:center;pointer-events:none;
+    box-shadow:0 1px 2px rgba(0,0,0,0.25);border:1px solid #5E6672;line-height:1;z-index:3}
+  .ed-pin-key-row{display:flex;align-items:center;gap:8px;margin:4px 0}
+  .ed-pin-key-row label{font-size:11px;color:#5A4A38;flex-shrink:0;min-width:96px}
+  .ed-pin-key-select{flex:1}
+
   /* ═══ TUNNEL EDITOR ═══ */
   #ed-tunnel-panel{display:none;background:rgba(61,53,72,0.08);border-radius:12px;padding:10px 12px;
     border:1.5px solid rgba(106,96,112,0.25)}
@@ -232,6 +257,9 @@
     <div class="ed-section" id="ed-tunnel-panel">
       <!-- Tunnel contents editor — populated dynamically -->
     </div>
+    <div class="ed-section" id="ed-pin-panel" style="display:none">
+      <!-- Pin editor — populated dynamically -->
+    </div>
     <div class="ed-section">
       <div class="ed-section-title"><span class="icon">&#9881;</span> Settings</div>
       <div id="ed-settings-body"></div>
@@ -267,6 +295,7 @@
 <script src="js/physics.js"></script>
 <script src="js/tunnel.js"></script>
 <script src="js/wall.js"></script>
+<script src="js/pin.js"></script>
 <script src="js/rendering.js"></script>
 <script src="js/editor.js"></script>
 <script src="js/game.js"></script>

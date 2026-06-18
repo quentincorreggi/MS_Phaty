@@ -24,7 +24,9 @@ var sfx = {
   drop: function () { tone(400, 0.08, 'sine', 0.04, 200); },
   sort: function () { tone(600, 0.1, 'triangle', 0.1); setTimeout(function () { tone(900, 0.1, 'triangle', 0.1); }, 80); },
   complete: function () { [523, 659, 784, 1047].forEach(function (f, i) { setTimeout(function () { tone(f, 0.2, 'sine', 0.1); }, i * 90); }); },
-  win: function () { [523, 659, 784, 1047, 1319, 1568].forEach(function (f, i) { setTimeout(function () { tone(f, 0.25, 'sine', 0.12); }, i * 100); }); }
+  win: function () { [523, 659, 784, 1047, 1319, 1568].forEach(function (f, i) { setTimeout(function () { tone(f, 0.25, 'sine', 0.12); }, i * 100); }); },
+  pinClink: function () { tone(1750, 0.08, 'triangle', 0.09, 900); setTimeout(function () { tone(2400, 0.05, 'triangle', 0.05); }, 30); },
+  pinSwoosh: function () { tone(520, 0.22, 'sawtooth', 0.06, 180); setTimeout(function () { tone(880, 0.18, 'sine', 0.07, 320); }, 60); }
 };
 
 function spawnMarbleClick(intensity) {

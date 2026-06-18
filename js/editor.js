@@ -6,6 +6,7 @@
 
 var editor = {
   grid: [],            // 7x7: null = empty, { ci, type } or { tunnel: true, ... } or { wall: true }
+  pins: [],            // [{ cells:[idx,...], orient:'h'|'v', keyA: idx, keyB: idx }]
   name: 'Custom Level',
   desc: 'My custom level',
   mrbPerBox: 9,
@@ -17,12 +18,17 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  pinMode: false,       // true when placing pins
+  pinSize: 2,           // 2 or 3
+  pinPickFirst: -1,     // first endpoint cell while placing
+  selectedPin: -1,      // index in editor.pins for side panel
   visible: false
 };
 
 function editorInit() {
   editor.grid = [];
   for (var i = 0; i < 49; i++) editor.grid.push(null);
+  editor.pins = [];
   editor.name = 'Custom Level';
   editor.desc = 'My custom level';
   editor.mrbPerBox = 9;
@@ -34,6 +40,10 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.pinMode = false;
+  editor.pinSize = 2;
+  editor.pinPickFirst = -1;
+  editor.selectedPin = -1;
 }
 
 function showEditor(fresh) {
@@ -60,12 +70,32 @@ function editorBuildUI() {
   editorRenderSettings();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderPinPanel();
 }
 
 // ── Grid ──
 function editorRenderGrid() {
   var el = document.getElementById('ed-grid');
   el.innerHTML = '';
+  // Precompute pin maps for fast lookups
+  var pinnedCells = {};   // cellIdx → array of pin indices
+  var keyCells = {};      // cellIdx → array of { pinIdx, endLabel }
+  for (var pi = 0; pi < editor.pins.length; pi++) {
+    var p = editor.pins[pi];
+    for (var cc = 0; cc < p.cells.length; cc++) {
+      var ci = p.cells[cc];
+      if (!pinnedCells[ci]) pinnedCells[ci] = [];
+      pinnedCells[ci].push(pi);
+    }
+    if (p.keyA != null) {
+      if (!keyCells[p.keyA]) keyCells[p.keyA] = [];
+      keyCells[p.keyA].push({ pinIdx: pi, endLabel: 'A' });
+    }
+    if (p.keyB != null) {
+      if (!keyCells[p.keyB]) keyCells[p.keyB] = [];
+      keyCells[p.keyB].push({ pinIdx: pi, endLabel: 'B' });
+    }
+  }
   for (var i = 0; i < 49; i++) {
     var cell = document.createElement('div');
     cell.className = 'ed-cell';
@@ -95,15 +125,95 @@ function editorRenderGrid() {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
     }
+    // Pick-first ghost while placing a pin
+    if (editor.pinMode && editor.pinPickFirst === i) {
+      cell.style.boxShadow = '0 0 0 2px rgba(200,206,220,0.9)';
+    }
+    // Key marker overlay
+    if (keyCells[i]) {
+      var kb = document.createElement('span');
+      kb.className = 'ed-key-badge';
+      kb.textContent = '⚿'; // key glyph
+      cell.appendChild(kb);
+    }
     cell.setAttribute('data-idx', i);
     cell.addEventListener('click', editorCellClick);
     cell.addEventListener('contextmenu', editorCellErase);
     el.appendChild(cell);
   }
+  // Pin bar overlays — append after cells so they layer above
+  for (var pi2 = 0; pi2 < editor.pins.length; pi2++) {
+    var pn = editor.pins[pi2];
+    if (!pn.cells || pn.cells.length < 2) continue;
+    var first = pn.cells[0], last = pn.cells[pn.cells.length - 1];
+    var r1 = Math.floor(first / 7), c1 = first % 7;
+    var r2 = Math.floor(last / 7), c2 = last % 7;
+    var overlay = document.createElement('div');
+    overlay.className = 'ed-pin-overlay' + (editor.selectedPin === pi2 ? ' selected' : '');
+    overlay.setAttribute('data-pin', pi2);
+    if (pn.orient === 'h') {
+      overlay.style.gridRow = (r1 + 1) + '';
+      overlay.style.gridColumn = (Math.min(c1, c2) + 1) + ' / span ' + (Math.abs(c2 - c1) + 1);
+      overlay.classList.add('horiz');
+    } else {
+      overlay.style.gridColumn = (c1 + 1) + '';
+      overlay.style.gridRow = (Math.min(r1, r2) + 1) + ' / span ' + (Math.abs(r2 - r1) + 1);
+      overlay.classList.add('vert');
+    }
+    overlay.addEventListener('click', editorPinOverlayClick);
+    el.appendChild(overlay);
+  }
+}
+
+function editorPinOverlayClick(e) {
+  e.stopPropagation();
+  var pi = parseInt(e.currentTarget.getAttribute('data-pin'));
+  editor.selectedPin = pi;
+  editor.selectedTunnel = -1;
+  editor.pinMode = true;
+  editor.tunnelMode = false;
+  editor.wallMode = false;
+  editor.pinPickFirst = -1;
+  editorRenderGrid();
+  editorRenderToolbar();
+  editorRenderPinPanel();
+  editorRenderTunnelPanel();
 }
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.pinMode) {
+    // Pin placement: pick two endpoint cells.
+    // If clicked cell already belongs to a placed pin → select that pin.
+    var hitPin = editorPinAtCell(idx);
+    if (hitPin >= 0) {
+      editor.selectedPin = hitPin;
+      editor.pinPickFirst = -1;
+      editorRenderGrid();
+      editorRenderPinPanel();
+      return;
+    }
+    if (editor.pinPickFirst < 0) {
+      editor.pinPickFirst = idx;
+      editorRenderGrid();
+      editorShowToast('Pick the other endpoint');
+      return;
+    }
+    var ok = editorTryPlacePin(editor.pinPickFirst, idx);
+    if (!ok) {
+      // Restart pick from this cell
+      editor.pinPickFirst = idx;
+      editorRenderGrid();
+      editorShowToast('Pick a cell ' + (editor.pinSize - 1) + ' away in same row/col');
+      return;
+    }
+    editor.pinPickFirst = -1;
+    editorRenderGrid();
+    editorRenderPinPanel();
+    editorUpdateStats();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -159,9 +269,11 @@ function editorCellErase(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
   editor.grid[idx] = null;
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+  editorRemovePinsTouchingCell(idx);
   editorRenderGrid();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderPinPanel();
 }
 
 // ── Toolbar: mode toggle + type selector + color/direction palette ──
@@ -178,15 +290,19 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.pinMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.pinMode = false;
+      editor.pinPickFirst = -1;
       editorRenderToolbar();
       editorRenderTunnelPanel();
+      editorRenderPinPanel();
+      editorRenderGrid();
     });
     typeRow.appendChild(tb);
   }
@@ -200,8 +316,12 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.pinMode = false;
+    editor.pinPickFirst = -1;
     editorRenderToolbar();
     editorRenderTunnelPanel();
+    editorRenderPinPanel();
+    editorRenderGrid();
   });
   typeRow.appendChild(wallBtn);
 
@@ -214,10 +334,47 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.pinMode = false;
+    editor.pinPickFirst = -1;
     editorRenderToolbar();
     editorRenderTunnelPanel();
+    editorRenderPinPanel();
+    editorRenderGrid();
   });
   typeRow.appendChild(tunnelBtn);
+
+  // Pin 2 + Pin 3 mode buttons
+  var pin2Btn = document.createElement('button');
+  pin2Btn.className = 'ed-type-btn' + (editor.pinMode && editor.pinSize === 2 ? ' active' : '');
+  pin2Btn.textContent = '\u2696 Pin 2\u00D7';
+  pin2Btn.style.borderColor = (editor.pinMode && editor.pinSize === 2) ? 'rgba(110,118,130,0.6)' : '';
+  pin2Btn.style.color = (editor.pinMode && editor.pinSize === 2) ? '#5E6672' : '';
+  pin2Btn.addEventListener('click', function () {
+    editor.pinMode = true; editor.pinSize = 2;
+    editor.wallMode = false; editor.tunnelMode = false;
+    editor.pinPickFirst = -1;
+    editorRenderToolbar();
+    editorRenderPinPanel();
+    editorRenderTunnelPanel();
+    editorRenderGrid();
+  });
+  typeRow.appendChild(pin2Btn);
+
+  var pin3Btn = document.createElement('button');
+  pin3Btn.className = 'ed-type-btn' + (editor.pinMode && editor.pinSize === 3 ? ' active' : '');
+  pin3Btn.textContent = '\u2696 Pin 3\u00D7';
+  pin3Btn.style.borderColor = (editor.pinMode && editor.pinSize === 3) ? 'rgba(110,118,130,0.6)' : '';
+  pin3Btn.style.color = (editor.pinMode && editor.pinSize === 3) ? '#5E6672' : '';
+  pin3Btn.addEventListener('click', function () {
+    editor.pinMode = true; editor.pinSize = 3;
+    editor.wallMode = false; editor.tunnelMode = false;
+    editor.pinPickFirst = -1;
+    editorRenderToolbar();
+    editorRenderPinPanel();
+    editorRenderTunnelPanel();
+    editorRenderGrid();
+  });
+  typeRow.appendChild(pin3Btn);
 
   el.appendChild(typeRow);
 
@@ -260,6 +417,14 @@ function editorRenderToolbar() {
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
+  } else if (editor.pinMode) {
+    var pinInfo = document.createElement('div');
+    pinInfo.className = 'ed-color-row';
+    var hint = (editor.pinPickFirst < 0)
+      ? 'Click the first endpoint cell'
+      : 'Click the other endpoint (' + (editor.pinSize - 1) + ' away)';
+    pinInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">' + hint + ' &middot; click existing bar to edit</span>';
+    el.appendChild(pinInfo);
   } else {
     // Color palette: eraser + 8 colors
     var colorRow = document.createElement('div');
@@ -426,6 +591,207 @@ function editorRenderTunnelPanel() {
   }
 }
 
+// ── Pin helpers ──
+function editorPinAtCell(idx) {
+  for (var i = 0; i < editor.pins.length; i++) {
+    var p = editor.pins[i];
+    if (p.cells.indexOf(idx) >= 0) return i;
+  }
+  return -1;
+}
+
+function editorRemovePinsTouchingCell(idx) {
+  var kept = [];
+  var droppedAny = false;
+  for (var i = 0; i < editor.pins.length; i++) {
+    var p = editor.pins[i];
+    if (p.cells.indexOf(idx) >= 0 || p.keyA === idx || p.keyB === idx) {
+      droppedAny = true;
+      continue;
+    }
+    kept.push(p);
+  }
+  editor.pins = kept;
+  if (droppedAny) editor.selectedPin = -1;
+}
+
+function editorPinKeyCandidates(cells) {
+  // For each endpoint, return candidate cell indices (cardinal neighbors
+  // not inside the bar's cells). Order: outward-along-axis first.
+  var first = cells[0], last = cells[cells.length - 1];
+  var r1 = Math.floor(first / 7), c1 = first % 7;
+  var r2 = Math.floor(last / 7), c2 = last % 7;
+  var orient = (r1 === r2) ? 'h' : 'v';
+  function cardinalsExcluding(idx, excludeSet) {
+    var row = Math.floor(idx / 7), col = idx % 7;
+    var out = [];
+    var raw = [];
+    if (row > 0)        raw.push((row - 1) * 7 + col);
+    if (row < 6)        raw.push((row + 1) * 7 + col);
+    if (col > 0)        raw.push(row * 7 + (col - 1));
+    if (col < 6)        raw.push(row * 7 + (col + 1));
+    for (var i = 0; i < raw.length; i++) if (excludeSet.indexOf(raw[i]) < 0) out.push(raw[i]);
+    return out;
+  }
+  function outwardFirst(idx, isFirst) {
+    var row = Math.floor(idx / 7), col = idx % 7;
+    var outward;
+    if (orient === 'h') outward = isFirst ? (col > 0 ? row * 7 + (col - 1) : -1) : (col < 6 ? row * 7 + (col + 1) : -1);
+    else outward = isFirst ? (row > 0 ? (row - 1) * 7 + col : -1) : (row < 6 ? (row + 1) * 7 + col : -1);
+    var all = cardinalsExcluding(idx, cells);
+    if (outward >= 0) {
+      var i = all.indexOf(outward);
+      if (i > 0) { all.splice(i, 1); all.unshift(outward); }
+    }
+    return all;
+  }
+  return {
+    A: outwardFirst(first, true),
+    B: outwardFirst(last, false)
+  };
+}
+
+function editorTryPlacePin(firstIdx, secondIdx) {
+  if (firstIdx === secondIdx) return false;
+  var r1 = Math.floor(firstIdx / 7), c1 = firstIdx % 7;
+  var r2 = Math.floor(secondIdx / 7), c2 = secondIdx % 7;
+  var size = editor.pinSize;
+  if (r1 === r2) {
+    if (Math.abs(c2 - c1) !== size - 1) return false;
+    var lo = Math.min(c1, c2), hi = Math.max(c1, c2);
+    var cells = [];
+    for (var c = lo; c <= hi; c++) cells.push(r1 * 7 + c);
+    var cands = editorPinKeyCandidates(cells);
+    if (!cands.A.length || !cands.B.length) {
+      editorShowToast('Pin endpoints need adjacent cells in the grid');
+      return false;
+    }
+    editor.pins.push({
+      cells: cells, orient: 'h',
+      keyA: cands.A[0], keyB: cands.B[0] === cands.A[0] ? (cands.B[1] != null ? cands.B[1] : cands.B[0]) : cands.B[0]
+    });
+  } else if (c1 === c2) {
+    if (Math.abs(r2 - r1) !== size - 1) return false;
+    var loR = Math.min(r1, r2), hiR = Math.max(r1, r2);
+    var cellsV = [];
+    for (var rr = loR; rr <= hiR; rr++) cellsV.push(rr * 7 + c1);
+    var candsV = editorPinKeyCandidates(cellsV);
+    if (!candsV.A.length || !candsV.B.length) {
+      editorShowToast('Pin endpoints need adjacent cells in the grid');
+      return false;
+    }
+    editor.pins.push({
+      cells: cellsV, orient: 'v',
+      keyA: candsV.A[0], keyB: candsV.B[0] === candsV.A[0] ? (candsV.B[1] != null ? candsV.B[1] : candsV.B[0]) : candsV.B[0]
+    });
+  } else {
+    return false;
+  }
+  editor.selectedPin = editor.pins.length - 1;
+  return true;
+}
+
+function editorCellLabel(idx) {
+  var v = editor.grid[idx];
+  var rr = Math.floor(idx / 7) + 1, cc = (idx % 7) + 1;
+  var coord = '(' + rr + ',' + cc + ')';
+  if (!v) return coord + ' empty';
+  if (v.wall) return coord + ' wall';
+  if (v.tunnel) return coord + ' tunnel';
+  var bt = (BoxTypes[v.type] || BoxTypes[BoxTypeOrder[0]]);
+  return coord + ' ' + (CLR_NAMES[v.ci] || 'color' + v.ci) + ' ' + bt.label.toLowerCase();
+}
+
+function editorCellIsValidKey(idx) {
+  var v = editor.grid[idx];
+  if (!v) return false;
+  if (v.wall) return false;
+  if (v.tunnel) return false;
+  return true;
+}
+
+function editorRenderPinPanel() {
+  var container = document.getElementById('ed-pin-panel');
+  if (!container) return;
+
+  if (!editor.pinMode || editor.selectedPin < 0 || !editor.pins[editor.selectedPin]) {
+    container.style.display = 'none';
+    return;
+  }
+
+  var p = editor.pins[editor.selectedPin];
+  container.style.display = 'block';
+
+  var html = '';
+  html += '<div class="ed-section-title"><span class="icon">⚖</span> Pin ' + p.cells.length + '× ' +
+          (p.orient === 'h' ? '(horizontal)' : '(vertical)') + '</div>';
+
+  // Cells covered
+  var coveredLabels = [];
+  for (var k = 0; k < p.cells.length; k++) coveredLabels.push(editorCellLabel(p.cells[k]));
+  html += '<div style="font-size:11px;color:#5A4A38;margin:2px 0 8px"><strong>Covers:</strong> ' + coveredLabels.join(' &middot; ') + '</div>';
+
+  // Key dropdowns
+  var cands = editorPinKeyCandidates(p.cells);
+  var ends = [
+    { lbl: 'Key for end A', value: p.keyA, opts: cands.A, attr: 'A' },
+    { lbl: 'Key for end B', value: p.keyB, opts: cands.B, attr: 'B' }
+  ];
+  for (var e = 0; e < ends.length; e++) {
+    var end = ends[e];
+    html += '<div class="ed-pin-key-row"><label>' + end.lbl + '</label>';
+    html += '<select class="ed-tunnel-select ed-pin-key-select" data-end="' + end.attr + '">';
+    for (var oi = 0; oi < end.opts.length; oi++) {
+      var optIdx = end.opts[oi];
+      var sel = (optIdx === end.value) ? ' selected' : '';
+      html += '<option value="' + optIdx + '"' + sel + '>' + editorCellLabel(optIdx) + '</option>';
+    }
+    html += '</select></div>';
+  }
+
+  // Warnings
+  var warn = '';
+  if (p.keyA === p.keyB) warn = 'Both ends point at the same cell';
+  if (!warn && !editorCellIsValidKey(p.keyA)) warn = 'End A key is not a tappable box';
+  if (!warn && !editorCellIsValidKey(p.keyB)) warn = 'End B key is not a tappable box';
+  if (!warn) {
+    for (var ck = 0; ck < p.cells.length; ck++) {
+      var v = editor.grid[p.cells[ck]];
+      if (!v || v.wall || v.tunnel) { warn = 'Covered cell ' + editorCellLabel(p.cells[ck]) + ' has no box'; break; }
+    }
+  }
+  if (warn) html += '<div class="ed-stat-warn" style="margin:6px 0">' + warn + '</div>';
+
+  // Delete button
+  html += '<div style="text-align:center;margin-top:6px"><button class="ed-qbtn" id="ed-pin-delete">Delete pin</button></div>';
+
+  container.innerHTML = html;
+
+  // Bind events
+  var sels = container.querySelectorAll('.ed-pin-key-select');
+  for (var s2 = 0; s2 < sels.length; s2++) {
+    sels[s2].addEventListener('change', function () {
+      var endAttr = this.getAttribute('data-end');
+      var val = parseInt(this.value);
+      if (editor.selectedPin < 0 || !editor.pins[editor.selectedPin]) return;
+      if (endAttr === 'A') editor.pins[editor.selectedPin].keyA = val;
+      else editor.pins[editor.selectedPin].keyB = val;
+      editorRenderGrid();
+      editorRenderPinPanel();
+    });
+  }
+  var delBtn = document.getElementById('ed-pin-delete');
+  if (delBtn) {
+    delBtn.addEventListener('click', function () {
+      editor.pins.splice(editor.selectedPin, 1);
+      editor.selectedPin = -1;
+      editorRenderGrid();
+      editorRenderPinPanel();
+      editorUpdateStats();
+    });
+  }
+}
+
 // ── Quick actions ──
 function editorFillRandom() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
@@ -503,6 +869,9 @@ function editorUpdateStats() {
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
   }
+  if (editor.pins && editor.pins.length > 0) {
+    html += '<span class="ed-stat-chip" style="background:#8A92A0;border:1px solid #6E7682">' + editor.pins.length + ' pin' + (editor.pins.length > 1 ? 's' : '') + '</span>';
+  }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
   }
@@ -563,11 +932,21 @@ function editorRenderSettings() {
 
 // ── Build level definition ──
 function editorBuildLevel() {
+  var pinsOut = [];
+  for (var i = 0; i < editor.pins.length; i++) {
+    var p = editor.pins[i];
+    pinsOut.push({
+      cells: p.cells.slice(),
+      orient: p.orient,
+      keyA: p.keyA, keyB: p.keyB
+    });
+  }
   return {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
-    grid: editor.grid.slice()
+    grid: editor.grid.slice(),
+    pins: pinsOut
   };
 }
 
@@ -625,6 +1004,20 @@ function editorImportJSON() {
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
+      editor.pins = [];
+      if (lvl.pins && lvl.pins.length) {
+        for (var pi = 0; pi < lvl.pins.length; pi++) {
+          var lp = lvl.pins[pi];
+          if (!lp.cells || lp.cells.length < 2) continue;
+          var orient = lp.orient ||
+            ((Math.abs(lp.cells[1] - lp.cells[0]) === 1) ? 'h' : 'v');
+          editor.pins.push({
+            cells: lp.cells.slice(), orient: orient,
+            keyA: lp.keyA, keyB: lp.keyB
+          });
+        }
+      }
+      editor.selectedPin = -1;
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
       var nameEl = document.getElementById('ed-name');

@@ -142,6 +142,9 @@ function initGame() {
     }
   }
 
+  // ── Pins (overlay; must run before reveal evaluation so taps are gated correctly) ──
+  initPins(lvl.pins);
+
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
 
@@ -318,6 +321,7 @@ function isBoxTappable(idx) {
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
+  if (isCellPinned(idx)) return false;
   return b.revealed;
 }
 
@@ -333,11 +337,15 @@ function handleTap(px, py) {
     if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
-      if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
+      if (!isBoxTappable(i)) {
+        b.shakeT = 0.5;
+        if (isCellPinned(i)) { pinRejectShakeAt(i); sfx.pop(); }
+        return;
+      }
       b.popT = 1;
       sfx.pop();
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
-      spawnPhysMarbles(b);
+      spawnPhysMarbles(b, i);
       damageAdjacentIce(i);
       return;
     }
@@ -373,6 +381,9 @@ function update() {
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
+
+  // ── Pin animations / slide-out ──
+  updatePins();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -545,6 +556,7 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    drawPins();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();
