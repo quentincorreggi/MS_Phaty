@@ -304,7 +304,7 @@ function drawBelt() {
 function drawBlockerProgress() {
   if (totalBlockerMarbles <= 0) return;
   var cx = L.beltCx;
-  var cy = (L.beltBotY + L.sTop) / 2;
+  var cy = (L.beltTopY + L.beltBotY) / 2;  // center of the conveyor
   var total = CHARGER_CAPACITY;
   var filled = Math.min(blockersOnBelt, CHARGER_CAPACITY);
   var dotR = 3.5 * S;
@@ -313,12 +313,12 @@ function drawBlockerProgress() {
   var pillW = Math.max((total - 1) * gap + dotR * 5, dotR * 6);
   var pillH = dotR * 3.2;
   ctx.save();
-  ctx.fillStyle = 'rgba(122,112,104,0.10)';
+  ctx.fillStyle = 'rgba(255,140,26,0.14)';
   rRect(cx - pillW / 2, cy - pillH / 2, pillW, pillH, pillH / 2); ctx.fill();
-  ctx.strokeStyle = 'rgba(122,112,104,0.18)'; ctx.lineWidth = 1 * S;
+  ctx.strokeStyle = 'rgba(255,140,26,0.34)'; ctx.lineWidth = 1 * S;
   rRect(cx - pillW / 2, cy - pillH / 2, pillW, pillH, pillH / 2); ctx.stroke();
   var iconX = cx - pillW / 2 - dotR * 2.5;
-  var bc = COLORS[BLOCKER_CI];
+  var bc = CHARGER_COLOR;
   ctx.globalAlpha = 0.4;
   var icGrd = ctx.createRadialGradient(iconX, cy, 0, iconX, cy, dotR * 1.1);
   icGrd.addColorStop(0, bc.light); icGrd.addColorStop(1, bc.dark);
@@ -341,7 +341,7 @@ function drawBlockerProgress() {
         ctx.globalAlpha = 1;
       }
     } else {
-      ctx.strokeStyle = 'rgba(122,112,104,0.22)'; ctx.lineWidth = 1 * S;
+      ctx.strokeStyle = 'rgba(255,140,26,0.40)'; ctx.lineWidth = 1 * S;
       ctx.setLineDash([2 * S, 2 * S]);
       ctx.beginPath(); ctx.arc(dx, cy, dotR * 0.65, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);

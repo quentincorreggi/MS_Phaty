@@ -49,6 +49,8 @@ var BLOCKER_PER_BOX = 3;
 // resets so it can fill again. Repeatable; not tied to the level total, so
 // leftover blockers that can't reach this count just circulate like clutter.
 var CHARGER_CAPACITY = 9;
+// Charger UI color — orange, drawn at the center of the conveyor.
+var CHARGER_COLOR = { fill: '#FF8C1A', light: '#FFB259', dark: '#CC6A00', glow: 'rgba(255,140,26,0.55)' };
 
 // Blocker tracking state
 var totalBlockerMarbles = 0;

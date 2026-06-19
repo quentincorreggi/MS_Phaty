@@ -1,0 +1,22 @@
+{
+  "name": "Layered Blocker Marbles",
+  "description": "Some boxes hide 3 neutral blocker marbles among their colored ones. Blockers can never be served, so they crowd the conveyor — but the moment 9 of them are riding the belt at once, the orange charger in the middle of the conveyor sweeps all 9 off in one burst and resets, ready to fill again.",
+  "howToPlay": "Every cell is a box, so you dig from the bottom up — tap a box to empty it and reveal the one above. Six boxes are gray-striped blocker boxes (with a little lock). Blocker marbles can't be served and pile up on the belt; watch the orange charger in the center of the conveyor fill one pip per blocker. When 9 are riding the belt it sweeps all 9 off and resets. There are 18 blockers, so it fires twice. Sort all the colored marbles to win (heads up: a fully packed board is a LOT of marbles to clear).",
+  "author": "Ilayda Arslan",
+  "showcaseLevel": {
+    "name": "Full Maze Charger",
+    "desc": "Every cell filled; 6 blocker boxes feed the orange charger.",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" },
+      { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" },
+      { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" },
+      { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" },
+      { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" },
+      { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 0, "type": "blocker" }, { "ci": 3, "type": "default" }, { "ci": 1, "type": "blocker" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" },
+      { "ci": 2, "type": "blocker" }, { "ci": 0, "type": "default" }, { "ci": 3, "type": "blocker" }, { "ci": 1, "type": "default" }, { "ci": 0, "type": "blocker" }, { "ci": 2, "type": "default" }, { "ci": 1, "type": "blocker" }
+    ]
+  }
+}
