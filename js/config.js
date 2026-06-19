@@ -8,6 +8,7 @@ var W = 0, H = 0, S = 1;
 var L = {};
 var beltPath = [];
 var stock = [], sortCols = [], particles = [], physMarbles = [], jumpers = [];
+var plates = []; // spinning-plate turntables (see plate.js)
 var score = 0, won = false, tick = 0, hoverIdx = -1;
 var audioCtx = null;
 

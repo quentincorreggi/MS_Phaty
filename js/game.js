@@ -29,7 +29,7 @@ function startLevel(idx) {
 
 // === GAME INIT ===
 function initGame() {
-  won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
+  won = false; score = 0; particles = []; physMarbles = []; jumpers = []; plates = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
   document.getElementById('win-screen').classList.remove('show');
@@ -55,7 +55,7 @@ function initGame() {
       } else if (typeof cell === 'number') {
         if (cell >= 0) boxSlots[i] = { ci: cell, boxType: 'default' };
       } else if (typeof cell === 'object' && cell.ci >= 0) {
-        boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default' };
+        boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default', plateId: (cell.plate ? cell.plateId : undefined) };
       }
     }
   }
@@ -136,11 +136,15 @@ function initGame() {
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        plateId: (slot.plateId !== undefined ? slot.plateId : -1),
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
     }
   }
+
+  // ── Group plate boxes into turntables ──
+  buildPlates();
 
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
@@ -317,6 +321,7 @@ function isBoxTappable(idx) {
   if (b.isWall) return false;      // walls are not tappable
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
+  if (b.plateSpinning) return false;   // mid-rotation — wait for it to settle
   if (b.iceHP > 0) return false;
   return b.revealed;
 }
@@ -339,6 +344,7 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      rotatePlates();   // every move spins the turntables 90deg clockwise
       return;
     }
   }
@@ -373,6 +379,9 @@ function update() {
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
+
+  // ── Spinning plates ──
+  updatePlates();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -544,6 +553,7 @@ function frame() {
     ctx.clearRect(0, 0, W, H);
     drawBackground();
     drawFunnel();
+    drawPlateBases();
     drawStock();
     drawPhysMarbles();
     drawBelt();

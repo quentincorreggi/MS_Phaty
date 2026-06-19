@@ -17,6 +17,7 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  plateMode: false,     // true when placing spinning plates
   visible: false
 };
 
@@ -34,6 +35,43 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.plateMode = false;
+}
+
+// ── Spinning-plate helpers ──
+// Plates occupy a 2x2 block of 4 box cells sharing a plateId.
+function editorNextPlateId() {
+  var max = 0;
+  for (var i = 0; i < editor.grid.length; i++) {
+    var v = editor.grid[i];
+    if (v && v.plate && v.plateId > max) max = v.plateId;
+  }
+  return max + 1;
+}
+
+function editorPlacePlate(idx) {
+  var r = Math.floor(idx / 7), c = idx % 7;
+  if (c > 5 || r > 5) { editorShowToast('Plate needs a 2x2 space inside the grid'); return; }
+  var seats = [idx, idx + 1, idx + 7, idx + 8]; // TL, TR, BL, BR
+  for (var s = 0; s < 4; s++) {
+    if (editor.grid[seats[s]]) { editorShowToast('Plate needs 4 empty cells'); return; }
+  }
+  var pid = editorNextPlateId();
+  var base = (editor.activeColor >= 0) ? editor.activeColor : 0;
+  // Seed four distinct colors so the spin is immediately visible.
+  for (var s2 = 0; s2 < 4; s2++) {
+    editor.grid[seats[s2]] = { plate: true, plateId: pid, ci: (base + s2) % NUM_COLORS, type: 'default' };
+  }
+}
+
+function editorRemovePlate(idx) {
+  var v = editor.grid[idx];
+  if (!v || !v.plate) return;
+  var pid = v.plateId;
+  for (var i = 0; i < editor.grid.length; i++) {
+    var g = editor.grid[i];
+    if (g && g.plate && g.plateId === pid) editor.grid[i] = null;
+  }
 }
 
 function showEditor(fresh) {
@@ -85,6 +123,14 @@ function editorRenderGrid() {
       var count = v.contents ? v.contents.length : 0;
       cell.innerHTML = '<span class="ed-cell-dot" style="color:#FFD080;font-size:13px">' + arrow +
         '</span><span class="ed-tunnel-badge">' + count + '</span>';
+    } else if (v && v.plate) {
+      // Spinning-plate seat — box color + teal turntable accent
+      var btp = getBoxType(v.type);
+      var stp = btp.editorCellStyle(v.ci);
+      cell.style.background = stp.background;
+      cell.style.borderColor = '#3FB8AE';
+      cell.style.boxShadow = 'inset 0 0 0 2px rgba(63,184,174,0.55)';
+      cell.innerHTML = btp.editorCellHTML(v.ci) + '<span class="ed-plate-badge">↻</span>';
     } else if (v && v.ci >= 0) {
       var bt = getBoxType(v.type);
       var st = bt.editorCellStyle(v.ci);
@@ -122,6 +168,22 @@ function editorCellClick(e) {
     return;
   }
 
+  if (editor.plateMode) {
+    // Plate mode: click empty cell to drop a 2x2 plate; click an
+    // existing plate seat to remove the whole plate.
+    var existingP = editor.grid[idx];
+    if (existingP && existingP.plate) {
+      editorRemovePlate(idx);
+    } else {
+      editorPlacePlate(idx);
+    }
+    if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderTunnelPanel();
+    return;
+  }
+
   if (editor.tunnelMode) {
     // In tunnel mode: place or select tunnel
     var existing = editor.grid[idx];
@@ -137,11 +199,18 @@ function editorCellClick(e) {
   } else {
     // Normal box painting mode
     if (editor.activeColor === -1) {
-      editor.grid[idx] = null;
+      // Eraser — removing any seat removes its whole plate.
+      var exEr = editor.grid[idx];
+      if (exEr && exEr.plate) editorRemovePlate(idx);
+      else editor.grid[idx] = null;
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     } else {
       var existing = editor.grid[idx];
-      if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
+      if (existing && existing.plate) {
+        // Recolor / retype a single plate seat, keep it on the plate.
+        existing.ci = editor.activeColor;
+        existing.type = editor.activeType;
+      } else if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
         editor.grid[idx] = null;
       } else {
         editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
@@ -157,7 +226,9 @@ function editorCellClick(e) {
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
-  editor.grid[idx] = null;
+  var ev = editor.grid[idx];
+  if (ev && ev.plate) editorRemovePlate(idx);
+  else editor.grid[idx] = null;
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
   editorRenderGrid();
   editorUpdateStats();
@@ -178,13 +249,14 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.plateMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.plateMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -200,6 +272,7 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.plateMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -214,10 +287,26 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.plateMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(tunnelBtn);
+
+  // Plate mode button
+  var plateBtn = document.createElement('button');
+  plateBtn.className = 'ed-type-btn' + (editor.plateMode ? ' active' : '');
+  plateBtn.textContent = '\uD83C\uDFA1 Plate';
+  plateBtn.style.borderColor = editor.plateMode ? 'rgba(63,184,174,0.7)' : '';
+  plateBtn.style.color = editor.plateMode ? '#2C8C84' : '';
+  plateBtn.addEventListener('click', function () {
+    editor.plateMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(plateBtn);
 
   el.appendChild(typeRow);
 
@@ -261,6 +350,13 @@ function editorRenderToolbar() {
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
   } else {
+    if (editor.plateMode) {
+      // Plate mode hint (the color palette below seeds the 1st seat)
+      var plateInfo = document.createElement('div');
+      plateInfo.className = 'ed-color-row';
+      plateInfo.innerHTML = '<span style="font-size:11px;color:#2C8C84">Click a cell = drop a 2×2 spinning plate &middot; click a plate to remove</span>';
+      el.appendChild(plateInfo);
+    }
     // Color palette: eraser + 8 colors
     var colorRow = document.createElement('div');
     colorRow.className = 'ed-color-row';
@@ -453,6 +549,7 @@ function editorUpdateStats() {
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
   var wallCount = 0;
+  var plateIds = {};
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
@@ -477,6 +574,7 @@ function editorUpdateStats() {
       }
       continue;
     }
+    if (v.plate) plateIds[v.plateId] = true;
     if (v.ci >= 0) {
       counts[v.ci]++;
       total++;
@@ -499,6 +597,11 @@ function editorUpdateStats() {
   }
   if (wallCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#8A7D6B">' + wallCount + ' wall' + (wallCount > 1 ? 's' : '') + '</span>';
+  }
+  var plateCount = 0;
+  for (var pk in plateIds) plateCount++;
+  if (plateCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#3FB8AE">' + plateCount + ' plate' + (plateCount > 1 ? 's' : '') + '</span>';
   }
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
@@ -619,6 +722,7 @@ function editorImportJSON() {
           else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
           else if (cell.wall) editor.grid[i] = { wall: true };
           else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
+          else if (cell.plate) editor.grid[i] = { plate: true, plateId: cell.plateId, ci: cell.ci, type: cell.type || 'default' };
           else editor.grid[i] = cell;
         }
       }

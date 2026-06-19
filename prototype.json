@@ -1,0 +1,22 @@
+{
+  "name": "Spinning Plates",
+  "description": "Four boxes ride a turntable that spins 90° clockwise on every move.",
+  "howToPlay": "Only the boxes at the bottom of the plate can be reached. Each tap pours that box's marbles AND spins the whole plate one quarter-turn clockwise — bringing a new color down into reach. Any tap counts as a move, so keep tapping to cycle every color out and sort them all!",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Spinning Plates",
+    "desc": "Spin the turntable to reach every color",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null, null, null, { "wall": true }, { "wall": true }, null, null,
+      null, null, { "wall": true }, { "plate": true, "plateId": 1, "ci": 0, "type": "default" }, { "plate": true, "plateId": 1, "ci": 1, "type": "default" }, { "wall": true }, null,
+      null, null, { "wall": true }, { "plate": true, "plateId": 1, "ci": 3, "type": "default" }, { "plate": true, "plateId": 1, "ci": 2, "type": "default" }, { "wall": true }, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}
