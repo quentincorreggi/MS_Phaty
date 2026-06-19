@@ -42,7 +42,11 @@ var NUM_COLORS = COLORS.length;
 
 // Blocker marble color — index 8, NOT included in NUM_COLORS
 var BLOCKER_CI = COLORS.length;
-COLORS.push({ fill: '#7A7068', light: '#A89E94', dark: '#4A4440', glow: 'rgba(122,112,104,0.5)' });
+// Bright (on-conveyor) tone — saturated yellow
+COLORS.push({ fill: '#FFD24A', light: '#FFE48A', dark: '#D9A11A', glow: 'rgba(255,210,74,0.6)' });
+// Dim (in-box / falling) tone — desaturated cream, used while the marble
+// has not yet been deposited onto the belt.
+var BLOCKER_COLOR_DIM = { fill: '#E8DCA8', light: '#F2EAC4', dark: '#B8AC78', glow: 'rgba(232,220,168,0.5)' };
 var BLOCKER_PER_BOX = 3;
 // Charger capacity — the conveyor "charger" sweeps off this many blocker
 // marbles at once whenever this many are on the belt simultaneously, then
@@ -59,6 +63,12 @@ var blockerCollecting = false;
 var blockerCollectT = 0;
 var blockerCollectSlots = [];
 var blockerCollectCleared = false;
+// Cumulative count of blockers that have ever reached the conveyor.
+// When this hits totalBlockerMarbles AND the belt is clear of blockers,
+// the charger has done its last job and is removed from the board.
+var blockersSpawned = 0;
+var chargerRemoved = false;
+var chargerRemoveT = 0;  // fade-out animation, 1→0
 
 var MRB_PER_BOX = 9, SORT_CAP = 3;
 var SORT_VISIBLE_ROWS = 4;

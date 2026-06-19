@@ -32,6 +32,7 @@ function initGame() {
   won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
+  blockersSpawned = 0; chargerRemoved = false; chargerRemoveT = 0;
   document.getElementById('win-screen').classList.remove('show');
   computeLayout(); initBeltSlots();
 
@@ -421,8 +422,8 @@ function update() {
     }
   }
 
-  // Blocker collection
-  if (!blockerCollecting && totalBlockerMarbles > 0) {
+  // Blocker collection — skip entirely once the charger has been removed
+  if (!chargerRemoved && !blockerCollecting && totalBlockerMarbles > 0) {
     blockersOnBelt = 0;
     blockerCollectSlots = [];
     for (var i = 0; i < BELT_SLOTS; i++) {
@@ -463,7 +464,19 @@ function update() {
       blockerCollecting = false;
       blockerCollectT = 0;
       blockerCollectSlots = [];
+      // After the sweep finishes: if every blocker in the level has reached
+      // the belt and the belt now holds none, the charger has done its last
+      // job. Trigger a short fade-out, then remove it from the board.
+      if (!chargerRemoved && blockersSpawned >= totalBlockerMarbles && blockersOnBelt === 0) {
+        chargerRemoved = true;
+        chargerRemoveT = 1;
+      }
     }
+  }
+
+  // Charger fade-out tick (drives the removal animation)
+  if (chargerRemoved && chargerRemoveT > 0) {
+    chargerRemoveT = Math.max(0, chargerRemoveT - 0.025);
   }
 
   // Stock animations
