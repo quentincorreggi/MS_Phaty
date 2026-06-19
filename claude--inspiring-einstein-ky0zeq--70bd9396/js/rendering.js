@@ -17,9 +17,9 @@ function rRect(x, y, w, h, r) {
   ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
 }
 
-function drawMarble(x, y, r, ci, es) {
+function drawMarble(x, y, r, ci, es, colorOverride) {
   var rs = r * (es || 1);
-  var c = COLORS[ci];
+  var c = colorOverride || COLORS[ci];
   ctx.save();
   ctx.shadowColor = 'rgba(0,0,0,0.25)'; ctx.shadowBlur = rs * 0.6; ctx.shadowOffsetY = rs * 0.15;
   var grad = ctx.createRadialGradient(x - rs * 0.25, y - rs * 0.25, rs * 0.1, x, y, rs);
@@ -95,7 +95,8 @@ function drawBoxMarblesWithBlockers(ci, remaining, blockerCount) {
   for (var si = 0; si < mrbsToDraw.length; si++) {
     var sp = mrbsToDraw[si];
     var mci = sp.isBlocker ? BLOCKER_CI : ci;
-    drawMarble((sp.c - 1) * mg, (sp.r - 1) * mgY - 2 * S, mr, mci);
+    var override = sp.isBlocker ? BLOCKER_COLOR_DIM : null;
+    drawMarble((sp.c - 1) * mg, (sp.r - 1) * mgY - 2 * S, mr, mci, 1, override);
   }
 }
 
@@ -264,7 +265,8 @@ function drawPhysMarbles() {
   for (var i = 0; i < physMarbles.length; i++) {
     var m = physMarbles[i];
     var bounce = m.spawnT > 0 ? (1 + Math.sin(m.spawnT * Math.PI) * 0.4) : 1;
-    drawMarble(m.x, m.y, m.r, m.ci, bounce);
+    var override = (m.ci === BLOCKER_CI) ? BLOCKER_COLOR_DIM : null;
+    drawMarble(m.x, m.y, m.r, m.ci, bounce, override);
   }
 }
 
@@ -303,57 +305,77 @@ function drawBelt() {
 
 function drawBlockerProgress() {
   if (totalBlockerMarbles <= 0) return;
+  // Once the charger has done its last job we fade it out and then stop drawing.
+  if (chargerRemoved && chargerRemoveT <= 0) return;
+  var alpha = chargerRemoved ? chargerRemoveT : 1;
+
   var cx = L.beltCx;
   var cy = (L.beltTopY + L.beltBotY) / 2;  // center of the conveyor
-  var total = CHARGER_CAPACITY;
   var filled = Math.min(blockersOnBelt, CHARGER_CAPACITY);
-  var dotR = 3.5 * S;
-  var gap = dotR * 3;
-  var startX = cx - (total - 1) * gap / 2;
-  var pillW = Math.max((total - 1) * gap + dotR * 5, dotR * 6);
-  var pillH = dotR * 3.2;
-  ctx.save();
-  ctx.fillStyle = 'rgba(255,140,26,0.14)';
-  rRect(cx - pillW / 2, cy - pillH / 2, pillW, pillH, pillH / 2); ctx.fill();
-  ctx.strokeStyle = 'rgba(255,140,26,0.34)'; ctx.lineWidth = 1 * S;
-  rRect(cx - pillW / 2, cy - pillH / 2, pillW, pillH, pillH / 2); ctx.stroke();
-  var iconX = cx - pillW / 2 - dotR * 2.5;
+  var pct = filled / CHARGER_CAPACITY;
+
+  // Bar geometry — a short horizontal orange progress bar.
+  var barW = 72 * S;
+  var barH = 7 * S;
+  var bx = cx - barW / 2;
+  var by = cy - barH / 2;
+  var r = barH / 2;
   var bc = CHARGER_COLOR;
-  ctx.globalAlpha = 0.4;
-  var icGrd = ctx.createRadialGradient(iconX, cy, 0, iconX, cy, dotR * 1.1);
-  icGrd.addColorStop(0, bc.light); icGrd.addColorStop(1, bc.dark);
-  ctx.fillStyle = icGrd;
-  ctx.beginPath(); ctx.arc(iconX, cy, dotR * 1.1, 0, Math.PI * 2); ctx.fill();
-  ctx.globalAlpha = 1;
-  for (var i = 0; i < total; i++) {
-    var dx = startX + i * gap;
-    if (i < filled) {
-      var grd = ctx.createRadialGradient(dx - dotR * 0.15, cy - dotR * 0.15, dotR * 0.1, dx, cy, dotR);
-      grd.addColorStop(0, bc.light); grd.addColorStop(0.7, bc.fill); grd.addColorStop(1, bc.dark);
-      ctx.fillStyle = grd;
-      ctx.beginPath(); ctx.arc(dx, cy, dotR, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.25)';
-      ctx.beginPath(); ctx.arc(dx - dotR * 0.2, cy - dotR * 0.2, dotR * 0.35, 0, Math.PI * 2); ctx.fill();
-      if (blockerCollecting && blockerCollectT > 0.5) {
-        ctx.globalAlpha = 0.4 + Math.sin(tick * 0.2 + i * 0.5) * 0.3;
-        ctx.fillStyle = bc.glow;
-        ctx.beginPath(); ctx.arc(dx, cy, dotR * 2, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
-      }
-    } else {
-      ctx.strokeStyle = 'rgba(255,140,26,0.40)'; ctx.lineWidth = 1 * S;
-      ctx.setLineDash([2 * S, 2 * S]);
-      ctx.beginPath(); ctx.arc(dx, cy, dotR * 0.65, 0, Math.PI * 2); ctx.stroke();
-      ctx.setLineDash([]);
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  // Recharge indicator — circular arrow icon to the LEFT of the bar.
+  // Signals "this charger refills after each sweep".
+  var iconGap = 10 * S;
+  var iconR = barH * 1.3;
+  var iconX = bx - iconGap - iconR;
+  var iconY = cy;
+  ctx.fillStyle = bc.fill;
+  ctx.beginPath(); ctx.arc(iconX, iconY, iconR, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold ' + Math.round(iconR * 1.7) + 'px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('↻', iconX, iconY + iconR * 0.05);  // ↻ clockwise reload arrow
+
+  // Bar track (empty channel)
+  ctx.fillStyle = 'rgba(255,140,26,0.18)';
+  rRect(bx, by, barW, barH, r); ctx.fill();
+  ctx.strokeStyle = 'rgba(204,106,0,0.55)'; ctx.lineWidth = 1 * S;
+  rRect(bx, by, barW, barH, r); ctx.stroke();
+
+  // Bar fill (orange) — grows left-to-right with charge.
+  if (pct > 0) {
+    var fillW = Math.max(barH, barW * pct);  // round-cap minimum
+    ctx.save();
+    ctx.beginPath(); rRect(bx, by, barW, barH, r); ctx.clip();
+    var grd = ctx.createLinearGradient(bx, by, bx, by + barH);
+    grd.addColorStop(0, bc.light); grd.addColorStop(1, bc.dark);
+    ctx.fillStyle = grd;
+    rRect(bx, by, fillW, barH, r); ctx.fill();
+    // gloss highlight along the top edge
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    rRect(bx + 2 * S, by + 1 * S, Math.max(0, fillW - 4 * S), barH * 0.35, barH * 0.2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Sweep flash + glow while collecting
+  if (blockerCollecting) {
+    if (blockerCollectT > 0.5) {
+      var pulse = 0.4 + Math.sin(tick * 0.3) * 0.3;
+      ctx.globalAlpha = alpha * pulse;
+      ctx.fillStyle = bc.glow;
+      rRect(bx - 4 * S, by - 4 * S, barW + 8 * S, barH + 8 * S, r + 4 * S); ctx.fill();
+      ctx.globalAlpha = alpha;
+    } else if (blockerCollectT > 0) {
+      ctx.globalAlpha = alpha * blockerCollectT * 1.2;
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      rRect(bx, by, barW, barH, r); ctx.fill();
+      ctx.globalAlpha = alpha;
     }
   }
-  if (blockerCollecting && blockerCollectT <= 0.5 && blockerCollectT > 0) {
-    var flashAlpha = blockerCollectT * 2;
-    ctx.globalAlpha = flashAlpha * 0.6;
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    rRect(cx - pillW / 2, cy - pillH / 2, pillW, pillH, pillH / 2); ctx.fill();
-    ctx.globalAlpha = 1;
-  }
+
   ctx.restore();
 }
 

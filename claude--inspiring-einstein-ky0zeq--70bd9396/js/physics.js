@@ -86,6 +86,7 @@ function physicsStep() {
       if (bestIdx >= 0 && bestDist < 0.08) {
         beltSlots[bestIdx].marble = m.ci;
         beltSlots[bestIdx].arriveAnim = 0.6;
+        if (m.ci === BLOCKER_CI) blockersSpawned++;
         sfx.drop();
         spawnBurst(m.x, m.y, COLORS[m.ci].fill, 6);
         physMarbles.splice(i, 1);
