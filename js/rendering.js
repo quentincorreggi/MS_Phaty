@@ -305,8 +305,8 @@ function drawBlockerProgress() {
   if (totalBlockerMarbles <= 0) return;
   var cx = L.beltCx;
   var cy = (L.beltBotY + L.sTop) / 2;
-  var total = totalBlockerMarbles;
-  var filled = blockersOnBelt;
+  var total = CHARGER_CAPACITY;
+  var filled = Math.min(blockersOnBelt, CHARGER_CAPACITY);
   var dotR = 3.5 * S;
   var gap = dotR * 3;
   var startX = cx - (total - 1) * gap / 2;

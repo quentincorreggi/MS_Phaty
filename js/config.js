@@ -44,6 +44,11 @@ var NUM_COLORS = COLORS.length;
 var BLOCKER_CI = COLORS.length;
 COLORS.push({ fill: '#7A7068', light: '#A89E94', dark: '#4A4440', glow: 'rgba(122,112,104,0.5)' });
 var BLOCKER_PER_BOX = 3;
+// Charger capacity — the conveyor "charger" sweeps off this many blocker
+// marbles at once whenever this many are on the belt simultaneously, then
+// resets so it can fill again. Repeatable; not tied to the level total, so
+// leftover blockers that can't reach this count just circulate like clutter.
+var CHARGER_CAPACITY = 9;
 
 // Blocker tracking state
 var totalBlockerMarbles = 0;

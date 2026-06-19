@@ -428,7 +428,9 @@ function update() {
     for (var i = 0; i < BELT_SLOTS; i++) {
       if (beltSlots[i].marble === BLOCKER_CI) { blockersOnBelt++; blockerCollectSlots.push(i); }
     }
-    if (blockersOnBelt >= totalBlockerMarbles) {
+    if (blockersOnBelt >= CHARGER_CAPACITY) {
+      // Charger is full — sweep off exactly CHARGER_CAPACITY blockers, then reset
+      if (blockerCollectSlots.length > CHARGER_CAPACITY) blockerCollectSlots.length = CHARGER_CAPACITY;
       blockerCollecting = true; blockerCollectT = 1; blockerCollectCleared = false;
     }
   }
