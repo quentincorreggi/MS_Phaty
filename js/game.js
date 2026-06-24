@@ -688,10 +688,29 @@ function updateShowcaseUI() {
   }
 }
 
+// === URL LEVEL LOADER ===
+function loadLevelFromURL() {
+  try {
+    var params = new URLSearchParams(window.location.search);
+    var encoded = params.get('level');
+    if (!encoded) return false;
+    var json = atob(encoded);
+    var lvl = JSON.parse(json);
+    if (!lvl || !lvl.grid) return false;
+    LEVELS.push(lvl);
+    levelStars.push(0);
+    unlockedLevels = LEVELS.length;
+    startLevel(LEVELS.length - 1);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 // === BOOT ===
 resize();
 loadPrototypeJSON(function() {
   updateShowcaseUI();
-  showLevelSelect();
+  if (!loadLevelFromURL()) showLevelSelect();
 });
 frame();
