@@ -163,7 +163,8 @@ function initGame() {
   // ── Sort columns ──
   var allBoxes = [];
   for (var c = 0; c < NUM_COLORS; c++) for (var r = 0; r < sortPerColor[c]; r++)
-    allBoxes.push({ ci: c, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0 });
+    allBoxes.push({ ci: c, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0,
+      frostHP: 0, frostCrackT: 0, frostShatterT: 0 });
   shuffle(allBoxes);
   sortCols = [[], [], [], []];
   for (var i = 0; i < allBoxes.length; i++) sortCols[i % 4].push(allBoxes[i]);
@@ -174,6 +175,12 @@ function initGame() {
     var lockCol = Math.floor(Math.random() * 4);
     var lockRow = Math.min(2 + Math.floor(Math.random() * 4), sortCols[lockCol].length);
     sortCols[lockCol].splice(lockRow, 0, { type: 'lock', ci: -1, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0, triggerT: 0, triggered: false });
+  }
+
+  // Frost Customers — applied after sort columns are finalized
+  if (lvl.frostCount && typeof initFrostInSortCols === 'function') {
+    initFrostInSortCols(lvl.frostCount);
+    if (typeof checkFrostSoftLock === 'function') checkFrostSoftLock();
   }
 }
 
@@ -408,6 +415,7 @@ function update() {
       var col = sortCols[c]; var tv = -1;
       for (var r = 0; r < col.length; r++) { if (col[r].vis) { tv = r; break; } }
       if (tv < 0 || col[tv].ci !== slot.marble) continue;
+      if (col[tv].frostHP > 0) continue;  // frost blocks the queue
       var inFlight = 0;
       for (var j = 0; j < jumpers.length; j++) if (jumpers[j].targetCol === c) inFlight++;
       if (col[tv].filled + inFlight >= SORT_CAP) continue;
@@ -440,7 +448,18 @@ function update() {
           var by2 = getSortBoxY(j.targetCol, 0) + L.sBh / 2;
           spawnBurst(bx2, by2, COLORS[j.ci].fill, 20);
           spawnConfetti(bx2, by2, 15);
-          (function (box) { setTimeout(function () { box.vis = false; checkWin(); }, 600); })(col[tv]);
+          // Frost damage to adjacent columns' front-row frost
+          if (typeof damageFrontFrost === 'function') {
+            damageFrontFrost(j.targetCol - 1);
+            damageFrontFrost(j.targetCol + 1);
+          }
+          (function (box) {
+            setTimeout(function () {
+              box.vis = false;
+              if (typeof checkFrostSoftLock === 'function') checkFrostSoftLock();
+              checkWin();
+            }, 600);
+          })(col[tv]);
         }
       }
       jumpers.splice(i, 1);
@@ -541,6 +560,7 @@ function update() {
   }
 
   if (typeof updateSafes === 'function') updateSafes();
+  if (typeof tickFrost === 'function') tickFrost();
 
   tickParticles();
   updateRollingSound();
