@@ -1,0 +1,23 @@
+{
+  "name": "Frost Customers",
+  "description": "Opaque ice covers some sort boxes — break them by completing neighboring columns.",
+  "howToPlay": "Some sort boxes at the bottom are encased in opaque ice — their color is hidden and they block their column. Each time you fill a sort box, the front frost in the columns to its left and right takes 1 hit. First hit reveals the color, second hit shatters the ice so it accepts marbles. Plan your fills to break the frost in time.",
+  "author": "",
+  "showcaseLevel": {
+    "name": "Frost Customers Showcase",
+    "desc": "Full 7×7 maze. 14 sort boxes start frosted — fill neighbors to crack them open.",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "frostCount": 14,
+    "grid": [
+      { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 4, "type": "default" }, { "ci": 5, "type": "default" }, { "ci": 6, "type": "default" },
+      { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 4, "type": "default" }, { "ci": 5, "type": "default" }, { "ci": 6, "type": "default" }, { "ci": 7, "type": "default" },
+      { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 4, "type": "default" }, { "ci": 5, "type": "default" }, { "ci": 6, "type": "default" }, { "ci": 7, "type": "default" }, { "ci": 0, "type": "default" },
+      { "ci": 3, "type": "default" }, { "ci": 4, "type": "default" }, { "ci": 5, "type": "default" }, { "ci": 6, "type": "default" }, { "ci": 7, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" },
+      { "ci": 4, "type": "default" }, { "ci": 5, "type": "default" }, { "ci": 6, "type": "default" }, { "ci": 7, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" },
+      { "ci": 5, "type": "default" }, { "ci": 6, "type": "default" }, { "ci": 7, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" },
+      { "ci": 6, "type": "default" }, { "ci": 7, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 4, "type": "default" }
+    ]
+  }
+}
