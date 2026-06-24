@@ -828,7 +828,23 @@ function editorCleanupTest() {
   }
 }
 
-// ── Export / Import ──
+// ── Export / Import / Share ──
+function editorCopyShareLink() {
+  var lvl = editorBuildLevel();
+  var encoded = btoa(JSON.stringify(lvl));
+  var url = window.location.origin + window.location.pathname + '?level=' + encoded;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(url).then(function () { editorShowToast('Share link copied!'); })
+      .catch(function () { editorShowShareFallback(url); });
+  } else { editorShowShareFallback(url); }
+}
+
+function editorShowShareFallback(url) {
+  var ta = document.getElementById('ed-export-area');
+  ta.value = url; ta.style.display = 'block'; ta.select();
+  editorShowToast('Copy the link above');
+}
+
 function editorExportJSON() {
   var json = JSON.stringify(editorBuildLevel(), null, 2);
   if (navigator.clipboard) {
