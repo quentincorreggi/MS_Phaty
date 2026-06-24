@@ -35,7 +35,8 @@ function initCarousels() {
       anchorIdx: i,
       ringIndices: ringIndices,
       machineIdx: (row + 1) * L.cols + (col + 1),
-      rotT: 0
+      rotT: 0,
+      animT: 0
     });
   }
 }
@@ -79,12 +80,77 @@ function rotateCarousels() {
     }
 
     car.rotT = 1.0;
+    car.animT = 1.0;
   }
 }
 
 function updateCarouselAnimations() {
   for (var c = 0; c < carousels.length; c++) {
     if (carousels[c].rotT > 0) carousels[c].rotT = Math.max(0, carousels[c].rotT - 0.04);
+    if (carousels[c].animT > 0) carousels[c].animT = Math.max(0, carousels[c].animT - 0.022);
+  }
+}
+
+function drawCarouselsOverlay() {
+  for (var c = 0; c < carousels.length; c++) {
+    var car = carousels[c];
+    if (car.animT <= 0) continue;
+
+    var anchor = stock[car.anchorIdx];
+    if (!anchor) continue;
+
+    // Bounding box of the 3×3 carousel
+    var left = anchor.x;
+    var top = anchor.y;
+    var totalW = L.bw * 3 + L.bg * 2;
+    var totalH = L.bh * 3 + L.bg * 2;
+    var cx2 = left + totalW / 2;
+    var cy2 = top + totalH / 2;
+    var radius = Math.sqrt((totalW / 2) * (totalW / 2) + (totalH / 2) * (totalH / 2)) + 6 * S;
+
+    var alpha = car.animT;
+    // Ease out: fast appear, slow fade
+    var eased = alpha < 0.7 ? 1.0 : (1.0 - alpha) / 0.3;
+
+    ctx.save();
+    ctx.globalAlpha = eased * 0.75;
+
+    // Draw animated arc: 270° sweep, rotates slightly as it appears
+    var arcProgress = 1.0 - alpha;  // 0→1 as animation plays
+    var sweepAngle = Math.PI * 1.5;  // 270°
+    var startAngle = -Math.PI / 2 + arcProgress * Math.PI * 0.4;
+    var endAngle = startAngle + sweepAngle;
+
+    ctx.strokeStyle = 'rgba(255,200,80,1)';
+    ctx.lineWidth = 3 * S;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(cx2, cy2, radius, startAngle, endAngle);
+    ctx.stroke();
+
+    // Arrowhead at the end of the arc
+    var arrowAngle = endAngle;
+    var ax = cx2 + Math.cos(arrowAngle) * radius;
+    var ay = cy2 + Math.sin(arrowAngle) * radius;
+    var perpAngle = arrowAngle + Math.PI / 2;
+    var arrowSize = 7 * S;
+    ctx.fillStyle = 'rgba(255,200,80,1)';
+    ctx.beginPath();
+    ctx.moveTo(ax + Math.cos(arrowAngle) * arrowSize, ay + Math.sin(arrowAngle) * arrowSize);
+    ctx.lineTo(ax + Math.cos(perpAngle + Math.PI) * arrowSize * 0.7, ay + Math.sin(perpAngle + Math.PI) * arrowSize * 0.7);
+    ctx.lineTo(ax + Math.cos(perpAngle) * arrowSize * 0.7, ay + Math.sin(perpAngle) * arrowSize * 0.7);
+    ctx.closePath();
+    ctx.fill();
+
+    // Small "SHIFT" label
+    ctx.globalAlpha = eased * 0.6;
+    ctx.fillStyle = 'rgba(255,200,80,1)';
+    ctx.font = 'bold ' + (9 * S) + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('↻', cx2, cy2 - radius - 10 * S);
+
+    ctx.restore();
   }
 }
 

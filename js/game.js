@@ -31,7 +31,7 @@ function startLevel(idx) {
 function initGame() {
   won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
-  blockerCollectSlots = []; blockerCollectCleared = false;
+  blockerCollectSlots = []; blockerCollectCleared = false; carouselRotatePending = false;
   document.getElementById('win-screen').classList.remove('show');
   computeLayout(); initBeltSlots();
 
@@ -409,8 +409,7 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
-      rotateCarousels();
-      updateBoxReveals(true);
+      carouselRotatePending = true;
       return;
     }
   }
@@ -445,6 +444,19 @@ function update() {
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
+
+  // ── Carousel rotation (deferred until the tapped box finishes spawning) ──
+  if (carouselRotatePending) {
+    var anySpawning = false;
+    for (var si2 = 0; si2 < stock.length; si2++) {
+      if (stock[si2].spawning) { anySpawning = true; break; }
+    }
+    if (!anySpawning) {
+      carouselRotatePending = false;
+      rotateCarousels();
+      updateBoxReveals(true);
+    }
+  }
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -618,6 +630,7 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    drawCarouselsOverlay();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();
