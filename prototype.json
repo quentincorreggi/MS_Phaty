@@ -1,0 +1,39 @@
+{
+  "name": "Carousel",
+  "description": "A 3×3 spinning conveyor — each tap rotates all 8 outer boxes clockwise. Plan ahead!",
+  "howToPlay": "Tap a revealed box to play it. The carousel rotates one step clockwise after every tap — exposed boxes change each round!",
+  "showcaseLevel": {
+    "name": "Carousel Demo",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null,
+      { "carouselAnchor": true, "boxes": [
+        { "ci": 0, "type": "default" },
+        { "ci": 1, "type": "default" },
+        { "ci": 2, "type": "default" },
+        { "ci": 3, "type": "default" },
+        { "ci": 4, "type": "default" },
+        { "ci": 5, "type": "default" },
+        { "ci": 6, "type": "default" },
+        { "ci": 7, "type": "default" }
+      ]},
+      { "carouselCell": true, "anchorIdx": 15 },
+      { "carouselCell": true, "anchorIdx": 15 },
+      null, null, null, null,
+      { "carouselCell": true, "anchorIdx": 15 },
+      { "carouselCell": true, "anchorIdx": 15 },
+      { "carouselCell": true, "anchorIdx": 15 },
+      null, null, null, null,
+      { "carouselCell": true, "anchorIdx": 15 },
+      { "carouselCell": true, "anchorIdx": 15 },
+      { "carouselCell": true, "anchorIdx": 15 },
+      null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}

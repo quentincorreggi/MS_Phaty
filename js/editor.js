@@ -34,6 +34,8 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.carouselMode = false;
+  editor.selectedCarousel = -1;
 }
 
 function showEditor(fresh) {
@@ -60,6 +62,7 @@ function editorBuildUI() {
   editorRenderSettings();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderCarouselPanel();
 }
 
 // ── Grid ──
@@ -75,6 +78,40 @@ function editorRenderGrid() {
       cell.style.background = 'linear-gradient(135deg,#9A8D7B,#6F6355)';
       cell.style.borderColor = '#8A7D6B';
       cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,255,255,0.5);font-size:14px">&#9632;</span>';
+    } else if (v && (v.carouselAnchor || v.carouselCell)) {
+      // Carousel cell
+      var anchorI = v.carouselAnchor ? i : v.anchorIdx;
+      var anchorCell = v.carouselAnchor ? v : editor.grid[anchorI];
+      var isSelected = (editor.selectedCarousel === anchorI);
+      var isMachinePx = !v.carouselAnchor && v.anchorIdx !== undefined &&
+        (i === anchorI + 8);  // center cell = anchor + 8
+      if (isMachinePx) {
+        cell.style.background = 'linear-gradient(135deg,#3A3530,#1E1C18)';
+        cell.style.borderColor = isSelected ? '#FFD080' : '#2A2820';
+        if (isSelected) cell.style.boxShadow = '0 0 0 2px rgba(255,208,128,0.5)';
+        cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(200,180,140,0.7);font-size:13px">&#9881;</span>';
+      } else {
+        // Ring cell — find which ring index
+        var offset = i - anchorI;
+        var ringIdx3 = -1;
+        for (var ri3 = 0; ri3 < CAROUSEL_RING_OFFSETS.length; ri3++) {
+          if (CAROUSEL_RING_OFFSETS[ri3] === offset) { ringIdx3 = ri3; break; }
+        }
+        var boxData3 = anchorCell && anchorCell.boxes ? anchorCell.boxes[ringIdx3] : null;
+        if (boxData3) {
+          var bt3 = getBoxType(boxData3.type);
+          var st3 = bt3.editorCellStyle(boxData3.ci);
+          cell.style.background = st3.background;
+          cell.style.borderColor = isSelected ? '#FFD080' : st3.borderColor;
+          if (isSelected) cell.style.boxShadow = '0 0 0 2px rgba(255,208,128,0.5)';
+          cell.innerHTML = bt3.editorCellHTML(boxData3.ci);
+        } else {
+          cell.style.background = 'rgba(60,55,45,0.4)';
+          cell.style.borderColor = isSelected ? '#FFD080' : 'rgba(80,70,50,0.5)';
+          if (isSelected) cell.style.boxShadow = '0 0 0 2px rgba(255,208,128,0.5)';
+          cell.innerHTML = '';
+        }
+      }
     } else if (v && v.tunnel) {
       // Tunnel cell
       var isSelected = (editor.selectedTunnel === i);
@@ -105,14 +142,53 @@ function editorRenderGrid() {
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
 
+  if (editor.carouselMode) {
+    var existing = editor.grid[idx];
+    // Click existing carousel cell → select it
+    if (existing && (existing.carouselAnchor || existing.carouselCell)) {
+      editor.selectedCarousel = existing.carouselAnchor ? idx : existing.anchorIdx;
+      editor.selectedTunnel = -1;
+      editorRenderGrid();
+      editorRenderCarouselPanel();
+      return;
+    }
+    // Place new 3×3 carousel anchored at this cell
+    var row3 = Math.floor(idx / 7), col3 = idx % 7;
+    if (row3 + 2 > 6 || col3 + 2 > 6) { return; }  // out of bounds
+    // Check all 9 cells are empty
+    var canPlace = true;
+    for (var oi = 0; oi < CAROUSEL_ALL_OFFSETS.length; oi++) {
+      var gI = idx + CAROUSEL_ALL_OFFSETS[oi];
+      if (editor.grid[gI]) { canPlace = false; break; }
+    }
+    if (!canPlace) { return; }
+    // Build default boxes array (8 boxes, cycling through colors)
+    var defaultBoxes = [];
+    for (var ri4 = 0; ri4 < 8; ri4++) {
+      defaultBoxes.push({ ci: ri4 % NUM_COLORS, type: 'default' });
+    }
+    // Place anchor cell
+    editor.grid[idx] = { carouselAnchor: true, boxes: defaultBoxes };
+    // Place 8 ring cells
+    for (var ri4 = 0; ri4 < 8; ri4++) {
+      editor.grid[idx + CAROUSEL_RING_OFFSETS[ri4]] = { carouselCell: true, anchorIdx: idx };
+    }
+    // Place machine cell
+    editor.grid[idx + CAROUSEL_MACHINE_OFFSET] = { carouselCell: true, anchorIdx: idx };
+    editor.selectedCarousel = idx;
+    editor.selectedTunnel = -1;
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderCarouselPanel();
+    return;
+  }
+
   if (editor.wallMode) {
     // Wall placement mode
     var existing = editor.grid[idx];
     if (existing && existing.wall) {
-      // Toggle off: clicking existing wall removes it
       editor.grid[idx] = null;
     } else {
-      // Place wall
       editor.grid[idx] = { wall: true };
     }
     if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
@@ -157,6 +233,19 @@ function editorCellClick(e) {
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+  var cell = editor.grid[idx];
+  // Remove entire carousel if right-clicking any carousel cell
+  if (cell && (cell.carouselAnchor || cell.carouselCell)) {
+    var anchorI = cell.carouselAnchor ? idx : cell.anchorIdx;
+    for (var oi = 0; oi < CAROUSEL_ALL_OFFSETS.length; oi++) {
+      editor.grid[anchorI + CAROUSEL_ALL_OFFSETS[oi]] = null;
+    }
+    if (editor.selectedCarousel === anchorI) editor.selectedCarousel = -1;
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderCarouselPanel();
+    return;
+  }
   editor.grid[idx] = null;
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
   editorRenderGrid();
@@ -185,8 +274,10 @@ function editorRenderToolbar() {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.carouselMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
+      editorRenderCarouselPanel();
     });
     typeRow.appendChild(tb);
   }
@@ -200,10 +291,28 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.carouselMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
+    editorRenderCarouselPanel();
   });
   typeRow.appendChild(wallBtn);
+
+  // Carousel mode button
+  var carouselBtn = document.createElement('button');
+  carouselBtn.className = 'ed-type-btn' + (editor.carouselMode ? ' active' : '');
+  carouselBtn.textContent = '\uD83C\uDFA1 Carousel';
+  carouselBtn.style.borderColor = editor.carouselMode ? 'rgba(255,165,0,0.6)' : '';
+  carouselBtn.style.color = editor.carouselMode ? '#D4903A' : '';
+  carouselBtn.addEventListener('click', function () {
+    editor.carouselMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+    editorRenderCarouselPanel();
+  });
+  typeRow.appendChild(carouselBtn);
 
   // Tunnel mode button
   var tunnelBtn = document.createElement('button');
@@ -214,8 +323,10 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.carouselMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
+    editorRenderCarouselPanel();
   });
   typeRow.appendChild(tunnelBtn);
 
@@ -254,8 +365,12 @@ function editorRenderToolbar() {
       dirRow.appendChild(db);
     }
     el.appendChild(dirRow);
+  } else if (editor.carouselMode) {
+    var carInfo = document.createElement('div');
+    carInfo.className = 'ed-color-row';
+    carInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click a 3×3 area to place a carousel · right-click to remove</span>';
+    el.appendChild(carInfo);
   } else if (editor.wallMode) {
-    // Wall mode: just show info hint
     var wallInfo = document.createElement('div');
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
@@ -293,6 +408,8 @@ function editorRenderTunnelPanel() {
   var container = document.getElementById('ed-tunnel-panel');
   if (!container) return;
 
+  // Let carousel panel take priority
+  if (editor.selectedCarousel >= 0 && editor.grid[editor.selectedCarousel] && editor.grid[editor.selectedCarousel].carouselAnchor) return;
   if (editor.selectedTunnel < 0 || !editor.grid[editor.selectedTunnel] || !editor.grid[editor.selectedTunnel].tunnel) {
     container.style.display = 'none';
     return;
@@ -426,6 +543,108 @@ function editorRenderTunnelPanel() {
   }
 }
 
+// ── Carousel panel ──
+function editorRenderCarouselPanel() {
+  var container = document.getElementById('ed-tunnel-panel');
+  if (!container) return;
+
+  var anchorI = editor.selectedCarousel;
+  if (anchorI < 0 || !editor.grid[anchorI] || !editor.grid[anchorI].carouselAnchor) {
+    // Hide only if tunnel panel also not active
+    if (editor.selectedTunnel < 0 || !editor.grid[editor.selectedTunnel] || !editor.grid[editor.selectedTunnel].tunnel) {
+      container.style.display = 'none';
+    }
+    return;
+  }
+
+  // Hide tunnel panel and show carousel panel
+  container.style.display = 'block';
+  var carCell = editor.grid[anchorI];
+
+  var html = '<div class="ed-section-title"><span class="icon">🎡</span> Carousel — Configure Boxes</div>';
+  html += '<div style="font-size:11px;color:#9C8A70;margin-bottom:8px">Click a color below each ring position to change it</div>';
+
+  // 3×3 grid visual for the carousel
+  // Layout: ring positions 0-7 in CW order, center = machine
+  // Display as 3×3 with ring positions labeled
+  var ringLabels = ['TL', 'T', 'TR', 'R', 'BR', 'B', 'BL', 'L'];
+  // Map local 3×3 positions to display
+  // 0=TL, 1=T, 2=TR, 3=L, 4=M, 5=R, 6=BL, 7=B, 8=BR
+  // Ring CW order: local[0,1,2,5,8,7,6,3] = ring[0,1,2,3,4,5,6,7]
+  // localPos → ringIdx:
+  var localToRing = { 0: 0, 1: 1, 2: 2, 5: 3, 8: 4, 7: 5, 6: 6, 3: 7 };
+
+  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;max-width:160px;margin:0 auto 10px">';
+  for (var lp = 0; lp < 9; lp++) {
+    if (lp === 4) {
+      html += '<div style="aspect-ratio:1;background:linear-gradient(135deg,#3A3530,#1E1C18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px">⚙️</div>';
+    } else {
+      var ri5 = localToRing[lp];
+      var bd5 = (carCell.boxes || [])[ri5];
+      var bg5 = bd5 ? COLORS[bd5.ci].fill : 'rgba(80,70,50,0.4)';
+      var label5 = bd5 ? CLR_NAMES[bd5.ci][0].toUpperCase() : '–';
+      html += '<div data-ring="' + ri5 + '" class="ed-carousel-slot" style="aspect-ratio:1;background:' + bg5 + ';border-radius:6px;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:11px;cursor:pointer;border:2px solid rgba(255,255,255,0.2)">' + label5 + '</div>';
+    }
+  }
+  html += '</div>';
+
+  // Color picker row for each ring slot
+  html += '<div id="ed-carousel-color-row" style="display:none;flex-wrap:wrap;gap:3px;justify-content:center;margin-bottom:8px"></div>';
+  html += '<div style="font-size:10px;color:#9C8A70;text-align:center;margin-bottom:4px">Click a box above to change its color</div>';
+
+  // Quick: randomize all
+  html += '<div style="text-align:center"><button class="ed-qbtn" id="ed-carousel-randomize">🎲 Randomize Colors</button></div>';
+
+  container.innerHTML = html;
+
+  // Bind slot clicks
+  var slots = container.querySelectorAll('.ed-carousel-slot');
+  for (var sl = 0; sl < slots.length; sl++) {
+    slots[sl].addEventListener('click', function () {
+      var ri6 = parseInt(this.getAttribute('data-ring'));
+      var colorRow = document.getElementById('ed-carousel-color-row');
+      colorRow.style.display = 'flex';
+      colorRow.innerHTML = '';
+      for (var ci7 = 0; ci7 < NUM_COLORS; ci7++) {
+        var cb7 = document.createElement('button');
+        cb7.className = 'ed-tool';
+        cb7.style.background = COLORS[ci7].fill;
+        cb7.innerHTML = CLR_NAMES[ci7][0].toUpperCase();
+        cb7.setAttribute('data-ring', ri6);
+        cb7.setAttribute('data-ci', ci7);
+        cb7.addEventListener('click', function () {
+          var ri7 = parseInt(this.getAttribute('data-ring'));
+          var ci8 = parseInt(this.getAttribute('data-ci'));
+          if (editor.grid[anchorI]) {
+            if (!editor.grid[anchorI].boxes) editor.grid[anchorI].boxes = [];
+            editor.grid[anchorI].boxes[ri7] = { ci: ci8, type: 'default' };
+            editorRenderGrid();
+            editorUpdateStats();
+            editorRenderCarouselPanel();
+          }
+        });
+        colorRow.appendChild(cb7);
+      }
+    });
+  }
+
+  var randBtn = document.getElementById('ed-carousel-randomize');
+  if (randBtn) {
+    randBtn.addEventListener('click', function () {
+      if (editor.grid[anchorI]) {
+        var cis = [0,1,2,3,4,5,6,7]; shuffle(cis);
+        editor.grid[anchorI].boxes = [];
+        for (var ri8 = 0; ri8 < 8; ri8++) {
+          editor.grid[anchorI].boxes.push({ ci: cis[ri8 % cis.length], type: 'default' });
+        }
+        editorRenderGrid();
+        editorUpdateStats();
+        editorRenderCarouselPanel();
+      }
+    });
+  }
+}
+
 // ── Quick actions ──
 function editorFillRandom() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
@@ -442,7 +661,8 @@ function editorFillRandom() {
 function editorClearAll() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
-  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+  editor.selectedCarousel = -1;
+  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel(); editorRenderCarouselPanel();
 }
 
 // ── Stats ──
@@ -452,12 +672,25 @@ function editorUpdateStats() {
   for (var c = 0; c < NUM_COLORS; c++) { counts.push(0); regularMrb.push(0); }
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
-  var wallCount = 0;
+  var wallCount = 0, carouselBoxCount = 0;
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
     if (v.wall) {
       wallCount++;
+      continue;
+    }
+    if (v.carouselCell) continue;  // counted via anchor
+    if (v.carouselAnchor) {
+      var cboxes = v.boxes || [];
+      for (var ri9 = 0; ri9 < cboxes.length; ri9++) {
+        var cb9 = cboxes[ri9];
+        if (!cb9) continue;
+        carouselBoxCount++;
+        counts[cb9.ci]++;
+        total++;
+        regularMrb[cb9.ci] += editor.mrbPerBox;
+      }
       continue;
     }
     if (v.tunnel) {
@@ -496,6 +729,9 @@ function editorUpdateStats() {
     if (typeCounts[tid]) {
       html += '<span class="ed-stat-chip" style="background:' + BoxTypes[tid].editorColor + '">' + typeCounts[tid] + ' ' + BoxTypes[tid].label.toLowerCase() + '</span>';
     }
+  }
+  if (carouselBoxCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#D4903A">' + carouselBoxCount + ' carousel</span>';
   }
   if (wallCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#8A7D6B">' + wallCount + ' wall' + (wallCount > 1 ? 's' : '') + '</span>';

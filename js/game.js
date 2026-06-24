@@ -42,10 +42,43 @@ function initGame() {
   var boxSlots = {};
   var tunnelSlots = {};
   var wallSlots = {};
+  var carouselCells = {};  // gridIdx -> { isAnchor, isMachine, anchorIdx, ringIdx, boxes }
   if (lvl.grid) {
+    // Pre-pass: identify carousel cells
+    for (var i = 0; i < Math.min(lvl.grid.length, totalSlots); i++) {
+      var cell = lvl.grid[i];
+      if (!cell || !cell.carouselAnchor) continue;
+      var anchorRow = Math.floor(i / L.cols), anchorCol = i % L.cols;
+      if (anchorRow + 2 >= L.rows || anchorCol + 2 >= L.cols) continue;
+      for (var dr2 = 0; dr2 < 3; dr2++) {
+        for (var dc2 = 0; dc2 < 3; dc2++) {
+          var gIdx = (anchorRow + dr2) * L.cols + (anchorCol + dc2);
+          var localPos = dr2 * 3 + dc2;
+          var isMach = (localPos === CAROUSEL_CENTER_LOCAL);
+          var ringIdx2 = -1;
+          for (var ri2 = 0; ri2 < CAROUSEL_RING_ORDER.length; ri2++) {
+            if (CAROUSEL_RING_ORDER[ri2] === localPos) { ringIdx2 = ri2; break; }
+          }
+          carouselCells[gIdx] = {
+            isAnchor: (gIdx === i), isMachine: isMach,
+            anchorIdx: i, ringIdx: ringIdx2, boxes: cell.boxes || []
+          };
+        }
+      }
+      // Add carousel ring boxes to boxSlots for marble counting
+      for (var ri2 = 0; ri2 < 8; ri2++) {
+        var boxData = (cell.boxes || [])[ri2];
+        if (!boxData) continue;
+        var ringGridIdx = (anchorRow + Math.floor(CAROUSEL_RING_ORDER[ri2] / 3)) * L.cols
+                        + (anchorCol + CAROUSEL_RING_ORDER[ri2] % 3);
+        boxSlots[ringGridIdx] = { ci: boxData.ci, boxType: boxData.type || 'default', fromCarousel: true };
+      }
+    }
+
     for (var i = 0; i < Math.min(lvl.grid.length, totalSlots); i++) {
       var cell = lvl.grid[i];
       if (cell === null || cell === undefined) continue;
+      if (carouselCells[i]) continue;  // handled by pre-pass
       if (cell.wall) {
         wallSlots[i] = true;
         continue;
@@ -96,7 +129,39 @@ function initGame() {
     var tSlot = tunnelSlots[idx];
     var wSlot = wallSlots[idx];
 
-    if (tSlot) {
+    var cc = carouselCells[idx];
+    if (cc) {
+      if (cc.isMachine) {
+        stock.push({
+          isCarouselMachine: true, isCarousel: false, isCarouselAnchor: false,
+          isTunnel: false, isWall: false, carouselAnchorIdx: cc.anchorIdx,
+          ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
+          revealed: false, empty: false, boxType: 'default',
+          iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+          x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+          shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
+        });
+      } else {
+        var cboxData = (cc.boxes || [])[cc.ringIdx];
+        var cIsBlocker = cboxData && (cboxData.type === 'blocker');
+        stock.push({
+          isCarousel: true, isCarouselAnchor: cc.isAnchor,
+          isCarouselMachine: false, isTunnel: false, isWall: false,
+          carouselAnchorIdx: cc.anchorIdx,
+          ci: cboxData ? cboxData.ci : 0,
+          used: !cboxData, remaining: cboxData ? MRB_PER_BOX : 0,
+          spawning: false, spawnIdx: 0,
+          revealed: false, empty: !cboxData,
+          boxType: cboxData ? (cboxData.type || 'default') : 'default',
+          iceHP: 0, iceCrackT: 0, iceShatterT: 0,
+          blockerCount: cIsBlocker ? BLOCKER_PER_BOX : 0,
+          x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+          shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
+          idlePhase: Math.random() * Math.PI * 2
+        });
+        // totalBlockerMarbles already counted via boxSlots in the pre-pass above
+      }
+    } else if (tSlot) {
       // Tunnel entry
       stock.push({
         isTunnel: true, isWall: false,
@@ -142,6 +207,9 @@ function initGame() {
     }
   }
 
+  // ── Init carousels ──
+  initCarousels();
+
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
 
@@ -182,6 +250,7 @@ function updateBoxReveals(animate) {
     if (!s) { passable[i] = false; continue; }
     if (s.isWall) { passable[i] = false; continue; }
     if (s.isTunnel) { passable[i] = false; continue; }
+    if (s.isCarouselMachine) { passable[i] = false; continue; }
     passable[i] = !!(s.empty || s.used);
   }
 
@@ -220,7 +289,7 @@ function updateBoxReveals(animate) {
   for (var k = 0; k < total; k++) {
     var b = stock[k];
     if (!b) continue;
-    if (b.isWall || b.isTunnel || b.empty || b.used) continue;
+    if (b.isWall || b.isTunnel || b.isCarouselMachine || b.empty || b.used) continue;
     if (b.spawning) continue;
 
     var br = Math.floor(k / L.cols), bcol = k % L.cols;
@@ -273,7 +342,7 @@ function damageAdjacentIce(idx) {
   if (col < L.cols - 1) neighbors.push(row * L.cols + (col + 1));
   for (var ni = 0; ni < neighbors.length; ni++) {
     var nb = stock[neighbors[ni]];
-    if (nb.isTunnel || nb.isWall) continue;  // tunnels and walls don't have ice
+    if (nb.isTunnel || nb.isWall || nb.isCarouselMachine) continue;
     if (nb.empty || nb.used || nb.iceHP <= 0) continue;
 
     nb.iceHP--;
@@ -314,7 +383,8 @@ function damageAdjacentIce(idx) {
 function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
-  if (b.isWall) return false;      // walls are not tappable
+  if (b.isWall) return false;
+  if (b.isCarouselMachine) return false;
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
@@ -330,7 +400,7 @@ function handleTap(px, py) {
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
+    if (b.isTunnel || b.isWall || b.isCarouselMachine) continue;
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
@@ -339,6 +409,8 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      rotateCarousels();
+      updateBoxReveals(true);
       return;
     }
   }
@@ -352,7 +424,7 @@ canvas.addEventListener('mousemove', function (e) {
   if (e.clientX >= L.bkX && e.clientX <= L.bkX + L.bkSize && e.clientY >= L.bkY && e.clientY <= L.bkY + L.bkSize) { canvas.style.cursor = 'pointer'; return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;
+    if (b.isTunnel || b.isWall || b.isCarouselMachine) continue;
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (!isBoxTappable(i)) continue;
     if (e.clientX >= b.x && e.clientX <= b.x + L.bw && e.clientY >= b.y && e.clientY <= b.y + L.bh) { hoverIdx = i; break; }
@@ -467,7 +539,7 @@ function update() {
   // Stock animations
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;  // tunnels and walls don't need stock animations
+    if (b.isTunnel || b.isWall || b.isCarouselMachine) continue;
     if (b.empty) continue;
     if (b.shakeT > 0) b.shakeT = Math.max(0, b.shakeT - 0.04);
     if (b.popT > 0) b.popT = Math.max(0, b.popT - 0.025);
@@ -514,6 +586,7 @@ function update() {
     if (box.type === 'lock' && box.triggerT > 0) box.triggerT = Math.max(0, box.triggerT - 0.03);
   }
 
+  updateCarouselAnimations();
   tickParticles();
   updateRollingSound();
 }

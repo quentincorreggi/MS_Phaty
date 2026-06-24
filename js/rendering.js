@@ -177,6 +177,12 @@ function drawStock() {
       continue;
     }
 
+    // ── Carousel machine (center cell) ──
+    if (b.isCarouselMachine) {
+      drawCarouselMachine(b.x, b.y, L.bw, L.bh, S, tick, i);
+      continue;
+    }
+
     var ox = 0;
     if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
     var breathe = 0;
