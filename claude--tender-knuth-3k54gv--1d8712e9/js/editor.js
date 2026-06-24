@@ -167,14 +167,14 @@ function editorCellClick(e) {
     for (var ri4 = 0; ri4 < 8; ri4++) {
       defaultBoxes.push({ ci: ri4 % NUM_COLORS, type: 'default' });
     }
-    // Place anchor cell
-    editor.grid[idx] = { carouselAnchor: true, boxes: defaultBoxes };
-    // Place 8 ring cells
-    for (var ri4 = 0; ri4 < 8; ri4++) {
+    // Place anchor cell LAST so the ring loop (which includes offset 0) can't overwrite it
+    for (var ri4 = 1; ri4 < 8; ri4++) {
       editor.grid[idx + CAROUSEL_RING_OFFSETS[ri4]] = { carouselCell: true, anchorIdx: idx };
     }
     // Place machine cell
     editor.grid[idx + CAROUSEL_MACHINE_OFFSET] = { carouselCell: true, anchorIdx: idx };
+    // Anchor goes last (offset 0, also ring 0)
+    editor.grid[idx] = { carouselAnchor: true, boxes: defaultBoxes };
     editor.selectedCarousel = idx;
     editor.selectedTunnel = -1;
     editorRenderGrid();

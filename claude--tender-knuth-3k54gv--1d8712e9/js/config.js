@@ -9,6 +9,7 @@ var L = {};
 var beltPath = [];
 var stock = [], sortCols = [], particles = [], physMarbles = [], jumpers = [];
 var carousels = [];
+var carouselRotatePending = false;
 var score = 0, won = false, tick = 0, hoverIdx = -1;
 var audioCtx = null;
 
