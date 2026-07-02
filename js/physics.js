@@ -65,6 +65,21 @@ function physicsStep() {
         var col = circleLineCollide(m.x, m.y, m.r, funnelWalls[w].x1, funnelWalls[w].y1, funnelWalls[w].x2, funnelWalls[w].y2);
         if (col) resolveWallCollision(m, col);
       }
+      // See-saw planks — the tilting bar plus its end lips (the lips
+      // only exist while the plank is holding marbles, not tipping).
+      if (typeof seesaws !== 'undefined') {
+        for (var sw = 0; sw < seesaws.length; sw++) {
+          var ss = seesaws[sw];
+          var pc = circleLineCollide(m.x, m.y, m.r, ss.leftEnd.x, ss.leftEnd.y, ss.rightEnd.x, ss.rightEnd.y);
+          if (pc) resolveWallCollision(m, pc);
+          if (!ss.tipping) {
+            var lpc = circleLineCollide(m.x, m.y, m.r, ss.leftEnd.x, ss.leftEnd.y, ss.leftLipEnd.x, ss.leftLipEnd.y);
+            if (lpc) resolveWallCollision(m, lpc);
+            var rpc = circleLineCollide(m.x, m.y, m.r, ss.rightEnd.x, ss.rightEnd.y, ss.rightLipEnd.x, ss.rightLipEnd.y);
+            if (rpc) resolveWallCollision(m, rpc);
+          }
+        }
+      }
     }
   }
 

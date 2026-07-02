@@ -17,6 +17,7 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  seesawMode: false,    // true when placing see-saw platforms
   visible: false
 };
 
@@ -34,6 +35,7 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.seesawMode = false;
 }
 
 function showEditor(fresh) {
@@ -75,6 +77,12 @@ function editorRenderGrid() {
       cell.style.background = 'linear-gradient(135deg,#9A8D7B,#6F6355)';
       cell.style.borderColor = '#8A7D6B';
       cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,255,255,0.5);font-size:14px">&#9632;</span>';
+    } else if (v && v.seesaw) {
+      // See-saw arm cell
+      cell.style.background = 'linear-gradient(135deg,#7986CB,#3F4A9E)';
+      cell.style.borderColor = '#5C6BC0';
+      var armGlyph = (v.arm === 'right') ? '&#9652;' : '&#9662;';  // hint which arm this is
+      cell.innerHTML = '<span class="ed-cell-dot" style="color:#FFE0A0;font-size:13px">⚖ ' + armGlyph + '</span>';
     } else if (v && v.tunnel) {
       // Tunnel cell
       var isSelected = (editor.selectedTunnel === i);
@@ -102,8 +110,54 @@ function editorRenderGrid() {
   }
 }
 
+// Remove a see-saw (both arm cells) given either arm's index.
+function editorRemoveSeesaw(idx) {
+  var v = editor.grid[idx];
+  if (!v || !v.seesaw) return;
+  var partner = (v.arm === 'right') ? idx - 1 : idx + 1;
+  editor.grid[idx] = null;
+  if (editor.grid[partner] && editor.grid[partner].seesaw) editor.grid[partner] = null;
+}
+
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  // Touching a see-saw cell in any mode removes the whole platform
+  // (both arms) so we never leave a dangling half.
+  if (!editor.seesawMode && editor.grid[idx] && editor.grid[idx].seesaw) {
+    editorRemoveSeesaw(idx);
+    if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderTunnelPanel();
+    return;
+  }
+
+  if (editor.seesawMode) {
+    var existingSS = editor.grid[idx];
+    if (existingSS && existingSS.seesaw) {
+      // Click an existing see-saw to remove it.
+      editorRemoveSeesaw(idx);
+    } else {
+      // Place a 2-cell-wide see-saw: this cell (left arm) + the cell
+      // to its right (right arm). Both must be empty and in-row.
+      var col = idx % 7;
+      var rightIdx = idx + 1;
+      if (col >= 6) {
+        editorShowToast('See-saw needs an empty cell to its right');
+      } else if (editor.grid[idx] || editor.grid[rightIdx]) {
+        editorShowToast('Clear both cells first (see-saw is 2 wide)');
+      } else {
+        editor.grid[idx] = { seesaw: true, arm: 'left' };
+        editor.grid[rightIdx] = { seesaw: true, arm: 'right' };
+      }
+    }
+    if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderTunnelPanel();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -178,13 +232,14 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.seesawMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.seesawMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -200,10 +255,26 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.seesawMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(wallBtn);
+
+  // See-saw mode button
+  var seesawBtn = document.createElement('button');
+  seesawBtn.className = 'ed-type-btn' + (editor.seesawMode ? ' active' : '');
+  seesawBtn.textContent = '⚖ See-Saw';
+  seesawBtn.style.borderColor = editor.seesawMode ? 'rgba(92,107,192,0.7)' : '';
+  seesawBtn.style.color = editor.seesawMode ? '#3F4A9E' : '';
+  seesawBtn.addEventListener('click', function () {
+    editor.seesawMode = true;
+    editor.wallMode = false;
+    editor.tunnelMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(seesawBtn);
 
   // Tunnel mode button
   var tunnelBtn = document.createElement('button');
@@ -214,6 +285,7 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.seesawMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -260,6 +332,11 @@ function editorRenderToolbar() {
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
+  } else if (editor.seesawMode) {
+    var ssInfo = document.createElement('div');
+    ssInfo.className = 'ed-color-row';
+    ssInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click to drop a 2-wide see-saw. Place a box DIRECTLY ABOVE an arm to feed it. A box above the opposite arm blocks tilting until opened.</span>';
+    el.appendChild(ssInfo);
   } else {
     // Color palette: eraser + 8 colors
     var colorRow = document.createElement('div');
@@ -453,11 +530,16 @@ function editorUpdateStats() {
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
   var wallCount = 0;
+  var seesawArmCount = 0;
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
     if (v.wall) {
       wallCount++;
+      continue;
+    }
+    if (v.seesaw) {
+      seesawArmCount++;
       continue;
     }
     if (v.tunnel) {
@@ -499,6 +581,10 @@ function editorUpdateStats() {
   }
   if (wallCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#8A7D6B">' + wallCount + ' wall' + (wallCount > 1 ? 's' : '') + '</span>';
+  }
+  if (seesawArmCount > 0) {
+    var ssCount = Math.floor(seesawArmCount / 2);
+    html += '<span class="ed-stat-chip" style="background:#5C6BC0">⚖ ' + ssCount + ' see-saw' + (ssCount !== 1 ? 's' : '') + '</span>';
   }
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
@@ -618,6 +704,7 @@ function editorImportJSON() {
           if (cell === null || cell === undefined || cell === -1) editor.grid[i] = null;
           else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
           else if (cell.wall) editor.grid[i] = { wall: true };
+          else if (cell.seesaw) editor.grid[i] = { seesaw: true, arm: cell.arm || 'left' };
           else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
           else editor.grid[i] = cell;
         }

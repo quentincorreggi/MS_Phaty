@@ -177,6 +177,11 @@ function drawStock() {
       continue;
     }
 
+    // ── See-saw arm — drawn by drawSeesaws() as one rotating plank ──
+    if (b.isSeesaw) {
+      continue;
+    }
+
     var ox = 0;
     if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
     var breathe = 0;
