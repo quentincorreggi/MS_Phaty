@@ -94,13 +94,14 @@ function physicsStep() {
   }
 }
 
-function spawnPhysMarbles(box) {
+function spawnPhysMarbles(box, boxIdx) {
   box.spawning = true; box.spawnIdx = 0;
   var count = box.remaining;
   var blockerCount = box.blockerCount || 0;
   var blockerStart = MRB_PER_BOX - blockerCount;
+  if (boxIdx === undefined) boxIdx = stock.indexOf(box);
   for (var idx = 0; idx < count; idx++) {
-    (function (i, b, bStart) {
+    (function (i, b, bStart, bi) {
       setTimeout(function () {
         if (b.remaining <= 0) return;
         var spawnIdx = MRB_PER_BOX - b.remaining;
@@ -126,9 +127,13 @@ function spawnPhysMarbles(box) {
             // Re-evaluate which boxes have an open path to the bottom
             // now that this cell is passable.
             updateBoxReveals(true);
+            // Damage any modular pins that are cardinal-adjacent to this box.
+            if (typeof damagePinsAdjacentTo === 'function' && bi >= 0) {
+              damagePinsAdjacentTo(bi);
+            }
           }, 300);
         }
       }, i * 120);
-    })(idx, box, blockerStart);
+    })(idx, box, blockerStart, boxIdx);
   }
 }

@@ -1,0 +1,255 @@
+{
+  "name": "Modular Pin",
+  "description": "A rainbow pillar with a circular base and a stalk of any shape (branches allowed). Play boxes adjacent to it to whittle it back — each hit lops every current tip off at once.",
+  "howToPlay": "Boxes under the pillar are locked. Tap a box next to the pillar and every current TIP is chipped off simultaneously (branches shrink in parallel). When the base falls, the covered boxes are freed.",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Modular Pin Showcase",
+    "desc": "One straight 3-tall pillar, one Y-shape, one T-shape.",
+    "mrbPerBox": 3,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      }
+    ],
+    "pins": [
+      {
+        "base": 20,
+        "cells": [
+          6,
+          13,
+          20
+        ],
+        "parent": {
+          "6": 13,
+          "13": 20
+        }
+      },
+      {
+        "base": 30,
+        "cells": [
+          30,
+          23,
+          16,
+          15,
+          17
+        ],
+        "parent": {
+          "15": 16,
+          "16": 23,
+          "17": 16,
+          "23": 30
+        }
+      },
+      {
+        "base": 39,
+        "cells": [
+          39,
+          32,
+          31,
+          33
+        ],
+        "parent": {
+          "31": 32,
+          "32": 39,
+          "33": 32
+        }
+      }
+    ]
+  }
+}
