@@ -218,69 +218,44 @@ function modPinCellCenter(cellIdx) {
   return { x: cell.x + L.bw / 2, y: cell.y + L.bh / 2 };
 }
 
-// A pastel-rainbow gradient tube segment from A to B.
-function drawPinTubeSegment(ax, ay, bx, by, thick, hitT, spawnPhase) {
-  var dx = bx - ax, dy = by - ay;
-  var len = Math.sqrt(dx * dx + dy * dy);
-  if (len < 0.01) return;
-  var nx = dx / len, ny = dy / len;
-  var px = -ny, py = nx;
-  var half = thick / 2;
-
-  // Body rounded rect along the segment
-  ctx.save();
-  ctx.translate(ax, ay);
-  ctx.rotate(Math.atan2(dy, dx));
-
-  // Gradient (across the tube, gives a bright sheen)
-  var g = ctx.createLinearGradient(0, -half, 0, half);
-  g.addColorStop(0, '#FFFFFF');
-  g.addColorStop(0.15, '#FFE1F0');
-  g.addColorStop(0.35, '#C6E4FF');
-  g.addColorStop(0.55, '#CFF5D8');
-  g.addColorStop(0.8, '#E7D3F5');
-  g.addColorStop(1, '#B29ACB');
-  ctx.fillStyle = g;
-  ctx.shadowColor = 'rgba(0,0,0,0.28)';
-  ctx.shadowBlur = 6 * S;
-  ctx.shadowOffsetY = 2 * S;
-  rRect(0, -half, len, thick, half); ctx.fill();
-  ctx.shadowColor = 'transparent';
-  ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-
-  // Rainbow candy-stripe bands (perpendicular slashes)
-  ctx.save();
-  ctx.beginPath(); rRect(0, -half, len, thick, half); ctx.clip();
-  var bands = ['rgba(255,138,190,0.55)', 'rgba(126,201,255,0.55)',
-               'rgba(140,235,175,0.55)', 'rgba(255,220,120,0.55)',
-               'rgba(200,150,240,0.55)'];
-  var bandW = Math.max(6 * S, thick * 0.4);
-  var offset = (spawnPhase || 0) * bandW * 5;
-  for (var b = -1; b * bandW < len + bandW; b++) {
-    var bx0 = b * bandW * 2 - offset;
-    ctx.fillStyle = bands[((b % bands.length) + bands.length) % bands.length];
-    ctx.beginPath();
-    ctx.moveTo(bx0, -half);
-    ctx.lineTo(bx0 + bandW, -half);
-    ctx.lineTo(bx0 + bandW - thick * 0.5, half);
-    ctx.lineTo(bx0 - thick * 0.5, half);
+// Build the whole pin tree as ONE continuous silhouette path. All
+// segments (as capsule rectangles) and node discs get added as
+// sub-paths; using the default nonzero fill rule, they union into
+// one shape, so there are no visible seams between segments.
+function buildPinSilhouettePath(ctx, segments, nodes, half) {
+  ctx.beginPath();
+  for (var s = 0; s < segments.length; s++) {
+    var seg = segments[s];
+    var dx = seg.bx - seg.ax, dy = seg.by - seg.ay;
+    var len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 0.01) continue;
+    var nx = dx / len, ny = dy / len;
+    var px = -ny * half, py = nx * half;
+    ctx.moveTo(seg.ax + px, seg.ay + py);
+    ctx.lineTo(seg.bx + px, seg.by + py);
+    ctx.lineTo(seg.bx - px, seg.by - py);
+    ctx.lineTo(seg.ax - px, seg.ay - py);
     ctx.closePath();
-    ctx.fill();
   }
-  ctx.restore();
-
-  // Outline
-  ctx.strokeStyle = 'rgba(120,90,140,0.55)';
-  ctx.lineWidth = 1.4 * S;
-  rRect(0, -half, len, thick, half); ctx.stroke();
-
-  // Damage flash
-  if (hitT > 0) {
-    ctx.fillStyle = 'rgba(255,255,255,' + (hitT * 0.55) + ')';
-    rRect(0, -half, len, thick, half); ctx.fill();
+  for (var n = 0; n < nodes.length; n++) {
+    ctx.moveTo(nodes[n].x + half, nodes[n].y);
+    ctx.arc(nodes[n].x, nodes[n].y, half, 0, Math.PI * 2);
   }
+}
 
-  ctx.restore();
+function pinTreeBBox(segments, nodes, pad) {
+  var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  function add(x, y) {
+    if (x < minX) minX = x; if (y < minY) minY = y;
+    if (x > maxX) maxX = x; if (y > maxY) maxY = y;
+  }
+  for (var n = 0; n < nodes.length; n++) add(nodes[n].x, nodes[n].y);
+  for (var s = 0; s < segments.length; s++) {
+    add(segments[s].ax, segments[s].ay);
+    add(segments[s].bx, segments[s].by);
+  }
+  if (!isFinite(minX)) return { x: 0, y: 0, w: 0, h: 0 };
+  return { x: minX - pad, y: minY - pad, w: (maxX - minX) + pad * 2, h: (maxY - minY) + pad * 2 };
 }
 
 function drawPinTipCap(x, y, r, tick) {
@@ -327,62 +302,158 @@ function drawPinBaseDisc(x, y, r, hitT) {
 
 function drawOneModularPin(pin) {
   var thick = Math.min(L.bw, L.bh) * 0.44;
+  var half = thick / 2;
   var shakeOff = 0;
   if (pin.shakeT > 0) shakeOff = Math.sin(pin.shakeT * 42) * 3.5 * S * pin.shakeT;
 
-  ctx.save();
-  ctx.translate(shakeOff, 0);
-  var spawnPhase = pin.spawnT;
-
-  // 1) draw segments from every non-base cell to its parent.
-  //    Order: draw farther-from-base first so children paint under parents at joints.
-  var order = pin.cells.slice().sort(function (a, b) {
-    return pinDepth(pin, b) - pinDepth(pin, a);
-  });
-  for (var i = 0; i < order.length; i++) {
-    var c = order[i];
-    if (c === pin.base) continue;
+  // Collect all node centers and parent→child segments for the live tree
+  var nodes = [];
+  for (var i = 0; i < pin.cells.length; i++) {
+    var p = modPinCellCenter(pin.cells[i]);
+    nodes.push(p);
+  }
+  var segments = [];
+  for (var i2 = 0; i2 < pin.cells.length; i2++) {
+    var c = pin.cells[i2];
     var par = pin.parent[c];
     if (par == null) continue;
     var A = modPinCellCenter(par);
     var B = modPinCellCenter(c);
-    drawPinTubeSegment(A.x, A.y, B.x, B.y, thick, pin.hitT, spawnPhase);
+    segments.push({ ax: A.x, ay: A.y, bx: B.x, by: B.y });
   }
 
-  // 2) draw retracting stubs for recently-removed cells so they fade back
-  //    toward their former parent.
+  ctx.save();
+  ctx.translate(shakeOff, 0);
+
+  // Include retracting stubs into the SAME silhouette so they blend
+  // with the trunk while receding — no visible seam at the join.
+  var retractSegs = [];
+  var retractNodes = [];
   var remKeys = Object.keys(pin.removedT);
   for (var r = 0; r < remKeys.length; r++) {
     var rc = +remKeys[r];
     var t = pin.removedT[rc];
     var parIdx = pin.removedGeom[rc].parent;
-    if (parIdx == null) continue;
-    // if parent is also gone, skip (avoid crash)
-    if (!stock[parIdx]) continue;
+    if (parIdx == null || !stock[parIdx]) continue;
     var A2 = modPinCellCenter(parIdx);
     var Bc = stock[rc]; if (!Bc) continue;
     var B2 = { x: Bc.x + L.bw / 2, y: Bc.y + L.bh / 2 };
-    // Interpolate B2 back toward A2 (retract) and fade
     var retract = 1 - t;
     var bx = B2.x + (A2.x - B2.x) * retract;
     var by = B2.y + (A2.y - B2.y) * retract;
+    retractSegs.push({ ax: A2.x, ay: A2.y, bx: bx, by: by, alpha: t });
+    retractNodes.push({ x: bx, y: by });
+  }
+
+  if (nodes.length === 0 && retractSegs.length === 0) {
+    ctx.restore();
+    return;
+  }
+
+  // PASS 1 — soft drop shadow: draw the union with a slight offset in a dark tone.
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.32)';
+  ctx.shadowBlur = 8 * S;
+  ctx.shadowOffsetY = 3 * S;
+  ctx.fillStyle = 'rgba(120,90,140,0.85)';
+  buildPinSilhouettePath(ctx, segments, nodes, half + 1.2 * S);
+  ctx.fill();
+  // shadow for retracting stubs as well (fainter)
+  if (retractSegs.length) {
+    for (var rr = 0; rr < retractSegs.length; rr++) {
+      var rs = retractSegs[rr];
+      ctx.globalAlpha = rs.alpha;
+      buildPinSilhouettePath(ctx, [rs], [retractNodes[rr]], half + 1.2 * S);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+
+  // PASS 2 — interior fill of the LIVE tree, clipped to the union so the
+  //          gradient and candy stripes wrap the whole pillar with no seams.
+  if (nodes.length > 0) {
     ctx.save();
-    ctx.globalAlpha = t;
-    drawPinTubeSegment(A2.x, A2.y, bx, by, thick * (0.6 + t * 0.4), pin.hitT, spawnPhase);
+    buildPinSilhouettePath(ctx, segments, nodes, half);
+    ctx.clip();
+
+    var bb = pinTreeBBox(segments, nodes, half);
+
+    // Base gradient (rainbow pastel from top to bottom of the shape)
+    var grad = ctx.createLinearGradient(bb.x, bb.y, bb.x, bb.y + bb.h);
+    grad.addColorStop(0.00, '#FFFFFF');
+    grad.addColorStop(0.15, '#FFE1F0');
+    grad.addColorStop(0.35, '#C6E4FF');
+    grad.addColorStop(0.55, '#CFF5D8');
+    grad.addColorStop(0.75, '#FFEE9A');
+    grad.addColorStop(1.00, '#B29ACB');
+    ctx.fillStyle = grad;
+    ctx.fillRect(bb.x, bb.y, bb.w, bb.h);
+
+    // Diagonal candy stripes across the whole clipped region
+    var bands = ['rgba(255,138,190,0.55)', 'rgba(126,201,255,0.55)',
+                 'rgba(140,235,175,0.55)', 'rgba(255,220,120,0.55)',
+                 'rgba(200,150,240,0.55)'];
+    var bandW = Math.max(6 * S, thick * 0.42);
+    var diag = bb.w + bb.h;
+    var offset = ((tick * 0.4) % (bandW * bands.length * 2));
+    for (var b = -bands.length; b * bandW < diag + bandW; b++) {
+      var y0 = bb.y + b * bandW - offset;
+      ctx.fillStyle = bands[((b % bands.length) + bands.length) % bands.length];
+      ctx.beginPath();
+      ctx.moveTo(bb.x - 4 * S, y0);
+      ctx.lineTo(bb.x + bb.w + 4 * S, y0 - bb.w);
+      ctx.lineTo(bb.x + bb.w + 4 * S, y0 - bb.w + bandW);
+      ctx.lineTo(bb.x - 4 * S, y0 + bandW);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Sheen: subtle white haze along the top-left edge
+    var sheen = ctx.createLinearGradient(bb.x, bb.y, bb.x + bb.w * 0.6, bb.y + bb.h * 0.6);
+    sheen.addColorStop(0, 'rgba(255,255,255,0.55)');
+    sheen.addColorStop(0.5, 'rgba(255,255,255,0)');
+    ctx.fillStyle = sheen;
+    ctx.fillRect(bb.x, bb.y, bb.w, bb.h);
+
+    // Damage flash
+    if (pin.hitT > 0) {
+      ctx.fillStyle = 'rgba(255,255,255,' + (pin.hitT * 0.55) + ')';
+      ctx.fillRect(bb.x, bb.y, bb.w, bb.h);
+    }
+
     ctx.restore();
   }
 
-  // 3) tip caps at each current leaf
+  // Retract stubs — draw with the SAME styling so the trunk stays visually
+  // continuous while the stub fades. Uses their own tiny bbox.
+  for (var rs2 = 0; rs2 < retractSegs.length; rs2++) {
+    var sg = retractSegs[rs2];
+    ctx.save();
+    ctx.globalAlpha = sg.alpha;
+    buildPinSilhouettePath(ctx, [sg], [retractNodes[rs2]], half);
+    ctx.clip();
+    var bb2 = pinTreeBBox([sg], [retractNodes[rs2]], half);
+    var g2 = ctx.createLinearGradient(bb2.x, bb2.y, bb2.x, bb2.y + bb2.h);
+    g2.addColorStop(0, '#FFE1F0');
+    g2.addColorStop(0.5, '#C6E4FF');
+    g2.addColorStop(1, '#B29ACB');
+    ctx.fillStyle = g2;
+    ctx.fillRect(bb2.x, bb2.y, bb2.w, bb2.h);
+    ctx.restore();
+  }
+
+  // Tip caps on current leaves (drawn AFTER the silhouette so they sit on top)
   for (var j = 0; j < pin.cells.length; j++) {
     var c2 = pin.cells[j];
     var kids = pin.children[c2] || [];
     if (kids.length > 0) continue;
-    if (c2 === pin.base && pin.cells.length > 1) continue; // base itself isn't a "tip" while other cells exist
+    if (c2 === pin.base && pin.cells.length > 1) continue;
     var P = modPinCellCenter(c2);
     drawPinTipCap(P.x, P.y, thick, tick);
   }
 
-  // 4) base disc — only if base is still alive
+  // Base disc last, at the root cell
   if (pin.cells.indexOf(pin.base) >= 0) {
     var Bpos = modPinCellCenter(pin.base);
     drawPinBaseDisc(Bpos.x, Bpos.y, thick * 0.62, pin.hitT);

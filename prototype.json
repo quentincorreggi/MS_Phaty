@@ -6,7 +6,7 @@
   "showcaseLevel": {
     "name": "Modular Pin Showcase",
     "desc": "One straight 3-tall pillar, one Y-shape, one T-shape.",
-    "mrbPerBox": 3,
+    "mrbPerBox": 9,
     "sortCap": 3,
     "lockButtons": 0,
     "grid": [
