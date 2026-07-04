@@ -118,8 +118,8 @@ function damagePinsAdjacentTo(boxIdx) {
 }
 
 // One HP damage: remove all current leaves simultaneously. A cell is a
-// leaf when it has no living children in the pin's tree. If only the
-// base remains and it's a leaf, it also gets removed.
+// leaf when it has no living children in the pin's tree. When the last
+// stalk unit falls, the base falls with it (same hit).
 function damageModularPin(pin) {
   var leaves = [];
   for (var i = 0; i < pin.cells.length; i++) {
@@ -128,6 +128,11 @@ function damageModularPin(pin) {
     if (kids.length === 0) leaves.push(c);
   }
   for (var l = 0; l < leaves.length; l++) removePinCell(pin, leaves[l]);
+  // If only the base remains after removing this hit's leaves, take the
+  // base out too — base + last stalk fall together.
+  if (pin.cells.length === 1 && pin.cells[0] === pin.base) {
+    removePinCell(pin, pin.base);
+  }
   pin.hitT = 1;
   pin.shakeT = 0.55;
   if (typeof sfx !== 'undefined' && sfx.pinChip) sfx.pinChip();
@@ -285,7 +290,7 @@ function drawPinBaseDisc(x, y, r, hitT) {
 
 function drawOneModularPin(pin) {
   var cellSize = Math.min(L.bw, L.bh);
-  var thick = cellSize * 0.80;
+  var thick = cellSize * 0.55;
   var half = thick / 2;
   var shakeOff = 0;
   if (pin.shakeT > 0) shakeOff = Math.sin(pin.shakeT * 42) * 3.5 * S * pin.shakeT;
