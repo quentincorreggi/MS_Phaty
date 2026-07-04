@@ -295,11 +295,22 @@ function drawOneModularPin(pin) {
   var shakeOff = 0;
   if (pin.shakeT > 0) shakeOff = Math.sin(pin.shakeT * 42) * 3.5 * S * pin.shakeT;
 
-  // Build bridges: one rectangle per parent-child edge, spanning from
-  // the parent's OUTER edge (facing away from the child) all the way
-  // to the child's OUTER edge (facing away from the parent). This
-  // guarantees each covered cell is fully covered along the edge axis,
-  // and adjacent bridges overlap seamlessly at their shared cell.
+  // Count in-pin neighbors per cell. A cell with exactly 1 neighbor is
+  // an "endpoint" (a leaf, or a base with a single child) — the tube
+  // extends past its center to its outer edge to fully cover it.
+  // Cells with 2+ neighbors are junctions or mid-trunk — the tube
+  // stops at their center on the neighbor side, so nothing sticks past
+  // the junction into an empty direction. This is what removes the
+  // phantom "+" prong at T/L junctions.
+  var nbrCount = {};
+  for (var i0 = 0; i0 < pin.cells.length; i0++) {
+    var cc0 = pin.cells[i0];
+    var ns = cardinalNeighbors(cc0), cnt = 0;
+    for (var kk = 0; kk < ns.length; kk++) {
+      if (pin.cells.indexOf(ns[kk]) >= 0) cnt++;
+    }
+    nbrCount[cc0] = cnt;
+  }
   var bridges = [];
   for (var i = 0; i < pin.cells.length; i++) {
     var c = pin.cells[i];
@@ -314,9 +325,11 @@ function drawOneModularPin(pin) {
     if (len < 0.01) continue;
     var nx = dx / len, ny = dy / len;
     var ext = (Math.abs(dx) > Math.abs(dy)) ? L.bw / 2 : L.bh / 2;
+    var pExt = (nbrCount[par] === 1) ? ext : 0;
+    var cExt = (nbrCount[c] === 1) ? ext : 0;
     bridges.push({
-      ax: pcx - nx * ext, ay: pcy - ny * ext,
-      bx: ccx + nx * ext, by: ccy + ny * ext
+      ax: pcx - nx * pExt, ay: pcy - ny * pExt,
+      bx: ccx + nx * cExt, by: ccy + ny * cExt
     });
   }
 
