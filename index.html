@@ -120,6 +120,18 @@
   .ed-setting-row input[type=range]{-webkit-appearance:none;flex:1;height:4px;background:rgba(90,74,56,0.15);border-radius:2px;outline:none}
   .ed-setting-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:#9060C4;cursor:pointer}
   .ed-s-val{font-size:10px;color:#8B6914;width:24px;text-align:left}
+  .ed-bucket-empty{font-size:11px;color:#9C8A70;padding:2px 0 6px}
+  .ed-bucket-row{display:flex;align-items:center;gap:8px;margin:5px 0;flex-wrap:wrap}
+  .ed-bucket-colors{display:flex;gap:3px;flex-wrap:wrap}
+  .ed-bucket-clr{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,0.5);cursor:pointer;padding:0}
+  .ed-bucket-clr.sel{border-color:#3A2A18;box-shadow:0 0 0 2px #7C5230}
+  .ed-bucket-cap{display:flex;align-items:center;gap:4px;margin-left:auto}
+  .ed-bucket-step{width:20px;height:20px;border:none;border-radius:6px;background:#7C5230;color:#fff;font-weight:700;font-size:13px;cursor:pointer;line-height:1}
+  .ed-bucket-step:active{transform:scale(0.9)}
+  .ed-bucket-capval{font-size:12px;font-weight:700;color:#5A4A38;width:22px;text-align:center}
+  .ed-bucket-del{width:20px;height:20px;border:none;border-radius:6px;background:rgba(200,80,80,0.85);color:#fff;font-size:11px;cursor:pointer;line-height:1}
+  .ed-bucket-add{margin-top:6px;padding:5px 12px;border:none;border-radius:8px;background:#7C5230;color:#fff;font-family:'Fredoka',sans-serif;font-size:11px;font-weight:600;cursor:pointer}
+  .ed-bucket-add:hover{background:#8A5E34}.ed-bucket-add:active{transform:scale(0.95)}
   .ed-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;padding-top:4px}
   .ed-action{padding:10px 22px;border:none;border-radius:14px;font-family:'Fredoka',sans-serif;font-size:14px;font-weight:700;
     cursor:pointer;color:white;transition:transform 0.15s;display:flex;align-items:center;gap:6px}
@@ -235,6 +247,10 @@
     <div class="ed-section">
       <div class="ed-section-title"><span class="icon">&#9881;</span> Settings</div>
       <div id="ed-settings-body"></div>
+    </div>
+    <div class="ed-section">
+      <div class="ed-section-title"><span class="icon">&#129531;</span> Bucket Customers <span style="font-weight:400;font-size:10px;color:#9C8A70;margin-left:auto">big orders, 6&ndash;30 marbles</span></div>
+      <div id="ed-buckets-body"></div>
     </div>
     <div class="ed-section" style="background:transparent;border:none;box-shadow:none;padding:8px 0">
       <div class="ed-actions">

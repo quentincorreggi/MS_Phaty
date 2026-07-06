@@ -83,9 +83,21 @@ function initGame() {
       if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
     }
   }
+  // ── Bucket customers — large orders that eat their own capacity of
+  //    marbles before clearing. Their capacity is subtracted from the
+  //    color's marble pool; the remainder becomes normal customers. ──
+  var buckets = (lvl.buckets && lvl.buckets.length) ? lvl.buckets : [];
+  var bucketCapByColor = [];
+  for (var c = 0; c < NUM_COLORS; c++) bucketCapByColor.push(0);
+  for (var bi = 0; bi < buckets.length; bi++) {
+    var bk = buckets[bi];
+    if (bk && bk.ci >= 0 && bk.ci < NUM_COLORS) bucketCapByColor[bk.ci] += (bk.cap || 0);
+  }
   var sortPerColor = [];
   for (var c = 0; c < NUM_COLORS; c++) {
-    sortPerColor.push(SORT_CAP > 0 ? Math.ceil(colorMarblesTotal[c] / SORT_CAP) : 0);
+    var remainingMrb = colorMarblesTotal[c] - bucketCapByColor[c];
+    if (remainingMrb < 0) remainingMrb = 0;
+    sortPerColor.push(SORT_CAP > 0 ? Math.ceil(remainingMrb / SORT_CAP) : 0);
   }
 
   // ── Build stock ──
@@ -149,6 +161,13 @@ function initGame() {
   var allBoxes = [];
   for (var c = 0; c < NUM_COLORS; c++) for (var r = 0; r < sortPerColor[c]; r++)
     allBoxes.push({ ci: c, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0 });
+  // Add bucket customers (2 slots tall, custom capacity)
+  for (var bi = 0; bi < buckets.length; bi++) {
+    var bk = buckets[bi];
+    if (!bk || bk.ci < 0 || bk.ci >= NUM_COLORS) continue;
+    var bkCap = bk.cap || 6;
+    allBoxes.push({ ci: bk.ci, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0, bucket: true, cap: bkCap, rows: 2 });
+  }
   shuffle(allBoxes);
   sortCols = [[], [], [], []];
   for (var i = 0; i < allBoxes.length; i++) sortCols[i % 4].push(allBoxes[i]);
@@ -323,6 +342,18 @@ function isBoxTappable(idx) {
 
 function getSortBoxY(ci, vi) { return L.sTop + vi * (L.sBh + L.sGap); }
 
+// ── Bucket customer helpers ──
+// A "bucket" is a large customer that needs its own capacity (a multiple
+// of 3, 6..30) and occupies two stacked queue slots in its lane.
+function boxCap(box) { return (box && box.cap) ? box.cap : SORT_CAP; }
+function boxRows(box) { return (box && box.rows) ? box.rows : 1; }
+function sortBoxHeight(box) { var n = boxRows(box); return n * L.sBh + (n - 1) * L.sGap; }
+function getSortColTopBox(c) {
+  var col = sortCols[c];
+  for (var r = 0; r < col.length; r++) if (col[r].vis) return col[r];
+  return null;
+}
+
 // === INPUT ===
 function handleTap(px, py) {
   if (won || !gameActive) return;
@@ -384,7 +415,7 @@ function update() {
       if (tv < 0 || col[tv].ci !== slot.marble) continue;
       var inFlight = 0;
       for (var j = 0; j < jumpers.length; j++) if (jumpers[j].targetCol === c) inFlight++;
-      if (col[tv].filled + inFlight >= SORT_CAP) continue;
+      if (col[tv].filled + inFlight >= boxCap(col[tv])) continue;
       var bt = L.sortBeltT[c]; var diff = Math.abs(slotT - bt); var wdiff = Math.min(diff, 1 - diff);
       if (wdiff < 0.015) {
         var aj = false;
@@ -407,13 +438,14 @@ function update() {
         col[tv].filled++;
         col[tv].squishT = 1;
         sfx.sort();
-        if (col[tv].filled >= SORT_CAP) {
+        if (col[tv].filled >= boxCap(col[tv])) {
           col[tv].popT = 1; col[tv].shineT = 1;
           sfx.complete();
+          var isBk = !!col[tv].bucket;
           var bx2 = L.sSx + j.targetCol * (L.sBw + L.sColGap) + L.sBw / 2;
-          var by2 = getSortBoxY(j.targetCol, 0) + L.sBh / 2;
-          spawnBurst(bx2, by2, COLORS[j.ci].fill, 20);
-          spawnConfetti(bx2, by2, 15);
+          var by2 = getSortBoxY(j.targetCol, 0) + sortBoxHeight(col[tv]) / 2;
+          spawnBurst(bx2, by2, COLORS[j.ci].fill, isBk ? 34 : 20);
+          spawnConfetti(bx2, by2, isBk ? 28 : 15);
           (function (box) { setTimeout(function () { box.vis = false; checkWin(); }, 600); })(col[tv]);
         }
       }

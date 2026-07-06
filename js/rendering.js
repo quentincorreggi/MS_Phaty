@@ -364,8 +364,10 @@ function drawJumpers() {
   for (var i = 0; i < jumpers.length; i++) {
     var j = jumpers[i]; var t = j.t;
     var e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-    var tx = L.sSx + j.targetCol * (L.sBw + L.sColGap) + L.sBw / 2 + (j.targetSlot - 1) * (L.sBw / 4);
-    var ty = getSortBoxY(j.targetCol, 0) + L.sBh / 2;
+    var topB = getSortColTopBox(j.targetCol);
+    var isBk = topB && topB.bucket;
+    var tx = L.sSx + j.targetCol * (L.sBw + L.sColGap) + L.sBw / 2 + (isBk ? 0 : (j.targetSlot - 1) * (L.sBw / 4));
+    var ty = getSortBoxY(j.targetCol, 0) + (topB ? sortBoxHeight(topB) : L.sBh) / 2;
     var x = j.startX + (tx - j.startX) * e;
     var y = j.startY + (ty - j.startY) * e - Math.sin(t * Math.PI) * 50 * S;
     var arcScale = 1 + Math.sin(t * Math.PI) * 0.25;
@@ -384,17 +386,28 @@ function drawSortArea() {
     var col = sortCols[c]; var x = L.sSx + c * (L.sBw + L.sColGap);
     var visibleBoxes = [];
     for (var r = 0; r < col.length; r++) if (col[r].vis) visibleBoxes.push(col[r]);
-    var showCount = Math.min(visibleBoxes.length, SORT_VISIBLE_ROWS);
-    var hiddenCount = visibleBoxes.length - showCount;
-    for (var vi = 0; vi < showCount; vi++) {
-      var b = visibleBoxes[vi]; var byy = getSortBoxY(c, vi);
+    // Budget the visible queue by row-units so a 2-tall bucket counts double.
+    var shown = [], usedRows = 0;
+    for (var vi = 0; vi < visibleBoxes.length; vi++) {
+      var nr = boxRows(visibleBoxes[vi]);
+      if (shown.length > 0 && usedRows + nr > SORT_VISIBLE_ROWS) break;
+      shown.push(visibleBoxes[vi]); usedRows += nr;
+      if (usedRows >= SORT_VISIBLE_ROWS) break;
+    }
+    var hiddenCount = visibleBoxes.length - shown.length;
+    var yy = L.sTop;
+    for (var vi = 0; vi < shown.length; vi++) {
+      var b = shown[vi]; var bh = sortBoxHeight(b); var byy = yy;
+      yy += bh + L.sGap;
       var ps = 1 + b.popT * 0.25; var al = b.popT > 0.6 ? (1 - b.popT) * 2.5 : 1;
       var sqX = 1, sqY = 1;
       if (b.squishT > 0) { var sq = Math.sin(b.squishT * Math.PI); sqX = 1 + sq * 0.12; sqY = 1 - sq * 0.08; }
       ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, al));
-      ctx.translate(x + L.sBw / 2, byy + L.sBh / 2); ctx.scale(ps * sqX, ps * sqY);
+      ctx.translate(x + L.sBw / 2, byy + bh / 2); ctx.scale(ps * sqX, ps * sqY);
 
-      if (b.type === 'lock') {
+      if (b.bucket) {
+        drawBucketCustomer(b, bh);
+      } else if (b.type === 'lock') {
         var isTop = (vi === 0);
         var pulse = isTop ? 1 + Math.sin(tick * 0.08) * 0.03 : 1;
         ctx.scale(pulse, pulse);
@@ -436,7 +449,7 @@ function drawSortArea() {
     }
     if (hiddenCount > 0) {
       ctx.fillStyle = 'rgba(120,100,80,0.5)'; ctx.font = 9 * S + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('+' + hiddenCount + ' more', x + L.sBw / 2, L.sTop + showCount * (L.sBh + L.sGap) + 6 * S);
+      ctx.fillText('+' + hiddenCount + ' more', x + L.sBw / 2, yy + 2 * S);
     }
     if (visibleBoxes.length > 0) {
       var topBox = visibleBoxes[0];
@@ -446,6 +459,68 @@ function drawSortArea() {
       ctx.fillText(label, x + L.sBw / 2, L.sTop - 8 * S);
     }
   }
+}
+
+// ── Bucket customer (large order, 2 slots tall) ──
+// Drawn centered at the current transform origin, spanning L.sBw wide and
+// `h` tall. Shows a wooden bucket that fills with its target color plus a
+// bold "filled / capacity" counter.
+function drawBucketCustomer(b, h) {
+  var w = L.sBw;
+  var sc = COLORS[b.ci];
+  var cap = boxCap(b);
+  var frac = Math.max(0, Math.min(1, b.filled / cap));
+
+  // Wooden body
+  ctx.shadowColor = 'rgba(0,0,0,0.28)'; ctx.shadowBlur = 6 * S; ctx.shadowOffsetY = 3 * S;
+  var wg = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
+  wg.addColorStop(0, '#B5895A'); wg.addColorStop(1, '#7C5230');
+  ctx.fillStyle = wg;
+  rRect(-w / 2, -h / 2, w, h, 7 * S); ctx.fill();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+
+  // Inner well with rising color fill. The empty part keeps a dark tint
+  // of the target color so the bucket's color is always readable.
+  var pad = 4 * S;
+  var iw = w - pad * 2, ih = h - pad * 2;
+  ctx.save();
+  rRect(-iw / 2, -ih / 2, iw, ih, 5 * S); ctx.clip();
+  ctx.fillStyle = 'rgba(30,22,14,0.72)';
+  ctx.fillRect(-iw / 2, -ih / 2, iw, ih);
+  ctx.fillStyle = sc.dark; ctx.globalAlpha = 0.35;
+  ctx.fillRect(-iw / 2, -ih / 2, iw, ih);
+  ctx.globalAlpha = 1;
+  var fillH = ih * frac;
+  if (fillH > 0) {
+    var fg = ctx.createLinearGradient(0, ih / 2 - fillH, 0, ih / 2);
+    fg.addColorStop(0, sc.light); fg.addColorStop(1, sc.fill);
+    ctx.fillStyle = fg;
+    ctx.fillRect(-iw / 2, ih / 2 - fillH, iw, fillH);
+    if (frac < 1) { ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(-iw / 2, ih / 2 - fillH, iw, 2 * S); }
+  }
+  ctx.restore();
+
+  // Colored rim so the target color reads even when empty
+  ctx.strokeStyle = sc.fill; ctx.lineWidth = 2.5 * S;
+  rRect(-w / 2 + 1.5 * S, -h / 2 + 1.5 * S, w - 3 * S, h - 3 * S, 6 * S); ctx.stroke();
+
+  // Hoops / bands
+  ctx.strokeStyle = 'rgba(55,38,22,0.75)'; ctx.lineWidth = 2 * S;
+  rRect(-w / 2, -h / 2, w, h, 7 * S); ctx.stroke();
+  ctx.strokeStyle = 'rgba(92,64,38,0.9)'; ctx.lineWidth = 3 * S;
+  ctx.beginPath(); ctx.moveTo(-w / 2, -h * 0.2); ctx.lineTo(w / 2, -h * 0.2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-w / 2, h * 0.2); ctx.lineTo(w / 2, h * 0.2); ctx.stroke();
+
+  // Completion shine
+  if (b.shineT > 0) { ctx.fillStyle = 'rgba(255,255,255,' + b.shineT * 0.4 + ')'; rRect(-w / 2, -h / 2, w, h, 7 * S); ctx.fill(); }
+
+  // Counter
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold ' + (11 * S) + 'px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,0.65)'; ctx.shadowBlur = 3 * S;
+  ctx.fillText(b.filled + ' / ' + cap, 0, 0);
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
 }
 
 // ── Back button ──

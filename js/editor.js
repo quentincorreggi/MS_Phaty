@@ -11,6 +11,7 @@ var editor = {
   mrbPerBox: 9,
   sortCap: 3,
   lockButtons: 0,
+  buckets: [],         // [{ ci, cap }] — large customers, cap is 6..30 (mult of 3)
   activeColor: 0,      // -1=eraser, 0-7=color
   activeType: BoxTypeOrder[0],
   tunnelMode: false,    // true when placing tunnels
@@ -28,6 +29,7 @@ function editorInit() {
   editor.mrbPerBox = 9;
   editor.sortCap = 3;
   editor.lockButtons = 0;
+  editor.buckets = [];
   editor.activeColor = 0;
   editor.activeType = BoxTypeOrder[0];
   editor.tunnelMode = false;
@@ -58,6 +60,7 @@ function editorBuildUI() {
   editorRenderGrid();
   editorRenderToolbar();
   editorRenderSettings();
+  editorRenderBuckets();
   editorUpdateStats();
   editorRenderTunnelPanel();
 }
@@ -509,15 +512,30 @@ function editorUpdateStats() {
   for (var c = 0; c < NUM_COLORS; c++) {
     if (counts[c] > 0) html += '<span class="ed-stat-chip" style="background:' + COLORS[c].fill + '">' + counts[c] + '</span>';
   }
+  // Bucket capacity per color, and bucket chips
+  var bucketCapByColor = [];
+  for (var c = 0; c < NUM_COLORS; c++) bucketCapByColor.push(0);
+  for (var bi = 0; bi < editor.buckets.length; bi++) {
+    var bk = editor.buckets[bi];
+    if (bk && bk.ci >= 0 && bk.ci < NUM_COLORS) {
+      bucketCapByColor[bk.ci] += bk.cap;
+      html += '<span class="ed-stat-chip" style="background:' + COLORS[bk.ci].fill + ';border:2px solid #7C5230">🪣' + bk.cap + '</span>';
+    }
+  }
   var warn = '';
   var totalAll = total + tunnelBoxCount;
   if (totalAll === 0) {
     warn = 'Place some boxes to create a level';
   } else {
     for (var c = 0; c < NUM_COLORS; c++) {
-      if (regularMrb[c] > 0) {
-        if (regularMrb[c] % editor.sortCap !== 0) {
-          warn = CLR_NAMES[c] + ' regular marbles (' + regularMrb[c] + ') not divisible by sort cap (' + editor.sortCap + ')';
+      if (regularMrb[c] > 0 || bucketCapByColor[c] > 0) {
+        if (bucketCapByColor[c] > regularMrb[c]) {
+          warn = CLR_NAMES[c] + ' buckets need ' + bucketCapByColor[c] + ' marbles but only ' + regularMrb[c] + ' exist';
+          break;
+        }
+        var leftover = regularMrb[c] - bucketCapByColor[c];
+        if (leftover % editor.sortCap !== 0) {
+          warn = CLR_NAMES[c] + ' leftover marbles (' + leftover + ') not divisible by sort cap (' + editor.sortCap + ')';
           break;
         }
       }
@@ -561,12 +579,60 @@ function editorRenderSettings() {
   }
 }
 
+// ── Bucket customers panel ──
+function editorRenderBuckets() {
+  var el = document.getElementById('ed-buckets-body');
+  if (!el) return;
+  var html = '';
+  if (!editor.buckets.length) {
+    html += '<div class="ed-bucket-empty">No bucket customers yet.</div>';
+  }
+  for (var i = 0; i < editor.buckets.length; i++) {
+    var bk = editor.buckets[i];
+    html += '<div class="ed-bucket-row">';
+    html += '<div class="ed-bucket-colors">';
+    for (var c = 0; c < NUM_COLORS; c++) {
+      html += '<button class="ed-bucket-clr' + (bk.ci === c ? ' sel' : '') + '" title="' + CLR_NAMES[c] +
+        '" style="background:' + COLORS[c].fill + '" onclick="editorBucketSetColor(' + i + ',' + c + ')"></button>';
+    }
+    html += '</div>';
+    html += '<div class="ed-bucket-cap">';
+    html += '<button class="ed-bucket-step" onclick="editorBucketAdjust(' + i + ',-3)">&minus;</button>';
+    html += '<span class="ed-bucket-capval">' + bk.cap + '</span>';
+    html += '<button class="ed-bucket-step" onclick="editorBucketAdjust(' + i + ',3)">+</button>';
+    html += '</div>';
+    html += '<button class="ed-bucket-del" title="Remove" onclick="editorBucketRemove(' + i + ')">&#10005;</button>';
+    html += '</div>';
+  }
+  html += '<button class="ed-bucket-add" onclick="editorBucketAdd()">+ Add Bucket</button>';
+  el.innerHTML = html;
+}
+
+function editorBucketAdd() {
+  editor.buckets.push({ ci: 0, cap: 6 });
+  editorRenderBuckets(); editorUpdateStats();
+}
+function editorBucketRemove(i) {
+  editor.buckets.splice(i, 1);
+  editorRenderBuckets(); editorUpdateStats();
+}
+function editorBucketSetColor(i, ci) {
+  if (editor.buckets[i]) editor.buckets[i].ci = ci;
+  editorRenderBuckets(); editorUpdateStats();
+}
+function editorBucketAdjust(i, d) {
+  var bk = editor.buckets[i]; if (!bk) return;
+  bk.cap = Math.max(6, Math.min(30, bk.cap + d));
+  editorRenderBuckets(); editorUpdateStats();
+}
+
 // ── Build level definition ──
 function editorBuildLevel() {
   return {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
+    buckets: editor.buckets.map(function (b) { return { ci: b.ci, cap: b.cap }; }),
     grid: editor.grid.slice()
   };
 }
@@ -625,6 +691,8 @@ function editorImportJSON() {
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
+      editor.buckets = (lvl.buckets && lvl.buckets.length)
+        ? lvl.buckets.map(function (b) { return { ci: b.ci, cap: b.cap }; }) : [];
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
       var nameEl = document.getElementById('ed-name');
