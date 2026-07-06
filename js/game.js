@@ -158,16 +158,11 @@ function initGame() {
   updateBoxReveals(false);
 
   // ── Sort columns ──
+  // Normal customers fill the four lanes round-robin; buckets are then
+  // placed into their chosen lane and row.
   var allBoxes = [];
   for (var c = 0; c < NUM_COLORS; c++) for (var r = 0; r < sortPerColor[c]; r++)
     allBoxes.push({ ci: c, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0 });
-  // Add bucket customers (2 slots tall, custom capacity)
-  for (var bi = 0; bi < buckets.length; bi++) {
-    var bk = buckets[bi];
-    if (!bk || bk.ci < 0 || bk.ci >= NUM_COLORS) continue;
-    var bkCap = bk.cap || 6;
-    allBoxes.push({ ci: bk.ci, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0, bucket: true, cap: bkCap, rows: 2 });
-  }
   shuffle(allBoxes);
   sortCols = [[], [], [], []];
   for (var i = 0; i < allBoxes.length; i++) sortCols[i % 4].push(allBoxes[i]);
@@ -178,6 +173,18 @@ function initGame() {
     var lockCol = Math.floor(Math.random() * 4);
     var lockRow = Math.min(2 + Math.floor(Math.random() * 4), sortCols[lockCol].length);
     sortCols[lockCol].splice(lockRow, 0, { type: 'lock', ci: -1, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0, triggerT: 0, triggered: false });
+  }
+
+  // Bucket customers (2 slots tall, custom capacity), placed last so the
+  // chosen lane/row lands exactly where the designer asked. lane is 1..4
+  // and row is 1-based; both are clamped to what's available.
+  for (var bi = 0; bi < buckets.length; bi++) {
+    var bk = buckets[bi];
+    if (!bk || bk.ci < 0 || bk.ci >= NUM_COLORS) continue;
+    var bkCap = bk.cap || 6;
+    var laneIdx = Math.max(0, Math.min(3, (bk.lane || 1) - 1));
+    var rowIdx = Math.max(0, Math.min(sortCols[laneIdx].length, (bk.row || 1) - 1));
+    sortCols[laneIdx].splice(rowIdx, 0, { ci: bk.ci, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0, bucket: true, cap: bkCap, rows: 2 });
   }
 }
 

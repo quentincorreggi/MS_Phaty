@@ -10,9 +10,9 @@
     "sortCap": 3,
     "lockButtons": 0,
     "buckets": [
-      { "ci": 1, "cap": 12 },
-      { "ci": 0, "cap": 12 },
-      { "ci": 2, "cap": 6 }
+      { "ci": 1, "cap": 12, "lane": 1, "row": 1 },
+      { "ci": 0, "cap": 12, "lane": 3, "row": 2 },
+      { "ci": 2, "cap": 6, "lane": 4, "row": 1 }
     ],
     "grid": [
       null, null, null, null, null, null, null,
