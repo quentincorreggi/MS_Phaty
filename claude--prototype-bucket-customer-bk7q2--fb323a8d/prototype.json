@@ -1,0 +1,27 @@
+{
+  "name": "Bucket Customer",
+  "description": "A large customer that occupies two stacked queue slots in a lane and must be fed several times the marbles of a normal order before it clears. Each bucket's capacity is a multiple of 3 (6 to 30), set per bucket in the level editor.",
+  "howToPlay": "Play like normal: tap boxes to release marbles onto the belt. Watch the sort lanes at the bottom — the tall wooden buckets are big orders. Keep feeding a lane its matching color and the bucket's fill bar rises. Fill it all the way (see the X / capacity counter) and it pops with a big burst. Clear every order to win.",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Bucket Brigade",
+    "desc": "Fill the big bucket orders!",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "buckets": [
+      { "ci": 1, "cap": 12 },
+      { "ci": 0, "cap": 12 },
+      { "ci": 2, "cap": 6 }
+    ],
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, { "ci": 1, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 2, "type": "default" }, null
+    ]
+  }
+}
