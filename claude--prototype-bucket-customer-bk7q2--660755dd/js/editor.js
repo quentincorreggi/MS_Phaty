@@ -580,6 +580,15 @@ function editorRenderSettings() {
 }
 
 // ── Bucket customers panel ──
+function bucketField(label, i, fn, step, value) {
+  return '<div class="ed-bucket-field">' +
+    '<span class="ed-bucket-flabel">' + label + '</span>' +
+    '<button class="ed-bucket-step" onclick="' + fn + '(' + i + ',' + (-step) + ')">&minus;</button>' +
+    '<span class="ed-bucket-capval">' + value + '</span>' +
+    '<button class="ed-bucket-step" onclick="' + fn + '(' + i + ',' + step + ')">+</button>' +
+    '</div>';
+}
+
 function editorRenderBuckets() {
   var el = document.getElementById('ed-buckets-body');
   if (!el) return;
@@ -596,12 +605,12 @@ function editorRenderBuckets() {
         '" style="background:' + COLORS[c].fill + '" onclick="editorBucketSetColor(' + i + ',' + c + ')"></button>';
     }
     html += '</div>';
-    html += '<div class="ed-bucket-cap">';
-    html += '<button class="ed-bucket-step" onclick="editorBucketAdjust(' + i + ',-3)">&minus;</button>';
-    html += '<span class="ed-bucket-capval">' + bk.cap + '</span>';
-    html += '<button class="ed-bucket-step" onclick="editorBucketAdjust(' + i + ',3)">+</button>';
-    html += '</div>';
     html += '<button class="ed-bucket-del" title="Remove" onclick="editorBucketRemove(' + i + ')">&#10005;</button>';
+    html += '<div class="ed-bucket-fields">';
+    html += bucketField('Cap', i, 'editorBucketAdjust', 3, bk.cap);
+    html += bucketField('Lane', i, 'editorBucketAdjustLane', 1, (bk.lane || 1));
+    html += bucketField('Row', i, 'editorBucketAdjustRow', 1, (bk.row || 1));
+    html += '</div>';
     html += '</div>';
   }
   html += '<button class="ed-bucket-add" onclick="editorBucketAdd()">+ Add Bucket</button>';
@@ -609,8 +618,18 @@ function editorRenderBuckets() {
 }
 
 function editorBucketAdd() {
-  editor.buckets.push({ ci: 0, cap: 6 });
+  editor.buckets.push({ ci: 0, cap: 6, lane: 1, row: 1 });
   editorRenderBuckets(); editorUpdateStats();
+}
+function editorBucketAdjustLane(i, d) {
+  var bk = editor.buckets[i]; if (!bk) return;
+  bk.lane = Math.max(1, Math.min(4, (bk.lane || 1) + d));
+  editorRenderBuckets();
+}
+function editorBucketAdjustRow(i, d) {
+  var bk = editor.buckets[i]; if (!bk) return;
+  bk.row = Math.max(1, Math.min(15, (bk.row || 1) + d));
+  editorRenderBuckets();
 }
 function editorBucketRemove(i) {
   editor.buckets.splice(i, 1);
@@ -632,7 +651,7 @@ function editorBuildLevel() {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
-    buckets: editor.buckets.map(function (b) { return { ci: b.ci, cap: b.cap }; }),
+    buckets: editor.buckets.map(function (b) { return { ci: b.ci, cap: b.cap, lane: b.lane || 1, row: b.row || 1 }; }),
     grid: editor.grid.slice()
   };
 }
@@ -692,7 +711,7 @@ function editorImportJSON() {
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
       editor.buckets = (lvl.buckets && lvl.buckets.length)
-        ? lvl.buckets.map(function (b) { return { ci: b.ci, cap: b.cap }; }) : [];
+        ? lvl.buckets.map(function (b) { return { ci: b.ci, cap: b.cap, lane: b.lane || 1, row: b.row || 1 }; }) : [];
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
       var nameEl = document.getElementById('ed-name');
