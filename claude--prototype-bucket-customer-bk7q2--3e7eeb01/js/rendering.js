@@ -508,8 +508,7 @@ function drawBucketCustomer(b, h) {
   ctx.strokeStyle = 'rgba(55,38,22,0.75)'; ctx.lineWidth = 2 * S;
   rRect(-w / 2, -h / 2, w, h, 7 * S); ctx.stroke();
   ctx.strokeStyle = 'rgba(92,64,38,0.9)'; ctx.lineWidth = 3 * S;
-  ctx.beginPath(); ctx.moveTo(-w / 2, -h * 0.2); ctx.lineTo(w / 2, -h * 0.2); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(-w / 2, h * 0.2); ctx.lineTo(w / 2, h * 0.2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-w / 2, 0); ctx.lineTo(w / 2, 0); ctx.stroke();
 
   // Completion shine
   if (b.shineT > 0) { ctx.fillStyle = 'rgba(255,255,255,' + b.shineT * 0.4 + ')'; rRect(-w / 2, -h / 2, w, h, 7 * S); ctx.fill(); }
