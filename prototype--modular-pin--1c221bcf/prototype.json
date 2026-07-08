@@ -1,7 +1,7 @@
 {
   "name": "Modular Pin",
   "description": "A rainbow pillar with a gold base. Any tree shape, any length. Play boxes adjacent to it to whittle it back — one hit lops every tip off at once.",
-  "howToPlay": "Boxes under the pillar are locked. Tap an adjacent box and every current TIP falls at once. When the last stalk unit and the gold base fall together, the covered boxes are freed.",
+  "howToPlay": "Boxes under the shrub are locked. Tap an adjacent box and every current TIP falls at once. When only the base is left, one more tap on an adjacent box removes it and frees the last box.",
   "author": "Claude",
   "showcaseLevel": {
     "name": "Modular Pin Showcase",

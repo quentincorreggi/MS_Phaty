@@ -128,11 +128,8 @@ function damageModularPin(pin) {
     if (kids.length === 0) leaves.push(c);
   }
   for (var l = 0; l < leaves.length; l++) removePinCell(pin, leaves[l]);
-  // If only the base remains after removing this hit's leaves, take the
-  // base out too — base + last stalk fall together.
-  if (pin.cells.length === 1 && pin.cells[0] === pin.base) {
-    removePinCell(pin, pin.base);
-  }
+  // Base is NOT auto-removed with the last stalk — it stays as a leaf,
+  // and one additional adjacent-box tap takes it out.
   pin.hitT = 1;
   pin.shakeT = 0.55;
   if (typeof sfx !== 'undefined' && sfx.pinChip) sfx.pinChip();
@@ -468,15 +465,27 @@ function drawOneModularPin(pin) {
   //          gradient (lighter top, darker bottom) plus a soft top-left
   //          sheen for depth. Clipped to the union so the shape reads as
   //          one continuous shrub.
-  if (bridges.length > 0) {
+  var baseAlive = pin.cells.indexOf(pin.base) >= 0;
+  var isolatedBase = baseAlive && bridges.length === 0;
+  if (bridges.length > 0 || isolatedBase) {
     ctx.save();
     ctx.beginPath();
     for (var b2 = 0; b2 < bridges.length; b2++) {
       addPinCapsule(ctx, bridges[b2].ax, bridges[b2].ay, bridges[b2].bx, bridges[b2].by, half);
     }
+    if (isolatedBase) {
+      var bcS2 = stock[pin.base];
+      var bcSx2 = bcS2.x + L.bw / 2, bcSy2 = bcS2.y + L.bh / 2;
+      ctx.moveTo(bcSx2 + half, bcSy2);
+      ctx.arc(bcSx2, bcSy2, half, 0, Math.PI * 2);
+    }
     ctx.clip();
 
     var bb = pinBridgesBBox(bridges, [], half);
+    if (isolatedBase) {
+      var bcS3 = stock[pin.base];
+      bb = { x: bcS3.x + L.bw / 2 - half, y: bcS3.y + L.bh / 2 - half, w: thick, h: thick };
+    }
     var grad = ctx.createLinearGradient(bb.x, bb.y, bb.x, bb.y + bb.h);
     grad.addColorStop(0.00, '#B4E378');
     grad.addColorStop(0.55, '#7CC547');
