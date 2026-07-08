@@ -430,6 +430,24 @@ function drawOneModularPin(pin) {
     return;
   }
 
+  // Isolated-base geometry: when only the base cell remains, draw it as
+  // a mini stalk stub — a capsule oriented along the pin's outer axis,
+  // spanning most of the cell so the pot rim can sit at its outer end.
+  var isoBaseSeg = null;
+  if (bridges.length === 0 && pin.cells.indexOf(pin.base) >= 0) {
+    var bcI = stock[pin.base];
+    var dirI = pinBaseOuterDir(pin);
+    if (bcI && dirI) {
+      var cxI = bcI.x + L.bw / 2, cyI = bcI.y + L.bh / 2;
+      var axisLen = (Math.abs(dirI.x) > 0 ? L.bw : L.bh);
+      var halfL = axisLen / 2;
+      isoBaseSeg = {
+        ax: cxI - dirI.x * halfL, ay: cyI - dirI.y * halfL,
+        bx: cxI + dirI.x * halfL, by: cyI + dirI.y * halfL
+      };
+    }
+  }
+
   ctx.save();
   ctx.translate(shakeOff, 0);
 
@@ -445,11 +463,8 @@ function drawOneModularPin(pin) {
   for (var bi = 0; bi < bridges.length; bi++) {
     addPinCapsule(ctx, bridges[bi].ax, bridges[bi].ay, bridges[bi].bx, bridges[bi].by, half + 2 * S);
   }
-  if (bridges.length === 0 && pin.cells.indexOf(pin.base) >= 0) {
-    var bcS = stock[pin.base];
-    var bcSx = bcS.x + L.bw / 2, bcSy = bcS.y + L.bh / 2;
-    ctx.moveTo(bcSx + half + 2 * S, bcSy);
-    ctx.arc(bcSx, bcSy, half + 2 * S, 0, Math.PI * 2);
+  if (isoBaseSeg) {
+    addPinCapsule(ctx, isoBaseSeg.ax, isoBaseSeg.ay, isoBaseSeg.bx, isoBaseSeg.by, half + 2 * S);
   }
   ctx.fill();
   for (var st = 0; st < stubs.length; st++) {
@@ -473,18 +488,18 @@ function drawOneModularPin(pin) {
     for (var b2 = 0; b2 < bridges.length; b2++) {
       addPinCapsule(ctx, bridges[b2].ax, bridges[b2].ay, bridges[b2].bx, bridges[b2].by, half);
     }
-    if (isolatedBase) {
-      var bcS2 = stock[pin.base];
-      var bcSx2 = bcS2.x + L.bw / 2, bcSy2 = bcS2.y + L.bh / 2;
-      ctx.moveTo(bcSx2 + half, bcSy2);
-      ctx.arc(bcSx2, bcSy2, half, 0, Math.PI * 2);
+    if (isoBaseSeg) {
+      addPinCapsule(ctx, isoBaseSeg.ax, isoBaseSeg.ay, isoBaseSeg.bx, isoBaseSeg.by, half);
     }
     ctx.clip();
 
     var bb = pinBridgesBBox(bridges, [], half);
-    if (isolatedBase) {
-      var bcS3 = stock[pin.base];
-      bb = { x: bcS3.x + L.bw / 2 - half, y: bcS3.y + L.bh / 2 - half, w: thick, h: thick };
+    if (isoBaseSeg) {
+      var minX = Math.min(isoBaseSeg.ax, isoBaseSeg.bx) - half;
+      var minY = Math.min(isoBaseSeg.ay, isoBaseSeg.by) - half;
+      var maxX = Math.max(isoBaseSeg.ax, isoBaseSeg.bx) + half;
+      var maxY = Math.max(isoBaseSeg.ay, isoBaseSeg.by) + half;
+      bb = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
     }
     var grad = ctx.createLinearGradient(bb.x, bb.y, bb.x, bb.y + bb.h);
     grad.addColorStop(0.00, '#B4E378');
