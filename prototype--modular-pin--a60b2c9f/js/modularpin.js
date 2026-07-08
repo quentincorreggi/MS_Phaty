@@ -261,30 +261,92 @@ function pinBridgesBBox(bridges, stubs, pad) {
   return { x: minX - pad, y: minY - pad, w: (maxX - minX) + pad * 2, h: (maxY - minY) + pad * 2 };
 }
 
-// Gold circular base disc.
-function drawPinBaseDisc(x, y, r, hitT) {
-  ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,0.32)';
-  ctx.shadowBlur = 6 * S;
-  ctx.shadowOffsetY = 2 * S;
-  var g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, r * 0.1, x, y, r);
-  g.addColorStop(0, '#FFF9D2');
-  g.addColorStop(0.45, '#FFD458');
-  g.addColorStop(1, '#A77015');
-  ctx.fillStyle = g;
-  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-  ctx.shadowColor = 'transparent';
-  ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-  ctx.strokeStyle = 'rgba(120,80,10,0.65)';
-  ctx.lineWidth = 1.4 * S;
-  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
-  ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-  ctx.lineWidth = 1 * S;
-  ctx.beginPath(); ctx.arc(x, y, r * 0.6, 0, Math.PI * 2); ctx.stroke();
-  if (hitT > 0) {
-    ctx.fillStyle = 'rgba(255,255,255,' + (hitT * 0.55) + ')';
-    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+// Decide which cardinal to face away from as the pin's "outer" direction
+// at the base — this is where the brown pot-rim goes. It's the cardinal
+// opposite to the children's average direction (falling back to DOWN for
+// symmetric or childless bases).
+function pinBaseOuterDir(pin) {
+  var base = stock[pin.base];
+  if (!base) return null;
+  var kids = pin.children[pin.base] || [];
+  if (kids.length === 0) return { x: 0, y: 1 };
+  var vx = 0, vy = 0;
+  for (var k = 0; k < kids.length; k++) {
+    var kc = stock[kids[k]];
+    if (!kc) continue;
+    vx -= (kc.x - base.x);
+    vy -= (kc.y - base.y);
   }
+  var mag = Math.sqrt(vx * vx + vy * vy);
+  if (mag < 0.1) {
+    // Symmetric children — try each cardinal, prefer one that isn't itself a child.
+    var cands = [{ x: 0, y: 1 }, { x: 0, y: -1 }, { x: 1, y: 0 }, { x: -1, y: 0 }];
+    for (var i = 0; i < cands.length; i++) {
+      var isChild = false;
+      for (var k2 = 0; k2 < kids.length; k2++) {
+        var kc2 = stock[kids[k2]];
+        if (!kc2) continue;
+        var kdx = kc2.x - base.x, kdy = kc2.y - base.y;
+        var km = Math.sqrt(kdx * kdx + kdy * kdy);
+        if (km < 0.1) continue;
+        if (Math.abs(kdx / km - cands[i].x) < 0.2 && Math.abs(kdy / km - cands[i].y) < 0.2) {
+          isChild = true; break;
+        }
+      }
+      if (!isChild) return cands[i];
+    }
+    return { x: 0, y: 1 };
+  }
+  vx /= mag; vy /= mag;
+  if (Math.abs(vx) > Math.abs(vy)) return { x: vx > 0 ? 1 : -1, y: 0 };
+  return { x: 0, y: vy > 0 ? 1 : -1 };
+}
+
+// Brown "pot rim" at the outer edge of the base cell.
+function drawPinBaseCap(pin, thick) {
+  var dir = pinBaseOuterDir(pin);
+  if (!dir) return;
+  var base = stock[pin.base];
+  if (!base) return;
+  var bcx = base.x + L.bw / 2, bcy = base.y + L.bh / 2;
+  var lipDepth = thick * 0.34;
+  var lipWidth = thick * 1.20;
+  var extentToEdge = (Math.abs(dir.x) > 0 ? L.bw / 2 : L.bh / 2);
+  var lipCx = bcx + dir.x * (extentToEdge - lipDepth / 2);
+  var lipCy = bcy + dir.y * (extentToEdge - lipDepth / 2);
+  var angle = Math.atan2(dir.y, dir.x);
+
+  ctx.save();
+  ctx.translate(lipCx, lipCy);
+  ctx.rotate(angle);
+  var halfD = lipDepth / 2, halfW = lipWidth / 2;
+  var round = halfD * 0.55;
+
+  // Dark underlay (outline)
+  ctx.fillStyle = '#4C331A';
+  rRect(-halfD - 1.8 * S, -halfW - 1.8 * S, lipDepth + 3.6 * S, lipWidth + 3.6 * S, round + 1.8 * S);
+  ctx.fill();
+
+  // Brown fill: lighter on the inside (facing plant), darker on the outside.
+  var g = ctx.createLinearGradient(-halfD, 0, halfD, 0);
+  g.addColorStop(0, '#C58E4E');
+  g.addColorStop(0.55, '#9F6E32');
+  g.addColorStop(1, '#6B4A22');
+  ctx.fillStyle = g;
+  rRect(-halfD, -halfW, lipDepth, lipWidth, round);
+  ctx.fill();
+
+  // Soft inner highlight along the plant-facing side
+  ctx.fillStyle = 'rgba(255, 220, 170, 0.28)';
+  rRect(-halfD, -halfW, lipDepth * 0.4, lipWidth, round);
+  ctx.fill();
+
+  if (pin.hitT > 0) {
+    ctx.fillStyle = 'rgba(255,255,255,' + (pin.hitT * 0.45) + ')';
+    rRect(-halfD, -halfW, lipDepth, lipWidth, round);
+    ctx.fill();
+  }
+
   ctx.restore();
 }
 
@@ -374,40 +436,38 @@ function drawOneModularPin(pin) {
   ctx.save();
   ctx.translate(shakeOff, 0);
 
-  // PASS 1 — drop shadow / outline. Slightly larger silhouette in a
-  //          dark tone so the interior fill leaves a thin outline visible.
+  // PASS 1 — drop shadow / outline: dark green underlay slightly larger
+  //          than the fill so a clean dark green edge is visible around
+  //          the whole shrub silhouette.
   ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,0.32)';
-  ctx.shadowBlur = 8 * S;
+  ctx.shadowColor = 'rgba(0,0,0,0.28)';
+  ctx.shadowBlur = 7 * S;
   ctx.shadowOffsetY = 3 * S;
-  ctx.fillStyle = 'rgba(120,90,140,0.85)';
+  ctx.fillStyle = '#3E7A24';
   ctx.beginPath();
   for (var bi = 0; bi < bridges.length; bi++) {
-    addPinCapsule(ctx, bridges[bi].ax, bridges[bi].ay, bridges[bi].bx, bridges[bi].by, half + 1.2 * S);
+    addPinCapsule(ctx, bridges[bi].ax, bridges[bi].ay, bridges[bi].bx, bridges[bi].by, half + 2 * S);
   }
-  // Isolated base (no bridges) — still show a base disc-sized shadow so the
-  // shadow layer isn't empty.
   if (bridges.length === 0 && pin.cells.indexOf(pin.base) >= 0) {
     var bcS = stock[pin.base];
     var bcSx = bcS.x + L.bw / 2, bcSy = bcS.y + L.bh / 2;
-    ctx.moveTo(bcSx + half + 1.2 * S, bcSy);
-    ctx.arc(bcSx, bcSy, half + 1.2 * S, 0, Math.PI * 2);
+    ctx.moveTo(bcSx + half + 2 * S, bcSy);
+    ctx.arc(bcSx, bcSy, half + 2 * S, 0, Math.PI * 2);
   }
   ctx.fill();
-  // shadow behind fading stubs
   for (var st = 0; st < stubs.length; st++) {
     ctx.globalAlpha = stubs[st].alpha;
     ctx.beginPath();
-    addPinCapsule(ctx, stubs[st].ax, stubs[st].ay, stubs[st].bx, stubs[st].by, half + 1.2 * S);
+    addPinCapsule(ctx, stubs[st].ax, stubs[st].ay, stubs[st].bx, stubs[st].by, half + 2 * S);
     ctx.fill();
   }
   ctx.globalAlpha = 1;
   ctx.restore();
 
-  // PASS 2 — interior fill: clip to the union of all bridges, then paint
-  //          the rainbow gradient + static diagonal candy stripes across
-  //          the whole bounding box. Because everything is under one clip,
-  //          the whole tree reads as one continuous unit.
+  // PASS 2 — interior fill: solid green shrub with a subtle top-to-bottom
+  //          gradient (lighter top, darker bottom) plus a soft top-left
+  //          sheen for depth. Clipped to the union so the shape reads as
+  //          one continuous shrub.
   if (bridges.length > 0) {
     ctx.save();
     ctx.beginPath();
@@ -418,38 +478,24 @@ function drawOneModularPin(pin) {
 
     var bb = pinBridgesBBox(bridges, [], half);
     var grad = ctx.createLinearGradient(bb.x, bb.y, bb.x, bb.y + bb.h);
-    grad.addColorStop(0.00, '#FFFFFF');
-    grad.addColorStop(0.15, '#FFE1F0');
-    grad.addColorStop(0.35, '#C6E4FF');
-    grad.addColorStop(0.55, '#CFF5D8');
-    grad.addColorStop(0.75, '#FFEE9A');
-    grad.addColorStop(1.00, '#B29ACB');
+    grad.addColorStop(0.00, '#B4E378');
+    grad.addColorStop(0.55, '#7CC547');
+    grad.addColorStop(1.00, '#5AA02D');
     ctx.fillStyle = grad;
     ctx.fillRect(bb.x, bb.y, bb.w, bb.h);
 
-    // STATIC diagonal candy stripes — same anchor every frame.
-    var bands = ['rgba(255,138,190,0.55)', 'rgba(126,201,255,0.55)',
-                 'rgba(140,235,175,0.55)', 'rgba(255,220,120,0.55)',
-                 'rgba(200,150,240,0.55)'];
-    var bandW = Math.max(6 * S, thick * 0.42);
-    var diag = bb.w + bb.h;
-    for (var bIdx = -bands.length; bIdx * bandW < diag + bandW; bIdx++) {
-      var y0 = bb.y + bIdx * bandW;
-      ctx.fillStyle = bands[((bIdx % bands.length) + bands.length) % bands.length];
-      ctx.beginPath();
-      ctx.moveTo(bb.x - 4 * S, y0);
-      ctx.lineTo(bb.x + bb.w + 4 * S, y0 - bb.w);
-      ctx.lineTo(bb.x + bb.w + 4 * S, y0 - bb.w + bandW);
-      ctx.lineTo(bb.x - 4 * S, y0 + bandW);
-      ctx.closePath();
-      ctx.fill();
-    }
-
-    // Sheen along top-left edge for a subtle 3D feel.
-    var sheen = ctx.createLinearGradient(bb.x, bb.y, bb.x + bb.w * 0.6, bb.y + bb.h * 0.6);
-    sheen.addColorStop(0, 'rgba(255,255,255,0.55)');
+    // Subtle sheen along top-left for a hint of volume.
+    var sheen = ctx.createLinearGradient(bb.x, bb.y, bb.x + bb.w * 0.5, bb.y + bb.h * 0.5);
+    sheen.addColorStop(0, 'rgba(255,255,255,0.30)');
     sheen.addColorStop(0.5, 'rgba(255,255,255,0)');
     ctx.fillStyle = sheen;
+    ctx.fillRect(bb.x, bb.y, bb.w, bb.h);
+
+    // A darker band along the very bottom of the silhouette for weight.
+    var shade = ctx.createLinearGradient(bb.x, bb.y + bb.h * 0.6, bb.x, bb.y + bb.h);
+    shade.addColorStop(0, 'rgba(45,90,25,0)');
+    shade.addColorStop(1, 'rgba(45,90,25,0.35)');
+    ctx.fillStyle = shade;
     ctx.fillRect(bb.x, bb.y, bb.w, bb.h);
 
     if (pin.hitT > 0) {
@@ -459,8 +505,7 @@ function drawOneModularPin(pin) {
     ctx.restore();
   }
 
-  // Retracting stubs — clip to each stub's own capsule, fill with
-  // matching gradient so it visually reads as the same tube fading.
+  // Retracting stubs — fade the green shrub color to zero as they recede.
   for (var st2 = 0; st2 < stubs.length; st2++) {
     var s = stubs[st2];
     ctx.save();
@@ -470,18 +515,17 @@ function drawOneModularPin(pin) {
     ctx.clip();
     var sbb = pinBridgesBBox([s], [], half);
     var g2 = ctx.createLinearGradient(sbb.x, sbb.y, sbb.x, sbb.y + sbb.h);
-    g2.addColorStop(0, '#FFE1F0');
-    g2.addColorStop(0.5, '#C6E4FF');
-    g2.addColorStop(1, '#B29ACB');
+    g2.addColorStop(0, '#B4E378');
+    g2.addColorStop(0.5, '#7CC547');
+    g2.addColorStop(1, '#5AA02D');
     ctx.fillStyle = g2;
     ctx.fillRect(sbb.x, sbb.y, sbb.w, sbb.h);
     ctx.restore();
   }
 
-  // Gold base disc on top, at the base cell.
+  // Brown "pot rim" cap at the base cell's outer edge.
   if (pin.cells.indexOf(pin.base) >= 0) {
-    var Bpos = modPinCellCenter(pin.base);
-    drawPinBaseDisc(Bpos.x, Bpos.y, thick * 0.55, pin.hitT);
+    drawPinBaseCap(pin, thick);
   }
 
   ctx.restore();
