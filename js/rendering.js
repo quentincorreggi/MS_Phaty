@@ -160,115 +160,115 @@ function drawFunnel() {
 // ── Stock grid — delegates to registered box types, handles tunnels + walls ──
 
 function drawStock() {
-  for (var i = 0; i < stock.length; i++) {
-    var b = stock[i];
+  for (var i = 0; i < stock.length; i++) drawStockCell(i);
+}
 
-    // ── Tunnel ──
-    if (b.isTunnel) {
-      var tRemain = b.tunnelContents ? b.tunnelContents.length : 0;
-      drawTunnelOnGrid(ctx, b.x, b.y, L.bw, L.bh, S,
-        b.tunnelDir, tRemain, b.tunnelTotal, tick, b.tunnelSpawning);
-      continue;
-    }
+function drawStockCell(i) {
+  var b = stock[i];
 
-    // ── Wall ──
-    if (b.isWall) {
-      drawWallOnGrid(ctx, b.x, b.y, L.bw, L.bh, S, tick);
-      continue;
-    }
+  // ── Tunnel ──
+  if (b.isTunnel) {
+    var tRemain = b.tunnelContents ? b.tunnelContents.length : 0;
+    drawTunnelOnGrid(ctx, b.x, b.y, L.bw, L.bh, S,
+      b.tunnelDir, tRemain, b.tunnelTotal, tick, b.tunnelSpawning);
+    return;
+  }
 
-    var ox = 0, oy = 0;
-    if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
-    if (b.plateSlideT > 0) {
-      var pe = b.plateSlideT * b.plateSlideT;
-      ox += (b.plateSlideX || 0) * pe;
-      oy += (b.plateSlideY || 0) * pe;
-    }
-    var breathe = 0;
-    if (!b.used && !b.spawning && b.revealT <= 0 && b.revealed && isBoxTappable(i)) {
-      breathe = Math.sin(tick * 0.04 + b.idlePhase) * 0.02;
-    }
-    var ps = 1 + b.popT * 0.15 + breathe;
-    var hs = 1 + b.hoverT * 0.05;
-    var ts = ps * hs;
+  // ── Wall ──
+  if (b.isWall) {
+    drawWallOnGrid(ctx, b.x, b.y, L.bw, L.bh, S, tick);
+    return;
+  }
 
-    // Boxes riding a rotating platform are inset so the gear shows around
-    // them, and get an opaque base so they are never see-through.
-    var onPlate = (typeof isPlatformCell === 'function') && isPlatformCell(i);
-    var plateScale = onPlate ? PLATFORM_BOX_INSET : 1;
+  var onPlate = (typeof isPlatformCell === 'function') && isPlatformCell(i);
 
-    // Empty slot (on a plate, leave the bare gear seat showing)
-    if (b.empty) { if (!onPlate) drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
+  var ox = 0, oy = 0;
+  if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
+  // Slide (upright) as the plate carries this box one cell round the ring.
+  if (b.plateSlideT > 0) {
+    var pe = b.plateSlideT * b.plateSlideT;
+    ox += (b.plateSlideX || 0) * pe;
+    oy += (b.plateSlideY || 0) * pe;
+  }
+  var breathe = 0;
+  if (!b.used && !b.spawning && b.revealT <= 0 && b.revealed && isBoxTappable(i)) {
+    breathe = Math.sin(tick * 0.04 + b.idlePhase) * 0.02;
+  }
+  var ps = 1 + b.popT * 0.15 + breathe;
+  var hs = 1 + b.hoverT * 0.05;
+  var ts = ps * hs;
 
-    // Used box fading out
-    if (b.used && b.emptyT > 0) {
-      if (onPlate) continue;  // reveal the gear seat instead
-      ts *= 0.7 + 0.3 * (1 - b.emptyT);
-      ctx.save(); ctx.globalAlpha = 1 - b.emptyT * 0.3;
-      ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2 + oy); ctx.scale(ts, ts);
-      drawEmptySlot(-L.bw / 2, -L.bh / 2, L.bw, L.bh);
-      ctx.restore(); continue;
-    }
+  // Empty slot (on a plate, leave the bare gear seat showing)
+  if (b.empty) { if (!onPlate) drawEmptySlot(b.x, b.y, L.bw, L.bh); return; }
 
-    // Used box (fully empty)
-    if (b.used) { if (!onPlate) drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
+  // Used box fading out
+  if (b.used && b.emptyT > 0) {
+    if (onPlate) return;  // reveal the gear seat instead
+    ts *= 0.7 + 0.3 * (1 - b.emptyT);
+    ctx.save(); ctx.globalAlpha = 1 - b.emptyT * 0.3;
+    ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2 + oy); ctx.scale(ts, ts);
+    drawEmptySlot(-L.bw / 2, -L.bh / 2, L.bw, L.bh);
+    ctx.restore(); return;
+  }
 
-    var bt = getBoxType(b.boxType);
-    ctx.save();
-    ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2 + oy); ctx.scale(ts * plateScale, ts * plateScale);
+  // Used box (fully empty)
+  if (b.used) { if (!onPlate) drawEmptySlot(b.x, b.y, L.bw, L.bh); return; }
 
-    if (b.revealT > 0) {
-      if (onPlate) drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci);  // opaque base
-      var phase = 1 - b.revealT;
-      bt.drawReveal(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, phase, b.remaining, tick);
-    } else if (!b.revealed) {
-      var idleWobble = Math.sin(tick * 0.02 + b.idlePhase) * 0.006;
-      ctx.rotate(idleWobble);
-      if (onPlate) drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci);  // opaque base
-      bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase);
-    } else {
-      var c = COLORS[b.ci];
-      if (isBoxTappable(i) && b.hoverT > 0.01) { ctx.shadowColor = c.glow; ctx.shadowBlur = 20 * S * b.hoverT; }
-      drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci);
-      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
-      if (b.boxType === 'blocker' && b.blockerCount > 0) {
-        ctx.save();
-        ctx.globalAlpha = 0.06;
-        ctx.beginPath(); rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.clip();
-        ctx.strokeStyle = COLORS[BLOCKER_CI].fill; ctx.lineWidth = 2 * S;
-        var sg = 8 * S;
-        for (var d = -L.bw; d < L.bw + L.bh; d += sg) {
-          ctx.beginPath(); ctx.moveTo(-L.bw / 2 + d, -L.bh / 2); ctx.lineTo(-L.bw / 2 + d - L.bh, L.bh / 2); ctx.stroke();
-        }
-        ctx.restore();
-      }
-      if (b.remaining > 0) {
-        if (b.boxType === 'blocker' && b.blockerCount > 0) {
-          drawBoxMarblesWithBlockers(b.ci, b.remaining, b.blockerCount);
-        } else {
-          drawBoxMarbles(b.ci, b.remaining);
-        }
-        drawBoxLip(b.ci);
-      }
-    }
+  var bt = getBoxType(b.boxType);
+  ctx.save();
+  ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2 + oy); ctx.scale(ts, ts);
 
-    if (b.iceHP > 0) {
-      var iceType = getBoxType('ice');
-      if (iceType && iceType.drawIceOverlay) {
-        iceType.drawIceOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, b.iceHP, tick);
-      }
-    }
-
-    if (b.iceShatterT > 0) {
+  if (b.revealT > 0) {
+    if (onPlate) drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci);  // opaque base
+    var phase = 1 - b.revealT;
+    bt.drawReveal(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, phase, b.remaining, tick);
+  } else if (!b.revealed) {
+    var idleWobble = Math.sin(tick * 0.02 + b.idlePhase) * 0.006;
+    ctx.rotate(idleWobble);
+    if (onPlate) drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci);  // opaque base
+    bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase);
+  } else {
+    var c = COLORS[b.ci];
+    if (isBoxTappable(i) && b.hoverT > 0.01) { ctx.shadowColor = c.glow; ctx.shadowBlur = 20 * S * b.hoverT; }
+    drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci);
+    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+    if (b.boxType === 'blocker' && b.blockerCount > 0) {
       ctx.save();
-      ctx.globalAlpha = b.iceShatterT * 0.4;
-      ctx.fillStyle = 'rgba(200,235,255,1)';
-      rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.fill();
+      ctx.globalAlpha = 0.06;
+      ctx.beginPath(); rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.clip();
+      ctx.strokeStyle = COLORS[BLOCKER_CI].fill; ctx.lineWidth = 2 * S;
+      var sg = 8 * S;
+      for (var d = -L.bw; d < L.bw + L.bh; d += sg) {
+        ctx.beginPath(); ctx.moveTo(-L.bw / 2 + d, -L.bh / 2); ctx.lineTo(-L.bw / 2 + d - L.bh, L.bh / 2); ctx.stroke();
+      }
       ctx.restore();
     }
+    if (b.remaining > 0) {
+      if (b.boxType === 'blocker' && b.blockerCount > 0) {
+        drawBoxMarblesWithBlockers(b.ci, b.remaining, b.blockerCount);
+      } else {
+        drawBoxMarbles(b.ci, b.remaining);
+      }
+      drawBoxLip(b.ci);
+    }
+  }
 
+  if (b.iceHP > 0) {
+    var iceType = getBoxType('ice');
+    if (iceType && iceType.drawIceOverlay) {
+      iceType.drawIceOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, b.iceHP, tick);
+    }
+  }
+
+  if (b.iceShatterT > 0) {
+    ctx.save();
+    ctx.globalAlpha = b.iceShatterT * 0.4;
+    ctx.fillStyle = 'rgba(200,235,255,1)';
+    rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.fill();
     ctx.restore();
   }
+
+  ctx.restore();
 }
 
 // ── Physics marbles ──
