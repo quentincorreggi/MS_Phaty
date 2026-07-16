@@ -177,6 +177,10 @@ function drawStock() {
       continue;
     }
 
+    // ── Empty / used cell riding a platform: the gear seat (drawn by
+    //    drawPlatforms) stands in for it, so skip the maze empty slot. ──
+    if (b.onPlatform !== undefined && (b.empty || b.used)) continue;
+
     var ox = 0;
     if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
     var breathe = 0;

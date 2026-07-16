@@ -122,6 +122,7 @@ function resize() {
   S = H / 850;
   computeLayout();
   updateStockPositions();
+  if (typeof recomputePlatformGeometry === 'function') recomputePlatformGeometry();
 }
 
 window.addEventListener('resize', resize);

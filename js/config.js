@@ -8,6 +8,8 @@ var W = 0, H = 0, S = 1;
 var L = {};
 var beltPath = [];
 var stock = [], sortCols = [], particles = [], physMarbles = [], jumpers = [];
+var platforms = [];              // rotating platforms (2x2 gears carrying boxes)
+var PLAT_ROT_SPEED = 0.07;       // per-frame decrement of rotT (1 -> 0), ~14 frames per 90° turn
 var score = 0, won = false, tick = 0, hoverIdx = -1;
 var audioCtx = null;
 

@@ -1,0 +1,22 @@
+{
+  "name": "Rotating Platform",
+  "description": "A 2x2 gear carries boxes around the maze — every pick spins it 90° anti-clockwise, so the box you need has to rotate into reach on the move you're ready to take it.",
+  "howToPlay": "Every box you tap spins ALL platforms one quarter-turn anti-clockwise. The gear is walled in on three sides, so only the bottom-right seat can be picked. Tap it to grab that box and spin the next one into reach — a hidden box reveals the moment it rotates into the open. Use the free boxes at the bottom to spin the gear without spending a seat.",
+  "author": "Claude prototype",
+  "showcaseLevel": {
+    "name": "Rotating Platform",
+    "desc": "Spin the gear to bring each box into reach",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, null, { "wall": true }, { "wall": true }, null, null, null,
+      null, { "wall": true }, { "plat": 16, "ci": 0, "type": "default" }, { "plat": 16, "ci": 1, "type": "hidden" }, { "wall": true }, null, null,
+      null, { "wall": true }, { "plat": 16, "ci": 2, "type": "default" }, { "plat": 16, "ci": 3, "type": "default" }, { "wall": true }, null, null,
+      null, null, { "wall": true }, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, { "ci": 2, "type": "default" }, null, { "ci": 3, "type": "default" }, null, null
+    ]
+  }
+}

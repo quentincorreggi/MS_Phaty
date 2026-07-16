@@ -42,6 +42,8 @@ function initGame() {
   var boxSlots = {};
   var tunnelSlots = {};
   var wallSlots = {};
+  var platEmptySlots = {};   // idx -> { plat: anchor }  (empty cells riding a plate)
+  var platAnchors = {};      // anchorIdx -> true
   if (lvl.grid) {
     for (var i = 0; i < Math.min(lvl.grid.length, totalSlots); i++) {
       var cell = lvl.grid[i];
@@ -52,6 +54,14 @@ function initGame() {
       }
       if (cell.tunnel) {
         tunnelSlots[i] = { dir: cell.dir || 'bottom', contents: cell.contents ? cell.contents.slice() : [] };
+      } else if (cell.plat !== undefined && cell.plat !== null) {
+        // Cell rides a rotating platform.
+        platAnchors[cell.plat] = true;
+        if (cell.ci !== undefined && cell.ci >= 0) {
+          boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default', plat: cell.plat };
+        } else {
+          platEmptySlots[i] = { plat: cell.plat };
+        }
       } else if (typeof cell === 'number') {
         if (cell >= 0) boxSlots[i] = { ci: cell, boxType: 'default' };
       } else if (typeof cell === 'object' && cell.ci >= 0) {
@@ -95,6 +105,7 @@ function initGame() {
     var slot = boxSlots[idx];
     var tSlot = tunnelSlots[idx];
     var wSlot = wallSlots[idx];
+    var pSlot = platEmptySlots[idx];
 
     if (tSlot) {
       // Tunnel entry
@@ -121,6 +132,16 @@ function initGame() {
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
+    } else if (pSlot) {
+      // Empty cell riding a rotating platform — passable like any empty
+      // slot, but flagged so it rotates with the plate and is drawn as a
+      // platform seat rather than a normal empty maze cell.
+      stock.push({ ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
+        revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
+        isPlatformCell: true, onPlatform: pSlot.plat, platCell: idx,
+        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
     } else if (!slot) {
       stock.push({ ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
@@ -133,6 +154,9 @@ function initGame() {
       stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
         revealed: isIce ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
+        isPlatformCell: slot.plat !== undefined,
+        onPlatform: (slot.plat !== undefined ? slot.plat : undefined),
+        platCell: (slot.plat !== undefined ? idx : undefined),
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
@@ -141,6 +165,9 @@ function initGame() {
         idlePhase: Math.random() * Math.PI * 2 });
     }
   }
+
+  // ── Build rotating platforms now that stock exists ──
+  buildPlatforms(platAnchors);
 
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
@@ -328,6 +355,8 @@ function handleTap(px, py) {
   if (won || !gameActive) return;
   ensureAudio();
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
+  // Ignore taps while any platform is mid-turn so a pick can't be double-fed.
+  if (typeof anyPlatformAnimating === 'function' && anyPlatformAnimating()) return;
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
@@ -339,6 +368,12 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      // Every pick spins the platforms — unless doing so would strand
+      // the player with no available pick (safeguard holds this turn).
+      if (typeof platforms !== 'undefined' && platforms.length) {
+        if (platformsWouldDeadlock(i)) holdAllPlatforms();
+        else rotateAllPlatforms();
+      }
       return;
     }
   }
@@ -373,6 +408,9 @@ function update() {
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
+
+  // ── Rotating platforms (animate turns, settle, clear dead plates) ──
+  if (typeof updatePlatforms === 'function') updatePlatforms();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -544,6 +582,7 @@ function frame() {
     ctx.clearRect(0, 0, W, H);
     drawBackground();
     drawFunnel();
+    if (typeof drawPlatforms === 'function') drawPlatforms();
     drawStock();
     drawPhysMarbles();
     drawBelt();
