@@ -192,11 +192,17 @@ function drawStock() {
     var hs = 1 + b.hoverT * 0.05;
     var ts = ps * hs;
 
-    // Empty slot
-    if (b.empty) { drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
+    // Boxes riding a rotating platform are inset so the gear shows around
+    // them, and get an opaque base so they are never see-through.
+    var onPlate = (typeof isPlatformCell === 'function') && isPlatformCell(i);
+    var plateScale = onPlate ? PLATFORM_BOX_INSET : 1;
+
+    // Empty slot (on a plate, leave the bare gear seat showing)
+    if (b.empty) { if (!onPlate) drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
 
     // Used box fading out
     if (b.used && b.emptyT > 0) {
+      if (onPlate) continue;  // reveal the gear seat instead
       ts *= 0.7 + 0.3 * (1 - b.emptyT);
       ctx.save(); ctx.globalAlpha = 1 - b.emptyT * 0.3;
       ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2 + oy); ctx.scale(ts, ts);
@@ -205,18 +211,20 @@ function drawStock() {
     }
 
     // Used box (fully empty)
-    if (b.used) { drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
+    if (b.used) { if (!onPlate) drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
 
     var bt = getBoxType(b.boxType);
     ctx.save();
-    ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2 + oy); ctx.scale(ts, ts);
+    ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2 + oy); ctx.scale(ts * plateScale, ts * plateScale);
 
     if (b.revealT > 0) {
+      if (onPlate) drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci);  // opaque base
       var phase = 1 - b.revealT;
       bt.drawReveal(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, phase, b.remaining, tick);
     } else if (!b.revealed) {
       var idleWobble = Math.sin(tick * 0.02 + b.idlePhase) * 0.006;
       ctx.rotate(idleWobble);
+      if (onPlate) drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci);  // opaque base
       bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase);
     } else {
       var c = COLORS[b.ci];
