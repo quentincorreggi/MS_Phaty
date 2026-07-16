@@ -1,0 +1,25 @@
+{
+  "name": "Rotating Platform",
+  "description": "A 2×2 plate whose central propeller spins on every pick, pushing the boxes around so the one you need rotates in and out of reach.",
+  "howToPlay": "Every time you pick ANY box, the propeller in the middle of the plate turns 90° anti-clockwise and pushes its four boxes one cell around the ring. Only the two orange boxes at the bottom are reachable at first — clear the orange columns to open a path up to the plate, then the four coloured boxes cycle out of the plate as you keep picking. Sort every colour to win.",
+  "author": "Marble Sorter Prototyping",
+  "showcaseLevel": {
+    "name": "Custom Level",
+    "desc": "My custom level",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "platforms": [
+      { "r": 2, "c": 2 }
+    ],
+    "grid": [
+      { "wall": true }, { "wall": true }, { "ci": 5, "type": "default" }, { "wall": true }, { "wall": true }, { "wall": true }, { "wall": true },
+      { "wall": true }, { "wall": true }, { "ci": 5, "type": "default" }, { "wall": true }, { "wall": true }, { "wall": true }, { "wall": true },
+      { "wall": true }, { "wall": true }, { "ci": 3, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 5, "type": "default" }, { "ci": 5, "type": "default" }, { "wall": true },
+      { "wall": true }, { "wall": true }, { "ci": 0, "type": "default" }, { "ci": 2, "type": "default" }, { "wall": true }, { "wall": true }, { "wall": true },
+      { "wall": true }, { "wall": true }, { "ci": 5, "type": "default" }, { "ci": 5, "type": "default" }, { "wall": true }, { "wall": true }, { "wall": true },
+      { "wall": true }, { "wall": true }, { "ci": 5, "type": "default" }, { "ci": 5, "type": "default" }, { "wall": true }, { "wall": true }, { "wall": true },
+      { "wall": true }, { "wall": true }, { "ci": 5, "type": "default" }, { "ci": 5, "type": "default" }, { "wall": true }, { "wall": true }, { "wall": true }
+    ]
+  }
+}
