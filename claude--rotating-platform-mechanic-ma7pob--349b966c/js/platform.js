@@ -223,8 +223,8 @@ function isPlatformCell(idx) {
   return false;
 }
 
-// How much the boxes are inset so the gear plate shows around them.
-var PLATFORM_BOX_INSET = 0.82;
+// How much the boxes are inset so the raised seat shows around them.
+var PLATFORM_BOX_INSET = 0.80;
 
 // ── Rendering (drawn under the boxes) ──
 function drawPlatforms() {
@@ -250,12 +250,16 @@ function drawOnePlatform(plat) {
   ctx.scale(scale, scale);
 
   // Spin: start a quarter-turn ahead and unwind anti-clockwise to rest.
+  // Only the cog mechanism spins; the compartment frame stays fixed so the
+  // four cells always line up with the boxes.
   var spinEase = plat.spinT * plat.spinT;
-  ctx.rotate((Math.PI / 2) * spinEase);
 
+  // ── Rotating mechanism: teeth + body + hub (spins with the pick) ──
+  ctx.save();
+  ctx.rotate((Math.PI / 2) * spinEase);
   ctx.lineJoin = 'round';
 
-  // ── Gear teeth (drawn first, under the body) ──
+  // Gear teeth (drawn first, under the body)
   ctx.shadowColor = 'rgba(0,0,0,0.3)';
   ctx.shadowBlur = 7 * S; ctx.shadowOffsetY = 3 * S;
   var teeth = 12;
@@ -277,7 +281,7 @@ function drawOnePlatform(plat) {
   }
   ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
 
-  // ── Gear body (brushed metal disc) ──
+  // Gear body (brushed metal disc)
   var g = ctx.createRadialGradient(-Rb * 0.35, -Rb * 0.35, Rb * 0.15, 0, 0, Rb);
   g.addColorStop(0, '#C2C7CE');
   g.addColorStop(0.6, '#9096A0');
@@ -290,25 +294,56 @@ function drawOnePlatform(plat) {
   ctx.beginPath(); ctx.arc(0, 0, Rb, 0, Math.PI * 2); ctx.stroke();
   ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1.2 * S;
   ctx.beginPath(); ctx.arc(0, 0, Rb * 0.9, 0, Math.PI * 2); ctx.stroke();
-  ctx.strokeStyle = 'rgba(60,64,72,0.5)'; ctx.lineWidth = 1.5 * S;
-  ctx.beginPath(); ctx.arc(0, 0, Rb * 0.32, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore(); // end rotating mechanism
 
-  // ── Bolts at each of the four box seats ──
-  var boltR = L.bw * 0.07;
-  var bolts = [
+  // ── Fixed compartment frame: cross dividers + raised seats ──
+  // A recessed cross splits the plate into four distinct cells.
+  var ext = Rb * 0.98;              // divider reach
+  var gh = L.bw * 0.055;            // groove half-thickness
+  ctx.fillStyle = 'rgba(52,55,63,0.6)';
+  rRect(-gh, -ext, gh * 2, ext * 2, gh); ctx.fill();  // vertical groove
+  rRect(-ext, -gh, ext * 2, gh * 2, gh); ctx.fill();  // horizontal groove
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 1 * S;
+  ctx.beginPath();
+  ctx.moveTo(-gh, -ext); ctx.lineTo(-gh, ext);
+  ctx.moveTo(-ext, -gh); ctx.lineTo(ext, -gh);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(28,30,36,0.45)'; ctx.lineWidth = 1 * S;
+  ctx.beginPath();
+  ctx.moveTo(gh, -ext); ctx.lineTo(gh, ext);
+  ctx.moveTo(-ext, gh); ctx.lineTo(ext, gh);
+  ctx.stroke();
+
+  // A raised, beveled seat under each of the four cells so the boxes
+  // read as sitting above the gear rather than flat on it.
+  var pad = L.bw * 0.94;
+  var seats = [
     { x: -seat, y: -seat }, { x: seat, y: -seat },
     { x: seat, y: seat }, { x: -seat, y: seat }
   ];
-  for (var bI = 0; bI < bolts.length; bI++) {
-    var bx = bolts[bI].x, by = bolts[bI].y;
-    ctx.fillStyle = 'rgba(70,74,82,0.9)';
-    ctx.beginPath(); ctx.arc(bx, by, boltR, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(230,235,240,0.35)'; ctx.lineWidth = 1 * S;
-    ctx.beginPath(); ctx.arc(bx, by, boltR, 0, Math.PI * 2); ctx.stroke();
+  for (var sI = 0; sI < seats.length; sI++) {
+    var px = seats[sI].x - pad / 2, py = seats[sI].y - pad / 2;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.4)';
+    ctx.shadowBlur = 6 * S; ctx.shadowOffsetY = 4 * S;
+    var sg = ctx.createLinearGradient(px, py, px + pad, py + pad);
+    sg.addColorStop(0, '#C6CAD1'); sg.addColorStop(1, '#7C808A');
+    ctx.fillStyle = sg;
+    rRect(px, py, pad, pad, 7 * S); ctx.fill();
+    ctx.restore();
+    // Bevel edges
+    ctx.strokeStyle = 'rgba(40,44,50,0.55)'; ctx.lineWidth = 1.5 * S;
+    rRect(px, py, pad, pad, 7 * S); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1 * S;
+    ctx.beginPath();
+    ctx.moveTo(px + 7 * S, py + 1 * S); ctx.lineTo(px + pad - 7 * S, py + 1 * S);
+    ctx.stroke();
   }
 
-  // ── Center hub with anti-clockwise arrow ──
-  var hubR = Rb * 0.26;
+  // ── Center hub with anti-clockwise arrow (spins, drawn on top) ──
+  ctx.save();
+  ctx.rotate((Math.PI / 2) * spinEase);
+  var hubR = Rb * 0.24;
   var hg = ctx.createRadialGradient(-hubR * 0.3, -hubR * 0.3, hubR * 0.1, 0, 0, hubR);
   hg.addColorStop(0, '#9AA0AA'); hg.addColorStop(1, '#565A63');
   ctx.fillStyle = hg;
@@ -316,14 +351,13 @@ function drawOnePlatform(plat) {
   ctx.strokeStyle = 'rgba(40,44,50,0.7)'; ctx.lineWidth = 1.5 * S;
   ctx.beginPath(); ctx.arc(0, 0, hubR, 0, Math.PI * 2); ctx.stroke();
 
-  // Anti-clockwise arrow etched on the hub
   ctx.strokeStyle = 'rgba(240,244,248,0.75)';
   ctx.lineWidth = 2.2 * S; ctx.lineCap = 'round';
-  var ar = hubR * 0.62;
+  var ar = hubR * 0.6;
   ctx.beginPath(); ctx.arc(0, 0, ar, -2.1, 1.0, false); ctx.stroke();
-  var a0 = -2.1;                       // leading end
+  var a0 = -2.1;
   var hx = Math.cos(a0) * ar, hy = Math.sin(a0) * ar;
-  var tang = a0 - Math.PI / 2;         // anti-clockwise tangent
+  var tang = a0 - Math.PI / 2;
   var hs = hubR * 0.5;
   ctx.beginPath();
   ctx.moveTo(hx, hy);
@@ -331,6 +365,7 @@ function drawOnePlatform(plat) {
   ctx.moveTo(hx, hy);
   ctx.lineTo(hx + Math.cos(tang + 0.5) * hs, hy + Math.sin(tang + 0.5) * hs);
   ctx.stroke();
+  ctx.restore(); // end hub
 
   ctx.restore();
 
