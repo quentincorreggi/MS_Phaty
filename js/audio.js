@@ -24,7 +24,11 @@ var sfx = {
   drop: function () { tone(400, 0.08, 'sine', 0.04, 200); },
   sort: function () { tone(600, 0.1, 'triangle', 0.1); setTimeout(function () { tone(900, 0.1, 'triangle', 0.1); }, 80); },
   complete: function () { [523, 659, 784, 1047].forEach(function (f, i) { setTimeout(function () { tone(f, 0.2, 'sine', 0.1); }, i * 90); }); },
-  win: function () { [523, 659, 784, 1047, 1319, 1568].forEach(function (f, i) { setTimeout(function () { tone(f, 0.25, 'sine', 0.12); }, i * 100); }); }
+  win: function () { [523, 659, 784, 1047, 1319, 1568].forEach(function (f, i) { setTimeout(function () { tone(f, 0.25, 'sine', 0.12); }, i * 100); }); },
+  // Rotating platform: a short mechanical whirr + click as the propeller pushes
+  rotate: function () { tone(180, 0.16, 'sawtooth', 0.05, 90); setTimeout(function () { tone(520, 0.05, 'square', 0.04); }, 90); },
+  // Safeguard held the spin: a soft low thunk
+  hold: function () { tone(140, 0.12, 'triangle', 0.06, 90); }
 };
 
 function spawnMarbleClick(intensity) {

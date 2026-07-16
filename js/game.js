@@ -145,6 +145,9 @@ function initGame() {
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
 
+  // ── Build rotating platforms (2x2 plates) from the level ──
+  buildPlatforms(lvl);
+
   // ── Sort columns ──
   var allBoxes = [];
   for (var c = 0; c < NUM_COLORS; c++) for (var r = 0; r < sortPerColor[c]; r++)
@@ -339,6 +342,8 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      // Every pick spins all rotating platforms 90 anti-clockwise.
+      rotateAllPlatforms();
       return;
     }
   }
@@ -514,6 +519,7 @@ function update() {
     if (box.type === 'lock' && box.triggerT > 0) box.triggerT = Math.max(0, box.triggerT - 0.03);
   }
 
+  updatePlatforms();
   tickParticles();
   updateRollingSound();
 }
@@ -544,6 +550,7 @@ function frame() {
     ctx.clearRect(0, 0, W, H);
     drawBackground();
     drawFunnel();
+    drawPlatforms();
     drawStock();
     drawPhysMarbles();
     drawBelt();

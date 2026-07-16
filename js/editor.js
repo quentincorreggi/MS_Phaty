@@ -17,6 +17,8 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  platformMode: false,  // true when placing rotating platforms
+  platforms: [],        // array of { r, c } anchors (top-left of each 2x2 plate)
   visible: false
 };
 
@@ -34,6 +36,29 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.platformMode = false;
+  editor.platforms = [];
+}
+
+// ── Rotating platform helpers ──
+// Returns the index in editor.platforms whose anchor is exactly (r,c), else -1.
+function editorPlatformAt(r, c) {
+  for (var i = 0; i < editor.platforms.length; i++) {
+    if (editor.platforms[i].r === r && editor.platforms[i].c === c) return i;
+  }
+  return -1;
+}
+
+// Describes a grid cell's relationship to any platform footprint.
+function editorCellPlatform(idx) {
+  var r = Math.floor(idx / 7), c = idx % 7;
+  for (var i = 0; i < editor.platforms.length; i++) {
+    var pr = editor.platforms[i].r, pc = editor.platforms[i].c;
+    if (r >= pr && r <= pr + 1 && c >= pc && c <= pc + 1) {
+      return { isCell: true, isAnchor: (r === pr && c === pc) };
+    }
+  }
+  return { isCell: false, isAnchor: false };
 }
 
 function showEditor(fresh) {
@@ -95,6 +120,16 @@ function editorRenderGrid() {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
     }
+    // Rotating platform footprint overlay
+    var pinfo = editorCellPlatform(i);
+    if (pinfo.isCell) {
+      cell.style.boxShadow = 'inset 0 0 0 3px rgba(150,140,125,0.9)';
+      if (pinfo.isAnchor) {
+        cell.innerHTML += '<span style="position:absolute;top:-4px;left:-4px;background:#8A8072;' +
+          'color:#fff;font-size:9px;width:15px;height:15px;border-radius:8px;display:flex;' +
+          'align-items:center;justify-content:center;pointer-events:none;box-shadow:0 1px 2px rgba(0,0,0,0.3)">&#10038;</span>';
+      }
+    }
     cell.setAttribute('data-idx', i);
     cell.addEventListener('click', editorCellClick);
     cell.addEventListener('contextmenu', editorCellErase);
@@ -104,6 +139,31 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.platformMode) {
+    // Place / remove a 2x2 rotating platform anchored at this cell.
+    var r = Math.floor(idx / 7), c = idx % 7;
+    var existingAnchor = editorPlatformAt(r, c);
+    if (existingAnchor >= 0) {
+      editor.platforms.splice(existingAnchor, 1);
+    } else {
+      if (r + 1 > 6 || c + 1 > 6) {
+        editorShowToast('Platform needs a 2×2 space (not on last row/column)');
+      } else {
+        // Reject overlap with an existing platform footprint.
+        var overlaps = false;
+        var footprint = [idx, r * 7 + (c + 1), (r + 1) * 7 + c, (r + 1) * 7 + (c + 1)];
+        for (var fi = 0; fi < footprint.length; fi++) {
+          if (editorCellPlatform(footprint[fi]).isCell) { overlaps = true; break; }
+        }
+        if (overlaps) editorShowToast('Platforms can’t overlap');
+        else editor.platforms.push({ r: r, c: c });
+      }
+    }
+    editorRenderGrid();
+    editorUpdateStats();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -178,13 +238,14 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.platformMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.platformMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -200,6 +261,7 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.platformMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -214,10 +276,26 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.platformMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(tunnelBtn);
+
+  // Rotating platform mode button
+  var platformBtn = document.createElement('button');
+  platformBtn.className = 'ed-type-btn' + (editor.platformMode ? ' active' : '');
+  platformBtn.textContent = '\u273A Platform';
+  platformBtn.style.borderColor = editor.platformMode ? 'rgba(140,128,114,0.7)' : '';
+  platformBtn.style.color = editor.platformMode ? '#6F6355' : '';
+  platformBtn.addEventListener('click', function () {
+    editor.platformMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(platformBtn);
 
   el.appendChild(typeRow);
 
@@ -260,6 +338,12 @@ function editorRenderToolbar() {
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
+  } else if (editor.platformMode) {
+    // Platform mode: info hint
+    var platInfo = document.createElement('div');
+    platInfo.className = 'ed-color-row';
+    platInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click a cell to drop a 2×2 spinning plate (extends right + down) &middot; click its ✺ corner to remove &middot; paint boxes on the plate cells</span>';
+    el.appendChild(platInfo);
   } else {
     // Color palette: eraser + 8 colors
     var colorRow = document.createElement('div');
@@ -430,6 +514,7 @@ function editorRenderTunnelPanel() {
 function editorFillRandom() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
+  editor.platforms = [];
   var cl = [];
   for (var c = 0; c < 4; c++) for (var n = 0; n < 6; n++) cl.push(c);
   shuffle(cl);
@@ -442,6 +527,7 @@ function editorFillRandom() {
 function editorClearAll() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
+  editor.platforms = [];
   editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
 }
 
@@ -502,6 +588,9 @@ function editorUpdateStats() {
   }
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
+  }
+  if (editor.platforms.length > 0) {
+    html += '<span class="ed-stat-chip" style="background:#8A8072">' + editor.platforms.length + ' platform' + (editor.platforms.length > 1 ? 's' : '') + '</span>';
   }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
@@ -567,7 +656,8 @@ function editorBuildLevel() {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
-    grid: editor.grid.slice()
+    grid: editor.grid.slice(),
+    platforms: editor.platforms.map(function (p) { return { r: p.r, c: p.c }; })
   };
 }
 
@@ -620,6 +710,13 @@ function editorImportJSON() {
           else if (cell.wall) editor.grid[i] = { wall: true };
           else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
           else editor.grid[i] = cell;
+        }
+      }
+      editor.platforms = [];
+      if (lvl.platforms && lvl.platforms.length) {
+        for (var pi = 0; pi < lvl.platforms.length; pi++) {
+          var pp = lvl.platforms[pi];
+          if (pp && typeof pp.r === 'number' && typeof pp.c === 'number') editor.platforms.push({ r: pp.r, c: pp.c });
         }
       }
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
