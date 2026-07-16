@@ -552,6 +552,7 @@ function frame() {
     drawFunnel();
     drawPlatforms();
     drawStock();
+    drawPlatformPropellers();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();

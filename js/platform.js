@@ -267,7 +267,17 @@ function updatePlatforms() {
   }
 }
 
-// ── Draw the static plate tray + spinning propeller (under the boxes) ──
+// Geometry of a plate's bounding box + hub, from its top-left cell.
+function platformGeom(plate) {
+  var TL = plate.cells[0];
+  var x0 = L.sx + (TL % L.cols) * (L.bw + L.bg);
+  var y0 = L.sy + Math.floor(TL / L.cols) * (L.bh + L.bg);
+  var pw = 2 * L.bw + L.bg;
+  var ph = 2 * L.bh + L.bg;
+  return { x0: x0, y0: y0, pw: pw, ph: ph, hx: x0 + pw / 2, hy: y0 + ph / 2 };
+}
+
+// ── PASS 1: the static plate tray, drawn UNDER the boxes ──
 function drawPlatforms() {
   if (!platforms || !platforms.length) return;
   for (var p = 0; p < platforms.length; p++) {
@@ -276,13 +286,8 @@ function drawPlatforms() {
     var alpha = plate.cleared ? plate.clearT : 1;
     if (alpha <= 0) continue;
 
-    var TL = plate.cells[0];
-    var x0 = L.sx + (TL % L.cols) * (L.bw + L.bg);
-    var y0 = L.sy + Math.floor(TL / L.cols) * (L.bh + L.bg);
-    var pw = 2 * L.bw + L.bg;
-    var ph = 2 * L.bh + L.bg;
+    var g = platformGeom(plate);
     var pad = 4 * S;
-    var hx = x0 + pw / 2, hy = y0 + ph / 2;
 
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -290,28 +295,51 @@ function drawPlatforms() {
     // Plate tray
     ctx.shadowColor = 'rgba(0,0,0,0.25)';
     ctx.shadowBlur = 8 * S; ctx.shadowOffsetY = 3 * S;
-    var trayGrad = ctx.createLinearGradient(x0, y0 - pad, x0, y0 + ph + pad);
+    var trayGrad = ctx.createLinearGradient(g.x0, g.y0 - pad, g.x0, g.y0 + g.ph + pad);
     trayGrad.addColorStop(0, '#E6DCCB');
     trayGrad.addColorStop(1, '#CBBEA6');
     ctx.fillStyle = trayGrad;
-    rRect(x0 - pad, y0 - pad, pw + pad * 2, ph + pad * 2, 12 * S); ctx.fill();
+    rRect(g.x0 - pad, g.y0 - pad, g.pw + pad * 2, g.ph + pad * 2, 12 * S); ctx.fill();
     ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
     ctx.strokeStyle = 'rgba(60,50,38,0.85)'; ctx.lineWidth = 2.5 * S;
-    rRect(x0 - pad, y0 - pad, pw + pad * 2, ph + pad * 2, 12 * S); ctx.stroke();
+    rRect(g.x0 - pad, g.y0 - pad, g.pw + pad * 2, g.ph + pad * 2, 12 * S); ctx.stroke();
 
     // Faint cross dividing the four cells
     ctx.strokeStyle = 'rgba(90,74,56,0.18)'; ctx.lineWidth = 1.5 * S;
     ctx.beginPath();
-    ctx.moveTo(hx, y0 - pad + 2 * S); ctx.lineTo(hx, y0 + ph + pad - 2 * S);
-    ctx.moveTo(x0 - pad + 2 * S, hy); ctx.lineTo(x0 + pw + pad - 2 * S, hy);
+    ctx.moveTo(g.hx, g.y0 - pad + 2 * S); ctx.lineTo(g.hx, g.y0 + g.ph + pad - 2 * S);
+    ctx.moveTo(g.x0 - pad + 2 * S, g.hy); ctx.lineTo(g.x0 + g.pw + pad - 2 * S, g.hy);
     ctx.stroke();
 
-    // Propeller ("hélice") — a 4-point compass star that spins
-    var R = Math.min(pw, ph) * 0.5;   // outer reach
-    var rin = R * 0.18;               // inner waist
+    ctx.restore();
+  }
+}
+
+// ── PASS 2: the spinning propeller ("hélice"), drawn ON TOP of the boxes ──
+// The four blades rest in the cross-shaped gap between the boxes, so at
+// rest they don't cover the box faces; during a spin they sweep across
+// the boxes' inner corners, reading as a push.
+function drawPlatformPropellers() {
+  if (!platforms || !platforms.length) return;
+  for (var p = 0; p < platforms.length; p++) {
+    var plate = platforms[p];
+    if (plate.done) continue;
+    var alpha = plate.cleared ? plate.clearT : 1;
+    if (alpha <= 0) continue;
+
+    var g = platformGeom(plate);
+    var pad = 4 * S;
+
+    // Reach just past the box inner corners; slim waist keeps the blades
+    // inside the gap channel when the plate is settled.
+    var R = Math.min(g.pw, g.ph) * 0.46;
+    var rin = R * 0.12;
+
     ctx.save();
-    ctx.translate(hx, hy);
+    ctx.globalAlpha = alpha;
+    ctx.translate(g.hx, g.hy);
     ctx.rotate(plate.displayAngle || 0);
+
     ctx.beginPath();
     for (var s = 0; s < 4; s++) {
       var aOut = s * Math.PI / 2;
@@ -322,29 +350,29 @@ function drawPlatforms() {
       ctx.lineTo(ix, iy);
     }
     ctx.closePath();
-    ctx.fillStyle = 'rgba(255,255,255,0.96)';
-    ctx.shadowColor = 'rgba(0,0,0,0.2)'; ctx.shadowBlur = 4 * S;
+    ctx.fillStyle = 'rgba(255,255,255,0.97)';
+    ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 6 * S; ctx.shadowOffsetY = 2 * S;
     ctx.fill();
-    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
     ctx.strokeStyle = 'rgba(40,34,28,0.9)'; ctx.lineWidth = 1.6 * S;
     ctx.stroke();
 
     // Central hub
     ctx.fillStyle = 'rgba(245,240,232,1)';
-    ctx.beginPath(); ctx.arc(0, 0, rin * 1.9, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, rin * 2.4, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = 'rgba(40,34,28,0.9)'; ctx.lineWidth = 1.6 * S;
-    ctx.beginPath(); ctx.arc(0, 0, rin * 1.9, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, rin * 2.4, 0, Math.PI * 2); ctx.stroke();
     ctx.fillStyle = 'rgba(45,40,34,1)';
-    ctx.beginPath(); ctx.arc(0, 0, rin * 1.05, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, rin * 1.35, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
 
     // Hold flash (safeguard prevented a spin this pick)
     if (plate.holdT > 0) {
+      ctx.save();
       ctx.globalAlpha = alpha * plate.holdT * 0.55;
       ctx.strokeStyle = '#E8544C'; ctx.lineWidth = 3 * S;
-      rRect(x0 - pad, y0 - pad, pw + pad * 2, ph + pad * 2, 12 * S); ctx.stroke();
+      rRect(g.x0 - pad, g.y0 - pad, g.pw + pad * 2, g.ph + pad * 2, 12 * S); ctx.stroke();
+      ctx.restore();
     }
-
-    ctx.restore();
   }
 }
