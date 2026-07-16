@@ -212,6 +212,20 @@ function updatePlatforms() {
   }
 }
 
+// Is grid cell `idx` on a live (non-cleared) platform?
+function isPlatformCell(idx) {
+  if (!platforms) return false;
+  for (var p = 0; p < platforms.length; p++) {
+    if (platforms[p].cleared) continue;
+    var cs = platforms[p].cells;
+    if (cs[0] === idx || cs[1] === idx || cs[2] === idx || cs[3] === idx) return true;
+  }
+  return false;
+}
+
+// How much the boxes are inset so the gear plate shows around them.
+var PLATFORM_BOX_INSET = 0.82;
+
 // ── Rendering (drawn under the boxes) ──
 function drawPlatforms() {
   if (!platforms || platforms.length === 0) return;
@@ -222,10 +236,13 @@ function drawPlatforms() {
 
 function drawOnePlatform(plat) {
   var ctr = platformCenter(plat);
-  var R = ((L.bw + L.bg) / 2 + L.bw / 2) * 1.06;
+  var footHalf = (L.bw + L.bg) / 2 + L.bw / 2;  // half-size of the 2x2 footprint
+  var Rb = footHalf * 1.0;                        // gear body radius
+  var Rt = footHalf * 1.16;                       // tooth-tip radius
+  var seat = (L.bw + L.bg) / 2;                   // seat offset (cell-center distance)
 
   var scale = 1, alpha = 1;
-  if (plat.clearing) { scale = 0.55 + 0.45 * plat.clearT; alpha = plat.clearT; }
+  if (plat.clearing) { scale = 0.5 + 0.5 * plat.clearT; alpha = plat.clearT; }
 
   ctx.save();
   ctx.globalAlpha = alpha;
@@ -236,50 +253,84 @@ function drawOnePlatform(plat) {
   var spinEase = plat.spinT * plat.spinT;
   ctx.rotate((Math.PI / 2) * spinEase);
 
-  // Outer metallic disc
-  ctx.shadowColor = 'rgba(0,0,0,0.28)';
-  ctx.shadowBlur = 8 * S; ctx.shadowOffsetY = 3 * S;
-  var g = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.1, 0, 0, R);
-  g.addColorStop(0, '#CDD2D9');
-  g.addColorStop(0.55, '#9AA1AB');
-  g.addColorStop(1, '#6B6F78');
-  ctx.fillStyle = g;
-  ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+  ctx.lineJoin = 'round';
+
+  // ── Gear teeth (drawn first, under the body) ──
+  ctx.shadowColor = 'rgba(0,0,0,0.3)';
+  ctx.shadowBlur = 7 * S; ctx.shadowOffsetY = 3 * S;
+  var teeth = 12;
+  var tg = ctx.createLinearGradient(-Rt, -Rt, Rt, Rt);
+  tg.addColorStop(0, '#8E949E'); tg.addColorStop(1, '#5E626B');
+  ctx.fillStyle = tg;
+  for (var i = 0; i < teeth; i++) {
+    ctx.save();
+    ctx.rotate((Math.PI * 2 / teeth) * i);
+    var tw = Rb * 0.22;   // half tooth width at root
+    ctx.beginPath();
+    ctx.moveTo(Rb * 0.94, -tw);
+    ctx.lineTo(Rt, -tw * 0.62);
+    ctx.lineTo(Rt, tw * 0.62);
+    ctx.lineTo(Rb * 0.94, tw);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
   ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
 
-  // Rim highlights
-  ctx.strokeStyle = 'rgba(66,70,78,0.7)'; ctx.lineWidth = 2.5 * S;
-  ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
-  ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = 1.2 * S;
-  ctx.beginPath(); ctx.arc(0, 0, R * 0.88, 0, Math.PI * 2); ctx.stroke();
+  // ── Gear body (brushed metal disc) ──
+  var g = ctx.createRadialGradient(-Rb * 0.35, -Rb * 0.35, Rb * 0.15, 0, 0, Rb);
+  g.addColorStop(0, '#C2C7CE');
+  g.addColorStop(0.6, '#9096A0');
+  g.addColorStop(1, '#6A6E77');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(0, 0, Rb, 0, Math.PI * 2); ctx.fill();
 
-  // Anti-clockwise arrow motif (two opposite curved arrows)
-  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-  ctx.lineWidth = 3 * S; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  var ar = R * 0.6;
-  for (var s = 0; s < 2; s++) {
-    var base = s * Math.PI;
-    var a0 = base + 0.4, a1 = base + 1.55;
-    ctx.beginPath();
-    ctx.arc(0, 0, ar, a0, a1, false);
-    ctx.stroke();
-    // Arrowhead at the leading (a0) end, pointing anti-clockwise.
-    var hx = Math.cos(a0) * ar, hy = Math.sin(a0) * ar;
-    var tang = a0 - Math.PI / 2; // anti-clockwise tangent
-    var hs = R * 0.16;
-    ctx.beginPath();
-    ctx.moveTo(hx, hy);
-    ctx.lineTo(hx + Math.cos(tang - 0.5) * hs, hy + Math.sin(tang - 0.5) * hs);
-    ctx.moveTo(hx, hy);
-    ctx.lineTo(hx + Math.cos(tang + 0.5) * hs, hy + Math.sin(tang + 0.5) * hs);
-    ctx.stroke();
+  // Rim rings
+  ctx.strokeStyle = 'rgba(60,64,72,0.8)'; ctx.lineWidth = 2.5 * S;
+  ctx.beginPath(); ctx.arc(0, 0, Rb, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1.2 * S;
+  ctx.beginPath(); ctx.arc(0, 0, Rb * 0.9, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = 'rgba(60,64,72,0.5)'; ctx.lineWidth = 1.5 * S;
+  ctx.beginPath(); ctx.arc(0, 0, Rb * 0.32, 0, Math.PI * 2); ctx.stroke();
+
+  // ── Bolts at each of the four box seats ──
+  var boltR = L.bw * 0.07;
+  var bolts = [
+    { x: -seat, y: -seat }, { x: seat, y: -seat },
+    { x: seat, y: seat }, { x: -seat, y: seat }
+  ];
+  for (var bI = 0; bI < bolts.length; bI++) {
+    var bx = bolts[bI].x, by = bolts[bI].y;
+    ctx.fillStyle = 'rgba(70,74,82,0.9)';
+    ctx.beginPath(); ctx.arc(bx, by, boltR, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(230,235,240,0.35)'; ctx.lineWidth = 1 * S;
+    ctx.beginPath(); ctx.arc(bx, by, boltR, 0, Math.PI * 2); ctx.stroke();
   }
 
-  // Center hub
-  ctx.fillStyle = 'rgba(88,93,102,0.95)';
-  ctx.beginPath(); ctx.arc(0, 0, R * 0.15, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = 'rgba(38,42,48,0.6)'; ctx.lineWidth = 1.5 * S;
-  ctx.beginPath(); ctx.arc(0, 0, R * 0.15, 0, Math.PI * 2); ctx.stroke();
+  // ── Center hub with anti-clockwise arrow ──
+  var hubR = Rb * 0.26;
+  var hg = ctx.createRadialGradient(-hubR * 0.3, -hubR * 0.3, hubR * 0.1, 0, 0, hubR);
+  hg.addColorStop(0, '#9AA0AA'); hg.addColorStop(1, '#565A63');
+  ctx.fillStyle = hg;
+  ctx.beginPath(); ctx.arc(0, 0, hubR, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(40,44,50,0.7)'; ctx.lineWidth = 1.5 * S;
+  ctx.beginPath(); ctx.arc(0, 0, hubR, 0, Math.PI * 2); ctx.stroke();
+
+  // Anti-clockwise arrow etched on the hub
+  ctx.strokeStyle = 'rgba(240,244,248,0.75)';
+  ctx.lineWidth = 2.2 * S; ctx.lineCap = 'round';
+  var ar = hubR * 0.62;
+  ctx.beginPath(); ctx.arc(0, 0, ar, -2.1, 1.0, false); ctx.stroke();
+  var a0 = -2.1;                       // leading end
+  var hx = Math.cos(a0) * ar, hy = Math.sin(a0) * ar;
+  var tang = a0 - Math.PI / 2;         // anti-clockwise tangent
+  var hs = hubR * 0.5;
+  ctx.beginPath();
+  ctx.moveTo(hx, hy);
+  ctx.lineTo(hx + Math.cos(tang - 0.5) * hs, hy + Math.sin(tang - 0.5) * hs);
+  ctx.moveTo(hx, hy);
+  ctx.lineTo(hx + Math.cos(tang + 0.5) * hs, hy + Math.sin(tang + 0.5) * hs);
+  ctx.stroke();
 
   ctx.restore();
 
@@ -290,7 +341,7 @@ function drawOnePlatform(plat) {
     ctx.translate(ctr.x, ctr.y);
     ctx.strokeStyle = 'rgba(232,72,72,0.95)';
     ctx.lineWidth = 4 * S;
-    ctx.beginPath(); ctx.arc(0, 0, R * 1.03, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, Rt * 1.02, 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
   }
 }
