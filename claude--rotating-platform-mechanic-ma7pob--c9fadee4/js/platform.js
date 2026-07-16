@@ -85,7 +85,10 @@ function rotatePlatformsOnPick() {
   if (typeof sfx !== 'undefined' && sfx.rotate) sfx.rotate();
 }
 
-// ── Perform the logical anti-clockwise rotation + slide animation ──
+// ── Perform the logical anti-clockwise rotation ──
+// Boxes stay upright and slide one step counter-clockwise around the ring
+// (each box moves along one edge of the 2x2, so it never leaves the
+// footprint and never overlaps a neighbour). The gear spins underneath.
 function applyPlatformRotation(active) {
   for (var p = 0; p < active.length; p++) {
     var cells = active[p].cells;
@@ -101,7 +104,7 @@ function applyPlatformRotation(active) {
       stock[dest] = rider;
       rider.x = newX;
       rider.y = newY;
-      // Slide from where it was to its new cell.
+      // Slide (upright) from its old cell to its new cell.
       rider.plateSlideX = prevX - newX;
       rider.plateSlideY = prevY - newY;
       rider.plateSlideT = 1.0;
@@ -110,6 +113,12 @@ function applyPlatformRotation(active) {
   }
   // Reachability changed for everything that moved.
   if (typeof updateBoxReveals === 'function') updateBoxReveals(true);
+}
+
+// The gear's current spin angle (radians): a quarter-turn easing to 0.
+function platformSpinAngle(plat) {
+  var e = plat.spinT * plat.spinT;
+  return (Math.PI / 2) * e;
 }
 
 // ── Pure look-ahead: would rotating strand the player? ──
@@ -223,9 +232,6 @@ function isPlatformCell(idx) {
   return false;
 }
 
-// How much the boxes are inset so the raised seat shows around them.
-var PLATFORM_BOX_INSET = 0.80;
-
 // ── Rendering (drawn under the boxes) ──
 function drawPlatforms() {
   if (!platforms || platforms.length === 0) return;
@@ -234,12 +240,25 @@ function drawPlatforms() {
   }
 }
 
+// Draw an anti-clockwise arrowhead at angle `a` on radius `r` (in the
+// current transform). Used for the persistent direction arrows.
+function ccwArrowHead(r, a, size) {
+  var x = Math.cos(a) * r, y = Math.sin(a) * r;
+  var tang = a - Math.PI / 2;   // anti-clockwise (decreasing-angle) tangent
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + Math.cos(tang - 0.5) * size, y + Math.sin(tang - 0.5) * size);
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + Math.cos(tang + 0.5) * size, y + Math.sin(tang + 0.5) * size);
+  ctx.stroke();
+}
+
 function drawOnePlatform(plat) {
   var ctr = platformCenter(plat);
   var footHalf = (L.bw + L.bg) / 2 + L.bw / 2;  // half-size of the 2x2 footprint
-  var Rb = footHalf * 1.0;                        // gear body radius
-  var Rt = footHalf * 1.16;                       // tooth-tip radius
-  var seat = (L.bw + L.bg) / 2;                   // seat offset (cell-center distance)
+  var Rb = footHalf * 1.3;                        // body radius (peeks past boxes)
+  var Rt = footHalf * 1.52;                       // tooth-tip radius
+  var seat = (L.bw + L.bg) / 2;                   // cell-center offset
 
   var scale = 1, alpha = 1;
   if (plat.clearing) { scale = 0.5 + 0.5 * plat.clearT; alpha = plat.clearT; }
@@ -249,17 +268,12 @@ function drawOnePlatform(plat) {
   ctx.translate(ctr.x, ctr.y);
   ctx.scale(scale, scale);
 
-  // Spin: start a quarter-turn ahead and unwind anti-clockwise to rest.
-  // Only the cog mechanism spins; the compartment frame stays fixed so the
-  // four cells always line up with the boxes.
-  var spinEase = plat.spinT * plat.spinT;
-
-  // ── Rotating mechanism: teeth + body + hub (spins with the pick) ──
-  ctx.save();
-  ctx.rotate((Math.PI / 2) * spinEase);
+  // The cog spins a quarter-turn anti-clockwise per pick while the boxes
+  // (drawn upright in drawStock) slide one cell around the ring.
+  ctx.rotate(platformSpinAngle(plat));
   ctx.lineJoin = 'round';
 
-  // Gear teeth (drawn first, under the body)
+  // ── Gear teeth (ring peeking out around the boxes) ──
   ctx.shadowColor = 'rgba(0,0,0,0.3)';
   ctx.shadowBlur = 7 * S; ctx.shadowOffsetY = 3 * S;
   var teeth = 12;
@@ -269,19 +283,19 @@ function drawOnePlatform(plat) {
   for (var i = 0; i < teeth; i++) {
     ctx.save();
     ctx.rotate((Math.PI * 2 / teeth) * i);
-    var tw = Rb * 0.22;   // half tooth width at root
+    var tw = Rb * 0.2;
     ctx.beginPath();
-    ctx.moveTo(Rb * 0.94, -tw);
-    ctx.lineTo(Rt, -tw * 0.62);
-    ctx.lineTo(Rt, tw * 0.62);
-    ctx.lineTo(Rb * 0.94, tw);
+    ctx.moveTo(Rb * 0.95, -tw);
+    ctx.lineTo(Rt, -tw * 0.6);
+    ctx.lineTo(Rt, tw * 0.6);
+    ctx.lineTo(Rb * 0.95, tw);
     ctx.closePath();
     ctx.fill();
     ctx.restore();
   }
   ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
 
-  // Gear body (brushed metal disc)
+  // ── Gear body (brushed metal disc) ──
   var g = ctx.createRadialGradient(-Rb * 0.35, -Rb * 0.35, Rb * 0.15, 0, 0, Rb);
   g.addColorStop(0, '#C2C7CE');
   g.addColorStop(0.6, '#9096A0');
@@ -289,83 +303,54 @@ function drawOnePlatform(plat) {
   ctx.fillStyle = g;
   ctx.beginPath(); ctx.arc(0, 0, Rb, 0, Math.PI * 2); ctx.fill();
 
-  // Rim rings
   ctx.strokeStyle = 'rgba(60,64,72,0.8)'; ctx.lineWidth = 2.5 * S;
   ctx.beginPath(); ctx.arc(0, 0, Rb, 0, Math.PI * 2); ctx.stroke();
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1.2 * S;
-  ctx.beginPath(); ctx.arc(0, 0, Rb * 0.9, 0, Math.PI * 2); ctx.stroke();
-  ctx.restore(); // end rotating mechanism
+  ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = 1.2 * S;
+  ctx.beginPath(); ctx.arc(0, 0, Rb * 0.92, 0, Math.PI * 2); ctx.stroke();
 
-  // ── Fixed compartment frame: cross dividers + raised seats ──
-  // A recessed cross splits the plate into four distinct cells.
-  var ext = Rb * 0.98;              // divider reach
-  var gh = L.bw * 0.055;            // groove half-thickness
-  ctx.fillStyle = 'rgba(52,55,63,0.6)';
-  rRect(-gh, -ext, gh * 2, ext * 2, gh); ctx.fill();  // vertical groove
-  rRect(-ext, -gh, ext * 2, gh * 2, gh); ctx.fill();  // horizontal groove
-  ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 1 * S;
-  ctx.beginPath();
-  ctx.moveTo(-gh, -ext); ctx.lineTo(-gh, ext);
-  ctx.moveTo(-ext, -gh); ctx.lineTo(ext, -gh);
-  ctx.stroke();
-  ctx.strokeStyle = 'rgba(28,30,36,0.45)'; ctx.lineWidth = 1 * S;
-  ctx.beginPath();
-  ctx.moveTo(gh, -ext); ctx.lineTo(gh, ext);
-  ctx.moveTo(-ext, gh); ctx.lineTo(ext, gh);
-  ctx.stroke();
+  // ── Persistent anti-clockwise direction arrows, in the ring that peeks
+  //    out at the four mid-edges of the box group ──
+  var arR = footHalf * 1.16;
+  ctx.strokeStyle = 'rgba(250,252,255,0.8)';
+  ctx.lineWidth = 3 * S; ctx.lineCap = 'round';
+  for (var d = 0; d < 4; d++) {
+    var m = d * Math.PI / 2;      // mid-edge directions: right/down/left/up
+    ctx.beginPath(); ctx.arc(0, 0, arR, m - 0.45, m + 0.45, false); ctx.stroke();
+    ccwArrowHead(arR, m - 0.45, footHalf * 0.12);
+  }
 
-  // A raised, beveled seat under each of the four cells so the boxes
-  // read as sitting above the gear rather than flat on it.
-  var pad = L.bw * 0.94;
+  // ── Thin cross in the seams between the four boxes ──
+  var ext = footHalf * 0.99;
+  var gh = L.bw * 0.045;
+  ctx.fillStyle = 'rgba(50,53,61,0.6)';
+  rRect(-gh, -ext, gh * 2, ext * 2, gh); ctx.fill();
+  rRect(-ext, -gh, ext * 2, gh * 2, gh); ctx.fill();
+
+  // ── Volume: soft drop shadow under each box seat (the dark pad is fully
+  //    covered by the full-size box; only its shadow spills into the seams
+  //    and onto the visible cog, so the boxes read as lifted). ──
+  var bs = L.bw * 0.9;
   var seats = [
     { x: -seat, y: -seat }, { x: seat, y: -seat },
     { x: seat, y: seat }, { x: -seat, y: seat }
   ];
   for (var sI = 0; sI < seats.length; sI++) {
-    var px = seats[sI].x - pad / 2, py = seats[sI].y - pad / 2;
     ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,0.4)';
-    ctx.shadowBlur = 6 * S; ctx.shadowOffsetY = 4 * S;
-    var sg = ctx.createLinearGradient(px, py, px + pad, py + pad);
-    sg.addColorStop(0, '#C6CAD1'); sg.addColorStop(1, '#7C808A');
-    ctx.fillStyle = sg;
-    rRect(px, py, pad, pad, 7 * S); ctx.fill();
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 8 * S; ctx.shadowOffsetY = 5 * S;
+    ctx.fillStyle = 'rgba(38,41,47,0.95)';
+    rRect(seats[sI].x - bs / 2, seats[sI].y - bs / 2, bs, bs, 6 * S); ctx.fill();
     ctx.restore();
-    // Bevel edges
-    ctx.strokeStyle = 'rgba(40,44,50,0.55)'; ctx.lineWidth = 1.5 * S;
-    rRect(px, py, pad, pad, 7 * S); ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1 * S;
-    ctx.beginPath();
-    ctx.moveTo(px + 7 * S, py + 1 * S); ctx.lineTo(px + pad - 7 * S, py + 1 * S);
-    ctx.stroke();
   }
 
-  // ── Center hub with anti-clockwise arrow (spins, drawn on top) ──
-  ctx.save();
-  ctx.rotate((Math.PI / 2) * spinEase);
-  var hubR = Rb * 0.24;
+  // ── Center hub ──
+  var hubR = footHalf * 0.16;
   var hg = ctx.createRadialGradient(-hubR * 0.3, -hubR * 0.3, hubR * 0.1, 0, 0, hubR);
   hg.addColorStop(0, '#9AA0AA'); hg.addColorStop(1, '#565A63');
   ctx.fillStyle = hg;
   ctx.beginPath(); ctx.arc(0, 0, hubR, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = 'rgba(40,44,50,0.7)'; ctx.lineWidth = 1.5 * S;
   ctx.beginPath(); ctx.arc(0, 0, hubR, 0, Math.PI * 2); ctx.stroke();
-
-  ctx.strokeStyle = 'rgba(240,244,248,0.75)';
-  ctx.lineWidth = 2.2 * S; ctx.lineCap = 'round';
-  var ar = hubR * 0.6;
-  ctx.beginPath(); ctx.arc(0, 0, ar, -2.1, 1.0, false); ctx.stroke();
-  var a0 = -2.1;
-  var hx = Math.cos(a0) * ar, hy = Math.sin(a0) * ar;
-  var tang = a0 - Math.PI / 2;
-  var hs = hubR * 0.5;
-  ctx.beginPath();
-  ctx.moveTo(hx, hy);
-  ctx.lineTo(hx + Math.cos(tang - 0.5) * hs, hy + Math.sin(tang - 0.5) * hs);
-  ctx.moveTo(hx, hy);
-  ctx.lineTo(hx + Math.cos(tang + 0.5) * hs, hy + Math.sin(tang + 0.5) * hs);
-  ctx.stroke();
-  ctx.restore(); // end hub
 
   ctx.restore();
 
