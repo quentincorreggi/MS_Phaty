@@ -17,6 +17,8 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  platformMode: false,  // true when placing rotating platforms
+  platforms: [],        // anchor (top-left) indices of 2x2 platforms
   visible: false
 };
 
@@ -34,6 +36,19 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.platformMode = false;
+  editor.platforms = [];
+}
+
+// Returns { anchor, isAnchor } if cell idx belongs to a platform, else null.
+function editorCellPlatform(idx) {
+  for (var p = 0; p < editor.platforms.length; p++) {
+    var a = editor.platforms[p];
+    if (idx === a || idx === a + 1 || idx === a + 7 || idx === a + 8) {
+      return { anchor: a, isAnchor: idx === a };
+    }
+  }
+  return null;
 }
 
 function showEditor(fresh) {
@@ -95,6 +110,19 @@ function editorRenderGrid() {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
     }
+    // Rotating-platform overlay
+    var pl = editorCellPlatform(i);
+    if (pl) {
+      var pShadow = 'inset 0 0 0 3px rgba(110,122,138,0.95)';
+      cell.style.boxShadow = cell.style.boxShadow ? (cell.style.boxShadow + ',' + pShadow) : pShadow;
+      if (pl.isAnchor) {
+        var pBadge = document.createElement('span');
+        pBadge.className = 'ed-tunnel-badge';
+        pBadge.style.background = 'rgba(110,122,138,0.95)';
+        pBadge.textContent = '↺';
+        cell.appendChild(pBadge);
+      }
+    }
     cell.setAttribute('data-idx', i);
     cell.addEventListener('click', editorCellClick);
     cell.addEventListener('contextmenu', editorCellErase);
@@ -104,6 +132,29 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.platformMode) {
+    var existingPl = editorCellPlatform(idx);
+    if (existingPl) {
+      // Click any cell of an existing platform to remove it.
+      var ai = editor.platforms.indexOf(existingPl.anchor);
+      if (ai >= 0) editor.platforms.splice(ai, 1);
+    } else {
+      var pr = Math.floor(idx / 7), pc = idx % 7;
+      if (pc > 5 || pr > 5) {
+        editorShowToast('Platform needs a 2×2 space');
+      } else {
+        var pcells = [idx, idx + 1, idx + 7, idx + 8];
+        var overlap = false;
+        for (var pk = 0; pk < pcells.length; pk++) if (editorCellPlatform(pcells[pk])) overlap = true;
+        if (overlap) editorShowToast('Platforms can\'t overlap');
+        else editor.platforms.push(idx);
+      }
+    }
+    editorRenderGrid();
+    editorUpdateStats();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -185,6 +236,7 @@ function editorRenderToolbar() {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.platformMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -200,10 +252,26 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.platformMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(wallBtn);
+
+  // Platform mode button
+  var platBtn = document.createElement('button');
+  platBtn.className = 'ed-type-btn' + (editor.platformMode ? ' active' : '');
+  platBtn.textContent = '↺ Platform';
+  platBtn.style.borderColor = editor.platformMode ? 'rgba(110,122,138,0.7)' : '';
+  platBtn.style.color = editor.platformMode ? '#5A6470' : '';
+  platBtn.addEventListener('click', function () {
+    editor.platformMode = true;
+    editor.wallMode = false;
+    editor.tunnelMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(platBtn);
 
   // Tunnel mode button
   var tunnelBtn = document.createElement('button');
@@ -214,6 +282,7 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.platformMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -260,6 +329,12 @@ function editorRenderToolbar() {
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
+  } else if (editor.platformMode) {
+    // Platform mode: info hint
+    var platInfo = document.createElement('div');
+    platInfo.className = 'ed-color-row';
+    platInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click a cell to drop a 2×2 turntable (extends right + down). Click it again to remove. Then paint boxes on its cells.</span>';
+    el.appendChild(platInfo);
   } else {
     // Color palette: eraser + 8 colors
     var colorRow = document.createElement('div');
@@ -436,12 +511,14 @@ function editorFillRandom() {
   var indices = []; for (var i = 0; i < 49; i++) indices.push(i);
   shuffle(indices);
   for (var i = 0; i < cl.length; i++) editor.grid[indices[i]] = { ci: cl[i], type: 'default' };
+  editor.platforms = [];
   editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
 }
 
 function editorClearAll() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
+  editor.platforms = [];
   editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
 }
 
@@ -499,6 +576,9 @@ function editorUpdateStats() {
   }
   if (wallCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#8A7D6B">' + wallCount + ' wall' + (wallCount > 1 ? 's' : '') + '</span>';
+  }
+  if (editor.platforms.length > 0) {
+    html += '<span class="ed-stat-chip" style="background:#6E7A8A">↺ ' + editor.platforms.length + ' platform' + (editor.platforms.length > 1 ? 's' : '') + '</span>';
   }
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
@@ -567,7 +647,8 @@ function editorBuildLevel() {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
-    grid: editor.grid.slice()
+    grid: editor.grid.slice(),
+    platforms: editor.platforms.slice()
   };
 }
 
@@ -622,6 +703,7 @@ function editorImportJSON() {
           else editor.grid[i] = cell;
         }
       }
+      editor.platforms = (lvl.platforms && lvl.platforms.slice) ? lvl.platforms.slice() : [];
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;

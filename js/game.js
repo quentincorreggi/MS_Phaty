@@ -142,6 +142,9 @@ function initGame() {
     }
   }
 
+  // ── Rotating platforms (2x2 turntables) ──
+  if (typeof initPlatforms === 'function') initPlatforms(lvl);
+
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
 
@@ -339,6 +342,8 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      // Every pick spins all live platforms one quarter-turn anti-clockwise.
+      if (typeof rotatePlatformsOnPick === 'function') rotatePlatformsOnPick();
       return;
     }
   }
@@ -373,6 +378,9 @@ function update() {
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
+
+  // ── Rotating platforms (timers + clear-away) ──
+  if (typeof updatePlatforms === 'function') updatePlatforms();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -475,6 +483,7 @@ function update() {
     if (b.emptyT > 0) b.emptyT = Math.max(0, b.emptyT - 0.025);
     if (b.iceCrackT > 0) b.iceCrackT = Math.max(0, b.iceCrackT - 0.03);
     if (b.iceShatterT > 0) b.iceShatterT = Math.max(0, b.iceShatterT - 0.025);
+    if (b.plateSlideT > 0) b.plateSlideT = Math.max(0, b.plateSlideT - 0.06);
     var th = (i === hoverIdx && !b.used && isBoxTappable(i)) ? 1 : 0;
     b.hoverT += (th - b.hoverT) * 0.12;
   }
@@ -544,6 +553,7 @@ function frame() {
     ctx.clearRect(0, 0, W, H);
     drawBackground();
     drawFunnel();
+    if (typeof drawPlatforms === 'function') drawPlatforms();
     drawStock();
     drawPhysMarbles();
     drawBelt();

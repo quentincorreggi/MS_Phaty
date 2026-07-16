@@ -177,8 +177,13 @@ function drawStock() {
       continue;
     }
 
-    var ox = 0;
+    var ox = 0, oy = 0;
     if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
+    if (b.plateSlideT > 0) {
+      var pe = b.plateSlideT * b.plateSlideT;
+      ox += (b.plateSlideX || 0) * pe;
+      oy += (b.plateSlideY || 0) * pe;
+    }
     var breathe = 0;
     if (!b.used && !b.spawning && b.revealT <= 0 && b.revealed && isBoxTappable(i)) {
       breathe = Math.sin(tick * 0.04 + b.idlePhase) * 0.02;
@@ -194,7 +199,7 @@ function drawStock() {
     if (b.used && b.emptyT > 0) {
       ts *= 0.7 + 0.3 * (1 - b.emptyT);
       ctx.save(); ctx.globalAlpha = 1 - b.emptyT * 0.3;
-      ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2); ctx.scale(ts, ts);
+      ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2 + oy); ctx.scale(ts, ts);
       drawEmptySlot(-L.bw / 2, -L.bh / 2, L.bw, L.bh);
       ctx.restore(); continue;
     }
@@ -204,7 +209,7 @@ function drawStock() {
 
     var bt = getBoxType(b.boxType);
     ctx.save();
-    ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2); ctx.scale(ts, ts);
+    ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2 + oy); ctx.scale(ts, ts);
 
     if (b.revealT > 0) {
       var phase = 1 - b.revealT;
