@@ -202,6 +202,22 @@ function drawStock() {
     // Used box (fully empty)
     if (b.used) { drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
 
+    // Locked chain box: show its real color + marbles (dimmed slightly)
+    // so the player can see what the lock is holding. The lock hardware
+    // is drawn on top afterwards by drawPuzzleLocks.
+    if (typeof isCellLocked === 'function' && isCellLocked(i)) {
+      ctx.save();
+      ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2);
+      drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci);
+      if (b.remaining > 0) { drawBoxMarbles(b.ci, b.remaining); drawBoxLip(b.ci); }
+      // Subtle darkening so it still reads as "locked" without hiding color.
+      ctx.globalAlpha = 0.16;
+      ctx.fillStyle = '#141018';
+      rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.fill();
+      ctx.restore();
+      continue;
+    }
+
     var bt = getBoxType(b.boxType);
     ctx.save();
     ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2); ctx.scale(ts, ts);

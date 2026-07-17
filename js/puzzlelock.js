@@ -88,10 +88,17 @@ function isCellLocked(idx) {
   return lk ? !lk.opened : false;
 }
 
-// World-space center of a lock's gem (the middle cell of its run).
+// World-space center of a lock's gem cluster — the geometric centroid of
+// the run, so a 2-cell lock sits on the seam and a 5-cell lock sits on
+// its middle cell.
 function getLockGemCenter(lk) {
-  var s = stock[lk.centerIdx];
-  return { x: s.x + L.bw / 2, y: s.y + L.bh / 2 };
+  var sx = 0, sy = 0, n = lk.cells.length;
+  for (var i = 0; i < n; i++) {
+    var s = stock[lk.cells[i]];
+    sx += s.x + L.bw / 2;
+    sy += s.y + L.bh / 2;
+  }
+  return { x: sx / n, y: sy / n };
 }
 
 // ── Tapping a carrier launches its fragment ──
@@ -168,83 +175,75 @@ function openPuzzleLock(lk) {
 // Drawing
 // ============================================================
 
-// Faceted gem wedge fan. `collected` wedges are filled, the rest are
-// shown as empty silhouettes. Returns nothing — draws at (cx, cy).
-function drawGemWedges(cx, cy, r, required, collected, col, tick, fillT) {
-  var start = -Math.PI / 2;
-  var n = Math.max(1, required);
-  for (var w = 0; w < n; w++) {
-    var a0 = start + (w / n) * Math.PI * 2;
-    var a1 = start + ((w + 1) / n) * Math.PI * 2;
-    var am = (a0 + a1) / 2;
-    var x0 = cx + Math.cos(a0) * r, y0 = cy + Math.sin(a0) * r;
-    var x1 = cx + Math.cos(a1) * r, y1 = cy + Math.sin(a1) * r;
-    var xm = cx + Math.cos(am) * r * 1.06, ym = cy + Math.sin(am) * r * 1.06;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(x0, y0);
-    ctx.lineTo(xm, ym);
-    ctx.lineTo(x1, y1);
-    ctx.closePath();
-    if (w < collected) {
-      // Filled facet — jewel gradient, brighter on the freshest wedge.
-      var justFilled = (w === collected - 1) && fillT > 0;
-      var grad = ctx.createLinearGradient(cx, cy, xm, ym);
-      grad.addColorStop(0, col.light);
-      grad.addColorStop(0.55, col.fill);
-      grad.addColorStop(1, col.dark);
-      ctx.fillStyle = grad;
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-      ctx.lineWidth = 1 * S;
-      ctx.stroke();
-      if (justFilled) {
-        ctx.save();
-        ctx.globalAlpha = fillT * 0.7;
-        ctx.fillStyle = '#fff';
-        ctx.fill();
-        ctx.restore();
-      }
-    } else {
-      // Empty silhouette slot.
-      ctx.fillStyle = 'rgba(20,15,30,0.35)';
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.18)';
-      ctx.lineWidth = 1 * S;
-      ctx.setLineDash([3 * S, 3 * S]);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-  }
-  // Bright center table so the assembled gem sparkles.
-  var tableR = r * 0.34;
-  var tg = ctx.createRadialGradient(cx - tableR * 0.3, cy - tableR * 0.3, tableR * 0.1, cx, cy, tableR);
-  if (collected >= required) {
-    tg.addColorStop(0, '#ffffff');
-    tg.addColorStop(1, col.light);
-  } else {
-    tg.addColorStop(0, 'rgba(255,255,255,0.25)');
-    tg.addColorStop(1, 'rgba(20,15,30,0.3)');
-  }
-  ctx.fillStyle = tg;
-  ctx.beginPath(); ctx.arc(cx, cy, tableR, 0, Math.PI * 2); ctx.fill();
+// Organic faceted-gem outline points (a cut jewel: pointed top/bottom,
+// wide shoulders). Shared by the shard and its empty silhouette so the
+// filled and unfilled slots line up exactly.
+function gemShardPoints(r) {
+  return [
+    [0, -r],
+    [r * 0.66, -r * 0.4],
+    [r * 0.84, r * 0.26],
+    [0, r],
+    [-r * 0.84, r * 0.26],
+    [-r * 0.66, -r * 0.4]
+  ];
+}
 
-  // Glint sweep when the gem is complete.
-  if (collected >= required) {
-    var gl = (Math.sin(tick * 0.12) * 0.5 + 0.5);
-    ctx.save();
-    ctx.globalAlpha = 0.25 + gl * 0.35;
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 1.5 * S;
-    ctx.beginPath();
-    ctx.moveTo(cx - r * 0.5, cy - r * 0.5);
-    ctx.lineTo(cx + r * 0.5, cy + r * 0.5);
-    ctx.stroke();
-    ctx.restore();
+// Cluster of gem slots — one slot per required fragment (2..4), arranged
+// organically. Collected slots show a filled jewel; the rest are empty
+// silhouettes. This is the whole progress display (no counter needed to
+// read it, but we still show one).
+function drawGemCluster(cx, cy, R, required, collected, col, tick, fillT) {
+  var n = Math.max(1, Math.min(LOCK_PIECES_MAX, required));
+  var d = R * 0.5;
+  var layout;
+  if (n === 1) layout = [[0, 0]];
+  else if (n === 2) layout = [[-d, 0], [d, 0]];
+  else if (n === 3) layout = [[0, -d * 0.98], [-d, d * 0.6], [d, d * 0.6]];
+  else layout = [[-d, -d], [d, -d], [-d, d], [d, d]];
+  var shardR = R * (n <= 2 ? 0.52 : (n === 3 ? 0.48 : 0.46));
+  for (var i = 0; i < n; i++) {
+    var px = cx + layout[i][0], py = cy + layout[i][1];
+    if (i < collected) {
+      var justFilled = (i === collected - 1) && fillT > 0;
+      var scl = justFilled ? (1 + fillT * 0.4) : 1;
+      var bob = Math.sin(tick * 0.05 + i * 1.4) * 0.04 + 1;
+      ctx.save();
+      ctx.shadowColor = col.glow; ctx.shadowBlur = 10 * S;
+      drawGemShard(px, py, shardR * scl * bob, col, tick * 0.012 + i * 1.3);
+      if (justFilled) {
+        ctx.globalAlpha = fillT * 0.8;
+        drawGemShard(px, py, shardR * scl, { fill: '#fff', light: '#fff', dark: '#fff' }, tick * 0.012 + i * 1.3);
+      }
+      ctx.restore();
+    } else {
+      drawGemSilhouette(px, py, shardR, col);
+    }
   }
 }
 
-// One lock: metal band across the run, chain links, and the gem.
+// Empty gem slot: dark hollow + faint colored dashed outline.
+function drawGemSilhouette(cx, cy, r, col) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  var pts = gemShardPoints(r);
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(14,11,20,0.5)';
+  ctx.fill();
+  ctx.strokeStyle = col.glow;
+  ctx.lineWidth = 1.5 * S;
+  ctx.setLineDash([3 * S, 3 * S]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+// One lock: thin colored rim so the group reads, a delicate chain, and
+// the gem cluster on the centroid of the run. The boxes underneath keep
+// their real colors (drawn by drawStock) and are NOT covered here.
 function drawOnePuzzleLock(lk) {
   var col = lk.color;
   var fade = lk.opened ? Math.max(0, lk.openT) : 1;
@@ -253,82 +252,68 @@ function drawOnePuzzleLock(lk) {
   ctx.save();
   ctx.globalAlpha = fade;
 
-  // 1) Darken each chained cell + a metal clasp band.
+  // 1) Thin colored rim on each chained cell — identifies the lock group
+  //    without hiding the box color underneath.
   for (var k = 0; k < lk.cells.length; k++) {
     var s = stock[lk.cells[k]];
-    var bx = s.x, by = s.y;
-    ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,0.25)'; ctx.shadowBlur = 5 * S; ctx.shadowOffsetY = 2 * S;
-    var g = ctx.createLinearGradient(bx, by, bx, by + L.bh);
-    g.addColorStop(0, 'rgba(60,55,70,0.82)');
-    g.addColorStop(1, 'rgba(30,26,40,0.86)');
-    ctx.fillStyle = g;
-    rRect(bx, by, L.bw, L.bh, 6 * S); ctx.fill();
-    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-    // Colored inner rim so the lock reads by color.
+    ctx.globalAlpha = fade * 0.9;
     ctx.strokeStyle = col.fill;
-    ctx.globalAlpha = fade * 0.7;
-    ctx.lineWidth = 2 * S;
-    rRect(bx + 2 * S, by + 2 * S, L.bw - 4 * S, L.bh - 4 * S, 5 * S); ctx.stroke();
+    ctx.lineWidth = 2.5 * S;
+    rRect(s.x + 1.5 * S, s.y + 1.5 * S, L.bw - 3 * S, L.bh - 3 * S, 6 * S);
+    ctx.stroke();
     ctx.globalAlpha = fade;
-    ctx.restore();
   }
 
-  // 2) Chain links running along the chain between cell centers.
-  ctx.strokeStyle = 'rgba(210,205,220,0.85)';
-  ctx.lineWidth = 3 * S;
+  // 2) A delicate chain of small links between consecutive cells.
   for (var c = 0; c < lk.cells.length - 1; c++) {
     var a = stock[lk.cells[c]], b = stock[lk.cells[c + 1]];
     var ax = a.x + L.bw / 2, ay = a.y + L.bh / 2;
-    var bxp = b.x + L.bw / 2, byp = b.y + L.bh / 2;
-    var links = 4;
-    for (var li = 0; li < links; li++) {
-      var t0 = li / links, t1 = (li + 0.72) / links;
-      var lx0 = ax + (bxp - ax) * t0, ly0 = ay + (byp - ay) * t0;
-      var lx1 = ax + (bxp - ax) * t1, ly1 = ay + (byp - ay) * t1;
+    var bx = b.x + L.bw / 2, by = b.y + L.bh / 2;
+    var dist = Math.sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
+    var links = Math.max(3, Math.round(dist / (9 * S)));
+    var lr = 2.4 * S;
+    for (var li = 0; li <= links; li++) {
+      var t = li / links;
+      var lx = ax + (bx - ax) * t, ly = ay + (by - ay) * t;
       ctx.beginPath();
-      ctx.moveTo(lx0, ly0); ctx.lineTo(lx1, ly1); ctx.stroke();
+      ctx.arc(lx, ly, lr, 0, Math.PI * 2);
+      ctx.fillStyle = (li % 2 === 0) ? 'rgba(228,225,235,0.95)' : 'rgba(140,136,150,0.95)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(90,86,100,0.6)';
+      ctx.lineWidth = 0.8 * S;
+      ctx.stroke();
     }
   }
 
-  // 3) The gem lock on the middle cell.
+  // 3) The gem cluster on the centroid of the run.
   var gc = getLockGemCenter(lk);
   var jitter = lk.shakeT > 0 ? Math.sin(tick * 0.9) * 3 * S * lk.shakeT : 0;
-  var breathe = lk.opened ? (1 + (1 - lk.openT) * 0.9) : (1 + Math.sin(tick * 0.05 + lk.phase) * 0.03);
-  var r = L.bw * 0.44 * breathe;
+  var openScale = lk.opened ? (1 + (1 - lk.openT) * 0.8) : 1;
+  var R = L.bw * 0.62 * openScale;
   ctx.save();
   ctx.translate(gc.x + jitter, gc.y);
 
-  // Metal mounting plate behind the gem.
-  ctx.shadowColor = 'rgba(0,0,0,0.3)'; ctx.shadowBlur = 6 * S; ctx.shadowOffsetY = 2 * S;
-  var pg = ctx.createLinearGradient(0, -r, 0, r);
-  pg.addColorStop(0, '#C9C4D0'); pg.addColorStop(0.5, '#9A94A6'); pg.addColorStop(1, '#6E6878');
-  ctx.fillStyle = pg;
-  ctx.beginPath(); ctx.arc(0, 0, r * 1.16, 0, Math.PI * 2); ctx.fill();
-  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-  ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1.5 * S;
-  ctx.beginPath(); ctx.arc(0, 0, r * 1.16, 0, Math.PI * 2); ctx.stroke();
+  // Small shackle above the cluster so it reads as a lock.
+  if (!lk.opened) {
+    ctx.strokeStyle = 'rgba(196,192,206,0.95)';
+    ctx.lineWidth = 3.5 * S;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(0, -R * 0.66, R * 0.34, Math.PI * 1.05, Math.PI * 1.95);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+  }
 
-  // Colored glow ring.
-  ctx.save();
-  ctx.globalAlpha = fade * (0.35 + (lk.fillT * 0.4));
-  ctx.shadowColor = col.glow; ctx.shadowBlur = 16 * S;
-  ctx.strokeStyle = col.fill; ctx.lineWidth = 2 * S;
-  ctx.beginPath(); ctx.arc(0, 0, r * 1.16, 0, Math.PI * 2); ctx.stroke();
+  drawGemCluster(0, 0, R, lk.required, lk.collected, col, tick, lk.fillT);
   ctx.restore();
 
-  // The gem wedges (progress).
-  drawGemWedges(0, 0, r, lk.required, lk.collected, col, tick, lk.fillT);
-
-  ctx.restore();
-
-  // 4) Counter pill under the gem.
+  // 4) Counter pill under the cluster.
   if (!lk.opened) {
     var label = lk.collected + '/' + lk.required;
     ctx.font = 'bold ' + (11 * S) + 'px Fredoka, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     var tw = ctx.measureText(label).width + 12 * S;
-    var py = gc.y + r * 1.16 + 9 * S;
+    var py = gc.y + R * 0.92 + 7 * S;
     ctx.fillStyle = col.dark;
     rRect(gc.x - tw / 2, py - 8 * S, tw, 16 * S, 8 * S); ctx.fill();
     ctx.fillStyle = '#fff';
@@ -338,54 +323,53 @@ function drawOnePuzzleLock(lk) {
   ctx.restore();
 }
 
-// Small gem fragment badge sitting on a carrier box (before it's tapped).
+// Bigger gem fragment sitting in the MIDDLE of a carrier box. Sized so
+// the box color still shows clearly all around it.
 function drawGemFragmentBadge(s) {
   if (s.piece < 0 || s.used || s.empty) return;
   var col = LOCK_COLORS[s.piece % LOCK_COLORS.length];
-  var cx = s.x + L.bw * 0.76;
-  var cy = s.y + L.bh * 0.24;
-  var r = L.bw * 0.17;
-  var bob = Math.sin(tick * 0.08 + s.piece) * 1.5 * S;
+  var cx = s.x + L.bw / 2;
+  var cy = s.y + L.bh / 2;
+  var r = L.bw * 0.28;
+  var bob = Math.sin(tick * 0.08 + s.piece) * 2 * S;
   ctx.save();
   ctx.translate(cx, cy + bob);
-  ctx.shadowColor = col.glow; ctx.shadowBlur = 8 * S;
-  drawGemShard(0, 0, r, col, tick * 0.04 + s.piece);
+  ctx.shadowColor = col.glow; ctx.shadowBlur = 12 * S;
+  drawGemShard(0, 0, r, col, tick * 0.02 + s.piece);
   ctx.restore();
 }
 
-// A single faceted gem shard (used for badges and flying fragments).
+// A single faceted gem shard (used for the cluster, badges and flying
+// fragments). `rot` is the absolute rotation in radians.
 function drawGemShard(cx, cy, r, col, rot) {
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate(rot);
-  // Diamond-ish 6-point facet.
-  var pts = [
-    [0, -r], [r * 0.8, -r * 0.2], [r * 0.5, r], [-r * 0.5, r], [-r * 0.8, -r * 0.2]
-  ];
+  var pts = gemShardPoints(r);
   ctx.beginPath();
   ctx.moveTo(pts[0][0], pts[0][1]);
   for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
   ctx.closePath();
-  var g = ctx.createLinearGradient(-r, -r, r, r);
+  var g = ctx.createLinearGradient(-r, -r, r * 0.6, r);
   g.addColorStop(0, col.light);
   g.addColorStop(0.5, col.fill);
   g.addColorStop(1, col.dark);
   ctx.fillStyle = g;
   ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.65)';
   ctx.lineWidth = 1 * S;
   ctx.stroke();
-  // Facet lines from top point.
-  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  // Internal facets (organic cut).
+  ctx.strokeStyle = 'rgba(255,255,255,0.4)';
   ctx.lineWidth = 0.8 * S;
   ctx.beginPath();
   ctx.moveTo(0, -r); ctx.lineTo(0, r);
-  ctx.moveTo(0, -r); ctx.lineTo(pts[1][0], pts[1][1]);
-  ctx.moveTo(0, -r); ctx.lineTo(pts[4][0], pts[4][1]);
+  ctx.moveTo(pts[5][0], pts[5][1]); ctx.lineTo(pts[2][0], pts[2][1]);
+  ctx.moveTo(pts[1][0], pts[1][1]); ctx.lineTo(pts[4][0], pts[4][1]);
   ctx.stroke();
   // Sparkle highlight.
-  ctx.fillStyle = 'rgba(255,255,255,0.55)';
-  ctx.beginPath(); ctx.arc(-r * 0.2, -r * 0.35, r * 0.16, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.beginPath(); ctx.arc(-r * 0.18, -r * 0.32, r * 0.15, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 }
 
@@ -415,8 +399,8 @@ function drawPuzzlePieces() {
       });
     }
     ctx.save();
-    ctx.shadowColor = col.glow; ctx.shadowBlur = 10 * S;
-    drawGemShard(x, y, L.bw * 0.16 * scale, col, p.spin);
+    ctx.shadowColor = col.glow; ctx.shadowBlur = 12 * S;
+    drawGemShard(x, y, L.bw * 0.22 * scale, col, p.spin);
     ctx.restore();
   }
 }
