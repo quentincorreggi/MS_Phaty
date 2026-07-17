@@ -175,6 +175,15 @@ function openPuzzleLock(lk) {
 // Drawing
 // ============================================================
 
+// Darken a #rrggbb color by factor f (f<1 = darker) → 'rgb(r,g,b)'.
+function shadeHex(hex, f) {
+  var h = hex.replace('#', '');
+  var r = Math.round(parseInt(h.substr(0, 2), 16) * f);
+  var g = Math.round(parseInt(h.substr(2, 2), 16) * f);
+  var b = Math.round(parseInt(h.substr(4, 2), 16) * f);
+  return 'rgb(' + r + ',' + g + ',' + b + ')';
+}
+
 // Organic faceted-gem outline points (a cut jewel: pointed top/bottom,
 // wide shoulders). Shared by the shard and its empty silhouette so the
 // filled and unfilled slots line up exactly.
@@ -222,7 +231,8 @@ function drawGemCluster(cx, cy, R, required, collected, col, tick, fillT) {
   }
 }
 
-// Empty gem slot: dark hollow + faint colored dashed outline.
+// Empty gem slot: a darkened version of the lock's own jewel color, so
+// the player reads "a green gem goes here" (dark green), etc.
 function drawGemSilhouette(cx, cy, r, col) {
   ctx.save();
   ctx.translate(cx, cy);
@@ -231,13 +241,18 @@ function drawGemSilhouette(cx, cy, r, col) {
   ctx.moveTo(pts[0][0], pts[0][1]);
   for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
   ctx.closePath();
-  ctx.fillStyle = 'rgba(14,11,20,0.5)';
+  var g = ctx.createLinearGradient(-r, -r, r * 0.6, r);
+  g.addColorStop(0, shadeHex(col.fill, 0.5));
+  g.addColorStop(1, shadeHex(col.fill, 0.26));
+  ctx.fillStyle = g;
   ctx.fill();
-  ctx.strokeStyle = col.glow;
-  ctx.lineWidth = 1.5 * S;
-  ctx.setLineDash([3 * S, 3 * S]);
+  ctx.strokeStyle = shadeHex(col.fill, 0.9);
+  ctx.lineWidth = 1.2 * S;
   ctx.stroke();
-  ctx.setLineDash([]);
+  // Faint center facet so the empty slot still reads as a gem shape.
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 0.8 * S;
+  ctx.beginPath(); ctx.moveTo(0, -r); ctx.lineTo(0, r); ctx.stroke();
   ctx.restore();
 }
 
@@ -274,7 +289,7 @@ function drawOnePuzzleLock(lk) {
   var chdx = chx1 - chx0, chdy = chy1 - chy0;
   var chDist = Math.sqrt(chdx * chdx + chdy * chdy) || 1;
   var chux = chdx / chDist, chuy = chdy / chDist;
-  var linkRx = L.bh * 0.25, linkRy = L.bh * 0.145;
+  var linkRx = L.bh * 0.185, linkRy = L.bh * 0.105;
   var chStep = linkRx * 1.05;
   var chCount = Math.max(2, Math.round(chDist / chStep));
   chStep = chDist / chCount;
