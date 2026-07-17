@@ -264,62 +264,93 @@ function drawOnePuzzleLock(lk) {
     ctx.globalAlpha = fade;
   }
 
-  // 2) A delicate chain of small links between consecutive cells.
-  for (var c = 0; c < lk.cells.length - 1; c++) {
-    var a = stock[lk.cells[c]], b = stock[lk.cells[c + 1]];
-    var ax = a.x + L.bw / 2, ay = a.y + L.bh / 2;
-    var bx = b.x + L.bw / 2, by = b.y + L.bh / 2;
-    var dist = Math.sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
-    var links = Math.max(3, Math.round(dist / (9 * S)));
-    var lr = 2.4 * S;
-    for (var li = 0; li <= links; li++) {
-      var t = li / links;
-      var lx = ax + (bx - ax) * t, ly = ay + (by - ay) * t;
-      ctx.beginPath();
-      ctx.arc(lx, ly, lr, 0, Math.PI * 2);
-      ctx.fillStyle = (li % 2 === 0) ? 'rgba(228,225,235,0.95)' : 'rgba(140,136,150,0.95)';
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(90,86,100,0.6)';
-      ctx.lineWidth = 0.8 * S;
-      ctx.stroke();
-    }
+  // 2) An interlocking metal chain running the full length of the run,
+  //    along its center line (like a real cable chain).
+  var gc = getLockGemCenter(lk);
+  var cFirst = stock[lk.cells[0]], cLast = stock[lk.cells[lk.cells.length - 1]];
+  var chx0, chy0, chx1, chy1;
+  if (lk.orient === 'v') { chx0 = chx1 = gc.x; chy0 = cFirst.y; chy1 = cLast.y + L.bh; }
+  else { chy0 = chy1 = gc.y; chx0 = cFirst.x; chx1 = cLast.x + L.bw; }
+  var chdx = chx1 - chx0, chdy = chy1 - chy0;
+  var chDist = Math.sqrt(chdx * chdx + chdy * chdy) || 1;
+  var chux = chdx / chDist, chuy = chdy / chDist;
+  var linkRx = L.bh * 0.25, linkRy = L.bh * 0.145;
+  var chStep = linkRx * 1.05;
+  var chCount = Math.max(2, Math.round(chDist / chStep));
+  chStep = chDist / chCount;
+  var chBase = Math.atan2(chdy, chdx);
+  for (var ci2 = 0; ci2 <= chCount; ci2++) {
+    var lpx = chx0 + chux * chStep * ci2, lpy = chy0 + chuy * chStep * ci2;
+    drawChainLink(lpx, lpy, linkRx, linkRy, chBase + (ci2 % 2 ? Math.PI / 2 : 0));
   }
 
-  // 3) The gem cluster on the centroid of the run.
-  var gc = getLockGemCenter(lk);
+  // 3) The lock body (a metal clasp) in the middle of the chain — this is
+  //    where the gem slots live. Sized ~one cell so the box colors still
+  //    show on the outer halves of the run.
   var jitter = lk.shakeT > 0 ? Math.sin(tick * 0.9) * 3 * S * lk.shakeT : 0;
   var openScale = lk.opened ? (1 + (1 - lk.openT) * 0.8) : 1;
-  var R = L.bw * 0.62 * openScale;
+  var bodyR = L.bw * 0.5 * openScale;
   ctx.save();
   ctx.translate(gc.x + jitter, gc.y);
+  // Clasp plate (dark metal so the jewel gems pop).
+  ctx.shadowColor = 'rgba(0,0,0,0.32)'; ctx.shadowBlur = 6 * S; ctx.shadowOffsetY = 2 * S;
+  var pg = ctx.createLinearGradient(0, -bodyR, 0, bodyR);
+  pg.addColorStop(0, '#4a4550'); pg.addColorStop(0.5, '#2f2b36'); pg.addColorStop(1, '#201c27');
+  ctx.fillStyle = pg;
+  rRect(-bodyR, -bodyR, bodyR * 2, bodyR * 2, bodyR * 0.42); ctx.fill();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  // Colored rim in the lock's jewel color.
+  ctx.strokeStyle = col.fill; ctx.lineWidth = 2.5 * S;
+  rRect(-bodyR + 2 * S, -bodyR + 2 * S, bodyR * 2 - 4 * S, bodyR * 2 - 4 * S, bodyR * 0.38); ctx.stroke();
+  // Soft inner highlight.
+  ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1 * S;
+  rRect(-bodyR + 4 * S, -bodyR + 4 * S, bodyR * 2 - 8 * S, bodyR * 2 - 8 * S, bodyR * 0.34); ctx.stroke();
 
-  // Small shackle above the cluster so it reads as a lock.
-  if (!lk.opened) {
-    ctx.strokeStyle = 'rgba(196,192,206,0.95)';
-    ctx.lineWidth = 3.5 * S;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.arc(0, -R * 0.66, R * 0.34, Math.PI * 1.05, Math.PI * 1.95);
-    ctx.stroke();
-    ctx.lineCap = 'butt';
-  }
-
-  drawGemCluster(0, 0, R, lk.required, lk.collected, col, tick, lk.fillT);
+  drawGemCluster(0, 0, bodyR * 0.98, lk.required, lk.collected, col, tick, lk.fillT);
   ctx.restore();
 
-  // 4) Counter pill under the cluster.
+  // 4) Counter pill under the lock body.
   if (!lk.opened) {
     var label = lk.collected + '/' + lk.required;
     ctx.font = 'bold ' + (11 * S) + 'px Fredoka, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     var tw = ctx.measureText(label).width + 12 * S;
-    var py = gc.y + R * 0.92 + 7 * S;
+    var py = gc.y + bodyR + 9 * S;
     ctx.fillStyle = col.dark;
     rRect(gc.x - tw / 2, py - 8 * S, tw, 16 * S, 8 * S); ctx.fill();
     ctx.fillStyle = '#fff';
     ctx.fillText(label, gc.x, py + 0.5 * S);
   }
 
+  ctx.restore();
+}
+
+// A single metallic chain link (oval ring) centered at (cx, cy).
+function drawChainLink(cx, cy, rx, ry, angle) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+  var band = ry * 1.05;
+  ctx.lineCap = 'round';
+  // Dark contour under the band.
+  ctx.strokeStyle = 'rgba(58,54,66,0.55)';
+  ctx.lineWidth = band + 1.5 * S;
+  ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
+  // Brushed-metal band.
+  var grd = ctx.createLinearGradient(0, -ry - band, 0, ry + band);
+  grd.addColorStop(0, '#f5f3f8');
+  grd.addColorStop(0.35, '#d4d1db');
+  grd.addColorStop(0.55, '#8e8a98');
+  grd.addColorStop(0.75, '#bbb7c3');
+  grd.addColorStop(1, '#eae8ef');
+  ctx.strokeStyle = grd;
+  ctx.lineWidth = band;
+  ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
+  // Bright specular highlight on the upper-left of the ring.
+  ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+  ctx.lineWidth = band * 0.3;
+  ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, Math.PI * 1.05, Math.PI * 1.62); ctx.stroke();
+  ctx.lineCap = 'butt';
   ctx.restore();
 }
 
