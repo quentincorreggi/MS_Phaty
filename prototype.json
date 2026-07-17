@@ -1,0 +1,111 @@
+{
+  "name": "Puzzle Lock",
+  "description": "A gemstone lock chains a run of boxes shut. Tap the carrier boxes to send matching gem fragments flying in — complete the gem and the lock bursts open.",
+  "howToPlay": "Tap open boxes to drop marbles as usual. Boxes marked with a glowing gem are carriers: tapping one sends its fragment into the ruby lock on the middle row. Collect both fragments (0/2 to 2/2) and the locked blue boxes unlock so you can finish sorting.",
+  "author": "Prototype",
+  "showcaseLevel": {
+    "name": "Puzzle Lock Demo",
+    "desc": "Free the chained boxes by collecting gem fragments",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "lockPieces": [
+      2,
+      2,
+      2,
+      2
+    ],
+    "grid": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "ci": 1,
+        "type": "default",
+        "lock": 0
+      },
+      {
+        "ci": 1,
+        "type": "default",
+        "lock": 0
+      },
+      {
+        "ci": 1,
+        "type": "default",
+        "lock": 0
+      },
+      null,
+      null,
+      null,
+      null,
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      null,
+      null,
+      null,
+      null,
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default",
+        "piece": 0
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      null,
+      null,
+      null,
+      null,
+      {
+        "ci": 0,
+        "type": "default",
+        "piece": 0
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  }
+}

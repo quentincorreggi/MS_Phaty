@@ -56,6 +56,21 @@ var blockerCollectCleared = false;
 var MRB_PER_BOX = 9, SORT_CAP = 3;
 var SORT_VISIBLE_ROWS = 4;
 
+// === PUZZLE LOCK ===
+// A puzzle lock clamps across a straight run of grid cells (horizontal or
+// vertical), keeping every box in the run untappable until enough gemstone
+// fragments have been collected. Each lock has its own jewel color; its
+// fragments share that color and reassemble the gem on the lock face.
+var puzzleLocks = [];   // active lock groups (built each initGame)
+var puzzlePieces = [];  // gem fragments currently flying toward a lock
+var LOCK_PIECES_MIN = 2, LOCK_PIECES_MAX = 4;
+var LOCK_COLORS = [
+  { fill: '#E63462', light: '#FF7BA3', dark: '#A81E45', glow: 'rgba(230,52,98,0.55)',  name: 'Ruby' },
+  { fill: '#2E6BE6', light: '#7BA6FF', dark: '#1B44A8', glow: 'rgba(46,107,230,0.55)', name: 'Sapphire' },
+  { fill: '#17B978', light: '#68EBB2', dark: '#0C7D50', glow: 'rgba(23,185,120,0.55)', name: 'Emerald' },
+  { fill: '#B15CE8', light: '#D6A2F5', dark: '#7A2FAE', glow: 'rgba(177,92,232,0.55)', name: 'Amethyst' }
+];
+
 // Snake order for 3x3 grid
 var SNAKE_ORDER = [
   { r: 0, c: 0 }, { r: 0, c: 1 }, { r: 0, c: 2 },

@@ -17,6 +17,10 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  lockMode: false,      // true when painting puzzle-lock chains
+  pieceMode: false,     // true when placing gem fragments (carriers)
+  activeLock: 0,        // which lock (0-3) lock/fragment paints target
+  lockPieces: [2, 2, 2, 2], // fragments required to open each lock
   visible: false
 };
 
@@ -34,6 +38,10 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.lockMode = false;
+  editor.pieceMode = false;
+  editor.activeLock = 0;
+  editor.lockPieces = [2, 2, 2, 2];
 }
 
 function showEditor(fresh) {
@@ -95,6 +103,18 @@ function editorRenderGrid() {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
     }
+    // Puzzle-lock chain membership overlay
+    if (v && v.lock != null && !v.tunnel) {
+      var lc = LOCK_COLORS[v.lock % LOCK_COLORS.length];
+      cell.style.borderColor = lc.fill;
+      cell.style.boxShadow = 'inset 0 0 0 2px ' + lc.fill;
+      cell.innerHTML += '<span class="ed-lock-tag">🔒</span>';
+    }
+    // Gem fragment (carrier) overlay
+    if (v && v.piece != null && !v.tunnel && !v.wall) {
+      var pc = LOCK_COLORS[v.piece % LOCK_COLORS.length];
+      cell.innerHTML += '<span class="ed-piece-tag" style="background:' + pc.fill + ';box-shadow:0 0 5px ' + pc.glow + '"></span>';
+    }
     cell.setAttribute('data-idx', i);
     cell.addEventListener('click', editorCellClick);
     cell.addEventListener('contextmenu', editorCellErase);
@@ -112,13 +132,58 @@ function editorCellClick(e) {
       // Toggle off: clicking existing wall removes it
       editor.grid[idx] = null;
     } else {
-      // Place wall
-      editor.grid[idx] = { wall: true };
+      // Place wall (preserve any lock-chain membership)
+      var wcell = { wall: true };
+      if (existing && !existing.tunnel && existing.lock != null) wcell.lock = existing.lock;
+      editor.grid[idx] = wcell;
     }
     if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     editorRenderGrid();
     editorUpdateStats();
     editorRenderTunnelPanel();
+    return;
+  }
+
+  if (editor.lockMode) {
+    // Paint puzzle-lock chain membership onto a box or wall.
+    var existing = editor.grid[idx];
+    if (editor.activeColor === -1) {
+      // Eraser: drop lock membership (keep the underlying box/wall).
+      if (existing && existing.lock != null) delete editor.grid[idx].lock;
+    } else if (existing && existing.tunnel) {
+      // Tunnels can't be locked — ignore.
+    } else if (!existing) {
+      // Empty cell → create a plain locked box.
+      editor.grid[idx] = { ci: 0, type: 'default', lock: editor.activeLock };
+    } else if (existing.lock === editor.activeLock) {
+      delete editor.grid[idx].lock;  // toggle off
+    } else {
+      existing.lock = editor.activeLock;
+    }
+    if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+    editorRenderGrid();
+    editorRenderSettings();
+    editorUpdateStats();
+    return;
+  }
+
+  if (editor.pieceMode) {
+    // Place a gem fragment (carrier) on a box.
+    var existing = editor.grid[idx];
+    if (editor.activeColor === -1) {
+      if (existing && existing.piece != null) delete editor.grid[idx].piece;
+    } else if (existing && (existing.tunnel || existing.wall)) {
+      // Fragments only sit on boxes — ignore.
+    } else if (!existing) {
+      editor.grid[idx] = { ci: 0, type: 'default', piece: editor.activeLock };
+    } else if (existing.piece === editor.activeLock) {
+      delete editor.grid[idx].piece;  // toggle off
+    } else {
+      existing.piece = editor.activeLock;
+    }
+    if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+    editorRenderGrid();
+    editorUpdateStats();
     return;
   }
 
@@ -141,10 +206,17 @@ function editorCellClick(e) {
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     } else {
       var existing = editor.grid[idx];
-      if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
+      if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor &&
+          existing.type === editor.activeType && existing.lock == null && existing.piece == null) {
         editor.grid[idx] = null;
       } else {
-        editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
+        var ncell = { ci: editor.activeColor, type: editor.activeType };
+        // Preserve puzzle-lock / fragment tags when recoloring a box.
+        if (existing && !existing.tunnel && !existing.wall) {
+          if (existing.lock != null) ncell.lock = existing.lock;
+          if (existing.piece != null) ncell.piece = existing.piece;
+        }
+        editor.grid[idx] = ncell;
       }
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     }
@@ -178,13 +250,15 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.lockMode && !editor.pieceMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.lockMode = false;
+      editor.pieceMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -200,6 +274,8 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.lockMode = false;
+    editor.pieceMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -214,10 +290,46 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.lockMode = false;
+    editor.pieceMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(tunnelBtn);
+
+  // Puzzle-lock chain mode button
+  var lockBtn = document.createElement('button');
+  lockBtn.className = 'ed-type-btn' + (editor.lockMode ? ' active' : '');
+  lockBtn.textContent = '\uD83D\uDD12 Lock';
+  lockBtn.style.borderColor = editor.lockMode ? 'rgba(230,52,98,0.6)' : '';
+  lockBtn.style.color = editor.lockMode ? '#C42A55' : '';
+  lockBtn.addEventListener('click', function () {
+    editor.lockMode = true;
+    editor.pieceMode = false;
+    editor.wallMode = false;
+    editor.tunnelMode = false;
+    editor.activeColor = 0;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(lockBtn);
+
+  // Gem fragment (carrier) mode button
+  var pieceBtn = document.createElement('button');
+  pieceBtn.className = 'ed-type-btn' + (editor.pieceMode ? ' active' : '');
+  pieceBtn.textContent = '\uD83D\uDC8E Fragment';
+  pieceBtn.style.borderColor = editor.pieceMode ? 'rgba(46,107,230,0.6)' : '';
+  pieceBtn.style.color = editor.pieceMode ? '#255BC8' : '';
+  pieceBtn.addEventListener('click', function () {
+    editor.pieceMode = true;
+    editor.lockMode = false;
+    editor.wallMode = false;
+    editor.tunnelMode = false;
+    editor.activeColor = 0;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(pieceBtn);
 
   el.appendChild(typeRow);
 
@@ -260,6 +372,41 @@ function editorRenderToolbar() {
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
+  } else if (editor.lockMode || editor.pieceMode) {
+    // Lock / fragment mode: pick which lock (0-3) to paint.
+    var lockRow = document.createElement('div');
+    lockRow.className = 'ed-color-row';
+
+    var eraser = document.createElement('button');
+    eraser.className = 'ed-tool' + (editor.activeColor === -1 ? ' active' : '');
+    eraser.style.background = 'rgba(180,165,145,0.5)';
+    eraser.innerHTML = '✖';
+    eraser.title = 'Eraser';
+    eraser.addEventListener('click', function () { editor.activeColor = -1; editorRenderToolbar(); });
+    lockRow.appendChild(eraser);
+
+    for (var lci = 0; lci < LOCK_COLORS.length; lci++) {
+      var lb = document.createElement('button');
+      lb.className = 'ed-tool' + (editor.activeLock === lci && editor.activeColor !== -1 ? ' active' : '');
+      lb.style.background = 'linear-gradient(135deg,' + LOCK_COLORS[lci].light + ',' + LOCK_COLORS[lci].dark + ')';
+      lb.innerHTML = editor.lockMode ? '🔒' : '💎';
+      lb.title = LOCK_COLORS[lci].name;
+      lb.setAttribute('data-lock', lci);
+      lb.addEventListener('click', function () {
+        editor.activeLock = parseInt(this.getAttribute('data-lock'));
+        editor.activeColor = 0;
+        editorRenderToolbar();
+      });
+      lockRow.appendChild(lb);
+    }
+    el.appendChild(lockRow);
+
+    var lockInfo = document.createElement('div');
+    lockInfo.className = 'ed-color-row';
+    lockInfo.innerHTML = editor.lockMode
+      ? '<span style="font-size:11px;color:#9C8A70">Paint a straight run (row or column) of boxes/walls to chain them.</span>'
+      : '<span style="font-size:11px;color:#9C8A70">Tap boxes to hold a matching-color fragment for that lock.</span>';
+    el.appendChild(lockInfo);
   } else {
     // Color palette: eraser + 8 colors
     var colorRow = document.createElement('div');
@@ -489,6 +636,35 @@ function editorUpdateStats() {
       }
     }
   }
+  // ── Puzzle-lock analysis ──
+  var lockCells = [0, 0, 0, 0];      // chained cells per lock
+  var fragCells = [0, 0, 0, 0];      // carriers per lock
+  var fragUnderOwn = false;          // a fragment sits under its own lock's chain
+  var deps = { 0: {}, 1: {}, 2: {}, 3: {} }; // lock -> set of locks it depends on
+  for (var i = 0; i < 49; i++) {
+    var v = editor.grid[i];
+    if (!v) continue;
+    if (v.lock != null && !v.tunnel) lockCells[v.lock]++;
+    if (v.piece != null && !v.tunnel && !v.wall) {
+      fragCells[v.piece]++;
+      if (v.lock != null && v.lock === v.piece) fragUnderOwn = true;
+      // fragment for lock P sits on a cell chained to lock v.lock → P depends on v.lock
+      if (v.lock != null && v.lock !== v.piece) deps[v.piece][v.lock] = true;
+    }
+  }
+  var lockWarn = '';
+  var lockChips = '';
+  for (var lid = 0; lid < 4; lid++) {
+    if (lockCells[lid] === 0 && fragCells[lid] === 0) continue;
+    var lc = LOCK_COLORS[lid];
+    var req = Math.max(LOCK_PIECES_MIN, Math.min(LOCK_PIECES_MAX, editor.lockPieces[lid] != null ? editor.lockPieces[lid] : LOCK_PIECES_MIN));
+    lockChips += '<span class="ed-stat-chip" style="background:' + lc.fill + '">' + lc.name + ' ' + fragCells[lid] + '/' + req + '</span>';
+    if (!lockWarn && lockCells[lid] === 0 && fragCells[lid] > 0) lockWarn = lc.name + ' fragments have no lock chain on the grid';
+    if (!lockWarn && lockCells[lid] > 0 && fragCells[lid] < req) lockWarn = lc.name + ' lock needs ' + req + ' fragments but only ' + fragCells[lid] + ' placed';
+  }
+  if (!lockWarn && fragUnderOwn) lockWarn = 'A fragment sits under its own lock — that lock can never open';
+  if (!lockWarn && editorHasLockCycle(deps)) lockWarn = 'Locks depend on each other in a circle — none can open';
+
   var el = document.getElementById('ed-stats');
   var html = '<span class="ed-stat-total">' + total + ' boxes</span>';
   for (var t = 0; t < BoxTypeOrder.length; t++) {
@@ -506,6 +682,7 @@ function editorUpdateStats() {
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
   }
+  if (lockChips) html += lockChips;
   for (var c = 0; c < NUM_COLORS; c++) {
     if (counts[c] > 0) html += '<span class="ed-stat-chip" style="background:' + COLORS[c].fill + '">' + counts[c] + '</span>';
   }
@@ -525,9 +702,29 @@ function editorUpdateStats() {
     if (!warn && totalBlockers > 0 && totalBlockers % 3 !== 0) {
       warn = 'Total blocker marbles (' + totalBlockers + ') must be a multiple of 3';
     }
+    if (!warn && lockWarn) warn = lockWarn;
   }
   if (warn) html += '<span class="ed-stat-warn">' + warn + '</span>';
   el.innerHTML = html;
+}
+
+// Cycle detection over the lock dependency graph (deps[A][B] = A needs B open).
+function editorHasLockCycle(deps) {
+  var state = {}; // 0=unvisited,1=in-stack,2=done
+  function dfs(n) {
+    state[n] = 1;
+    for (var m in deps[n]) {
+      if (!deps[n].hasOwnProperty(m)) continue;
+      if (state[m] === 1) return true;
+      if (state[m] !== 2 && dfs(m)) return true;
+    }
+    state[n] = 2;
+    return false;
+  }
+  for (var n = 0; n < 4; n++) {
+    if (state[n] === undefined && dfs(n)) return true;
+  }
+  return false;
 }
 
 // ── Settings ──
@@ -559,6 +756,43 @@ function editorRenderSettings() {
       });
     })(fields[i]);
   }
+
+  // ── Per-lock fragment-to-unlock sliders (only for locks on the grid) ──
+  var present = editorLocksPresent();
+  for (var p = 0; p < present.length; p++) {
+    (function (lid) {
+      var lc = LOCK_COLORS[lid % LOCK_COLORS.length];
+      if (editor.lockPieces[lid] == null) editor.lockPieces[lid] = LOCK_PIECES_MIN;
+      var row = document.createElement('div');
+      row.className = 'ed-setting-row';
+      row.innerHTML =
+        '<label style="color:' + lc.dark + '">🔒 ' + lc.name + '</label>' +
+        '<input type="range" id="ed-lp-' + lid + '" min="' + LOCK_PIECES_MIN + '" max="' + LOCK_PIECES_MAX + '" step="1" value="' + editor.lockPieces[lid] + '" style="accent-color:' + lc.fill + '">' +
+        '<span class="ed-s-val" id="ed-lp-' + lid + '-v">' + editor.lockPieces[lid] + '</span>';
+      el.appendChild(row);
+      var sl = document.getElementById('ed-lp-' + lid);
+      var vl = document.getElementById('ed-lp-' + lid + '-v');
+      sl.addEventListener('input', function () {
+        editor.lockPieces[lid] = parseInt(sl.value);
+        vl.textContent = sl.value;
+        editorUpdateStats();
+      });
+    })(present[p]);
+  }
+}
+
+// Which lock ids (0-3) currently have at least one chained cell on the grid.
+function editorLocksPresent() {
+  var seen = {};
+  var out = [];
+  for (var i = 0; i < 49; i++) {
+    var v = editor.grid[i];
+    if (v && v.lock != null && !v.tunnel) {
+      if (!seen[v.lock]) { seen[v.lock] = true; out.push(v.lock); }
+    }
+  }
+  out.sort(function (a, b) { return a - b; });
+  return out;
 }
 
 // ── Build level definition ──
@@ -567,6 +801,7 @@ function editorBuildLevel() {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
+    lockPieces: editor.lockPieces.slice(),
     grid: editor.grid.slice()
   };
 }
@@ -617,7 +852,7 @@ function editorImportJSON() {
           var cell = lvl.grid[i];
           if (cell === null || cell === undefined || cell === -1) editor.grid[i] = null;
           else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
-          else if (cell.wall) editor.grid[i] = { wall: true };
+          else if (cell.wall) { var w = { wall: true }; if (cell.lock != null) w.lock = cell.lock; editor.grid[i] = w; }
           else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
           else editor.grid[i] = cell;
         }
@@ -625,6 +860,9 @@ function editorImportJSON() {
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
+      if (lvl.lockPieces && lvl.lockPieces.length) {
+        for (var lpi = 0; lpi < 4; lpi++) if (lvl.lockPieces[lpi] != null) editor.lockPieces[lpi] = lvl.lockPieces[lpi];
+      }
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
       var nameEl = document.getElementById('ed-name');

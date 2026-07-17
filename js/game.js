@@ -47,15 +47,19 @@ function initGame() {
       var cell = lvl.grid[i];
       if (cell === null || cell === undefined) continue;
       if (cell.wall) {
-        wallSlots[i] = true;
+        wallSlots[i] = { lock: (cell.lock != null ? cell.lock : -1) };
         continue;
       }
       if (cell.tunnel) {
         tunnelSlots[i] = { dir: cell.dir || 'bottom', contents: cell.contents ? cell.contents.slice() : [] };
       } else if (typeof cell === 'number') {
-        if (cell >= 0) boxSlots[i] = { ci: cell, boxType: 'default' };
+        if (cell >= 0) boxSlots[i] = { ci: cell, boxType: 'default', lock: -1, piece: -1 };
       } else if (typeof cell === 'object' && cell.ci >= 0) {
-        boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default' };
+        boxSlots[i] = {
+          ci: cell.ci, boxType: cell.type || 'default',
+          lock: (cell.lock != null ? cell.lock : -1),
+          piece: (cell.piece != null ? cell.piece : -1)
+        };
       }
     }
   }
@@ -108,16 +112,18 @@ function initGame() {
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        lock: -1, piece: -1,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
     } else if (wSlot) {
-      // Wall cell — inert structural element
+      // Wall cell — inert structural element (may be part of a lock chain)
       stock.push({
         isWall: true, isTunnel: false,
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: false, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        lock: (wSlot.lock != null ? wSlot.lock : -1), piece: -1,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
@@ -125,6 +131,7 @@ function initGame() {
       stock.push({ ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        lock: -1, piece: -1,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
     } else {
@@ -136,11 +143,17 @@ function initGame() {
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        lock: (slot.lock != null ? slot.lock : -1),
+        piece: (slot.piece != null ? slot.piece : -1),
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
     }
   }
+
+  // ── Build puzzle locks from chained cells (before revealing, since
+  //    locked cells block the path-to-bottom) ──
+  buildPuzzleLocks(lvl.lockPieces || []);
 
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
@@ -222,6 +235,7 @@ function updateBoxReveals(animate) {
     if (!b) continue;
     if (b.isWall || b.isTunnel || b.empty || b.used) continue;
     if (b.spawning) continue;
+    if (isCellLocked(k)) continue;  // locked chain boxes stay closed until the lock opens
 
     var br = Math.floor(k / L.cols), bcol = k % L.cols;
     var hasPath = false;
@@ -315,6 +329,7 @@ function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
   if (b.isWall) return false;      // walls are not tappable
+  if (isCellLocked(idx)) return false;  // chained boxes are locked until the puzzle lock opens
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
@@ -339,6 +354,7 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      if (b.piece >= 0) launchPuzzlePiece(b);  // carrier: send its gem fragment to the lock
       return;
     }
   }
@@ -373,6 +389,9 @@ function update() {
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
+
+  // ── Puzzle lock: advance flying fragments, open locks ──
+  updatePuzzleLocks();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -545,12 +564,14 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    drawPuzzleLocks();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();
     drawJumpers();
     drawSortArea();
     drawBackButton();
+    drawPuzzlePieces();
     drawParticles();
     drawDebugWalls();
   }

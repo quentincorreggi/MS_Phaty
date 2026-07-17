@@ -93,6 +93,10 @@
     font-size:8px;font-weight:700;min-width:14px;height:14px;border-radius:7px;
     display:flex;align-items:center;justify-content:center;pointer-events:none;
     text-shadow:0 1px 1px rgba(0,0,0,0.2)}
+  .ed-lock-tag{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    font-size:11px;pointer-events:none;filter:drop-shadow(0 1px 1px rgba(0,0,0,0.4))}
+  .ed-piece-tag{position:absolute;top:-3px;right:-3px;width:10px;height:10px;
+    transform:rotate(45deg);border:1.5px solid rgba(255,255,255,0.7);pointer-events:none}
   #ed-toolbar{display:flex;flex-direction:column;gap:6px;align-items:center;margin-bottom:8px}
   .ed-type-row{display:flex;gap:4px;flex-wrap:wrap;justify-content:center}
   .ed-type-btn{padding:4px 14px;border:2px solid rgba(120,100,80,0.2);border-radius:8px;
@@ -267,6 +271,7 @@
 <script src="js/physics.js"></script>
 <script src="js/tunnel.js"></script>
 <script src="js/wall.js"></script>
+<script src="js/puzzlelock.js"></script>
 <script src="js/rendering.js"></script>
 <script src="js/editor.js"></script>
 <script src="js/game.js"></script>
