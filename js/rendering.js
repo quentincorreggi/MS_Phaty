@@ -239,6 +239,11 @@ function drawStock() {
       }
     }
 
+    // Heavy wrapper indicator — always visible while the box holds marbles.
+    if (b.heavy && b.remaining > 0) {
+      drawHeavyBoxBadge(L.bw, L.bh, S, tick);
+    }
+
     if (b.iceHP > 0) {
       var iceType = getBoxType('ice');
       if (iceType && iceType.drawIceOverlay) {
@@ -265,6 +270,8 @@ function drawPhysMarbles() {
     var m = physMarbles[i];
     var bounce = m.spawnT > 0 ? (1 + Math.sin(m.spawnT * Math.PI) * 0.4) : 1;
     drawMarble(m.x, m.y, m.r, m.ci, bounce);
+    // Heavy marbles wear an individual metal shell until it shatters.
+    if (m.heavy && !m.shellBroken) drawHeavyShell(m.x, m.y, m.r, m.ci);
   }
 }
 

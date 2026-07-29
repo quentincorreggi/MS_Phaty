@@ -13,6 +13,7 @@ var editor = {
   lockButtons: 0,
   activeColor: 0,      // -1=eraser, 0-7=color
   activeType: BoxTypeOrder[0],
+  heavyFlag: false,     // Heavy wrapper applied on top of painted boxes
   tunnelMode: false,    // true when placing tunnels
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
@@ -30,6 +31,7 @@ function editorInit() {
   editor.lockButtons = 0;
   editor.activeColor = 0;
   editor.activeType = BoxTypeOrder[0];
+  editor.heavyFlag = false;
   editor.tunnelMode = false;
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
@@ -90,7 +92,7 @@ function editorRenderGrid() {
       var st = bt.editorCellStyle(v.ci);
       cell.style.background = st.background;
       cell.style.borderColor = st.borderColor;
-      cell.innerHTML = bt.editorCellHTML(v.ci);
+      cell.innerHTML = bt.editorCellHTML(v.ci) + (v.heavy ? '<span class="ed-cell-heavy" title="Heavy"></span>' : '');
     } else {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
@@ -141,10 +143,10 @@ function editorCellClick(e) {
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     } else {
       var existing = editor.grid[idx];
-      if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
+      if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType && !!existing.heavy === editor.heavyFlag) {
         editor.grid[idx] = null;
       } else {
-        editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
+        editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType, heavy: editor.heavyFlag };
       }
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     }
@@ -190,6 +192,17 @@ function editorRenderToolbar() {
     });
     typeRow.appendChild(tb);
   }
+
+  // Heavy wrapper toggle — modifies whichever box type is painted next.
+  var heavyBtn = document.createElement('button');
+  heavyBtn.className = 'ed-type-btn ed-heavy-btn' + (editor.heavyFlag ? ' active' : '');
+  heavyBtn.innerHTML = '⚙ Heavy';
+  heavyBtn.title = 'Toggle Heavy: painted boxes release fast, shelled marbles';
+  heavyBtn.addEventListener('click', function () {
+    editor.heavyFlag = !editor.heavyFlag;
+    editorRenderToolbar();
+  });
+  typeRow.appendChild(heavyBtn);
 
   // Wall mode button
   var wallBtn = document.createElement('button');
@@ -344,8 +357,10 @@ function editorRenderTunnelPanel() {
       var item = tunnel.contents[ci2];
       var c = COLORS[item.ci];
       var typeLabel = (BoxTypes[item.type] || BoxTypes[BoxTypeOrder[0]]).label;
-      html += '<span class="ed-tunnel-item" data-cidx="' + ci2 + '" title="' + CLR_NAMES[item.ci] + ' ' + typeLabel + ' — click to remove" style="background:' + c.fill + '">';
+      var heavyTitle = item.heavy ? 'heavy ' : '';
+      html += '<span class="ed-tunnel-item" data-cidx="' + ci2 + '" title="' + heavyTitle + CLR_NAMES[item.ci] + ' ' + typeLabel + ' — click to remove" style="background:' + c.fill + '">';
       html += '<span style="font-size:8px;opacity:0.7">' + typeLabel[0] + '</span>';
+      if (item.heavy) html += '<span class="ed-cell-heavy" style="bottom:-4px;left:-4px;width:11px;height:11px"></span>';
       html += '</span>';
     }
   }
@@ -359,6 +374,7 @@ function editorRenderTunnelPanel() {
     html += '<option value="' + BoxTypeOrder[t] + '">' + BoxTypes[BoxTypeOrder[t]].label + '</option>';
   }
   html += '</select>';
+  html += '<label class="ed-tunnel-heavy-lbl"><input type="checkbox" id="ed-tunnel-add-heavy"' + (editor.heavyFlag ? ' checked' : '') + '> Heavy</label>';
   html += '</div>';
   html += '<div class="ed-tunnel-add-colors">';
   for (var ci3 = 0; ci3 < NUM_COLORS; ci3++) {
@@ -404,8 +420,10 @@ function editorRenderTunnelPanel() {
       var ci4 = parseInt(this.getAttribute('data-ci'));
       var typeEl = document.getElementById('ed-tunnel-add-type');
       var type = typeEl ? typeEl.value : 'default';
+      var heavyEl = document.getElementById('ed-tunnel-add-heavy');
+      var heavy = heavyEl ? heavyEl.checked : false;
       if (editor.selectedTunnel >= 0 && editor.grid[editor.selectedTunnel]) {
-        editor.grid[editor.selectedTunnel].contents.push({ ci: ci4, type: type });
+        editor.grid[editor.selectedTunnel].contents.push({ ci: ci4, type: type, heavy: heavy });
         editorRenderGrid();
         editorRenderTunnelPanel();
         editorUpdateStats();
@@ -450,7 +468,7 @@ function editorUpdateStats() {
   var counts = [];
   var regularMrb = [];
   for (var c = 0; c < NUM_COLORS; c++) { counts.push(0); regularMrb.push(0); }
-  var total = 0, typeCounts = {}, totalBlockers = 0;
+  var total = 0, typeCounts = {}, totalBlockers = 0, heavyCount = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
   var wallCount = 0;
   for (var i = 0; i < 49; i++) {
@@ -467,6 +485,7 @@ function editorUpdateStats() {
         for (var tc = 0; tc < v.contents.length; tc++) {
           var tItem = v.contents[tc];
           counts[tItem.ci]++;
+          if (tItem.heavy) heavyCount++;
           if (tItem.type === 'blocker') {
             regularMrb[tItem.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
             totalBlockers += BLOCKER_PER_BOX;
@@ -481,6 +500,7 @@ function editorUpdateStats() {
       counts[v.ci]++;
       total++;
       typeCounts[v.type] = (typeCounts[v.type] || 0) + 1;
+      if (v.heavy) heavyCount++;
       if (v.type === 'blocker') {
         regularMrb[v.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
         totalBlockers += BLOCKER_PER_BOX;
@@ -496,6 +516,9 @@ function editorUpdateStats() {
     if (typeCounts[tid]) {
       html += '<span class="ed-stat-chip" style="background:' + BoxTypes[tid].editorColor + '">' + typeCounts[tid] + ' ' + BoxTypes[tid].label.toLowerCase() + '</span>';
     }
+  }
+  if (heavyCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:linear-gradient(135deg,#9AA0A8,#4E525A)">' + heavyCount + ' heavy</span>';
   }
   if (wallCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#8A7D6B">' + wallCount + ' wall' + (wallCount > 1 ? 's' : '') + '</span>';

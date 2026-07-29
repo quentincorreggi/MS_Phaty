@@ -35,8 +35,12 @@ function physicsStep() {
   for (var sub = 0; sub < subSteps; sub++) {
     for (var i = 0; i < physMarbles.length; i++) {
       var m = physMarbles[i];
-      m.vy += PHYS_GRAVITY * S / subSteps;
+      // Heavy marbles fall markedly faster (higher gravity), capped so
+      // the extra speed never lets them tunnel through funnel walls.
+      var gMul = m.heavy ? HEAVY_GRAV_MULT : 1;
+      m.vy += PHYS_GRAVITY * S * gMul / subSteps;
       m.vx *= PHYS_DAMPING; m.vy *= PHYS_DAMPING;
+      if (m.heavy) { var mv = HEAVY_MAX_VY * S; if (m.vy > mv) m.vy = mv; }
       m.x += m.vx / subSteps; m.y += m.vy / subSteps;
     }
     for (var i = 0; i < physMarbles.length; i++) {
@@ -47,14 +51,31 @@ function physicsStep() {
         var minD = a.r + b.r;
         if (dist < minD && dist > 0.01) {
           var nx = dx / dist, ny = dy / dist;
-          var pen = (minD - dist) / 2;
-          a.x -= nx * pen; a.y -= ny * pen;
-          b.x += nx * pen; b.y += ny * pen;
+          var pen = minD - dist;
+          // A shelled heavy marble acts as (near-)immovable mass so it
+          // plows through and overtakes normal marbles instead of being
+          // slowed by them. Only the lighter marble gets displaced.
+          var aH = a.heavy && !a.shellBroken;
+          var bH = b.heavy && !b.shellBroken;
+          if (aH && !bH) {
+            b.x += nx * pen; b.y += ny * pen;
+          } else if (bH && !aH) {
+            a.x -= nx * pen; a.y -= ny * pen;
+          } else {
+            a.x -= nx * pen / 2; a.y -= ny * pen / 2;
+            b.x += nx * pen / 2; b.y += ny * pen / 2;
+          }
           var dvx = a.vx - b.vx, dvy = a.vy - b.vy;
           var dvn = dvx * nx + dvy * ny;
           if (dvn > 0) {
-            a.vx -= dvn * nx * PHYS_BOUNCE; a.vy -= dvn * ny * PHYS_BOUNCE;
-            b.vx += dvn * nx * PHYS_BOUNCE; b.vy += dvn * ny * PHYS_BOUNCE;
+            if (aH && !bH) {
+              b.vx += dvn * nx * 0.6; b.vy += dvn * ny * 0.6; // shove the light one aside, keep heavy momentum
+            } else if (bH && !aH) {
+              a.vx -= dvn * nx * 0.6; a.vy -= dvn * ny * 0.6;
+            } else {
+              a.vx -= dvn * nx * PHYS_BOUNCE; a.vy -= dvn * ny * PHYS_BOUNCE;
+              b.vx += dvn * nx * PHYS_BOUNCE; b.vy += dvn * ny * PHYS_BOUNCE;
+            }
           }
         }
       }
@@ -74,6 +95,13 @@ function physicsStep() {
   for (var i = physMarbles.length - 1; i >= 0; i--) {
     var m = physMarbles[i];
     if (m.y + m.r >= exitY - 3 * S && m.x > exitL - m.r && m.x < exitR + m.r) {
+      // Heavy marble reaching the funnel floor / conveyor: the shell
+      // shatters and it bounces before settling. It stays in play as a
+      // normal marble and snaps to a slot on a later descent.
+      if (m.heavy && !m.shellBroken) {
+        shatterHeavyMarble(m);
+        continue;
+      }
       var entryT = getBeltEntryT();
       var bestIdx = -1, bestDist = Infinity;
       for (var k = 0; k < BELT_SLOTS; k++) {
@@ -99,6 +127,7 @@ function spawnPhysMarbles(box) {
   var count = box.remaining;
   var blockerCount = box.blockerCount || 0;
   var blockerStart = MRB_PER_BOX - blockerCount;
+  var isHeavy = !!box.heavy;
   for (var idx = 0; idx < count; idx++) {
     (function (i, b, bStart) {
       setTimeout(function () {
@@ -112,10 +141,13 @@ function spawnPhysMarbles(box) {
         var mgY = mg * MRB_GAP_FACTOR;
         var mx = b.x + L.bw / 2 + (si.c - 1) * mg;
         var my = b.y + L.bh / 2 + (si.r - 1) * mgY - 2 * S;
-        var vx = (Math.random() - 0.5) * 2 * S;
-        var vy = -(2 + Math.random() * 2) * S;
+        // Heavy marbles are weighty: barely any upward pop, so they
+        // drop and race for the conveyor immediately.
+        var vx = (Math.random() - 0.5) * (isHeavy ? 1 : 2) * S;
+        var vy = isHeavy ? (0.5 + Math.random()) * S : -(2 + Math.random() * 2) * S;
         var marbleCi = (blockerCount > 0 && spawnIdx >= bStart) ? BLOCKER_CI : b.ci;
-        physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR, spawnT: 1.0 });
+        physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR,
+          spawnT: isHeavy ? 0 : 1.0, heavy: isHeavy, shellBroken: false });
         sfx.drop();
         spawnBurst(mx, my, COLORS[marbleCi].fill, 4);
         if (b.remaining <= 0) {
