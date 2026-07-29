@@ -260,8 +260,6 @@ function updateBoxReveals(animate) {
           });
         }
         if (typeof sfx !== 'undefined' && sfx.pop) sfx.pop();
-        // Heavy box opening: its encasing shell explodes.
-        if (b.heavy && typeof explodeHeavyShell === 'function') explodeHeavyShell(bx, by);
       }
     } else if (!hasPath && b.revealed) {
       b.revealed = false;
@@ -489,9 +487,14 @@ function update() {
     b.hoverT += (th - b.hoverT) * 0.12;
   }
 
-  // Phys marble spawn bounce
+  // Phys marble spawn bounce + heavy core implosion
   for (var i = 0; i < physMarbles.length; i++) {
-    if (physMarbles[i].spawnT > 0) physMarbles[i].spawnT = Math.max(0, physMarbles[i].spawnT - 0.05);
+    var pm = physMarbles[i];
+    if (pm.spawnT > 0) pm.spawnT = Math.max(0, pm.spawnT - 0.05);
+    if (pm.coreShrinking) {
+      pm.coreT = Math.max(0, pm.coreT - HEAVY_CORE_POP);
+      if (pm.coreT <= 0) { pm.heavy = false; pm.coreShrinking = false; }
+    }
   }
 
   // Sort box animations

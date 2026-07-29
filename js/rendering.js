@@ -78,7 +78,7 @@ function drawBoxMarbles(ci, remaining) {
     var sp = mrbsToDraw[si];
     var mx = (sp.c - 1) * mg, my = (sp.r - 1) * mgY - 2 * S;
     drawMarble(mx, my, mr, ci);
-    if (heavyMarbleContext) drawHeavyShell(mx, my, mr, ci);
+    if (heavyMarbleContext) drawHeavyCore(mx, my, mr, 1);
   }
 }
 
@@ -99,7 +99,7 @@ function drawBoxMarblesWithBlockers(ci, remaining, blockerCount) {
     var mci = sp.isBlocker ? BLOCKER_CI : ci;
     var mx = (sp.c - 1) * mg, my = (sp.r - 1) * mgY - 2 * S;
     drawMarble(mx, my, mr, mci);
-    if (heavyMarbleContext) drawHeavyShell(mx, my, mr, mci);
+    if (heavyMarbleContext) drawHeavyCore(mx, my, mr, 1);
   }
 }
 
@@ -280,8 +280,9 @@ function drawPhysMarbles() {
     var m = physMarbles[i];
     var bounce = m.spawnT > 0 ? (1 + Math.sin(m.spawnT * Math.PI) * 0.4) : 1;
     drawMarble(m.x, m.y, m.r, m.ci, bounce);
-    // Heavy marbles wear an individual metal shell until it shatters.
-    if (m.heavy && !m.shellBroken) drawHeavyShell(m.x, m.y, m.r, m.ci);
+    // Heavy marbles show a dense dark core through the glass; it implodes
+    // (coreShrinking) on landing.
+    if (m.heavy || m.coreShrinking) drawHeavyCore(m.x, m.y, m.r, m.coreShrinking ? m.coreT : 1);
   }
 }
 

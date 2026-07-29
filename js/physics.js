@@ -52,11 +52,11 @@ function physicsStep() {
         if (dist < minD && dist > 0.01) {
           var nx = dx / dist, ny = dy / dist;
           var pen = minD - dist;
-          // A shelled heavy marble acts as (near-)immovable mass so it
-          // plows through and overtakes normal marbles instead of being
-          // slowed by them. Only the lighter marble gets displaced.
-          var aH = a.heavy && !a.shellBroken;
-          var bH = b.heavy && !b.shellBroken;
+          // A heavy marble acts as (near-)immovable mass so it plows
+          // through and overtakes normal marbles instead of being slowed
+          // by them. Only the lighter marble gets displaced.
+          var aH = a.heavy;
+          var bH = b.heavy;
           if (aH && !bH) {
             b.x += nx * pen; b.y += ny * pen;
           } else if (bH && !aH) {
@@ -95,13 +95,12 @@ function physicsStep() {
   for (var i = physMarbles.length - 1; i >= 0; i--) {
     var m = physMarbles[i];
     if (m.y + m.r >= exitY - 3 * S && m.x > exitL - m.r && m.x < exitR + m.r) {
-      // Heavy marble reaching the funnel floor / conveyor: the shell
-      // shatters and it bounces before settling. It stays in play as a
-      // normal marble and snaps to a slot on a later descent.
-      if (m.heavy && !m.shellBroken) {
-        shatterHeavyMarble(m);
-        continue;
-      }
+      // Heavy marble reaching the funnel floor / conveyor: its dense
+      // core implodes (no shell, no bounce). While the core is shrinking
+      // it waits here; once gone it drops its heavy flag and snaps to a
+      // belt slot like a normal marble.
+      if (m.coreShrinking) continue;
+      if (m.heavy) { popHeavyCore(m); continue; }
       var entryT = getBeltEntryT();
       var bestIdx = -1, bestDist = Infinity;
       for (var k = 0; k < BELT_SLOTS; k++) {
@@ -147,7 +146,7 @@ function spawnPhysMarbles(box) {
         var vy = isHeavy ? (0.5 + Math.random()) * S : -(2 + Math.random() * 2) * S;
         var marbleCi = (blockerCount > 0 && spawnIdx >= bStart) ? BLOCKER_CI : b.ci;
         physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR,
-          spawnT: isHeavy ? 0 : 1.0, heavy: isHeavy, shellBroken: false });
+          spawnT: isHeavy ? 0 : 1.0, heavy: isHeavy, core: 1, coreShrinking: false });
         sfx.drop();
         spawnBurst(mx, my, COLORS[marbleCi].fill, 4);
         if (b.remaining <= 0) {
