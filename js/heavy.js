@@ -69,14 +69,45 @@ function drawHeavyCore(x, y, r, coreScale) {
   ctx.restore();
 }
 
+// ── One pass of the tilted metal band (annulus) for the box hoop ──
+function drawBoxHoopBand(rx, ry, band, tilt) {
+  ctx.save();
+  ctx.rotate(tilt);
+  var g = ctx.createLinearGradient(0, -ry, 0, ry);
+  g.addColorStop(0, '#EEF1F5');
+  g.addColorStop(0.4, '#AEB3BA');
+  g.addColorStop(0.5, '#7E838B');
+  g.addColorStop(0.6, '#565A61');
+  g.addColorStop(1, '#2C2F34');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 0, rx - band, ry - band, 0, 0, Math.PI * 2);
+  ctx.fill('evenodd');
+  // outer dark rim + inner bright rim so the band reads as a round tube
+  ctx.lineWidth = Math.max(1, band * 0.14);
+  ctx.strokeStyle = 'rgba(18,20,24,0.75)';
+  ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+  ctx.beginPath(); ctx.ellipse(0, 0, rx - band, ry - band, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+}
+
 // ── A still-closed heavy box ──
-// Full box colour stays visible (so the player can read it), encircled by
-// a tilted metal hoop (annulus) — the box's own take on the ring, matching
-// the marbles but distinct. Hidden+heavy keeps the colour concealed.
-// Box-local coordinates, origin at box centre.
+// A real metal ring ENCIRCLES the box: its back arc passes behind the
+// box (top), its front arc in front (bottom), and its sides overhang the
+// box edges — not a flat oval painted on the face. Box design + colour
+// stay intact. Hidden+heavy keeps the colour concealed. Box-local coords,
+// origin at box centre.
 function drawHeavyClosedBox(w, h, S, tick, ci, boxType) {
   var left = -w / 2, top = -h / 2, r = 6 * S;
+  var rx = w * 0.62, ry = h * 0.62, band = Math.max(3 * S, h * 0.15), tilt = -0.12;
 
+  // 1) Whole ring first — this is the BACK of the hoop; the box will
+  //    cover the part that sits behind it.
+  drawBoxHoopBand(rx, ry, band, tilt);
+
+  // 2) The box itself (opaque), over the ring's middle.
   if (boxType === 'hidden') {
     ctx.save();
     var hg = ctx.createLinearGradient(0, top, 0, top + h);
@@ -90,27 +121,11 @@ function drawHeavyClosedBox(w, h, S, tick, ci, boxType) {
     drawBox(left, top, w, h, ci);
   }
 
-  // Metal hoop around the box middle (colour shows through the hole and
-  // above/below the ring).
+  // 3) FRONT of the hoop: redraw the band clipped to the lower half so it
+  //    passes in front of the box's bottom while the top stays behind.
   ctx.save();
-  ctx.rotate(-0.12);
-  var rx = w * 0.47, ry = h * 0.33, band = Math.max(3 * S, h * 0.14);
-  var g = ctx.createLinearGradient(0, -ry, 0, ry);
-  g.addColorStop(0, '#E9ECF0');
-  g.addColorStop(0.4, '#AAAFB6');
-  g.addColorStop(0.5, '#7E838B');
-  g.addColorStop(0.6, '#565A61');
-  g.addColorStop(1, '#303338');
-  ctx.fillStyle = g;
-  ctx.beginPath();
-  ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
-  ctx.ellipse(0, 0, rx - band, ry - band * 0.72, 0, 0, Math.PI * 2);
-  ctx.fill('evenodd');
-  // outer dark rim + inner bright rim
-  ctx.strokeStyle = 'rgba(20,22,26,0.7)'; ctx.lineWidth = Math.max(1, 1.2 * S);
-  ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
-  ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = Math.max(0.6, 0.8 * S);
-  ctx.beginPath(); ctx.ellipse(0, 0, rx - band, ry - band * 0.72, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.rect(left - band * 2, 0, w + band * 4, h); ctx.clip();
+  drawBoxHoopBand(rx, ry, band, tilt);
   ctx.restore();
 }
 

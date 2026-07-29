@@ -221,9 +221,9 @@ function drawStock() {
       var idleWobble = Math.sin(tick * 0.02 + b.idlePhase) * 0.006;
       ctx.rotate(idleWobble);
       if (b.heavy) {
-        // Closed heavy box: colour dome on top, metal turtle-shell on
-        // the lower half. The shell explodes the moment the box opens.
-        drawHeavyClosedBox(L.bw, L.bh, S, tick, b.ci, b.boxType);
+        // Closed heavy box: the encircling metal ring is drawn in a top
+        // pass after this loop (so the hoop can overhang without being
+        // clipped by neighbouring cells) — nothing to draw here.
       } else {
         bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase);
       }
@@ -270,6 +270,20 @@ function drawStock() {
 
     ctx.restore();
     heavyMarbleContext = false;
+  }
+
+  // ── Top pass: encircling ring for closed heavy boxes ──
+  // Drawn above the whole grid so the hoop can overhang the box (behind
+  // at the top, in front at the bottom, sides poking out) without the
+  // neighbouring cells clipping it.
+  for (var hi = 0; hi < stock.length; hi++) {
+    var hb = stock[hi];
+    if (!hb || hb.isWall || hb.isTunnel || hb.empty || hb.used) continue;
+    if (!hb.heavy || hb.revealed || hb.revealT > 0) continue;
+    ctx.save();
+    ctx.translate(hb.x + L.bw / 2, hb.y + L.bh / 2);
+    drawHeavyClosedBox(L.bw, L.bh, S, tick, hb.ci, hb.boxType);
+    ctx.restore();
   }
 }
 
