@@ -183,7 +183,11 @@ function updateBoxReveals(animate) {
     if (!s) { passable[i] = false; continue; }
     if (s.isWall) { passable[i] = false; continue; }
     if (s.isTunnel) { passable[i] = false; continue; }
-    passable[i] = !!(s.empty || s.used);
+    // A box that has been tapped (spawning) is already committed to
+    // emptying, so treat it as passable straight away — this lets the
+    // box above it open immediately instead of waiting for every marble
+    // to finish spawning.
+    passable[i] = !!(s.empty || s.used || s.spawning);
   }
 
   // 2. Flood-fill from the bottom row. Passable cells in the bottom
@@ -342,6 +346,9 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      // Open any box whose path just cleared (the tapped box now counts
+      // as passable) so heavy boxes above become tappable right away.
+      updateBoxReveals(true);
       return;
     }
   }
