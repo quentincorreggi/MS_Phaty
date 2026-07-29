@@ -96,63 +96,93 @@ function drawHeavyShell(x, y, r, ci) {
   ctx.restore();
 }
 
-// ── The metal shell that ENCASES a still-closed heavy box ──
-// Like the bubble that wraps a Bubble Box: while the heavy box has no
-// path to the bottom yet, it sits inside a rounded metallic shell/pod
-// (glossy highlight, seams, corner rivets, beveled rim). The moment
-// the box opens the shell explodes (see explodeHeavyShell) and this is
-// no longer drawn. Box-local coordinates, origin at box centre.
-function drawHeavyClosedShell(w, h, S, tick) {
-  var left = -w / 2, top = -h / 2, r = 6 * S;
+// ── A still-closed heavy box ──
+// Only the LOWER half is a metal shell (a roundy, segmented turtle-shell
+// in brushed steel with a chunky raised grey ring at the equator); the
+// UPPER half shows the box's colour dome so the player can still read
+// it — inspired by a Koopa-style shell. The moment the box opens the
+// shell explodes (see explodeHeavyShell) and this is no longer drawn.
+// Box-local coordinates, origin at box centre.
+function drawHeavyClosedBox(w, h, S, tick, ci, boxType) {
+  var left = -w / 2, top = -h / 2, right = w / 2, bot = h / 2, r = 6 * S;
+  var c = COLORS[ci];
+  var eqY = -h * 0.04;          // equator sits just above centre → shell is lower ~54%
+  var ringH = h * 0.20;
+  var ringTop = eqY - ringH / 2;
+  var ringBot = eqY + ringH / 2;
 
+  // ---- TOP: colour dome (or hidden panel) ----
   ctx.save();
   ctx.beginPath(); rRect(left, top, w, h, r); ctx.clip();
-
-  // Metallic spherical body
-  var g = ctx.createRadialGradient(-w * 0.22, -h * 0.28, w * 0.1, 0, 0, w * 0.85);
-  g.addColorStop(0, '#EDF0F4');
-  g.addColorStop(0.35, '#C2C7CE');
-  g.addColorStop(0.7, '#878C94');
-  g.addColorStop(1, '#4A4E56');
-  ctx.fillStyle = g;
-  ctx.fillRect(left, top, w, h);
-
-  // Seams (vertical + equator)
-  ctx.strokeStyle = 'rgba(40,42,46,0.25)'; ctx.lineWidth = Math.max(0.6, w * 0.02);
-  ctx.beginPath(); ctx.moveTo(0, top); ctx.lineTo(0, top + h); ctx.stroke();
-  ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = Math.max(0.6, w * 0.02);
-  ctx.beginPath(); ctx.moveTo(left, 0); ctx.lineTo(left + w, 0); ctx.stroke();
-
-  // Glossy highlight
-  ctx.globalAlpha = 0.5;
-  var hg = ctx.createRadialGradient(-w * 0.2, -h * 0.25, 0, -w * 0.2, -h * 0.25, w * 0.42);
-  hg.addColorStop(0, 'rgba(255,255,255,0.9)'); hg.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.fillStyle = hg; ctx.fillRect(left, top, w, h);
-  ctx.globalAlpha = 1;
-  ctx.restore();
-
-  // Corner rivets
-  var rivetR = Math.max(1.2, w * 0.05);
-  var pad = w * 0.16;
-  var pts = [[left + pad, top + pad], [left + w - pad, top + pad], [left + pad, top + h - pad], [left + w - pad, top + h - pad]];
-  ctx.save();
-  for (var i = 0; i < 4; i++) {
-    var px = pts[i][0], py = pts[i][1];
-    var rg = ctx.createRadialGradient(px - rivetR * 0.3, py - rivetR * 0.3, rivetR * 0.1, px, py, rivetR);
-    rg.addColorStop(0, '#F2F4F7'); rg.addColorStop(1, '#5A5E65');
-    ctx.fillStyle = rg;
-    ctx.beginPath(); ctx.arc(px, py, rivetR, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.rect(left, top, w, ringBot - top); ctx.clip();
+  if (boxType === 'hidden') {
+    var hgrad = ctx.createLinearGradient(0, top, 0, ringBot);
+    hgrad.addColorStop(0, '#4A4450'); hgrad.addColorStop(1, '#2A2530');
+    ctx.fillStyle = hgrad; ctx.fillRect(left, top, w, ringBot - top);
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.font = 'bold ' + (h * 0.42) + 'px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('?', 0, top + (ringBot - top) * 0.44);
+  } else {
+    var g = ctx.createRadialGradient(-w * 0.16, top + h * 0.10, w * 0.05, 0, top + h * 0.08, w * 0.8);
+    g.addColorStop(0, c.light); g.addColorStop(0.6, c.fill); g.addColorStop(1, c.dark);
+    ctx.fillStyle = g; ctx.fillRect(left, top, w, ringBot - top);
+    // glossy dome highlight
+    ctx.globalAlpha = 0.5;
+    var hl = ctx.createRadialGradient(-w * 0.15, top + h * 0.08, 0, -w * 0.15, top + h * 0.08, w * 0.42);
+    hl.addColorStop(0, 'rgba(255,255,255,0.95)'); hl.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = hl; ctx.fillRect(left, top, w, ringBot - top);
+    ctx.globalAlpha = 1;
   }
   ctx.restore();
 
-  // Beveled rim
+  // ---- BOTTOM: metallic turtle shell (domed, segmented) ----
   ctx.save();
-  ctx.strokeStyle = 'rgba(60,63,69,0.7)'; ctx.lineWidth = 2 * S;
+  ctx.beginPath(); rRect(left, top, w, h, r); ctx.clip();
+  ctx.beginPath(); ctx.rect(left, ringTop, w, bot - ringTop); ctx.clip();
+  var sg = ctx.createRadialGradient(-w * 0.10, eqY + h * 0.04, w * 0.05, 0, eqY + h * 0.10, w * 0.78);
+  sg.addColorStop(0, '#D4D9DF'); sg.addColorStop(0.5, '#969CA4'); sg.addColorStop(1, '#4E545C');
+  ctx.fillStyle = sg; ctx.fillRect(left, ringTop, w, bot - ringTop);
+  // turtle-shell panel seams curving down from the ring
+  ctx.strokeStyle = 'rgba(28,30,34,0.5)'; ctx.lineWidth = Math.max(1, w * 0.022); ctx.lineCap = 'round';
+  var seamsX = [-w * 0.30, 0, w * 0.30];
+  for (var si = 0; si < seamsX.length; si++) {
+    var sx = seamsX[si];
+    ctx.beginPath();
+    ctx.moveTo(sx * 0.45, ringBot);
+    ctx.quadraticCurveTo(sx, eqY + (bot - eqY) * 0.7, sx * 1.2, bot);
+    ctx.stroke();
+  }
+  // soft sheen band just under the ring
+  ctx.globalAlpha = 0.16; ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(left, ringBot, w, (bot - ringBot) * 0.22);
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // ---- EQUATOR RING (chunky raised grey metal) ----
+  ctx.save();
+  ctx.beginPath(); rRect(left, top, w, h, r); ctx.clip();
+  var rg = ctx.createLinearGradient(0, ringTop, 0, ringBot);
+  rg.addColorStop(0, '#EAEDF1'); rg.addColorStop(0.45, '#B9BEC5'); rg.addColorStop(0.55, '#969CA4'); rg.addColorStop(1, '#63696F');
+  ctx.fillStyle = rg;
+  ctx.fillRect(left, ringTop, w, ringH);
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = Math.max(0.6, h * 0.012);
+  ctx.beginPath(); ctx.moveTo(left, ringTop + ringH * 0.24); ctx.lineTo(right, ringTop + ringH * 0.24); ctx.stroke();
+  ctx.strokeStyle = 'rgba(0,0,0,0.32)'; ctx.lineWidth = Math.max(0.8, h * 0.016);
+  ctx.beginPath(); ctx.moveTo(left, ringBot); ctx.lineTo(right, ringBot); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(left, ringTop); ctx.lineTo(right, ringTop); ctx.stroke();
+  ctx.restore();
+
+  // ---- bold cartoon outline ----
+  ctx.save();
+  ctx.strokeStyle = 'rgba(20,22,26,0.85)'; ctx.lineWidth = 2.2 * S;
   rRect(left, top, w, h, r); ctx.stroke();
-  ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1 * S;
-  rRect(left + 1.5 * S, top + 1.5 * S, w - 3 * S, h - 3 * S, r); ctx.stroke();
   ctx.restore();
 }
+
+// Set true by drawStock while rendering an OPEN heavy box so the shared
+// drawBoxMarbles helper gives each preview marble its own visible shell.
+var heavyMarbleContext = false;
 
 // ── The shell exploding when the box opens ──
 // Fired once at the reveal moment (world coordinates): a ring of blunt
