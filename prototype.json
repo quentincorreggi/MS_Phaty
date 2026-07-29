@@ -1,7 +1,7 @@
 {
-  "name": "Heavy Marbles Box",
-  "description": "A box-state wrapper (inverse of Bubble Marbles). A heavy box sits inside a metal shell; when it opens the shell explodes, and its marbles then plunge through the funnel, overtake everything in flight, and smash onto the belt first.",
-  "howToPlay": "Tap the bottom (normal) boxes first. Clearing one opens the shelled Heavy box above it — the metal shell explodes. Then tap the Heavy box: its shelled marbles fall much faster, pass any marbles already in the funnel, reach the conveyor first, and their shells shatter with a big bounce. Use them to rush a colour to the belt ahead of everything else.",
+  "name": "Heavy Marbles Box — Ring",
+  "description": "A box-state wrapper (inverse of Bubble Marbles). A heavy box is encircled by a metal ring; its marbles wear a metal ring around their equator and plunge through the funnel, overtaking everything in flight to reach the belt first. The ring contracts away on landing.",
+  "howToPlay": "Tap the bottom (normal) boxes first to open the ringed Heavy boxes above. Then tap a Heavy box: its ringed marbles fall much faster, pass any marbles already in the funnel and reach the conveyor first; each marble's metal ring contracts to nothing as it lands. Use them to rush a colour to the belt ahead of everything else.",
   "author": "Marble Sorter Prototyping",
   "showcaseLevel": {
     "name": "Custom Level",

@@ -6,23 +6,24 @@
 // top of ANY standard box type (default / hidden / ice / blocker).
 // It is the direct inverse of the Bubble Marbles Box.
 //
-// IDÉE 2 — INTERNAL CORE:
+// IDÉE 3 — METAL RING:
 //   • Heavy marbles descend through the funnel markedly FASTER than
 //     normal marbles and plow past (overtake) marbles already in
 //     flight, reaching the conveyor first.
-//   • The marble stays 100% opaque, full colour over its whole surface
-//     at all times. Its weight is conveyed by a small, dense, dark
-//     metallic CORE at the exact centre, seen through a transparent
-//     glass window — no shell around it.
-//   • On contact with the funnel floor / conveyor the core shrinks into
-//     itself until it disappears (no external explosion, nothing to
-//     break) — same trigger/timing as a Bubble Marbles bubble pop.
-//   • A still-closed heavy box shows a neutron/atom symbol while its
-//     colour stays fully visible.
+//   • The marble stays 100% opaque, full colour. Its weight is conveyed
+//     by a metal RING (a brushed-steel band) wrapped around its equator,
+//     slightly tilted, Saturn-style.
+//   • On contact with the funnel floor / conveyor the ring contracts to
+//     nothing (no explosion, nothing to break) — same trigger/timing as
+//     a Bubble Marbles bubble pop.
+//   • A still-closed heavy box is encircled by a matching (but distinct)
+//     metal hoop while its colour stays fully visible.
 //
-// This file owns: tuning, the core + neutron rendering and the core-pop
-// routine. Physics speed-up + overtaking live in physics.js; spawn/flag
-// plumbing lives in game.js, tunnel.js and editor.js.
+// NOTE: this is the idée-2 branch with the visuals swapped for rings.
+// The physics/plumbing fields keep their names (core*/coreShrinking) —
+// drawHeavyCore now renders the marble's ring band. Physics speed-up +
+// overtaking live in physics.js; spawn/flag plumbing lives in game.js,
+// tunnel.js and editor.js.
 // ============================================================
 
 // ── Tuning ──
@@ -35,77 +36,43 @@ var HEAVY_CORE_POP  = 0.09;  // per-frame shrink rate of the core on landing
 // drawBoxMarbles helper gives each preview marble its own visible core.
 var heavyMarbleContext = false;
 
-// ── The dense dark core seen through the marble's glass ──
-// Drawn AFTER drawMarble (which paints the full-colour sphere), centred
-// on the marble. `coreScale` (0..1) shrinks it to nothing on landing.
+// ── The metal ring wrapped around the marble's equator ──
+// Drawn AFTER drawMarble (which paints the full-colour sphere), a tilted
+// brushed-steel band clipped to the sphere so it hugs the surface.
+// `coreScale` (0..1) contracts the band to nothing on landing.
 function drawHeavyCore(x, y, r, coreScale) {
   if (coreScale == null) coreScale = 1;
-  var cr = r * HEAVY_CORE_R * coreScale;
-  if (cr < 0.4) return;
+  var bandH = r * 0.58 * coreScale;
+  if (bandH < 0.5) return;
   ctx.save();
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.clip();
+  ctx.translate(x, y);
+  ctx.rotate(-0.14); // slight Saturn-style tilt
 
-  // Faint glass "window" lens around the core
-  ctx.globalAlpha = 0.16;
-  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-  ctx.lineWidth = Math.max(0.5, cr * 0.18);
-  ctx.beginPath(); ctx.arc(x, y, cr * 1.24, 0, Math.PI * 2); ctx.stroke();
-  ctx.globalAlpha = 1;
-
-  // Dense dark metallic core
-  var g = ctx.createRadialGradient(x - cr * 0.32, y - cr * 0.36, cr * 0.1, x, y, cr);
-  g.addColorStop(0, '#6A6E77');
-  g.addColorStop(0.45, '#2C2E33');
-  g.addColorStop(1, '#0C0D10');
+  var g = ctx.createLinearGradient(0, -bandH / 2, 0, bandH / 2);
+  g.addColorStop(0.0, '#3E4147');
+  g.addColorStop(0.18, '#C8CDD4');
+  g.addColorStop(0.45, '#7C828A');
+  g.addColorStop(0.62, '#494D54');
+  g.addColorStop(0.85, '#26282D');
+  g.addColorStop(1.0, '#565A61');
   ctx.fillStyle = g;
-  ctx.beginPath(); ctx.arc(x, y, cr, 0, Math.PI * 2); ctx.fill();
+  var ww = r * 1.35;
+  ctx.fillRect(-ww, -bandH / 2, ww * 2, bandH);
 
-  // Glass specular highlight
-  ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.beginPath(); ctx.arc(x - cr * 0.32, y - cr * 0.36, cr * 0.24, 0, Math.PI * 2); ctx.fill();
-
-  ctx.restore();
-}
-
-// ── Neutron / atom symbol (three orbits + nucleus + electrons) ──
-// Drawn centred at (cx, cy) with overall radius R. A soft white halo
-// underneath keeps it legible on any box colour.
-function drawNeutronSymbol(cx, cy, R) {
-  ctx.save();
-  ctx.lineCap = 'round';
-
-  function orbits(color, lw) {
-    ctx.strokeStyle = color; ctx.lineWidth = lw;
-    for (var k = 0; k < 3; k++) {
-      ctx.save();
-      ctx.translate(cx, cy); ctx.rotate(k * Math.PI / 3);
-      ctx.beginPath(); ctx.ellipse(0, 0, R, R * 0.42, 0, 0, Math.PI * 2); ctx.stroke();
-      ctx.restore();
-    }
-  }
-  orbits('rgba(255,255,255,0.6)', Math.max(2, R * 0.17));   // halo
-  orbits('rgba(18,18,22,0.92)', Math.max(1.5, R * 0.10));    // dark orbits
-
-  // Electrons on each orbit
-  ctx.fillStyle = 'rgba(18,18,22,0.92)';
-  for (var k = 0; k < 3; k++) {
-    ctx.save();
-    ctx.translate(cx, cy); ctx.rotate(k * Math.PI / 3);
-    ctx.beginPath(); ctx.arc(R, 0, R * 0.14, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-  }
-
-  // Nucleus (light halo + dark centre)
-  ctx.fillStyle = 'rgba(255,255,255,0.55)';
-  ctx.beginPath(); ctx.arc(cx, cy, R * 0.24, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = 'rgba(18,18,22,0.95)';
-  ctx.beginPath(); ctx.arc(cx, cy, R * 0.18, 0, Math.PI * 2); ctx.fill();
+  // bright top edge + dark bottom edge for a machined-metal read
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = Math.max(0.5, r * 0.05);
+  ctx.beginPath(); ctx.moveTo(-ww, -bandH / 2 + r * 0.03); ctx.lineTo(ww, -bandH / 2 + r * 0.03); ctx.stroke();
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath(); ctx.moveTo(-ww, bandH / 2 - r * 0.03); ctx.lineTo(ww, bandH / 2 - r * 0.03); ctx.stroke();
 
   ctx.restore();
 }
 
 // ── A still-closed heavy box ──
-// Full box colour stays visible (so the player can read it) with the
-// neutron symbol on top. Hidden+heavy keeps the colour concealed.
+// Full box colour stays visible (so the player can read it), encircled by
+// a tilted metal hoop (annulus) — the box's own take on the ring, matching
+// the marbles but distinct. Hidden+heavy keeps the colour concealed.
 // Box-local coordinates, origin at box centre.
 function drawHeavyClosedBox(w, h, S, tick, ci, boxType) {
   var left = -w / 2, top = -h / 2, r = 6 * S;
@@ -123,7 +90,28 @@ function drawHeavyClosedBox(w, h, S, tick, ci, boxType) {
     drawBox(left, top, w, h, ci);
   }
 
-  drawNeutronSymbol(0, 0, w * 0.32);
+  // Metal hoop around the box middle (colour shows through the hole and
+  // above/below the ring).
+  ctx.save();
+  ctx.rotate(-0.12);
+  var rx = w * 0.47, ry = h * 0.33, band = Math.max(3 * S, h * 0.14);
+  var g = ctx.createLinearGradient(0, -ry, 0, ry);
+  g.addColorStop(0, '#E9ECF0');
+  g.addColorStop(0.4, '#AAAFB6');
+  g.addColorStop(0.5, '#7E838B');
+  g.addColorStop(0.6, '#565A61');
+  g.addColorStop(1, '#303338');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 0, rx - band, ry - band * 0.72, 0, 0, Math.PI * 2);
+  ctx.fill('evenodd');
+  // outer dark rim + inner bright rim
+  ctx.strokeStyle = 'rgba(20,22,26,0.7)'; ctx.lineWidth = Math.max(1, 1.2 * S);
+  ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = Math.max(0.6, 0.8 * S);
+  ctx.beginPath(); ctx.ellipse(0, 0, rx - band, ry - band * 0.72, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
 }
 
 // ── Soft "pop" when the core vanishes on landing ──
