@@ -76,7 +76,9 @@ function drawBoxMarbles(ci, remaining) {
   mrbsToDraw.sort(function (a, b) { return a.r - b.r; });
   for (var si = 0; si < mrbsToDraw.length; si++) {
     var sp = mrbsToDraw[si];
-    drawMarble((sp.c - 1) * mg, (sp.r - 1) * mgY - 2 * S, mr, ci);
+    var mx = (sp.c - 1) * mg, my = (sp.r - 1) * mgY - 2 * S;
+    drawMarble(mx, my, mr, ci);
+    if (heavyMarbleContext) drawHeavyShell(mx, my, mr, ci);
   }
 }
 
@@ -95,7 +97,9 @@ function drawBoxMarblesWithBlockers(ci, remaining, blockerCount) {
   for (var si = 0; si < mrbsToDraw.length; si++) {
     var sp = mrbsToDraw[si];
     var mci = sp.isBlocker ? BLOCKER_CI : ci;
-    drawMarble((sp.c - 1) * mg, (sp.r - 1) * mgY - 2 * S, mr, mci);
+    var mx = (sp.c - 1) * mg, my = (sp.r - 1) * mgY - 2 * S;
+    drawMarble(mx, my, mr, mci);
+    if (heavyMarbleContext) drawHeavyShell(mx, my, mr, mci);
   }
 }
 
@@ -202,6 +206,10 @@ function drawStock() {
     // Used box (fully empty)
     if (b.used) { drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
 
+    // Open heavy boxes give each preview marble its own shell (read by
+    // drawBoxMarbles below).
+    heavyMarbleContext = !!b.heavy;
+
     var bt = getBoxType(b.boxType);
     ctx.save();
     ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2); ctx.scale(ts, ts);
@@ -212,10 +220,13 @@ function drawStock() {
     } else if (!b.revealed) {
       var idleWobble = Math.sin(tick * 0.02 + b.idlePhase) * 0.006;
       ctx.rotate(idleWobble);
-      bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase);
-      // A still-closed heavy box sits inside its metal shell (it
-      // explodes the moment the box gets a path to the bottom).
-      if (b.heavy) drawHeavyClosedShell(L.bw, L.bh, S, tick);
+      if (b.heavy) {
+        // Closed heavy box: colour dome on top, metal turtle-shell on
+        // the lower half. The shell explodes the moment the box opens.
+        drawHeavyClosedBox(L.bw, L.bh, S, tick, b.ci, b.boxType);
+      } else {
+        bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase);
+      }
     } else {
       var c = COLORS[b.ci];
       if (isBoxTappable(i) && b.hoverT > 0.01) { ctx.shadowColor = c.glow; ctx.shadowBlur = 20 * S * b.hoverT; }
@@ -258,6 +269,7 @@ function drawStock() {
     }
 
     ctx.restore();
+    heavyMarbleContext = false;
   }
 }
 
