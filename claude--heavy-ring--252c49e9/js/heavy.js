@@ -69,65 +69,11 @@ function drawHeavyCore(x, y, r, coreScale) {
   ctx.restore();
 }
 
-// ── One metallic chain band running between two points ──
-function drawChainBand(x1, y1, x2, y2, thick) {
-  var ang = Math.atan2(y2 - y1, x2 - x1);
-  var len = Math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
-  ctx.save();
-  ctx.translate((x1 + x2) / 2, (y1 + y2) / 2);
-  ctx.rotate(ang);
-  var g = ctx.createLinearGradient(0, -thick / 2, 0, thick / 2);
-  g.addColorStop(0, '#E7EAEE');
-  g.addColorStop(0.28, '#B4B9C0');
-  g.addColorStop(0.5, '#82888F');
-  g.addColorStop(0.72, '#4E525A');
-  g.addColorStop(1, '#2E3136');
-  ctx.fillStyle = g;
-  rRect(-len / 2, -thick / 2, len, thick, thick * 0.5); ctx.fill();
-  // link separations
-  ctx.strokeStyle = 'rgba(18,20,24,0.6)'; ctx.lineWidth = Math.max(0.8, thick * 0.12); ctx.lineCap = 'round';
-  var link = thick * 1.05;
-  for (var d = -len / 2 + link * 0.5; d < len / 2; d += link) {
-    ctx.beginPath(); ctx.moveTo(d, -thick * 0.42); ctx.lineTo(d, thick * 0.42); ctx.stroke();
-  }
-  // top highlight + dark outline
-  ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = Math.max(0.5, thick * 0.1);
-  ctx.beginPath(); ctx.moveTo(-len / 2 + thick * 0.3, -thick * 0.2); ctx.lineTo(len / 2 - thick * 0.3, -thick * 0.2); ctx.stroke();
-  ctx.strokeStyle = 'rgba(18,20,24,0.7)'; ctx.lineWidth = Math.max(0.8, thick * 0.1);
-  rRect(-len / 2, -thick / 2, len, thick, thick * 0.5); ctx.stroke();
-  ctx.restore();
-}
-
-// ── A small steel padlock at the chains' crossing ──
-function drawPadlock(cx, cy, size) {
-  ctx.save();
-  // shackle
-  ctx.strokeStyle = '#6A6E76'; ctx.lineWidth = size * 0.15; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.arc(cx, cy - size * 0.02, size * 0.26, Math.PI, Math.PI * 2); ctx.stroke();
-  ctx.strokeStyle = '#3E4147'; ctx.lineWidth = size * 0.06;
-  ctx.beginPath(); ctx.arc(cx, cy - size * 0.02, size * 0.26, Math.PI, Math.PI * 2); ctx.stroke();
-  // body
-  var bw = size * 0.74, bh = size * 0.56, bx = cx - bw / 2, by = cy - size * 0.02;
-  ctx.shadowColor = 'rgba(0,0,0,0.3)'; ctx.shadowBlur = size * 0.12; ctx.shadowOffsetY = size * 0.04;
-  var g = ctx.createLinearGradient(0, by, 0, by + bh);
-  g.addColorStop(0, '#D2D7DD'); g.addColorStop(0.5, '#9298A0'); g.addColorStop(1, '#54585F');
-  ctx.fillStyle = g;
-  rRect(bx, by, bw, bh, size * 0.14); ctx.fill();
-  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-  ctx.strokeStyle = 'rgba(18,20,24,0.7)'; ctx.lineWidth = Math.max(0.8, size * 0.05);
-  rRect(bx, by, bw, bh, size * 0.14); ctx.stroke();
-  // keyhole
-  ctx.fillStyle = 'rgba(20,22,26,0.85)';
-  ctx.beginPath(); ctx.arc(cx, by + bh * 0.42, size * 0.09, 0, Math.PI * 2); ctx.fill();
-  ctx.fillRect(cx - size * 0.03, by + bh * 0.42, size * 0.06, bh * 0.34);
-  ctx.restore();
-}
-
 // ── A still-closed heavy box ──
-// Full box colour stays visible (so the player can read it), wrapped in
-// crossed metal CHAINS with a padlock — a chained-up "heavy" box. When it
-// opens the chains snap (see breakHeavyChains) and the weights spill out.
-// Hidden+heavy keeps the colour concealed. Box-local coords, origin centre.
+// Full box colour stays visible (so the player can read it), encircled by
+// a tilted metal hoop (annulus) — the box's own take on the ring, matching
+// the marbles but distinct. Hidden+heavy keeps the colour concealed.
+// Box-local coordinates, origin at box centre.
 function drawHeavyClosedBox(w, h, S, tick, ci, boxType) {
   var left = -w / 2, top = -h / 2, r = 6 * S;
 
@@ -144,12 +90,28 @@ function drawHeavyClosedBox(w, h, S, tick, ci, boxType) {
     drawBox(left, top, w, h, ci);
   }
 
-  // Crossed chains (X) + padlock. Colour shows in the corners.
-  var thick = h * 0.15;
-  var inset = w * 0.05;
-  drawChainBand(left + inset, top + inset, left + w - inset, top + h - inset, thick);
-  drawChainBand(left + w - inset, top + inset, left + inset, top + h - inset, thick);
-  drawPadlock(0, 0, h * 0.36);
+  // Metal hoop around the box middle (colour shows through the hole and
+  // above/below the ring).
+  ctx.save();
+  ctx.rotate(-0.12);
+  var rx = w * 0.47, ry = h * 0.33, band = Math.max(3 * S, h * 0.14);
+  var g = ctx.createLinearGradient(0, -ry, 0, ry);
+  g.addColorStop(0, '#E9ECF0');
+  g.addColorStop(0.4, '#AAAFB6');
+  g.addColorStop(0.5, '#7E838B');
+  g.addColorStop(0.6, '#565A61');
+  g.addColorStop(1, '#303338');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 0, rx - band, ry - band * 0.72, 0, 0, Math.PI * 2);
+  ctx.fill('evenodd');
+  // outer dark rim + inner bright rim
+  ctx.strokeStyle = 'rgba(20,22,26,0.7)'; ctx.lineWidth = Math.max(1, 1.2 * S);
+  ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = Math.max(0.6, 0.8 * S);
+  ctx.beginPath(); ctx.ellipse(0, 0, rx - band, ry - band * 0.72, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
 }
 
 // ── Soft "pop" when the core vanishes on landing ──
@@ -167,29 +129,4 @@ function popHeavyCore(m) {
   m.coreShrinking = true;
   m.coreT = m.coreT == null ? 1 : m.coreT;
   heavyPopSound();
-}
-
-// ── Chains snapping when the box opens ──
-// A burst of dark chain-link debris + a metallic "snap"; the heavy
-// weights are then free to spill out.
-function chainSnapSound() {
-  if (typeof tone !== 'function') return;
-  tone(220, 0.08, 'square', 0.12, 80);
-  tone(1400, 0.06, 'square', 0.05, 500);
-}
-
-function breakHeavyChains(cx, cy) {
-  for (var i = 0; i < 16; i++) {
-    var a = Math.PI * 2 * i / 16 + Math.random() * 0.5;
-    var sp = 3 + Math.random() * 5;
-    var col = Math.random() > 0.5 ? 'rgba(150,156,164,0.95)' : 'rgba(70,74,80,0.95)';
-    particles.push({
-      x: cx, y: cy,
-      vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
-      r: (2 + Math.random() * 3) * S, color: col,
-      life: 1, decay: 0.02 + Math.random() * 0.02, grav: true
-    });
-  }
-  spawnBurst(cx, cy, 'rgba(255,255,255,0.9)', 6);
-  chainSnapSound();
 }
