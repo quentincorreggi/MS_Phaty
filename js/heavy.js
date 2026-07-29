@@ -94,20 +94,16 @@ function drawBoxHoopBand(rx, ry, band, tilt) {
 }
 
 // ── A still-closed heavy box ──
-// A real metal ring ENCIRCLES the box: its back arc passes behind the
-// box (top), its front arc in front (bottom), and its sides overhang the
-// box edges — not a flat oval painted on the face. Box design + colour
-// stay intact. Hidden+heavy keeps the colour concealed. Box-local coords,
-// origin at box centre.
+// A horizontal metal ring (left→right, Saturn-style) sits across the
+// box's middle — a wide, low ellipse fully contained within the box so
+// it never overlaps neighbouring cells. The hole shows the box colour,
+// which also stays visible above and below the ring. Hidden+heavy keeps
+// the colour concealed. Box-local coords, origin at box centre.
 function drawHeavyClosedBox(w, h, S, tick, ci, boxType) {
   var left = -w / 2, top = -h / 2, r = 6 * S;
-  var rx = w * 0.66, ry = h * 0.26, band = Math.max(3 * S, h * 0.12), tilt = -0.08;
+  var rx = w * 0.42, ry = h * 0.22, band = Math.max(3 * S, h * 0.11), tilt = -0.08;
 
-  // 1) Whole ring first — this is the BACK of the hoop; the box will
-  //    cover the part that sits behind it.
-  drawBoxHoopBand(rx, ry, band, tilt);
-
-  // 2) The box itself (opaque), over the ring's middle.
+  // Box first (design + colour intact)
   if (boxType === 'hidden') {
     ctx.save();
     var hg = ctx.createLinearGradient(0, top, 0, top + h);
@@ -121,12 +117,8 @@ function drawHeavyClosedBox(w, h, S, tick, ci, boxType) {
     drawBox(left, top, w, h, ci);
   }
 
-  // 3) FRONT of the hoop: redraw the band clipped to the lower half so it
-  //    passes in front of the box's bottom while the top stays behind.
-  ctx.save();
-  ctx.beginPath(); ctx.rect(left - band * 2, 0, w + band * 4, h); ctx.clip();
+  // Horizontal ring across the middle (contained within the box)
   drawBoxHoopBand(rx, ry, band, tilt);
-  ctx.restore();
 }
 
 // ── Soft "pop" when the core vanishes on landing ──
