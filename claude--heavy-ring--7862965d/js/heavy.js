@@ -101,7 +101,7 @@ function drawBoxHoopBand(rx, ry, band, tilt) {
 // origin at box centre.
 function drawHeavyClosedBox(w, h, S, tick, ci, boxType) {
   var left = -w / 2, top = -h / 2, r = 6 * S;
-  var rx = w * 0.62, ry = h * 0.62, band = Math.max(3 * S, h * 0.15), tilt = -0.12;
+  var rx = w * 0.66, ry = h * 0.26, band = Math.max(3 * S, h * 0.12), tilt = -0.08;
 
   // 1) Whole ring first — this is the BACK of the hoop; the box will
   //    cover the part that sits behind it.
