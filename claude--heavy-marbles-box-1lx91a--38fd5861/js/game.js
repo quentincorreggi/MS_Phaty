@@ -256,6 +256,8 @@ function updateBoxReveals(animate) {
           });
         }
         if (typeof sfx !== 'undefined' && sfx.pop) sfx.pop();
+        // Heavy box opening: its encasing shell explodes.
+        if (b.heavy && typeof explodeHeavyShell === 'function') explodeHeavyShell(bx, by);
       }
     } else if (!hasPath && b.revealed) {
       b.revealed = false;
