@@ -260,8 +260,6 @@ function updateBoxReveals(animate) {
           });
         }
         if (typeof sfx !== 'undefined' && sfx.pop) sfx.pop();
-        // Heavy box opening: its chains snap and the weights spill out.
-        if (b.heavy && typeof breakHeavyChains === 'function') breakHeavyChains(bx, by);
       }
     } else if (!hasPath && b.revealed) {
       b.revealed = false;
