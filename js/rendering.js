@@ -76,7 +76,10 @@ function drawBoxMarbles(ci, remaining) {
   mrbsToDraw.sort(function (a, b) { return a.r - b.r; });
   for (var si = 0; si < mrbsToDraw.length; si++) {
     var sp = mrbsToDraw[si];
-    drawMarble((sp.c - 1) * mg, (sp.r - 1) * mgY - 2 * S, mr, ci);
+    var mx = (sp.c - 1) * mg, my = (sp.r - 1) * mgY - 2 * S;
+    drawMarble(mx, my, mr, ci);
+    // Heavy box: each preview marble wears its own little shell.
+    if (heavyMarbleContext) drawHeavyShell(mx, my, mr, ci);
   }
 }
 
@@ -95,7 +98,10 @@ function drawBoxMarblesWithBlockers(ci, remaining, blockerCount) {
   for (var si = 0; si < mrbsToDraw.length; si++) {
     var sp = mrbsToDraw[si];
     var mci = sp.isBlocker ? BLOCKER_CI : ci;
-    drawMarble((sp.c - 1) * mg, (sp.r - 1) * mgY - 2 * S, mr, mci);
+    var mx = (sp.c - 1) * mg, my = (sp.r - 1) * mgY - 2 * S;
+    drawMarble(mx, my, mr, mci);
+    // Heavy box: each preview marble wears its own little shell.
+    if (heavyMarbleContext) drawHeavyShell(mx, my, mr, mci);
   }
 }
 
@@ -202,6 +208,10 @@ function drawStock() {
     // Used box (fully empty)
     if (b.used) { drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
 
+    // Heavy boxes give their preview marbles little shells (read by
+    // drawBoxMarbles during the reveal/open draw below).
+    heavyMarbleContext = !!b.heavy;
+
     var bt = getBoxType(b.boxType);
     ctx.save();
     ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2); ctx.scale(ts, ts);
@@ -239,9 +249,10 @@ function drawStock() {
       }
     }
 
-    // Heavy wrapper indicator — always visible while the box holds marbles.
+    // Heavy wrapper indicator — the box wears a metal carapace on its
+    // lower half, always visible while it holds marbles.
     if (b.heavy && b.remaining > 0) {
-      drawHeavyBoxBadge(L.bw, L.bh, S, tick);
+      drawHeavyBoxShell(L.bw, L.bh, S, tick);
     }
 
     if (b.iceHP > 0) {
@@ -260,6 +271,7 @@ function drawStock() {
     }
 
     ctx.restore();
+    heavyMarbleContext = false;
   }
 }
 
