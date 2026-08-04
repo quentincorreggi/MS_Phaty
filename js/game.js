@@ -142,6 +142,9 @@ function initGame() {
     }
   }
 
+  // ── Fridges ──
+  if (typeof initFridges === 'function') initFridges(lvl);
+
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
 
@@ -182,6 +185,8 @@ function updateBoxReveals(animate) {
     if (!s) { passable[i] = false; continue; }
     if (s.isWall) { passable[i] = false; continue; }
     if (s.isTunnel) { passable[i] = false; continue; }
+    // A closed Fridge seals its whole footprint — nothing routes through it.
+    if (typeof isCellCoveredByFridge === 'function' && isCellCoveredByFridge(i)) { passable[i] = false; continue; }
     passable[i] = !!(s.empty || s.used);
   }
 
@@ -222,6 +227,8 @@ function updateBoxReveals(animate) {
     if (!b) continue;
     if (b.isWall || b.isTunnel || b.empty || b.used) continue;
     if (b.spawning) continue;
+    // Boxes inside a closed Fridge stay shut, even if the path is clear.
+    if (typeof isCellCoveredByFridge === 'function' && isCellCoveredByFridge(k)) continue;
 
     var br = Math.floor(k / L.cols), bcol = k % L.cols;
     var hasPath = false;
@@ -318,6 +325,7 @@ function isBoxTappable(idx) {
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
+  if (typeof isCellCoveredByFridge === 'function' && isCellCoveredByFridge(idx)) return false;
   return b.revealed;
 }
 
@@ -328,6 +336,8 @@ function handleTap(px, py) {
   if (won || !gameActive) return;
   ensureAudio();
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
+  // Taps landing on a closed Fridge are rejected with their own feedback.
+  if (typeof fridgeHandleTap === 'function' && fridgeHandleTap(px, py)) return;
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
@@ -374,6 +384,9 @@ function update() {
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
 
+  // ── Fridge countdown ──
+  if (typeof updateFridges === 'function') updateFridges();
+
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
     var slot = beltSlots[si]; if (slot.marble < 0) continue;
@@ -414,7 +427,13 @@ function update() {
           var by2 = getSortBoxY(j.targetCol, 0) + L.sBh / 2;
           spawnBurst(bx2, by2, COLORS[j.ci].fill, 20);
           spawnConfetti(bx2, by2, 15);
-          (function (box) { setTimeout(function () { box.vis = false; checkWin(); }, 600); })(col[tv]);
+          (function (box, cx, cy) {
+            setTimeout(function () {
+              box.vis = false;
+              if (typeof onCustomerFilled === 'function') onCustomerFilled(cx, cy);
+              checkWin();
+            }, 600);
+          })(col[tv], bx2, by2);
         }
       }
       jumpers.splice(i, 1);
@@ -545,6 +564,11 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    if (typeof drawFridges === 'function') {
+      drawFridges();
+      drawFridgeTravelers();
+      drawFridgeFloatTexts();
+    }
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();
