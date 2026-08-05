@@ -35,7 +35,8 @@ registerBoxType('rock', {
     var st = this._stone;
     ctx.save();
 
-    // Clip everything to the rounded box footprint.
+    // Clip the shell interior to the rounded box footprint.
+    ctx.save();
     rRect(x, y, w, h, 6 * S); ctx.clip();
 
     if (hp >= 2) {
@@ -101,10 +102,20 @@ registerBoxType('rock', {
       }
     }
 
-    // ── Chiseled outline (both states) ──
+    ctx.restore(); // drop the interior clip
+
+    // ── Chiseled stone rim (both states) ──
+    // Drawn UNCLIPPED and thick so it fully covers the base box's own
+    // colored border — otherwise the color leaks around the frame and
+    // the shell wouldn't hide it completely at full HP.
+    ctx.lineJoin = 'round';
     ctx.strokeStyle = st.dark;
-    ctx.lineWidth = 2 * S;
+    ctx.lineWidth = 3 * S;
     rRect(x, y, w, h, 6 * S); ctx.stroke();
+    // Lighter inner bevel for a carved-stone edge.
+    ctx.strokeStyle = 'rgba(183,173,162,0.5)';
+    ctx.lineWidth = 1 * S;
+    rRect(x + 1.2 * S, y + 1.2 * S, w - 2.4 * S, h - 2.4 * S, 5 * S); ctx.stroke();
 
     ctx.restore();
   },
@@ -126,17 +137,24 @@ registerBoxType('rock', {
       }
     }
 
-    // Dark groove (the recessed crack itself).
-    ctx.strokeStyle = 'rgba(40,34,28,0.6)';
-    ctx.lineWidth = (1.6 * strength + 0.8) * S;
+    // Dark groove edges (the recessed rock walls of the crack).
+    ctx.strokeStyle = 'rgba(40,34,28,0.65)';
+    ctx.lineWidth = (2.6 * strength + 1.4) * S;
     trace(); ctx.stroke();
 
-    // Glowing color vein along the groove.
+    // Wide color band filling the crack — the visible color underneath.
     ctx.shadowColor = c.glow;
-    ctx.shadowBlur = 4 * strength * S;
+    ctx.shadowBlur = 5 * strength * S;
+    ctx.strokeStyle = c.fill;
+    ctx.globalAlpha = 0.9;
+    ctx.lineWidth = (2.0 * strength + 0.9) * S;
+    trace(); ctx.stroke();
+
+    // Bright core highlight for a glowing seam.
+    ctx.shadowBlur = 0;
     ctx.strokeStyle = c.light;
-    ctx.globalAlpha = 0.55 + 0.35 * strength;
-    ctx.lineWidth = (0.9 * strength + 0.4) * S;
+    ctx.globalAlpha = 0.85;
+    ctx.lineWidth = (0.8 * strength + 0.35) * S;
     trace(); ctx.stroke();
 
     ctx.restore();
