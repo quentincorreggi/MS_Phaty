@@ -26,18 +26,20 @@ var fanZones = [];
 function buildFanZones() {
   fanZones = [];
   if (!stock || !stock.length || !L || !L.bw) return;
+  // Vertical extent = the whole grid column, so every marble falling
+  // through the adjacent column is blown — whether it came from a box
+  // at the top of the column or right next to the fan.
+  var yTop = L.sy - L.bh * 0.5;
+  var yBot = L.sy + L.rows * (L.bh + L.bg);
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (!b || !b.isWall || !b.fanDir) continue;
-    // Push only while the marble is level with the fan's row.
-    var y0 = b.y;
-    var y1 = b.y + L.bh;
     // Cover ONLY the single column immediately next to the fan — the
     // adjacent cell's x-span, so the column beyond it is never touched.
     var x0, x1;
     if (b.fanDir === 'right') { x0 = b.x + L.bw + L.bg;   x1 = x0 + L.bw; }
     else                      { x1 = b.x - L.bg;          x0 = x1 - L.bw; }
-    fanZones.push({ key: i, dir: b.fanDir, x0: x0, x1: x1, y0: y0, y1: y1 });
+    fanZones.push({ key: i, dir: b.fanDir, x0: x0, x1: x1, y0: yTop, y1: yBot });
   }
 }
 
