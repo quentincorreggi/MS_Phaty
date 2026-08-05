@@ -26,7 +26,6 @@ var fanZones = [];
 function buildFanZones() {
   fanZones = [];
   if (!stock || !stock.length || !L || !L.bw) return;
-  var gridBot = L.sy + L.rows * (L.bh + L.bg);         // bottom of the grid
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (!b || !b.isWall || !b.fanDir) continue;
@@ -35,14 +34,14 @@ function buildFanZones() {
     var x0, x1;
     if (b.fanDir === 'right') { x0 = b.x + L.bw + L.bg;   x1 = x0 + L.bw; }
     else                      { x1 = b.x - L.bg;          x0 = x1 - L.bw; }
-    // There is NO wind above the fan's row: a marble falls perfectly
-    // straight until it reaches the top edge of the fan's cell. From
-    // there the wind eases in across the fan's cell and then blows at
-    // full strength down the rest of the column, so boxes below the fan
-    // are blown too.
+    // The wind only exists at the fan's OWN row — a marble is blown
+    // solely while it passes in front of the fan. Marbles falling from
+    // boxes above pass through here (straight fall until they arrive);
+    // marbles from boxes below the fan never reach it, so they are
+    // never affected.
     var top = b.y;                                     // top edge of the fan's cell
     fanZones.push({ key: i, dir: b.fanDir,
-      x0: x0, x1: x1, y0: top, y1: gridBot + L.bh, top: top, cellH: L.bh });
+      x0: x0, x1: x1, y0: top, y1: top + L.bh, top: top, cellH: L.bh });
   }
 }
 
@@ -66,17 +65,14 @@ function applyFanForces(m, subSteps) {
 
     var dir = (z.dir === 'right') ? 1 : -1;
 
-    // No wind until the marble reaches the fan's cell (straight fall
-    // above). It eases in across the fan's cell, then blows full for the
-    // rest of the column below.
-    var d = m.y - z.top;
-    if (d < 0) return;                         // above the fan — no effect
+    // Strength while passing in front of the fan: eased trapezoid across
+    // the fan's cell — 0 at the edges, full through the middle. Zero
+    // above (straight fall) and below (never reached) the fan's row.
+    var t = (m.y - z.top) / z.cellH;           // 0..1 across the fan's cell
     var factor;
-    if (d < z.cellH) {
-      factor = 0.5 * (1 - Math.cos(Math.PI * (d / z.cellH)));  // ease 0 -> 1 across the cell
-    } else {
-      factor = 1;
-    }
+    if (t < 0.25)      factor = 0.5 * (1 - Math.cos(Math.PI * (t / 0.25)));
+    else if (t > 0.75) factor = 0.5 * (1 - Math.cos(Math.PI * ((1 - t) / 0.25)));
+    else               factor = 1;
 
     var vmax = FAN_VMAX * S * factor;
     if ((dir > 0 && m.vx < vmax) || (dir < 0 && m.vx > -vmax)) {
