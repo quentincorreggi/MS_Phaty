@@ -10,19 +10,33 @@
     "sortCap": 3,
     "lockButtons": 0,
     "grid": [
-      null,
-      null,
-      null,
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
       {
         "ci": 2,
         "type": "default"
       },
-      null,
       {
-        "ci": 1,
+        "ci": 4,
         "type": "default"
       },
-      null,
+      {
+        "ci": 4,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "wall": true
+      },
       {
         "ci": 0,
         "type": "default"
@@ -31,44 +45,73 @@
         "ci": 0,
         "type": "default"
       },
-      null,
       {
         "ci": 2,
         "type": "default"
       },
-      null,
       {
-        "ci": 1,
-        "type": "default"
-      },
-      null,
-      {
-        "ci": 0,
+        "ci": 4,
         "type": "default"
       },
       {
-        "ci": 0,
+        "ci": 4,
         "type": "default"
       },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "wall": true
+      },
       null,
+      {
+        "wall": true
+      },
       {
         "ci": 2,
         "type": "default"
       },
-      null,
       {
-        "ci": 1,
+        "ci": 4,
         "type": "default"
+      },
+      {
+        "ci": 4,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "wall": true,
+        "fan": "left"
       },
       null,
       {
-        "ci": 0,
+        "wall": true
+      },
+      {
+        "ci": 2,
         "type": "default"
       },
       {
-        "ci": 0,
+        "ci": 4,
         "type": "default"
       },
+      {
+        "ci": 4,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "wall": true
+      },
+      null,
       {
         "wall": true,
         "fan": "right"
@@ -78,31 +121,39 @@
         "type": "default"
       },
       null,
+      null,
       {
-        "ci": 1,
+        "ci": 3,
+        "type": "default"
+      },
+      null,
+      null,
+      {
+        "wall": true
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      null,
+      null,
+      {
+        "ci": 3,
         "type": "default"
       },
       null,
       null,
       null,
+      {
+        "ci": 2,
+        "type": "default"
+      },
       null,
       null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
+      {
+        "ci": 3,
+        "type": "default"
+      },
       null
     ]
   }
