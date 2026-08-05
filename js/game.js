@@ -47,7 +47,7 @@ function initGame() {
       var cell = lvl.grid[i];
       if (cell === null || cell === undefined) continue;
       if (cell.wall) {
-        wallSlots[i] = true;
+        wallSlots[i] = { fan: cell.fan || null };
         continue;
       }
       if (cell.tunnel) {
@@ -112,9 +112,10 @@ function initGame() {
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
     } else if (wSlot) {
-      // Wall cell — inert structural element
+      // Wall cell — inert structural element (may carry a fan)
       stock.push({
         isWall: true, isTunnel: false,
+        fanDir: (wSlot && wSlot.fan) || null,
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: false, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
@@ -144,6 +145,9 @@ function initGame() {
 
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
+
+  // ── Build fan wind zones from the placed walls ──
+  if (typeof buildFanZones === 'function') buildFanZones();
 
   // ── Sort columns ──
   var allBoxes = [];
@@ -545,6 +549,7 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    drawFans();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();

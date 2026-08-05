@@ -37,6 +37,7 @@ function physicsStep() {
       var m = physMarbles[i];
       m.vy += PHYS_GRAVITY * S / subSteps;
       m.vx *= PHYS_DAMPING; m.vy *= PHYS_DAMPING;
+      if (typeof applyFanForces === 'function') applyFanForces(m, subSteps);
       m.x += m.vx / subSteps; m.y += m.vy / subSteps;
     }
     for (var i = 0; i < physMarbles.length; i++) {

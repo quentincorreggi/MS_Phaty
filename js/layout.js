@@ -122,6 +122,7 @@ function resize() {
   S = H / 850;
   computeLayout();
   updateStockPositions();
+  if (typeof buildFanZones === 'function') buildFanZones();
 }
 
 window.addEventListener('resize', resize);

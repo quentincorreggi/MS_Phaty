@@ -17,6 +17,7 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  wallFan: null,        // null = plain wall, 'left'|'right' = wall + fan
   visible: false
 };
 
@@ -34,6 +35,7 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.wallFan = null;
 }
 
 function showEditor(fresh) {
@@ -71,10 +73,15 @@ function editorRenderGrid() {
     cell.className = 'ed-cell';
     var v = editor.grid[i];
     if (v && v.wall) {
-      // Wall cell
+      // Wall cell (optionally carrying a fan)
       cell.style.background = 'linear-gradient(135deg,#9A8D7B,#6F6355)';
-      cell.style.borderColor = '#8A7D6B';
-      cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,255,255,0.5);font-size:14px">&#9632;</span>';
+      cell.style.borderColor = v.fan ? '#7EC8E8' : '#8A7D6B';
+      if (v.fan) {
+        var fanArrow = (v.fan === 'right') ? '▶' : '◀';
+        cell.innerHTML = '<span class="ed-cell-dot" style="color:#BEEBFF;font-size:15px;text-shadow:0 0 5px rgba(120,200,255,0.9)">' + fanArrow + '</span>';
+      } else {
+        cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,255,255,0.5);font-size:14px">&#9632;</span>';
+      }
     } else if (v && v.tunnel) {
       // Tunnel cell
       var isSelected = (editor.selectedTunnel === i);
@@ -106,14 +113,26 @@ function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
 
   if (editor.wallMode) {
-    // Wall placement mode
+    // Wall placement mode (walls may carry a fan)
     var existing = editor.grid[idx];
-    if (existing && existing.wall) {
-      // Toggle off: clicking existing wall removes it
+    var wantFan = editor.wallFan || null;
+
+    // A fan must blow toward an on-board neighbour (open side of board).
+    if (wantFan) {
+      var col = idx % 7;
+      if (wantFan === 'right' && col === 6) {
+        editorShowToast('A right fan needs open space to its right'); return;
+      }
+      if (wantFan === 'left' && col === 0) {
+        editorShowToast('A left fan needs open space to its left'); return;
+      }
+    }
+
+    if (existing && existing.wall && (existing.fan || null) === wantFan) {
+      // Toggle off: clicking the same wall/fan removes it
       editor.grid[idx] = null;
     } else {
-      // Place wall
-      editor.grid[idx] = { wall: true };
+      editor.grid[idx] = wantFan ? { wall: true, fan: wantFan } : { wall: true };
     }
     if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     editorRenderGrid();
@@ -255,10 +274,36 @@ function editorRenderToolbar() {
     }
     el.appendChild(dirRow);
   } else if (editor.wallMode) {
-    // Wall mode: just show info hint
+    // Wall mode: choose plain wall or a wall + fan (left/right)
+    var wallRow = document.createElement('div');
+    wallRow.className = 'ed-type-row';
+    var wallOpts = [
+      { fan: null,    label: '■ Wall',   title: 'Plain wall' },
+      { fan: 'left',  label: '◀ Fan',    title: 'Wall + fan blowing LEFT' },
+      { fan: 'right', label: 'Fan ▶',    title: 'Wall + fan blowing RIGHT' }
+    ];
+    for (var wo = 0; wo < wallOpts.length; wo++) {
+      (function (opt) {
+        var wb = document.createElement('button');
+        wb.className = 'ed-type-btn' + (editor.wallFan === opt.fan ? ' active' : '');
+        wb.textContent = opt.label;
+        wb.title = opt.title;
+        if (opt.fan && editor.wallFan === opt.fan) {
+          wb.style.borderColor = 'rgba(126,200,232,0.7)';
+          wb.style.color = '#2C7EA8';
+        }
+        wb.addEventListener('click', function () {
+          editor.wallFan = opt.fan;
+          editorRenderToolbar();
+        });
+        wallRow.appendChild(wb);
+      })(wallOpts[wo]);
+    }
+    el.appendChild(wallRow);
+
     var wallInfo = document.createElement('div');
     wallInfo.className = 'ed-color-row';
-    wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
+    wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Fans blow away from the wall into the open board. Click a cell to place / remove.</span>';
     el.appendChild(wallInfo);
   } else {
     // Color palette: eraser + 8 colors
@@ -452,12 +497,13 @@ function editorUpdateStats() {
   for (var c = 0; c < NUM_COLORS; c++) { counts.push(0); regularMrb.push(0); }
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
-  var wallCount = 0;
+  var wallCount = 0, fanCount = 0;
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
     if (v.wall) {
       wallCount++;
+      if (v.fan) fanCount++;
       continue;
     }
     if (v.tunnel) {
@@ -499,6 +545,9 @@ function editorUpdateStats() {
   }
   if (wallCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#8A7D6B">' + wallCount + ' wall' + (wallCount > 1 ? 's' : '') + '</span>';
+  }
+  if (fanCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#4EA8D4">' + fanCount + ' fan' + (fanCount > 1 ? 's' : '') + '</span>';
   }
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
@@ -617,7 +666,7 @@ function editorImportJSON() {
           var cell = lvl.grid[i];
           if (cell === null || cell === undefined || cell === -1) editor.grid[i] = null;
           else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
-          else if (cell.wall) editor.grid[i] = { wall: true };
+          else if (cell.wall) editor.grid[i] = cell.fan ? { wall: true, fan: cell.fan } : { wall: true };
           else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
           else editor.grid[i] = cell;
         }
