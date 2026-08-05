@@ -16,8 +16,8 @@
 // ============================================================
 
 // Tuning
-var FAN_ACCEL = 2.0;   // lateral acceleration inside a gust (gravity is ~0.67)
-var FAN_VMAX  = 8.0;   // cap on lateral speed the fan will add (in *S units)
+var FAN_ACCEL = 4.5;   // lateral acceleration inside a gust (gravity is ~0.67)
+var FAN_VMAX  = 13.0;  // cap on lateral speed the fan will add (in *S units)
 
 // Active wind zones, rebuilt whenever the grid/layout changes.
 var fanZones = [];
@@ -31,8 +31,9 @@ function buildFanZones() {
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (!b || !b.isWall || !b.fanDir) continue;
-    var y0 = b.y - L.bh * 0.25;
-    var y1 = b.y + L.bh * 1.25;
+    // Push only while the marble is level with the fan's row.
+    var y0 = b.y;
+    var y1 = b.y + L.bh;
     var x0, x1;
     if (b.fanDir === 'right') { x0 = b.x + L.bw; x1 = x0 + reach; }
     else                      { x1 = b.x;        x0 = x1 - reach; }
@@ -96,36 +97,13 @@ function drawFans() {
 
 // Side-profile blower, mounted flush on the wall's blow face. Everything
 // is drawn INSIDE the wall cell's footprint so it never covers the
-// neighbouring cell — only the translucent airflow reaches into it.
+// neighbouring cell.
 function drawFanUnit(x, y, w, h, S, dir, tick) {
   var d = (dir === 'right') ? 1 : -1;
-  var cy = y + h / 2;
   var faceX = (dir === 'right') ? x + w : x;             // blow face of the wall
   var backX = (dir === 'right') ? x + w * 0.40 : x + w * 0.60; // inner edge of housing
-  var cellStep = L.bw + L.bg;
-  var reach = cellStep * 1.4;
 
   ctx.save();
-
-  // ── Wind gust: cyan chevrons drifting into the adjacent column ──
-  var chevCount = 3, period = 30;
-  var phase = (tick % period) / period;
-  for (var k = 0; k < chevCount; k++) {
-    var f = ((k + phase) / chevCount);
-    var gx = faceX + d * (0.08 + f * 0.95) * reach;
-    var alpha = 0.45 * (1 - Math.abs(f - 0.5) * 1.4);
-    if (alpha <= 0.01) continue;
-    var chevH = h * 0.27 * (0.6 + f * 0.75);
-    ctx.strokeStyle = 'rgba(150,220,255,' + alpha.toFixed(3) + ')';
-    ctx.lineWidth = 2.6 * S;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    ctx.moveTo(gx - d * 5.5 * S, cy - chevH);
-    ctx.lineTo(gx + d * 5.5 * S, cy);
-    ctx.lineTo(gx - d * 5.5 * S, cy + chevH);
-    ctx.stroke();
-  }
 
   // ── Housing shell (side view) on the wall face ──
   var houseTop = y + h * 0.10;
@@ -153,7 +131,7 @@ function drawFanUnit(x, y, w, h, S, dir, tick) {
   var tipX  = (dir === 'right') ? hx1 - hw * 0.06 : hx0 + hw * 0.06; // near blow face
   var blades = 4;
   var spacing = houseH / blades;
-  var scroll = (tick * 1.1 * d) % spacing;
+  var scroll = (tick * 0.35 * d) % spacing;   // slower spin
   if (scroll < 0) scroll += spacing;
 
   ctx.fillStyle = 'rgba(196,212,222,0.96)';
