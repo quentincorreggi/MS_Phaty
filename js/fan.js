@@ -18,7 +18,7 @@
 // Tuning
 var FAN_ACCEL = 4.5;   // lateral acceleration right in front of the fan (gravity is ~0.67)
 var FAN_VMAX  = 13.0;  // cap on lateral speed the fan will add (in *S units)
-var FAN_FALLOFF_FLOOR = 0.15; // strength far up the column, as a fraction of "in front"
+var FAN_RANGE_CELLS = 2.5; // how far above/below the fan its wind reaches, in cells
 
 // Active wind zones, rebuilt whenever the grid/layout changes.
 var fanZones = [];
@@ -27,11 +27,7 @@ var fanZones = [];
 function buildFanZones() {
   fanZones = [];
   if (!stock || !stock.length || !L || !L.bw) return;
-  // Vertical extent = the whole grid column, so every marble falling
-  // through the adjacent column is blown — whether it came from a box
-  // at the top of the column or right next to the fan.
-  var yTop = L.sy - L.bh * 0.5;
-  var yBot = L.sy + L.rows * (L.bh + L.bg);
+  var range = (L.bh + L.bg) * FAN_RANGE_CELLS;  // vertical reach of the wind
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (!b || !b.isWall || !b.fanDir) continue;
@@ -40,10 +36,12 @@ function buildFanZones() {
     var x0, x1;
     if (b.fanDir === 'right') { x0 = b.x + L.bw + L.bg;   x1 = x0 + L.bw; }
     else                      { x1 = b.x - L.bg;          x0 = x1 - L.bw; }
-    // fy = the fan's row centre — the push is strongest here and fades
-    // with vertical distance up/down the column.
+    // Influence is a band centred on the fan's row (fy). Outside this
+    // band there is no wind, so marbles fall straight until they
+    // approach the fan, then swerve as they pass it.
     var fy = b.y + L.bh / 2;
-    fanZones.push({ key: i, dir: b.fanDir, x0: x0, x1: x1, y0: yTop, y1: yBot, fy: fy });
+    fanZones.push({ key: i, dir: b.fanDir,
+      x0: x0, x1: x1, y0: fy - range, y1: fy + range, fy: fy, range: range });
   }
 }
 
@@ -67,11 +65,12 @@ function applyFanForces(m, subSteps) {
 
     var dir = (z.dir === 'right') ? 1 : -1;
 
-    // Strength fades with vertical distance from the fan's row: full
-    // in front of the fan, much gentler higher up the column.
-    var scale = L.bh + L.bg;                 // ~one cell
-    var norm = (m.y - z.fy) / scale;
-    var factor = FAN_FALLOFF_FLOOR + (1 - FAN_FALLOFF_FLOOR) / (1 + norm * norm);
+    // Smooth window (raised cosine): 0 at the band edges, ramping up to
+    // full strength right in front of the fan. Marbles fall straight
+    // outside the band and swerve most as they pass the fan's row.
+    var norm = (m.y - z.fy) / z.range;       // -1..1 inside the band
+    if (norm < -1 || norm > 1) return;
+    var factor = 0.5 * (1 + Math.cos(Math.PI * norm));
 
     var vmax = FAN_VMAX * S * factor;
     if ((dir > 0 && m.vx < vmax) || (dir < 0 && m.vx > -vmax)) {
