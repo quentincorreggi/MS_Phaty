@@ -44,82 +44,60 @@ registerBoxType('rock', {
       this._facets(ctx, x, y, w, h, S, st, false);
       this._grainCracks(ctx, x, y, w, h, S, st, false);
     } else {
-      // ── Cracked rock: shell split by a fissure, color visible ──
-      // Paint the revealed color underneath first (guaranteed visible).
+      // ── Cracked rock: shell mostly intact but veined with a network
+      //    of fine, natural cracks through which the color glows. ──
       var c = COLORS[ci];
-      var cg = ctx.createLinearGradient(x, y, x, y + h);
+
+      // Color underneath (revealed through the cracks & chips).
+      var cg = ctx.createLinearGradient(x, y, x + w * 0.5, y + h);
       cg.addColorStop(0, c.light); cg.addColorStop(1, c.dark);
       ctx.fillStyle = cg;
       ctx.fillRect(x, y, w, h);
 
-      // Two stone chunks separated by a jagged fissure gap.
-      var mid = x + w * 0.50;
-      var jag = [
-        { t: 0.00, o: 0.02 },
-        { t: 0.28, o: -0.06 },
-        { t: 0.52, o: 0.07 },
-        { t: 0.76, o: -0.05 },
-        { t: 1.00, o: 0.03 }
+      // Opaque stone shell still covering most of the box.
+      this._fillStone(ctx, x, y, w, h, S, st);
+      this._facets(ctx, x, y, w, h, S, st, false);
+
+      // A network of branching cracks. Each is a jagged polyline in
+      // fractional coords; the color seeps out along every one.
+      var cracks = [
+        [[0.16, 0.10], [0.29, 0.28], [0.25, 0.44], [0.40, 0.55], [0.47, 0.72], [0.60, 0.88]],
+        [[0.29, 0.28], [0.15, 0.39]],
+        [[0.40, 0.55], [0.57, 0.51], [0.71, 0.60]],
+        [[0.74, 0.13], [0.65, 0.30], [0.71, 0.43], [0.61, 0.55]],
+        [[0.65, 0.30], [0.82, 0.34]],
+        [[0.18, 0.66], [0.31, 0.73], [0.37, 0.88]]
       ];
-      var gap = w * 0.11;
-
-      // Left chunk
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(mid + jag[0].o * w - gap / 2, y);
-      for (var i = 1; i < jag.length; i++) {
-        ctx.lineTo(mid + jag[i].o * w - gap / 2, y + h * jag[i].t);
+      for (var ci2 = 0; ci2 < cracks.length; ci2++) {
+        this._colorVein(ctx, x, y, w, h, S, st, c, cracks[ci2], ci2 < 1 ? 1 : 0.85);
       }
-      ctx.lineTo(x, y + h);
-      ctx.closePath();
-      this._fillStonePath(ctx, x, y, w, h, S, st);
-      this._facets(ctx, x, y, w * 0.5, h, S, st, true);
 
-      // Right chunk
-      ctx.beginPath();
-      ctx.moveTo(mid + jag[0].o * w + gap / 2, y);
-      ctx.lineTo(x + w, y);
-      ctx.lineTo(x + w, y + h);
-      ctx.lineTo(mid + jag[jag.length - 1].o * w + gap / 2, y + h);
-      for (var i2 = jag.length - 2; i2 >= 0; i2--) {
-        ctx.lineTo(mid + jag[i2].o * w + gap / 2, y + h * jag[i2].t);
+      // A couple of hairline cracks — very subtle.
+      var hairs = [
+        [[0.50, 0.08], [0.55, 0.20], [0.51, 0.31]],
+        [[0.83, 0.58], [0.79, 0.72], [0.84, 0.84]]
+      ];
+      for (var hi = 0; hi < hairs.length; hi++) {
+        this._colorVein(ctx, x, y, w, h, S, st, c, hairs[hi], 0.5);
       }
-      ctx.closePath();
-      this._fillStonePath(ctx, x, y, w, h, S, st);
 
-      // Glow of color spilling out of the fissure.
-      ctx.save();
-      ctx.globalAlpha = 0.35;
-      ctx.strokeStyle = c.light;
-      ctx.lineWidth = 3 * S;
-      ctx.beginPath();
-      ctx.moveTo(mid + jag[0].o * w, y);
-      for (var g = 1; g < jag.length; g++) {
-        ctx.lineTo(mid + jag[g].o * w, y + h * jag[g].t);
-      }
-      ctx.stroke();
-      ctx.restore();
-
-      // Dark fissure edges for definition.
-      ctx.strokeStyle = st.dark;
-      ctx.lineWidth = 1.5 * S;
-      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      for (var side = -1; side <= 1; side += 2) {
+      // A few tiny spall chips where flakes popped off (small color patches).
+      var chips = [[0.30, 0.29, 0.05], [0.47, 0.71, 0.045], [0.66, 0.44, 0.04]];
+      for (var pi = 0; pi < chips.length; pi++) {
+        var chx = x + w * chips[pi][0], chy = y + h * chips[pi][1], cr = w * chips[pi][2];
+        ctx.save();
+        ctx.fillStyle = c.fill;
         ctx.beginPath();
-        ctx.moveTo(mid + jag[0].o * w + side * gap / 2, y);
-        for (var e = 1; e < jag.length; e++) {
-          ctx.lineTo(mid + jag[e].o * w + side * gap / 2, y + h * jag[e].t);
-        }
-        ctx.stroke();
-      }
-
-      // A few rubble bits clinging near the fissure.
-      ctx.fillStyle = st.low;
-      var bits = [[0.36, 0.30], [0.62, 0.44], [0.40, 0.66], [0.58, 0.80]];
-      for (var bi = 0; bi < bits.length; bi++) {
-        ctx.beginPath();
-        ctx.arc(x + w * bits[bi][0], y + h * bits[bi][1], 1.6 * S, 0, Math.PI * 2);
+        ctx.moveTo(chx - cr, chy);
+        ctx.lineTo(chx + cr * 0.3, chy - cr);
+        ctx.lineTo(chx + cr, chy + cr * 0.4);
+        ctx.lineTo(chx - cr * 0.4, chy + cr);
+        ctx.closePath();
         ctx.fill();
+        ctx.strokeStyle = 'rgba(45,38,32,0.5)';
+        ctx.lineWidth = 1 * S;
+        ctx.stroke();
+        ctx.restore();
       }
     }
 
@@ -127,6 +105,39 @@ registerBoxType('rock', {
     ctx.strokeStyle = st.dark;
     ctx.lineWidth = 2 * S;
     rRect(x, y, w, h, 6 * S); ctx.stroke();
+
+    ctx.restore();
+  },
+
+  // Stroke a jagged crack polyline: a dark groove with a glowing color
+  // vein on top, so the box color appears to seep out through the crack.
+  // pts = array of [fx, fy] fractional points. strength scales width/glow.
+  _colorVein: function (ctx, x, y, w, h, S, st, c, pts, strength) {
+    if (pts.length < 2) return;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    function trace() {
+      ctx.beginPath();
+      ctx.moveTo(x + w * pts[0][0], y + h * pts[0][1]);
+      for (var k = 1; k < pts.length; k++) {
+        ctx.lineTo(x + w * pts[k][0], y + h * pts[k][1]);
+      }
+    }
+
+    // Dark groove (the recessed crack itself).
+    ctx.strokeStyle = 'rgba(40,34,28,0.6)';
+    ctx.lineWidth = (1.6 * strength + 0.8) * S;
+    trace(); ctx.stroke();
+
+    // Glowing color vein along the groove.
+    ctx.shadowColor = c.glow;
+    ctx.shadowBlur = 4 * strength * S;
+    ctx.strokeStyle = c.light;
+    ctx.globalAlpha = 0.55 + 0.35 * strength;
+    ctx.lineWidth = (0.9 * strength + 0.4) * S;
+    trace(); ctx.stroke();
 
     ctx.restore();
   },
