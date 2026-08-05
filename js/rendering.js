@@ -254,6 +254,21 @@ function drawStock() {
       ctx.restore();
     }
 
+    if (b.rockHP > 0) {
+      var rockType = getBoxType('rock');
+      if (rockType && rockType.drawRockOverlay) {
+        rockType.drawRockOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, b.rockHP, tick);
+      }
+    }
+
+    if (b.rockShatterT > 0) {
+      ctx.save();
+      ctx.globalAlpha = b.rockShatterT * 0.4;
+      ctx.fillStyle = 'rgba(120,108,96,1)';
+      rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.fill();
+      ctx.restore();
+    }
+
     ctx.restore();
   }
 }

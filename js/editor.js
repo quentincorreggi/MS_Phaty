@@ -571,11 +571,47 @@ function editorBuildLevel() {
   };
 }
 
+// ── Rock box safeguard ──
+// Every rock box must have at least 2 orthogonally-adjacent, non-covered
+// boxes at level start so it can always be broken (2 HP). "Non-covered"
+// means a real box that isn't itself an ice or rock cover (nor a wall,
+// tunnel, or empty slot). Returns an error string, or null if valid.
+function editorValidateRocks() {
+  var COLS = 7, ROWS = 7;
+  function isPlayableBox(cell) {
+    if (!cell) return false;
+    if (cell.wall || cell.tunnel) return false;
+    if (cell.ci === undefined) return false;
+    return cell.type !== 'ice' && cell.type !== 'rock';
+  }
+  for (var i = 0; i < 49; i++) {
+    var cell = editor.grid[i];
+    if (!cell || cell.type !== 'rock') continue;
+    var r = Math.floor(i / COLS), c = i % COLS;
+    var nbrs = [];
+    if (r > 0)        nbrs.push((r - 1) * COLS + c);
+    if (r < ROWS - 1) nbrs.push((r + 1) * COLS + c);
+    if (c > 0)        nbrs.push(r * COLS + (c - 1));
+    if (c < COLS - 1) nbrs.push(r * COLS + (c + 1));
+    var count = 0;
+    for (var n = 0; n < nbrs.length; n++) {
+      if (isPlayableBox(editor.grid[nbrs[n]])) count++;
+    }
+    if (count < 2) {
+      return 'Rock box at row ' + (r + 1) + ', col ' + (c + 1) +
+             ' needs 2 adjacent normal boxes to break it (has ' + count + ').';
+    }
+  }
+  return null;
+}
+
 // ── Test play ──
 function editorTestPlay() {
   var total = 0;
   for (var i = 0; i < 49; i++) if (editor.grid[i]) total++;
   if (total === 0) { editorShowToast('Place some boxes first!'); return; }
+  var rockErr = editorValidateRocks();
+  if (rockErr) { editorShowToast(rockErr); return; }
   hideEditor();
   var lvl = editorBuildLevel();
   var testIdx = LEVELS.length;
@@ -654,6 +690,8 @@ function editorSaveShowcase() {
   var total = 0;
   for (var i = 0; i < 49; i++) if (editor.grid[i]) total++;
   if (total === 0) { editorShowToast('Place some boxes first!'); return; }
+  var rockErr = editorValidateRocks();
+  if (rockErr) { editorShowToast(rockErr); return; }
 
   var level = editorBuildLevel();
   var proto = {
