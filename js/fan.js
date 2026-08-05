@@ -16,9 +16,9 @@
 // ============================================================
 
 // Tuning
-var FAN_ACCEL = 4.5;   // lateral acceleration right in front of the fan (gravity is ~0.67)
+var FAN_ACCEL = 4.5;   // lateral acceleration in the fan's wind (gravity is ~0.67)
 var FAN_VMAX  = 13.0;  // cap on lateral speed the fan will add (in *S units)
-var FAN_RANGE_CELLS = 2.5; // how far above/below the fan its wind reaches, in cells
+var FAN_RAMP_CELLS = 2.5; // ramp-in distance ABOVE the fan, in cells (straight fall before it)
 
 // Active wind zones, rebuilt whenever the grid/layout changes.
 var fanZones = [];
@@ -27,7 +27,8 @@ var fanZones = [];
 function buildFanZones() {
   fanZones = [];
   if (!stock || !stock.length || !L || !L.bw) return;
-  var range = (L.bh + L.bg) * FAN_RANGE_CELLS;  // vertical reach of the wind
+  var ramp = (L.bh + L.bg) * FAN_RAMP_CELLS;          // ramp-in distance above the fan
+  var gridBot = L.sy + L.rows * (L.bh + L.bg);         // bottom of the grid
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (!b || !b.isWall || !b.fanDir) continue;
@@ -36,12 +37,13 @@ function buildFanZones() {
     var x0, x1;
     if (b.fanDir === 'right') { x0 = b.x + L.bw + L.bg;   x1 = x0 + L.bw; }
     else                      { x1 = b.x - L.bg;          x0 = x1 - L.bw; }
-    // Influence is a band centred on the fan's row (fy). Outside this
-    // band there is no wind, so marbles fall straight until they
-    // approach the fan, then swerve as they pass it.
+    // The wind ramps in over `ramp` above the fan (marbles fall straight
+    // before that) and then blows at full strength from the fan's row
+    // downward through the rest of the column — so boxes BELOW the fan
+    // are blown too, even though their marbles never rise past it.
     var fy = b.y + L.bh / 2;
     fanZones.push({ key: i, dir: b.fanDir,
-      x0: x0, x1: x1, y0: fy - range, y1: fy + range, fy: fy, range: range });
+      x0: x0, x1: x1, y0: fy - ramp, y1: gridBot + ramp, fy: fy, ramp: ramp });
   }
 }
 
@@ -65,12 +67,17 @@ function applyFanForces(m, subSteps) {
 
     var dir = (z.dir === 'right') ? 1 : -1;
 
-    // Smooth window (raised cosine): 0 at the band edges, ramping up to
-    // full strength right in front of the fan. Marbles fall straight
-    // outside the band and swerve most as they pass the fan's row.
-    var norm = (m.y - z.fy) / z.range;       // -1..1 inside the band
-    if (norm < -1 || norm > 1) return;
-    var factor = 0.5 * (1 + Math.cos(Math.PI * norm));
+    // Strength profile down the column: 0 above the ramp (straight fall),
+    // easing up to full as the marble reaches the fan's row, then full
+    // all the way down (so boxes below the fan get blown too).
+    var d = m.y - z.fy;
+    var factor;
+    if (d <= 0) {
+      var up = 1 + d / z.ramp;               // 0 at ramp top, 1 at the fan row
+      factor = 0.5 * (1 - Math.cos(Math.PI * Math.max(0, up)));
+    } else {
+      factor = 1;
+    }
 
     var vmax = FAN_VMAX * S * factor;
     if ((dir > 0 && m.vx < vmax) || (dir < 0 && m.vx > -vmax)) {
