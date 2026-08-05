@@ -26,17 +26,17 @@ var fanZones = [];
 function buildFanZones() {
   fanZones = [];
   if (!stock || !stock.length || !L || !L.bw) return;
-  var cellStep = L.bw + L.bg;
-  var reach = cellStep * 1.3;   // gust covers the adjacent column (+ a little)
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (!b || !b.isWall || !b.fanDir) continue;
     // Push only while the marble is level with the fan's row.
     var y0 = b.y;
     var y1 = b.y + L.bh;
+    // Cover ONLY the single column immediately next to the fan — the
+    // adjacent cell's x-span, so the column beyond it is never touched.
     var x0, x1;
-    if (b.fanDir === 'right') { x0 = b.x + L.bw; x1 = x0 + reach; }
-    else                      { x1 = b.x;        x0 = x1 - reach; }
+    if (b.fanDir === 'right') { x0 = b.x + L.bw + L.bg;   x1 = x0 + L.bw; }
+    else                      { x1 = b.x - L.bg;          x0 = x1 - L.bw; }
     fanZones.push({ key: i, dir: b.fanDir, x0: x0, x1: x1, y0: y0, y1: y1 });
   }
 }
