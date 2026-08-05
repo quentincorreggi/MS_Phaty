@@ -16,8 +16,8 @@
 // ============================================================
 
 // Tuning
-var FAN_ACCEL = 1.1;   // lateral acceleration inside a gust (gravity is ~0.67)
-var FAN_VMAX  = 4.5;   // cap on lateral speed the fan will add (in *S units)
+var FAN_ACCEL = 2.0;   // lateral acceleration inside a gust (gravity is ~0.67)
+var FAN_VMAX  = 8.0;   // cap on lateral speed the fan will add (in *S units)
 
 // Active wind zones, rebuilt whenever the grid/layout changes.
 var fanZones = [];
@@ -70,13 +70,13 @@ function applyFanForces(m, subSteps) {
 // Little air puff trailing off the marble as it enters the gust.
 function spawnFanPuff(m, dir) {
   var d = (dir === 'right') ? 1 : -1;
-  for (var p = 0; p < 4; p++) {
-    var sp = 1 + Math.random() * 2;
+  for (var p = 0; p < 6; p++) {
+    var sp = 1.5 + Math.random() * 3;
     particles.push({
       x: m.x, y: m.y,
       vx: d * sp * S + (Math.random() - 0.5) * S,
-      vy: (Math.random() - 0.5) * 1.5 * S,
-      r: (1.5 + Math.random() * 2) * S,
+      vy: (Math.random() - 0.5) * 1.8 * S,
+      r: (1.5 + Math.random() * 2.2) * S,
       color: 'rgba(200,235,255,0.85)',
       life: 0.7, decay: 0.04 + Math.random() * 0.02, grav: false
     });
@@ -94,73 +94,91 @@ function drawFans() {
   }
 }
 
+// Side-profile blower, mounted flush on the wall's blow face. Everything
+// is drawn INSIDE the wall cell's footprint so it never covers the
+// neighbouring cell — only the translucent airflow reaches into it.
 function drawFanUnit(x, y, w, h, S, dir, tick) {
   var d = (dir === 'right') ? 1 : -1;
   var cy = y + h / 2;
-  var faceX = (dir === 'right') ? x + w : x;
+  var faceX = (dir === 'right') ? x + w : x;             // blow face of the wall
+  var backX = (dir === 'right') ? x + w * 0.40 : x + w * 0.60; // inner edge of housing
   var cellStep = L.bw + L.bg;
-  var reach = cellStep * 1.3;
+  var reach = cellStep * 1.4;
 
   ctx.save();
 
-  // ── Wind gust: cyan chevrons drifting in the blow direction ──
-  var chevCount = 3;
-  var period = 42;
-  var phase = (tick % period) / period;           // 0..1 loop
+  // ── Wind gust: cyan chevrons drifting into the adjacent column ──
+  var chevCount = 3, period = 30;
+  var phase = (tick % period) / period;
   for (var k = 0; k < chevCount; k++) {
-    var f = ((k + phase) / chevCount);             // 0..1 across the reach
-    var gx = faceX + d * f * reach;
-    var alpha = 0.4 * (1 - Math.abs(f - 0.5) * 1.4);
+    var f = ((k + phase) / chevCount);
+    var gx = faceX + d * (0.08 + f * 0.95) * reach;
+    var alpha = 0.45 * (1 - Math.abs(f - 0.5) * 1.4);
     if (alpha <= 0.01) continue;
-    var chevH = h * 0.28 * (0.6 + f * 0.7);
+    var chevH = h * 0.27 * (0.6 + f * 0.75);
     ctx.strokeStyle = 'rgba(150,220,255,' + alpha.toFixed(3) + ')';
-    ctx.lineWidth = 2.5 * S;
+    ctx.lineWidth = 2.6 * S;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.beginPath();
-    ctx.moveTo(gx - d * 5 * S, cy - chevH);
-    ctx.lineTo(gx + d * 5 * S, cy);
-    ctx.lineTo(gx - d * 5 * S, cy + chevH);
+    ctx.moveTo(gx - d * 5.5 * S, cy - chevH);
+    ctx.lineTo(gx + d * 5.5 * S, cy);
+    ctx.lineTo(gx - d * 5.5 * S, cy + chevH);
     ctx.stroke();
   }
 
-  // ── Fan housing on the wall face ──
-  var hubR = h * 0.30;
-  var hubX = faceX + d * hubR * 0.55;
+  // ── Housing shell (side view) on the wall face ──
+  var houseTop = y + h * 0.10;
+  var houseBot = y + h * 0.90;
+  var houseH = houseBot - houseTop;
+  var hx0 = Math.min(backX, faceX);
+  var hx1 = Math.max(backX, faceX);
+  var hw = hx1 - hx0;
 
-  ctx.shadowColor = 'rgba(0,0,0,0.25)';
+  ctx.shadowColor = 'rgba(0,0,0,0.28)';
   ctx.shadowBlur = 5 * S;
-  ctx.fillStyle = 'rgba(58,70,80,0.97)';
-  ctx.strokeStyle = 'rgba(28,36,43,0.95)';
-  ctx.lineWidth = 2 * S;
-  ctx.beginPath();
-  ctx.arc(hubX, cy, hubR + 3 * S, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-  ctx.shadowColor = 'transparent';
-  ctx.shadowBlur = 0;
+  ctx.shadowOffsetX = d * 1.5 * S;
+  ctx.fillStyle = 'rgba(52,63,72,0.97)';
+  ctx.beginPath(); rRect(hx0, houseTop, hw, houseH, 5 * S); ctx.fill();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0;
+  ctx.strokeStyle = 'rgba(22,28,34,0.9)';
+  ctx.lineWidth = 1.5 * S;
+  ctx.beginPath(); rRect(hx0, houseTop, hw, houseH, 5 * S); ctx.stroke();
 
-  // Rotating blades
+  // ── Spinning rotor seen edge-on: tilted blades scrolling vertically ──
   ctx.save();
-  ctx.translate(hubX, cy);
-  ctx.rotate(d * tick * 0.28);
+  ctx.beginPath(); rRect(hx0, houseTop, hw, houseH, 5 * S); ctx.clip();
+
+  var rootX = (dir === 'right') ? hx0 + hw * 0.34 : hx1 - hw * 0.34; // near motor
+  var tipX  = (dir === 'right') ? hx1 - hw * 0.06 : hx0 + hw * 0.06; // near blow face
   var blades = 4;
-  ctx.fillStyle = 'rgba(196,212,222,0.97)';
-  for (var bd = 0; bd < blades; bd++) {
-    ctx.rotate(Math.PI * 2 / blades);
+  var spacing = houseH / blades;
+  var scroll = (tick * 1.1 * d) % spacing;
+  if (scroll < 0) scroll += spacing;
+
+  ctx.fillStyle = 'rgba(196,212,222,0.96)';
+  for (var b = -1; b <= blades; b++) {
+    var by = houseTop + b * spacing + scroll;
     ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.quadraticCurveTo(hubR * 0.9, -hubR * 0.4, hubR, 0);
-    ctx.quadraticCurveTo(hubR * 0.9, hubR * 0.15, 0, 0);
+    ctx.moveTo(rootX, by);
+    ctx.quadraticCurveTo(tipX, by - spacing * 0.5, tipX, by - spacing * 0.12);
+    ctx.quadraticCurveTo(tipX, by + spacing * 0.14, rootX, by);
     ctx.fill();
   }
-  ctx.restore();
+  ctx.restore(); // drop clip
 
-  // Center cap
-  ctx.fillStyle = 'rgba(240,250,255,0.98)';
+  // ── Motor spindle at the back edge, outlet lip at the blow face ──
+  ctx.fillStyle = 'rgba(28,35,42,0.95)';
+  var motorX = (dir === 'right') ? hx0 : hx1 - 4 * S;
+  ctx.beginPath(); rRect(motorX, houseTop, 4 * S, houseH, 2 * S); ctx.fill();
+
+  ctx.strokeStyle = 'rgba(190,235,255,0.7)';
+  ctx.lineWidth = 2 * S;
+  ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.arc(hubX, cy, hubR * 0.24, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.moveTo(faceX, houseTop + 3 * S);
+  ctx.lineTo(faceX, houseBot - 3 * S);
+  ctx.stroke();
 
   ctx.restore();
 }
