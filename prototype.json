@@ -1,0 +1,25 @@
+{
+  "name": "The Fridge",
+  "description": "A see-through panel that gates the boxes underneath it until you fill enough sort columns. Resizable to 2x2, 2x3, 3x2 or 3x3.",
+  "howToPlay": "Fill 5 sort columns to open the fridge in the top-left. You can see the boxes waiting behind the glass the whole time, so plan which colours you'll grab the moment it opens. The '?' box stays hidden through the glass — the fridge shows you it's there, not what colour it is. Tapping a box under the glass just shakes it until the counter hits 0.",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Fridge Demo",
+    "desc": "Fill columns to open the gate",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, null, null, null, null, null,
+      { "ci": 2, "type": "default" }, { "ci": 3, "type": "hidden" }, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, null
+    ],
+    "fridges": [
+      { "r": 0, "c": 0, "w": 2, "h": 2, "counter": 5 }
+    ]
+  }
+}

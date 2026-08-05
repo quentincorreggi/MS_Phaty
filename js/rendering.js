@@ -202,6 +202,10 @@ function drawStock() {
     // Used box (fully empty)
     if (b.used) { drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
 
+    // Box under a closed fridge — visible through the glass, but not
+    // interactive. The glass tint/frame is drawn later by drawFridges().
+    if (b.coveredBy) { drawCoveredBox(b, i); continue; }
+
     var bt = getBoxType(b.boxType);
     ctx.save();
     ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2); ctx.scale(ts, ts);

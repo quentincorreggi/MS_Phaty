@@ -17,6 +17,12 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  fridgeMode: false,    // true when placing fridges
+  fridges: [],          // [{ r, c, w, h, counter }]
+  fridgeW: 2,           // current footprint width for new fridges
+  fridgeH: 2,           // current footprint height for new fridges
+  fridgeCounter: 5,     // current counter X for new fridges
+  selectedFridge: -1,   // index of selected fridge for editing
   visible: false
 };
 
@@ -34,6 +40,42 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.fridgeMode = false;
+  editor.fridges = [];
+  editor.fridgeW = 2;
+  editor.fridgeH = 2;
+  editor.fridgeCounter = 5;
+  editor.selectedFridge = -1;
+}
+
+// ── Fridge helpers ──
+function editorFridgeCells(f) {
+  var cells = [];
+  for (var rr = 0; rr < f.h; rr++) {
+    for (var cc = 0; cc < f.w; cc++) {
+      var r = f.r + rr, c = f.c + cc;
+      if (r >= 0 && r < 7 && c >= 0 && c < 7) cells.push(r * 7 + c);
+    }
+  }
+  return cells;
+}
+
+function editorFridgeAt(idx) {
+  for (var i = 0; i < editor.fridges.length; i++) {
+    if (editorFridgeCells(editor.fridges[i]).indexOf(idx) >= 0) return i;
+  }
+  return -1;
+}
+
+function editorFridgeFits(r, c, w, h, ignoreIdx) {
+  if (r < 0 || c < 0 || r + h > 7 || c + w > 7) return false;
+  for (var rr = 0; rr < h; rr++) {
+    for (var cc = 0; cc < w; cc++) {
+      var fi = editorFridgeAt((r + rr) * 7 + (c + cc));
+      if (fi >= 0 && fi !== ignoreIdx) return false;
+    }
+  }
+  return true;
 }
 
 function showEditor(fresh) {
@@ -60,6 +102,7 @@ function editorBuildUI() {
   editorRenderSettings();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderFridgePanel();
 }
 
 // ── Grid ──
@@ -100,10 +143,55 @@ function editorRenderGrid() {
     cell.addEventListener('contextmenu', editorCellErase);
     el.appendChild(cell);
   }
+
+  // ── Fridge overlays: glass tint on covered cells + counter badge ──
+  for (var fi = 0; fi < editor.fridges.length; fi++) {
+    var f = editor.fridges[fi];
+    var selected = (editor.fridgeMode && editor.selectedFridge === fi);
+    var cells = editorFridgeCells(f);
+    for (var k = 0; k < cells.length; k++) {
+      var fcell = el.children[cells[k]];
+      if (!fcell) continue;
+      fcell.style.boxShadow = 'inset 0 0 0 2px ' +
+        (selected ? 'rgba(120,210,255,0.98)' : 'rgba(120,200,255,0.7)');
+      var glass = document.createElement('div');
+      glass.style.cssText = 'position:absolute;inset:0;border-radius:6px;' +
+        'background:rgba(185,228,255,0.30);pointer-events:none';
+      fcell.appendChild(glass);
+    }
+    var anchor = el.children[f.r * 7 + f.c];
+    if (anchor) {
+      var badge = document.createElement('span');
+      badge.className = 'ed-tunnel-badge';
+      badge.style.background = 'rgba(66,140,190,0.96)';
+      badge.textContent = f.counter;
+      anchor.appendChild(badge);
+    }
+  }
 }
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.fridgeMode) {
+    // Fridge placement / selection mode
+    var atFridge = editorFridgeAt(idx);
+    if (atFridge >= 0) {
+      editor.selectedFridge = atFridge;
+    } else {
+      var fr = Math.floor(idx / 7), fc = idx % 7;
+      if (editorFridgeFits(fr, fc, editor.fridgeW, editor.fridgeH, -1)) {
+        editor.fridges.push({ r: fr, c: fc, w: editor.fridgeW, h: editor.fridgeH, counter: editor.fridgeCounter });
+        editor.selectedFridge = editor.fridges.length - 1;
+      } else {
+        editorShowToast('Fridge doesn\'t fit or overlaps here');
+      }
+    }
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderFridgePanel();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -185,8 +273,10 @@ function editorRenderToolbar() {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.fridgeMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
+      editorRenderFridgePanel();
     });
     typeRow.appendChild(tb);
   }
@@ -200,8 +290,10 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.fridgeMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
+    editorRenderFridgePanel();
   });
   typeRow.appendChild(wallBtn);
 
@@ -214,10 +306,28 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.fridgeMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
+    editorRenderFridgePanel();
   });
   typeRow.appendChild(tunnelBtn);
+
+  // Fridge mode button
+  var fridgeBtn = document.createElement('button');
+  fridgeBtn.className = 'ed-type-btn' + (editor.fridgeMode ? ' active' : '');
+  fridgeBtn.textContent = '❄ Fridge';
+  fridgeBtn.style.borderColor = editor.fridgeMode ? 'rgba(90,160,200,0.6)' : '';
+  fridgeBtn.style.color = editor.fridgeMode ? '#3E7FB0' : '';
+  fridgeBtn.addEventListener('click', function () {
+    editor.fridgeMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+    editorRenderFridgePanel();
+  });
+  typeRow.appendChild(fridgeBtn);
 
   el.appendChild(typeRow);
 
@@ -260,6 +370,53 @@ function editorRenderToolbar() {
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
+  } else if (editor.fridgeMode) {
+    // Fridge mode: footprint size selector + counter stepper
+    var sizeRow = document.createElement('div');
+    sizeRow.className = 'ed-type-row';
+    var sizes = [[2, 2], [3, 2], [2, 3], [3, 3]];  // [w, h]
+    for (var s2 = 0; s2 < sizes.length; s2++) {
+      var sw = sizes[s2][0], sh = sizes[s2][1];
+      var sb = document.createElement('button');
+      var activeSize = (editor.fridgeW === sw && editor.fridgeH === sh);
+      sb.className = 'ed-type-btn' + (activeSize ? ' active' : '');
+      sb.textContent = sw + '×' + sh;
+      sb.setAttribute('data-w', sw);
+      sb.setAttribute('data-h', sh);
+      sb.addEventListener('click', function () {
+        editor.fridgeW = parseInt(this.getAttribute('data-w'));
+        editor.fridgeH = parseInt(this.getAttribute('data-h'));
+        editorRenderToolbar();
+      });
+      sizeRow.appendChild(sb);
+    }
+    el.appendChild(sizeRow);
+
+    var ctrRow = document.createElement('div');
+    ctrRow.className = 'ed-color-row';
+    ctrRow.style.alignItems = 'center';
+    var minus = document.createElement('button');
+    minus.className = 'ed-qbtn'; minus.textContent = '−';
+    minus.addEventListener('click', function () {
+      editor.fridgeCounter = Math.max(1, editor.fridgeCounter - 1); editorRenderToolbar();
+    });
+    var ctrLabel = document.createElement('span');
+    ctrLabel.style.cssText = 'font-size:11px;color:#5A4A38;font-weight:600';
+    ctrLabel.textContent = 'Counter X: ' + editor.fridgeCounter;
+    var plus = document.createElement('button');
+    plus.className = 'ed-qbtn'; plus.textContent = '+';
+    plus.addEventListener('click', function () {
+      editor.fridgeCounter = Math.min(60, editor.fridgeCounter + 1); editorRenderToolbar();
+    });
+    ctrRow.appendChild(minus);
+    ctrRow.appendChild(ctrLabel);
+    ctrRow.appendChild(plus);
+    el.appendChild(ctrRow);
+
+    var fridgeInfo = document.createElement('div');
+    fridgeInfo.className = 'ed-color-row';
+    fridgeInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click an empty area to place · click a fridge to edit it</span>';
+    el.appendChild(fridgeInfo);
   } else {
     // Color palette: eraser + 8 colors
     var colorRow = document.createElement('div');
@@ -426,6 +583,47 @@ function editorRenderTunnelPanel() {
   }
 }
 
+// ── Fridge settings panel (edit selected fridge) ──
+function editorRenderFridgePanel() {
+  var container = document.getElementById('ed-fridge-panel');
+  if (!container) return;
+
+  if (!editor.fridgeMode || editor.selectedFridge < 0 || !editor.fridges[editor.selectedFridge]) {
+    container.style.display = 'none';
+    return;
+  }
+
+  container.style.display = 'block';
+  var f = editor.fridges[editor.selectedFridge];
+  var html = '';
+  html += '<div class="ed-section-title"><span class="icon">❄</span> Fridge #' +
+    (editor.selectedFridge + 1) + ' — ' + f.w + '×' + f.h + '</div>';
+  html += '<div class="ed-setting-row"><label>Counter X</label>' +
+    '<input type="range" id="ed-fridge-ctr" min="1" max="60" step="1" value="' + f.counter + '">' +
+    '<span class="ed-s-val" id="ed-fridge-ctr-v">' + f.counter + '</span></div>';
+  html += '<div style="text-align:center;margin-top:6px">' +
+    '<button class="ed-qbtn" id="ed-fridge-remove">🗑 Remove Fridge</button></div>';
+  container.innerHTML = html;
+
+  var sl = document.getElementById('ed-fridge-ctr');
+  var vl = document.getElementById('ed-fridge-ctr-v');
+  sl.addEventListener('input', function () {
+    f.counter = parseInt(sl.value);
+    vl.textContent = sl.value;
+    editorRenderGrid();
+    editorUpdateStats();
+  });
+
+  var rm = document.getElementById('ed-fridge-remove');
+  rm.addEventListener('click', function () {
+    editor.fridges.splice(editor.selectedFridge, 1);
+    editor.selectedFridge = -1;
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderFridgePanel();
+  });
+}
+
 // ── Quick actions ──
 function editorFillRandom() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
@@ -436,20 +634,23 @@ function editorFillRandom() {
   var indices = []; for (var i = 0; i < 49; i++) indices.push(i);
   shuffle(indices);
   for (var i = 0; i < cl.length; i++) editor.grid[indices[i]] = { ci: cl[i], type: 'default' };
-  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+  editor.fridges = []; editor.selectedFridge = -1;
+  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel(); editorRenderFridgePanel();
 }
 
 function editorClearAll() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
-  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+  editor.fridges = []; editor.selectedFridge = -1;
+  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel(); editorRenderFridgePanel();
 }
 
 // ── Stats ──
 function editorUpdateStats() {
   var counts = [];
   var regularMrb = [];
-  for (var c = 0; c < NUM_COLORS; c++) { counts.push(0); regularMrb.push(0); }
+  var uncoveredMrb = [];  // regular marbles from boxes NOT under any fridge
+  for (var c = 0; c < NUM_COLORS; c++) { counts.push(0); regularMrb.push(0); uncoveredMrb.push(0); }
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
   var wallCount = 0;
@@ -481,12 +682,15 @@ function editorUpdateStats() {
       counts[v.ci]++;
       total++;
       typeCounts[v.type] = (typeCounts[v.type] || 0) + 1;
+      var reg;
       if (v.type === 'blocker') {
-        regularMrb[v.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
+        reg = Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
         totalBlockers += BLOCKER_PER_BOX;
       } else {
-        regularMrb[v.ci] += editor.mrbPerBox;
+        reg = editor.mrbPerBox;
       }
+      regularMrb[v.ci] += reg;
+      if (editorFridgeAt(i) < 0) uncoveredMrb[v.ci] += reg;
     }
   }
   var el = document.getElementById('ed-stats');
@@ -502,6 +706,9 @@ function editorUpdateStats() {
   }
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
+  }
+  if (editor.fridges.length > 0) {
+    html += '<span class="ed-stat-chip" style="background:#3E7FB0">' + editor.fridges.length + ' fridge' + (editor.fridges.length > 1 ? 's' : '') + '</span>';
   }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
@@ -524,6 +731,19 @@ function editorUpdateStats() {
     }
     if (!warn && totalBlockers > 0 && totalBlockers % 3 !== 0) {
       warn = 'Total blocker marbles (' + totalBlockers + ') must be a multiple of 3';
+    }
+    // Fridge openability hint: the lowest-counter fridge must be reachable
+    // from the fills possible before any fridge opens (uncovered boxes).
+    if (!warn && editor.fridges.length > 0) {
+      var uncoveredFills = 0;
+      for (var uc = 0; uc < NUM_COLORS; uc++) {
+        uncoveredFills += Math.floor(uncoveredMrb[uc] / editor.sortCap);
+      }
+      var minCtr = Infinity;
+      for (var mf = 0; mf < editor.fridges.length; mf++) minCtr = Math.min(minCtr, editor.fridges[mf].counter);
+      if (minCtr > uncoveredFills) {
+        warn = 'A fridge (counter ' + minCtr + ') may never open — only ' + uncoveredFills + ' fill' + (uncoveredFills === 1 ? '' : 's') + ' possible before any opens';
+      }
     }
   }
   if (warn) html += '<span class="ed-stat-warn">' + warn + '</span>';
@@ -567,7 +787,10 @@ function editorBuildLevel() {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
-    grid: editor.grid.slice()
+    grid: editor.grid.slice(),
+    fridges: editor.fridges.map(function (f) {
+      return { r: f.r, c: f.c, w: f.w, h: f.h, counter: f.counter };
+    })
   };
 }
 
@@ -622,6 +845,10 @@ function editorImportJSON() {
           else editor.grid[i] = cell;
         }
       }
+      editor.fridges = (lvl.fridges && lvl.fridges.slice) ? lvl.fridges.map(function (f) {
+        return { r: f.r || 0, c: f.c || 0, w: f.w || 2, h: f.h || 2, counter: f.counter !== undefined ? f.counter : 5 };
+      }) : [];
+      editor.selectedFridge = -1;
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
