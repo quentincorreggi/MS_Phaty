@@ -42,6 +42,7 @@ registerBoxType('rock', {
     if (hp >= 2) {
       // ── Intact rock: thick, opaque shell fully hiding the color ──
       this._fillStone(ctx, x, y, w, h, S, st);
+      this._roundShade(ctx, x, y, w, h, S);
       this._facets(ctx, x, y, w, h, S, st, false);
       this._grainCracks(ctx, x, y, w, h, S, st, false);
     } else {
@@ -57,26 +58,35 @@ registerBoxType('rock', {
 
       // Opaque stone shell still covering most of the box.
       this._fillStone(ctx, x, y, w, h, S, st);
+      this._roundShade(ctx, x, y, w, h, S);
       this._facets(ctx, x, y, w, h, S, st, false);
 
-      // A network of branching cracks. Each is a jagged polyline in
-      // fractional coords; the color seeps out along every one.
+      // A network of branching cracks. Most ROOT at the box edges and
+      // run inward — clipped by the rounded frame they wrap over the
+      // "pebble", instead of floating in the middle of the square.
+      // (fx/fy at 0 or 1 sit on an edge.)
       var cracks = [
-        [[0.16, 0.10], [0.29, 0.28], [0.25, 0.44], [0.40, 0.55], [0.47, 0.72], [0.60, 0.88]],
-        [[0.29, 0.28], [0.15, 0.39]],
-        [[0.40, 0.55], [0.57, 0.51], [0.71, 0.60]],
-        [[0.74, 0.13], [0.65, 0.30], [0.71, 0.43], [0.61, 0.55]],
-        [[0.65, 0.30], [0.82, 0.34]],
-        [[0.18, 0.66], [0.31, 0.73], [0.37, 0.88]]
+        // Enters from the top edge, forks toward the middle.
+        [[0.36, 0.00], [0.33, 0.20], [0.45, 0.34], [0.41, 0.52], [0.50, 0.66]],
+        [[0.45, 0.34], [0.62, 0.40]],
+        // From the right edge, curving down.
+        [[1.00, 0.28], [0.82, 0.33], [0.70, 0.45], [0.72, 0.62]],
+        [[0.70, 0.45], [0.58, 0.50]],
+        // From the left edge.
+        [[0.00, 0.44], [0.18, 0.47], [0.31, 0.41]],
+        // Up from the bottom edge.
+        [[0.54, 1.00], [0.49, 0.80], [0.57, 0.66]],
+        // Short one biting in from the bottom-left corner.
+        [[0.16, 1.00], [0.22, 0.82], [0.15, 0.70]]
       ];
       for (var ci2 = 0; ci2 < cracks.length; ci2++) {
-        this._colorVein(ctx, x, y, w, h, S, st, c, cracks[ci2], ci2 < 1 ? 1 : 0.85);
+        this._colorVein(ctx, x, y, w, h, S, st, c, cracks[ci2], (ci2 === 0 || ci2 === 2) ? 1 : 0.82);
       }
 
-      // A couple of hairline cracks — very subtle.
+      // A couple of hairline cracks off the edges — very subtle.
       var hairs = [
-        [[0.50, 0.08], [0.55, 0.20], [0.51, 0.31]],
-        [[0.83, 0.58], [0.79, 0.72], [0.84, 0.84]]
+        [[0.86, 0.00], [0.80, 0.14], [0.84, 0.26]],
+        [[0.00, 0.74], [0.12, 0.72], [0.20, 0.80]]
       ];
       for (var hi = 0; hi < hairs.length; hi++) {
         this._colorVein(ctx, x, y, w, h, S, st, c, hairs[hi], 0.5);
@@ -170,6 +180,20 @@ registerBoxType('rock', {
     ctx.fillRect(x, y, w, h);
   },
 
+  // Domed shading: brighter toward the top-left, darker at the edges,
+  // so the flat square reads as a rounded pebble.
+  _roundShade: function (ctx, x, y, w, h, S) {
+    var rg = ctx.createRadialGradient(
+      x + w * 0.40, y + h * 0.34, w * 0.05,
+      x + w * 0.50, y + h * 0.52, w * 0.78);
+    rg.addColorStop(0.00, 'rgba(255,250,244,0.30)');
+    rg.addColorStop(0.45, 'rgba(255,250,244,0.0)');
+    rg.addColorStop(0.80, 'rgba(40,34,28,0.10)');
+    rg.addColorStop(1.00, 'rgba(30,25,20,0.38)');
+    ctx.fillStyle = rg;
+    ctx.fillRect(x, y, w, h);
+  },
+
   // Fill the current path with the stone gradient (opaque).
   _fillStonePath: function (ctx, x, y, w, h, S, st) {
     var g = ctx.createLinearGradient(x, y, x + w * 0.5, y + h);
@@ -208,18 +232,20 @@ registerBoxType('rock', {
     ctx.strokeStyle = st.line;
     ctx.lineWidth = 1 * S;
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    // Texture grain seams rooted at the edges so they wrap the pebble.
     ctx.beginPath();
-    ctx.moveTo(x + w * 0.30, y + h * 0.12);
-    ctx.lineTo(x + w * 0.44, y + h * 0.40);
-    ctx.lineTo(x + w * 0.38, y + h * 0.58);
+    ctx.moveTo(x + w * 0.34, y);
+    ctx.lineTo(x + w * 0.44, y + h * 0.32);
+    ctx.lineTo(x + w * 0.38, y + h * 0.52);
     ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(x + w * 0.70, y + h * 0.22);
-    ctx.lineTo(x + w * 0.60, y + h * 0.46);
+    ctx.moveTo(x + w, y + h * 0.26);
+    ctx.lineTo(x + w * 0.72, y + h * 0.34);
+    ctx.lineTo(x + w * 0.64, y + h * 0.50);
     ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(x + w * 0.20, y + h * 0.72);
-    ctx.lineTo(x + w * 0.40, y + h * 0.80);
+    ctx.moveTo(x + w * 0.24, y + h);
+    ctx.lineTo(x + w * 0.32, y + h * 0.74);
     ctx.stroke();
     ctx.restore();
   },
