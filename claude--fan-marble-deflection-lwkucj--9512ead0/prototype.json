@@ -1,0 +1,109 @@
+{
+  "name": "Fan Board",
+  "description": "Wall-mounted fans blow falling marbles sideways, delaying when they reach the belt without changing where they end up.",
+  "howToPlay": "Tap the four boxes. The pink (col 3) and blue (col 5) marbles fall past a fan and swerve, so they reach the belt a beat later than the green and orange marbles that drop straight down. Fans change timing, never destination.",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Custom Level",
+    "desc": "My custom level",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null,
+      null,
+      null,
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "wall": true,
+        "fan": "right"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  }
+}
