@@ -16,8 +16,9 @@
 // ============================================================
 
 // Tuning
-var FAN_ACCEL = 4.5;   // lateral acceleration inside a gust (gravity is ~0.67)
+var FAN_ACCEL = 4.5;   // lateral acceleration right in front of the fan (gravity is ~0.67)
 var FAN_VMAX  = 13.0;  // cap on lateral speed the fan will add (in *S units)
+var FAN_FALLOFF_FLOOR = 0.15; // strength far up the column, as a fraction of "in front"
 
 // Active wind zones, rebuilt whenever the grid/layout changes.
 var fanZones = [];
@@ -39,7 +40,10 @@ function buildFanZones() {
     var x0, x1;
     if (b.fanDir === 'right') { x0 = b.x + L.bw + L.bg;   x1 = x0 + L.bw; }
     else                      { x1 = b.x - L.bg;          x0 = x1 - L.bw; }
-    fanZones.push({ key: i, dir: b.fanDir, x0: x0, x1: x1, y0: yTop, y1: yBot });
+    // fy = the fan's row centre — the push is strongest here and fades
+    // with vertical distance up/down the column.
+    var fy = b.y + L.bh / 2;
+    fanZones.push({ key: i, dir: b.fanDir, x0: x0, x1: x1, y0: yTop, y1: yBot, fy: fy });
   }
 }
 
@@ -62,9 +66,16 @@ function applyFanForces(m, subSteps) {
     }
 
     var dir = (z.dir === 'right') ? 1 : -1;
-    var vmax = FAN_VMAX * S;
+
+    // Strength fades with vertical distance from the fan's row: full
+    // in front of the fan, much gentler higher up the column.
+    var scale = L.bh + L.bg;                 // ~one cell
+    var norm = (m.y - z.fy) / scale;
+    var factor = FAN_FALLOFF_FLOOR + (1 - FAN_FALLOFF_FLOOR) / (1 + norm * norm);
+
+    var vmax = FAN_VMAX * S * factor;
     if ((dir > 0 && m.vx < vmax) || (dir < 0 && m.vx > -vmax)) {
-      m.vx += FAN_ACCEL * S * dir / subSteps;
+      m.vx += FAN_ACCEL * factor * S * dir / subSteps;
     }
     return; // one gust at a time
   }
