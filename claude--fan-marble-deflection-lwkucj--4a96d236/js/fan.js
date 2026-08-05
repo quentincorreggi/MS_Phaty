@@ -18,7 +18,6 @@
 // Tuning
 var FAN_ACCEL = 4.5;   // lateral acceleration in the fan's wind (gravity is ~0.67)
 var FAN_VMAX  = 13.0;  // cap on lateral speed the fan will add (in *S units)
-var FAN_RAMP_CELLS = 2.5; // ramp-in distance ABOVE the fan, in cells (straight fall before it)
 
 // Active wind zones, rebuilt whenever the grid/layout changes.
 var fanZones = [];
@@ -27,7 +26,6 @@ var fanZones = [];
 function buildFanZones() {
   fanZones = [];
   if (!stock || !stock.length || !L || !L.bw) return;
-  var ramp = (L.bh + L.bg) * FAN_RAMP_CELLS;          // ramp-in distance above the fan
   var gridBot = L.sy + L.rows * (L.bh + L.bg);         // bottom of the grid
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
@@ -37,13 +35,14 @@ function buildFanZones() {
     var x0, x1;
     if (b.fanDir === 'right') { x0 = b.x + L.bw + L.bg;   x1 = x0 + L.bw; }
     else                      { x1 = b.x - L.bg;          x0 = x1 - L.bw; }
-    // The wind ramps in over `ramp` above the fan (marbles fall straight
-    // before that) and then blows at full strength from the fan's row
-    // downward through the rest of the column — so boxes BELOW the fan
-    // are blown too, even though their marbles never rise past it.
-    var fy = b.y + L.bh / 2;
+    // There is NO wind above the fan's row: a marble falls perfectly
+    // straight until it reaches the top edge of the fan's cell. From
+    // there the wind eases in across the fan's cell and then blows at
+    // full strength down the rest of the column, so boxes below the fan
+    // are blown too.
+    var top = b.y;                                     // top edge of the fan's cell
     fanZones.push({ key: i, dir: b.fanDir,
-      x0: x0, x1: x1, y0: fy - ramp, y1: gridBot + ramp, fy: fy, ramp: ramp });
+      x0: x0, x1: x1, y0: top, y1: gridBot + L.bh, top: top, cellH: L.bh });
   }
 }
 
@@ -67,14 +66,14 @@ function applyFanForces(m, subSteps) {
 
     var dir = (z.dir === 'right') ? 1 : -1;
 
-    // Strength profile down the column: 0 above the ramp (straight fall),
-    // easing up to full as the marble reaches the fan's row, then full
-    // all the way down (so boxes below the fan get blown too).
-    var d = m.y - z.fy;
+    // No wind until the marble reaches the fan's cell (straight fall
+    // above). It eases in across the fan's cell, then blows full for the
+    // rest of the column below.
+    var d = m.y - z.top;
+    if (d < 0) return;                         // above the fan — no effect
     var factor;
-    if (d <= 0) {
-      var up = 1 + d / z.ramp;               // 0 at ramp top, 1 at the fan row
-      factor = 0.5 * (1 - Math.cos(Math.PI * Math.max(0, up)));
+    if (d < z.cellH) {
+      factor = 0.5 * (1 - Math.cos(Math.PI * (d / z.cellH)));  // ease 0 -> 1 across the cell
     } else {
       factor = 1;
     }
