@@ -148,7 +148,7 @@ function initGame() {
   // ── Sort columns ──
   var allBoxes = [];
   for (var c = 0; c < NUM_COLORS; c++) for (var r = 0; r < sortPerColor[c]; r++)
-    allBoxes.push({ ci: c, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0 });
+    allBoxes.push({ ci: c, filled: 0, ghosts: [], popT: 0, vis: true, shineT: 0, squishT: 0 });
   shuffle(allBoxes);
   sortCols = [[], [], [], []];
   for (var i = 0; i < allBoxes.length; i++) sortCols[i % 4].push(allBoxes[i]);
@@ -158,7 +158,7 @@ function initGame() {
   for (var li2 = 0; li2 < numLocks; li2++) {
     var lockCol = Math.floor(Math.random() * 4);
     var lockRow = Math.min(2 + Math.floor(Math.random() * 4), sortCols[lockCol].length);
-    sortCols[lockCol].splice(lockRow, 0, { type: 'lock', ci: -1, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0, triggerT: 0, triggered: false });
+    sortCols[lockCol].splice(lockRow, 0, { type: 'lock', ci: -1, filled: 0, ghosts: [], popT: 0, vis: true, shineT: 0, squishT: 0, triggerT: 0, triggered: false });
   }
 }
 
@@ -391,7 +391,7 @@ function update() {
         for (var j = 0; j < jumpers.length; j++) if (jumpers[j].slotIdx === si) { aj = true; break; }
         if (aj) continue;
         var pos = getSlotPos(si);
-        jumpers.push({ ci: slot.marble, slotIdx: si, startX: pos.x, startY: pos.y, targetCol: c, targetSlot: col[tv].filled + inFlight, t: 0 });
+        jumpers.push({ ci: slot.marble, ghost: !!slot.ghost, slotIdx: si, startX: pos.x, startY: pos.y, targetCol: c, targetSlot: col[tv].filled + inFlight, t: 0 });
         slot.marble = -1; break;
       }
     }
@@ -405,6 +405,10 @@ function update() {
       for (var r = 0; r < col.length; r++) { if (col[r].vis) { tv = r; break; } }
       if (tv >= 0 && col[tv].ci === j.ci) {
         col[tv].filled++;
+        // Pushed in the same guarded branch as filled++, so arrival order and
+        // the count can never drift apart even though the target box is
+        // re-resolved here rather than reused from the jumper.
+        col[tv].ghosts.push(!!j.ghost);
         col[tv].squishT = 1;
         sfx.sort();
         if (col[tv].filled >= SORT_CAP) {

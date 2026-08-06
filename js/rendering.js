@@ -32,6 +32,57 @@ function drawMarble(x, y, r, ci, es) {
   ctx.restore();
 }
 
+// A ghost marble keeps its own color so you can still tell what it sorts as,
+// but the fill is translucent and whatever sits behind it shows through.
+function drawGhostMarble(x, y, r, ci, es) {
+  var rs = r * (es || 1);
+  var c = COLORS[ci];
+  ctx.save();
+  // Pale spectral halo
+  var halo = ctx.createRadialGradient(x, y, rs * 0.5, x, y, rs * 1.6);
+  halo.addColorStop(0, 'rgba(228,242,255,0.32)');
+  halo.addColorStop(1, 'rgba(228,242,255,0)');
+  ctx.fillStyle = halo;
+  ctx.beginPath(); ctx.arc(x, y, rs * 1.6, 0, Math.PI * 2); ctx.fill();
+  // See-through body
+  ctx.globalAlpha = GHOST_ALPHA;
+  var grad = ctx.createRadialGradient(x - rs * 0.3, y - rs * 0.3, rs * 0.1, x, y, rs);
+  grad.addColorStop(0, '#FFFFFF');
+  grad.addColorStop(0.45, c.light);
+  grad.addColorStop(1, c.fill);
+  ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.arc(x, y, rs, 0, Math.PI * 2); ctx.fill();
+  // Rim keeps the silhouette readable against the belt and sort art
+  ctx.globalAlpha = 0.7;
+  ctx.strokeStyle = 'rgba(234,246,255,0.9)';
+  ctx.lineWidth = Math.max(1, rs * 0.13);
+  ctx.beginPath(); ctx.arc(x, y, rs * 0.93, 0, Math.PI * 2); ctx.stroke();
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.beginPath(); ctx.arc(x - rs * 0.28, y - rs * 0.3, rs * 0.25, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+// Smoke tail smeared opposite the marble's travel. Reads velocity straight off
+// the marble, so it needs no stored trail and cannot drift out of sync.
+function drawGhostWisp(m) {
+  var spd = Math.sqrt(m.vx * m.vx + m.vy * m.vy);
+  if (spd < 0.4 * S) return;
+  var ux = -m.vx / spd, uy = -m.vy / spd;
+  ctx.save();
+  for (var t = 1; t <= 3; t++) {
+    var f = t / 3;
+    ctx.globalAlpha = 0.28 * (1 - f);
+    ctx.fillStyle = COLORS[m.ci].light;
+    var off = m.r * 0.8 * t;
+    var wob = Math.sin(tick * 0.32 + t * 1.7) * m.r * 0.24;
+    ctx.beginPath();
+    ctx.arc(m.x + ux * off - uy * wob, m.y + uy * off + ux * wob, m.r * (1 - f * 0.55), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 function drawBackground() {
   ctx.fillStyle = '#EDE5D8';
   ctx.fillRect(0, 0, W, H);
@@ -229,9 +280,22 @@ function drawStock() {
         }
         ctx.restore();
       }
+      if (b.boxType === 'ghost') {
+        ctx.save();
+        ctx.globalAlpha = 0.14 + Math.sin(tick * 0.06 + b.idlePhase) * 0.05;
+        ctx.beginPath(); rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.clip();
+        ctx.fillStyle = '#F0F8FF';
+        ctx.beginPath(); ctx.arc(0, 0, L.bw * 0.55, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
       if (b.remaining > 0) {
         if (b.boxType === 'blocker' && b.blockerCount > 0) {
           drawBoxMarblesWithBlockers(b.ci, b.remaining, b.blockerCount);
+        } else if (b.boxType === 'ghost') {
+          ctx.save();
+          ctx.globalAlpha = GHOST_ALPHA;
+          drawBoxMarbles(b.ci, b.remaining);
+          ctx.restore();
         } else {
           drawBoxMarbles(b.ci, b.remaining);
         }
@@ -264,7 +328,8 @@ function drawPhysMarbles() {
   for (var i = 0; i < physMarbles.length; i++) {
     var m = physMarbles[i];
     var bounce = m.spawnT > 0 ? (1 + Math.sin(m.spawnT * Math.PI) * 0.4) : 1;
-    drawMarble(m.x, m.y, m.r, m.ci, bounce);
+    if (m.ghost) { drawGhostWisp(m); drawGhostMarble(m.x, m.y, m.r, m.ci, bounce); }
+    else drawMarble(m.x, m.y, m.r, m.ci, bounce);
   }
 }
 
@@ -294,7 +359,8 @@ function drawBelt() {
         ctx.beginPath(); ctx.arc(pos.x, pos.y, slotR * 1.6 * pulse, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
       }
-      drawMarble(pos.x, pos.y, slotR * 0.8 * cal.marble.s, slot.marble, bs);
+      if (slot.ghost) drawGhostMarble(pos.x, pos.y, slotR * 0.8 * cal.marble.s, slot.marble, bs);
+      else drawMarble(pos.x, pos.y, slotR * 0.8 * cal.marble.s, slot.marble, bs);
     }
   }
 }
@@ -373,7 +439,8 @@ function drawJumpers() {
       particles.push({ x: x, y: y, vx: (Math.random() - 0.5) * 0.5 * S, vy: 0.5 * S,
         r: (2 + Math.random() * 2) * S, color: COLORS[j.ci].light, life: 0.6, decay: 0.04, grav: false });
     }
-    drawMarble(x, y, slotR * 0.8 * cal.marble.s, j.ci, arcScale);
+    if (j.ghost) drawGhostMarble(x, y, slotR * 0.8 * cal.marble.s, j.ci, arcScale);
+    else drawMarble(x, y, slotR * 0.8 * cal.marble.s, j.ci, arcScale);
   }
 }
 
@@ -429,7 +496,10 @@ function drawSortArea() {
         rRect(-L.sBw / 2, -L.sBh / 2, L.sBw, L.sBh, 8 * S); ctx.stroke();
         if (b.shineT > 0) { ctx.fillStyle = 'rgba(255,255,255,' + b.shineT * 0.35 + ')'; rRect(-L.sBw / 2, -L.sBh / 2, L.sBw, L.sBh, 8 * S); ctx.fill(); }
         var sp = L.sBw / 4, mrr = 6 * S * cal.sort.s * cal.marble.s;
-        for (var j2 = 0; j2 < b.filled; j2++) drawMarble((j2 - 1) * sp, 0, mrr, b.ci);
+        for (var j2 = 0; j2 < b.filled; j2++) {
+          if (b.ghosts[j2]) drawGhostMarble((j2 - 1) * sp, 0, mrr, b.ci);
+          else drawMarble((j2 - 1) * sp, 0, mrr, b.ci);
+        }
         for (var j2 = b.filled; j2 < SORT_CAP; j2++) { ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.beginPath(); ctx.arc((j2 - 1) * sp, 0, mrr * 0.55, 0, Math.PI * 2); ctx.fill(); }
       }
       ctx.restore();

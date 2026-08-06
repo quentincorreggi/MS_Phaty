@@ -42,6 +42,10 @@ function physicsStep() {
     for (var i = 0; i < physMarbles.length; i++) {
       for (var j = i + 1; j < physMarbles.length; j++) {
         var a = physMarbles[i], b = physMarbles[j];
+        // Ghost marbles phase through solid ones: skip the separation AND
+        // the impulse, so neither marble is nudged. Ghost-vs-ghost and
+        // solid-vs-solid still collide normally.
+        if (!!a.ghost !== !!b.ghost) continue;
         var dx = b.x - a.x, dy = b.y - a.y;
         var dist = Math.sqrt(dx * dx + dy * dy);
         var minD = a.r + b.r;
@@ -68,11 +72,21 @@ function physicsStep() {
     }
   }
 
+  // Ghosts drain FIRST. Each marble claims the free slot nearest the belt
+  // entry and marks it taken, and this loop runs newest-first — so without
+  // a ghost-priority pass a solid marble tapped later would steal the slot
+  // a ghost earned by phasing through the pile.
+  drainToBelt(true);
+  drainToBelt(false);
+}
+
+function drainToBelt(ghostPass) {
   var exitY = L.funnelBot;
   var exitL = L.funnelCx - L.funnelOpenW / 2;
   var exitR = L.funnelCx + L.funnelOpenW / 2;
   for (var i = physMarbles.length - 1; i >= 0; i--) {
     var m = physMarbles[i];
+    if (!!m.ghost !== ghostPass) continue;
     if (m.y + m.r >= exitY - 3 * S && m.x > exitL - m.r && m.x < exitR + m.r) {
       var entryT = getBeltEntryT();
       var bestIdx = -1, bestDist = Infinity;
@@ -85,6 +99,7 @@ function physicsStep() {
       }
       if (bestIdx >= 0 && bestDist < 0.08) {
         beltSlots[bestIdx].marble = m.ci;
+        beltSlots[bestIdx].ghost = !!m.ghost;
         beltSlots[bestIdx].arriveAnim = 0.6;
         sfx.drop();
         spawnBurst(m.x, m.y, COLORS[m.ci].fill, 6);
@@ -115,7 +130,10 @@ function spawnPhysMarbles(box) {
         var vx = (Math.random() - 0.5) * 2 * S;
         var vy = -(2 + Math.random() * 2) * S;
         var marbleCi = (blockerCount > 0 && spawnIdx >= bStart) ? BLOCKER_CI : b.ci;
-        physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR, spawnT: 1.0 });
+        // Read boxType rather than a count field so a ghost box stored inside
+        // a tunnel spawns ghosts too — tunnel.js carries boxType through.
+        var isGhost = (b.boxType === 'ghost');
+        physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR, spawnT: 1.0, ghost: isGhost });
         sfx.drop();
         spawnBurst(mx, my, COLORS[marbleCi].fill, 4);
         if (b.remaining <= 0) {

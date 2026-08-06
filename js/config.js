@@ -25,6 +25,9 @@ var funnelWalls = [];
 var BELT_SLOTS = 30, beltSlots = [], beltOffset = 0, BELT_SPEED = 0.0031;
 var LIP_PCT = 0.28;
 var MRB_GAP_FACTOR = 0.75;
+// Ghost marbles keep their own color index — they sort normally, they just
+// render see-through so whatever they phase over stays visible.
+var GHOST_ALPHA = 0.45;
 
 // === 8 COLORS ===
 var CLR_NAMES = ['pink', 'blue', 'green', 'yellow', 'purple', 'orange', 'teal', 'crimson'];
