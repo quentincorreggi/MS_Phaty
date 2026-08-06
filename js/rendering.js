@@ -206,15 +206,10 @@ function drawStock() {
     ctx.save();
     ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2); ctx.scale(ts, ts);
 
-    // Boxes inside a closed Fridge are drawn in their open state — the
-    // player sees them through the glass even though they can't be tapped.
-    // Box types keep their own concealment: a hidden box stays a "?".
-    var seeThrough = (typeof isCellCoveredByFridge === 'function') && !!isCellCoveredByFridge(i) && b.boxType !== 'hidden';
-
     if (b.revealT > 0) {
       var phase = 1 - b.revealT;
       bt.drawReveal(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, phase, b.remaining, tick);
-    } else if (!b.revealed && !seeThrough) {
+    } else if (!b.revealed) {
       var idleWobble = Math.sin(tick * 0.02 + b.idlePhase) * 0.006;
       ctx.rotate(idleWobble);
       bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase);

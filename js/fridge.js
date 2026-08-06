@@ -396,13 +396,10 @@ function drawFridges() {
     rRect(hw - fr * 0.35 - 3 * S, -handleH / 2, 3.5 * S, handleH, 2 * S);
     ctx.fill();
 
-    // ── Counter badge, sitting on the frame corner so the glass stays clear ──
-    var br = Math.min(14 * S, ew * 0.17, eh * 0.17);
-    var bx = -hw + br * 0.35;
-    var by = -hh + br * 0.35;
+    // ── Counter badge, centred on the glass and scaled to the footprint ──
+    var br = Math.min(20 * S, ew * 0.16, eh * 0.16);
     var pulse = f.shakeT > 0 ? 1 + Math.sin(f.shakeT * 20) * 0.18 : 1;
     ctx.save();
-    ctx.translate(bx, by);
     ctx.scale(pulse, pulse);
     ctx.shadowColor = 'rgba(0,0,0,0.35)';
     ctx.shadowBlur = 5 * S;

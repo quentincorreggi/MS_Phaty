@@ -1,7 +1,7 @@
 {
   "name": "Fridge",
   "description": "A see-through Panel variant in 2x2, 2x3 or 3x3 footprints that opens when X customers are filled, letting you see the boxes underneath while it is still closed.",
-  "howToPlay": "Two fridges are chilling on the board. You can see straight through the glass to the boxes inside, but you cannot tap them yet. Every customer you fill — any colour — ticks each fridge counter down by 1. The small 2x2 fridge opens after 3 customers, the big 3x3 after 12 — the counter is scaled to the footprint. Because you can already see what is waiting inside, plan your order: decide what to spend now and what to save for the moment the glass clears. Tap a box behind the glass and it will push back at you.",
+  "howToPlay": "Three fridges are chilling on the board. You can see straight through the glass to the boxes inside, but you cannot tap them yet. Every customer you fill — any colour — ticks each fridge counter down by 1. The 2x2 opens after 2 customers, the 2x3 after 4 and the big 3x3 after 6 — the counter is scaled to the footprint. Because you can already see what is waiting inside, plan your order: decide what to spend now and what to save for the moment the glass clears. Tap a box behind the glass and it will push back at you.",
   "author": "Ilayda",
   "showcaseLevel": {
     "name": "Cold Storage",
@@ -9,18 +9,19 @@
     "mrbPerBox": 9,
     "sortCap": 3,
     "lockButtons": 0,
-    "fridges": [
-      { "row": 0, "col": 0, "w": 3, "h": 3, "count": 12 },
-      { "row": 0, "col": 5, "w": 2, "h": 2, "count": 3 }
-    ],
     "grid": [
-      { "ci": 2, "type": "default" }, null, null, null, null, null, { "ci": 5, "type": "default" },
-      null, { "ci": 3, "type": "hidden" }, null, null, null, { "ci": 4, "type": "default" }, null,
-      null, null, { "ci": 4, "type": "default" }, null, null, null, null,
-      null, null, null, null, null, null, null,
-      { "ci": 0, "type": "default" }, null, { "ci": 1, "type": "default" }, null, { "ci": 2, "type": "default" }, null, { "ci": 3, "type": "default" },
-      null, null, null, null, null, null, null,
-      null, { "ci": 0, "type": "default" }, null, null, null, { "ci": 1, "type": "default" }, null
+      { "ci": 2, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 3, "type": "default" },
+      { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 1, "type": "default" },
+      { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 2, "type": "default" },
+      { "ci": 3, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 1, "type": "default" },
+      { "ci": 2, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 0, "type": "default" },
+      { "ci": 2, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 2, "type": "default" },
+      { "ci": 3, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }
+    ],
+    "fridges": [
+      { "row": 0, "col": 4, "w": 3, "h": 3, "count": 6 },
+      { "row": 4, "col": 1, "w": 2, "h": 3, "count": 4 },
+      { "row": 4, "col": 4, "w": 2, "h": 2, "count": 2 }
     ]
   }
 }
