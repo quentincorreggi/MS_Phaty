@@ -391,8 +391,8 @@ function update() {
         for (var j = 0; j < jumpers.length; j++) if (jumpers[j].slotIdx === si) { aj = true; break; }
         if (aj) continue;
         var pos = getSlotPos(si);
-        jumpers.push({ ci: slot.marble, ghost: !!slot.ghost, slotIdx: si, startX: pos.x, startY: pos.y, targetCol: c, targetSlot: col[tv].filled + inFlight, t: 0 });
-        slot.marble = -1; break;
+        jumpers.push({ ci: slot.marble, ghost: slot.ghost, slotIdx: si, startX: pos.x, startY: pos.y, targetCol: c, targetSlot: col[tv].filled + inFlight, t: 0 });
+        slot.marble = -1; slot.ghost = false; break;
       }
     }
   }
@@ -408,7 +408,7 @@ function update() {
         // Pushed in the same guarded branch as filled++, so arrival order and
         // the count can never drift apart even though the target box is
         // re-resolved here rather than reused from the jumper.
-        col[tv].ghosts.push(!!j.ghost);
+        col[tv].ghosts.push(j.ghost);
         col[tv].squishT = 1;
         sfx.sort();
         if (col[tv].filled >= SORT_CAP) {
@@ -445,6 +445,7 @@ function update() {
         if (beltSlots[csi].marble === BLOCKER_CI) {
           var cpos = getSlotPos(csi);
           beltSlots[csi].marble = -1;
+          beltSlots[csi].ghost = false;
           spawnBurst(cpos.x, cpos.y, COLORS[BLOCKER_CI].light, 10);
           for (var p = 0; p < 3; p++) {
             var a = Math.random() * Math.PI * 2, sp = 1 + Math.random() * 2;
