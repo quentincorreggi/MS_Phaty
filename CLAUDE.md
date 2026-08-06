@@ -33,7 +33,7 @@ You can also use these commands:
 ### Tech Stack
 - Vanilla JavaScript, HTML5 Canvas, Web Audio API
 - No dependencies, no build step — runs directly in browser via `index.html`
-- ~3300 lines across 17 JS files
+- ~3400 lines across 18 JS files
 
 ### File Map
 
@@ -46,6 +46,7 @@ You can also use these commands:
 | `js/box_hidden.js` | Hidden "?" box — color unknown until revealed | 73 |
 | `js/box_ice.js` | Ice box — requires 2 adjacent taps to shatter ice first | 160 |
 | `js/box_blocker.js` | Blocker box — spawns neutral gray marbles that jam the belt | 127 |
+| `js/box_ghost.js` | Ghost box — marbles phase through solid marbles in the funnel | 125 |
 | `js/game.js` | Game loop, init, update, input handling, win check | 585 |
 | `js/physics.js` | Marble physics — gravity, collision, funnel walls, belt entry | 136 |
 | `js/rendering.js` | Core drawing — boxes, marbles, funnel, belt, sort area | 469 |
@@ -150,7 +151,7 @@ Levels are created via the level editor and played via "Test Play". There are
 no pre-built levels — the `LEVELS` array is empty at startup. Each cell in a
 level's `grid` array (49 = 7x7) is:
 - `null` — empty slot
-- `{ ci: 0-7, type: 'default'|'hidden'|'ice'|'blocker' }` — box
+- `{ ci: 0-7, type: 'default'|'hidden'|'ice'|'blocker'|'ghost' }` — box
 - `{ tunnel: true, dir: 'top'|'bottom'|'left'|'right', contents: [{ci, type}...] }` — tunnel
 - `{ wall: true }` — wall
 
