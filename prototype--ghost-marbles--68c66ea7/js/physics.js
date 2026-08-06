@@ -45,7 +45,7 @@ function physicsStep() {
         // Ghost marbles phase through solid ones: skip the separation AND
         // the impulse, so neither marble is nudged. Ghost-vs-ghost and
         // solid-vs-solid still collide normally.
-        if (!!a.ghost !== !!b.ghost) continue;
+        if (a.ghost !== b.ghost) continue;
         var dx = b.x - a.x, dy = b.y - a.y;
         var dist = Math.sqrt(dx * dx + dy * dy);
         var minD = a.r + b.r;
@@ -72,38 +72,40 @@ function physicsStep() {
     }
   }
 
-  // Ghosts drain FIRST. Each marble claims the free slot nearest the belt
-  // entry and marks it taken, and this loop runs newest-first — so without
-  // a ghost-priority pass a solid marble tapped later would steal the slot
-  // a ghost earned by phasing through the pile.
-  drainToBelt(true);
-  drainToBelt(false);
+  drainMarblesToBelt();
 }
 
-function drainToBelt(ghostPass) {
+function drainMarblesToBelt() {
   var exitY = L.funnelBot;
   var exitL = L.funnelCx - L.funnelOpenW / 2;
   var exitR = L.funnelCx + L.funnelOpenW / 2;
-  for (var i = physMarbles.length - 1; i >= 0; i--) {
-    var m = physMarbles[i];
-    if (!!m.ghost !== ghostPass) continue;
-    if (m.y + m.r >= exitY - 3 * S && m.x > exitL - m.r && m.x < exitR + m.r) {
-      var entryT = getBeltEntryT();
-      var bestIdx = -1, bestDist = Infinity;
-      for (var k = 0; k < BELT_SLOTS; k++) {
-        if (beltSlots[k].marble >= 0) continue;
-        var st = getSlotT(k);
-        var diff = Math.abs(st - entryT);
-        diff = Math.min(diff, 1 - diff);
-        if (diff < bestDist) { bestDist = diff; bestIdx = k; }
-      }
-      if (bestIdx >= 0 && bestDist < 0.08) {
-        beltSlots[bestIdx].marble = m.ci;
-        beltSlots[bestIdx].ghost = !!m.ghost;
-        beltSlots[bestIdx].arriveAnim = 0.6;
-        sfx.drop();
-        spawnBurst(m.x, m.y, COLORS[m.ci].fill, 6);
-        physMarbles.splice(i, 1);
+  // Ghosts sweep first. Each marble claims the free slot nearest the belt entry
+  // and marks it taken, and the sweep runs newest-first — so without a
+  // ghost-priority sweep a solid marble tapped later would steal the slot a
+  // ghost earned by phasing through the pile.
+  for (var pass = 0; pass < 2; pass++) {
+    var wantGhost = (pass === 0);
+    for (var i = physMarbles.length - 1; i >= 0; i--) {
+      var m = physMarbles[i];
+      if (m.ghost !== wantGhost) continue;
+      if (m.y + m.r >= exitY - 3 * S && m.x > exitL - m.r && m.x < exitR + m.r) {
+        var entryT = getBeltEntryT();
+        var bestIdx = -1, bestDist = Infinity;
+        for (var k = 0; k < BELT_SLOTS; k++) {
+          if (beltSlots[k].marble >= 0) continue;
+          var st = getSlotT(k);
+          var diff = Math.abs(st - entryT);
+          diff = Math.min(diff, 1 - diff);
+          if (diff < bestDist) { bestDist = diff; bestIdx = k; }
+        }
+        if (bestIdx >= 0 && bestDist < 0.08) {
+          beltSlots[bestIdx].marble = m.ci;
+          beltSlots[bestIdx].ghost = m.ghost;
+          beltSlots[bestIdx].arriveAnim = 0.6;
+          sfx.drop();
+          spawnBurst(m.x, m.y, COLORS[m.ci].fill, 6);
+          physMarbles.splice(i, 1);
+        }
       }
     }
   }
