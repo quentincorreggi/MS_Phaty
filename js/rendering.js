@@ -177,6 +177,12 @@ function drawStock() {
       continue;
     }
 
+    // ── Gate ──
+    if (b.isGate) {
+      drawGateOnGrid(ctx, b.x, b.y, L.bw, L.bh, S, tick, b.flashT);
+      continue;
+    }
+
     var ox = 0;
     if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
     var breathe = 0;

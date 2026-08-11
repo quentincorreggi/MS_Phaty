@@ -17,6 +17,7 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  gateMode: false,      // true when placing gates
   visible: false
 };
 
@@ -34,6 +35,7 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.gateMode = false;
 }
 
 function showEditor(fresh) {
@@ -75,6 +77,11 @@ function editorRenderGrid() {
       cell.style.background = 'linear-gradient(135deg,#9A8D7B,#6F6355)';
       cell.style.borderColor = '#8A7D6B';
       cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,255,255,0.5);font-size:14px">&#9632;</span>';
+    } else if (v && v.gate) {
+      // Gate cell (1x1, ×2)
+      cell.style.background = 'linear-gradient(135deg,#FFD08A,#F07818)';
+      cell.style.borderColor = '#C85E0C';
+      cell.innerHTML = '<span class="ed-cell-dot" style="color:#fff;font-size:11px;font-weight:700">&#215;2</span>';
     } else if (v && v.tunnel) {
       // Tunnel cell
       var isSelected = (editor.selectedTunnel === i);
@@ -114,6 +121,21 @@ function editorCellClick(e) {
     } else {
       // Place wall
       editor.grid[idx] = { wall: true };
+    }
+    if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderTunnelPanel();
+    return;
+  }
+
+  if (editor.gateMode) {
+    // Gate placement mode (1x1, ×2)
+    var existing = editor.grid[idx];
+    if (existing && existing.gate) {
+      editor.grid[idx] = null;
+    } else {
+      editor.grid[idx] = { gate: true };
     }
     if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     editorRenderGrid();
@@ -178,13 +200,14 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.gateMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.gateMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -200,10 +223,26 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.gateMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(wallBtn);
+
+  // Gate mode button (1x1, \u00D72)
+  var gateBtn = document.createElement('button');
+  gateBtn.className = 'ed-type-btn' + (editor.gateMode ? ' active' : '');
+  gateBtn.textContent = '\u00D72 Gate';
+  gateBtn.style.borderColor = editor.gateMode ? 'rgba(240,120,24,0.7)' : '';
+  gateBtn.style.color = editor.gateMode ? '#F07818' : '';
+  gateBtn.addEventListener('click', function () {
+    editor.gateMode = true;
+    editor.wallMode = false;
+    editor.tunnelMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(gateBtn);
 
   // Tunnel mode button
   var tunnelBtn = document.createElement('button');
@@ -214,6 +253,7 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.gateMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -260,6 +300,12 @@ function editorRenderToolbar() {
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
+  } else if (editor.gateMode) {
+    // Gate mode: info hint
+    var gateInfo = document.createElement('div');
+    gateInfo.className = 'ed-color-row';
+    gateInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove ×2 gates &middot; marbles from boxes above are doubled</span>';
+    el.appendChild(gateInfo);
   } else {
     // Color palette: eraser + 8 colors
     var colorRow = document.createElement('div');
@@ -453,11 +499,16 @@ function editorUpdateStats() {
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
   var wallCount = 0;
+  var gateCount = 0;
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
     if (v.wall) {
       wallCount++;
+      continue;
+    }
+    if (v.gate) {
+      gateCount++;
       continue;
     }
     if (v.tunnel) {
@@ -499,6 +550,9 @@ function editorUpdateStats() {
   }
   if (wallCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#8A7D6B">' + wallCount + ' wall' + (wallCount > 1 ? 's' : '') + '</span>';
+  }
+  if (gateCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#F07818">' + gateCount + ' &times;2 gate' + (gateCount > 1 ? 's' : '') + '</span>';
   }
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
@@ -618,6 +672,7 @@ function editorImportJSON() {
           if (cell === null || cell === undefined || cell === -1) editor.grid[i] = null;
           else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
           else if (cell.wall) editor.grid[i] = { wall: true };
+          else if (cell.gate) editor.grid[i] = { gate: true };
           else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
           else editor.grid[i] = cell;
         }
