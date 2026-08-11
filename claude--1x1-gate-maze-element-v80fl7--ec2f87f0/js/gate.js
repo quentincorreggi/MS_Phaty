@@ -129,7 +129,17 @@ function processGateMultipliers() {
     var g = stock[i];
     if (!g.isGate) continue;
 
-    var gx0 = g.x, gx1 = g.x + L.bw;
+    // Horizontal trigger = the WHOLE column, not just the narrow gate
+    // cell. Marbles drift sideways as they fall and some land just
+    // beside the cell; widening the band to the full column pitch
+    // (cell width + the gaps on each side, i.e. up to the midpoint
+    // between neighbouring columns) means every marble travelling down
+    // this column is doubled. It looks slightly loose up close but is
+    // imperceptible at play speed, and no marble is ever dropped.
+    var pitch = L.bw + (L.bg || 0);
+    var ccenter = g.x + L.bw / 2;
+    var gx0 = ccenter - pitch / 2;
+    var gx1 = ccenter + pitch / 2;
     var gy0 = g.y, gy1 = g.y + L.bh;
 
     // Cap the loop at the current length — clones added this pass go
