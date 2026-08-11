@@ -129,9 +129,6 @@ function processGateMultipliers() {
     var g = stock[i];
     if (!g.isGate) continue;
 
-    // Detection band = the full gate cell, so a fast-falling marble
-    // cannot tunnel through a thin strip between frames. Combined
-    // with the passedGates guard, each marble is doubled exactly once.
     var gx0 = g.x, gx1 = g.x + L.bw;
     var gy0 = g.y, gy1 = g.y + L.bh;
 
@@ -143,8 +140,19 @@ function processGateMultipliers() {
       if (!marble.passedGates) marble.passedGates = {};
       if (marble.passedGates[i]) continue;
 
+      // Test the marble's whole vertical travel this frame against the
+      // gate cell, not just its final position. A fast-falling marble
+      // can jump clean over the cell in one frame; using the swept
+      // interval [prevY, curY] means it is still caught. Because we
+      // require the interval to reach the cell from a marble that was
+      // above/inside it, marbles from boxes BELOW the gate (which never
+      // sweep down into it) are correctly left untouched.
+      var prevY = (marble._gy === undefined) ? marble.y : marble._gy;
+      var loY = Math.min(prevY, marble.y);
+      var hiY = Math.max(prevY, marble.y);
+
       if (marble.x >= gx0 && marble.x <= gx1 &&
-          marble.y >= gy0 && marble.y <= gy1) {
+          hiY >= gy0 && loY <= gy1) {
         marble.passedGates[i] = true;
 
         var clonesToSpawn = GATE_MULTIPLIER - 1;
@@ -179,6 +187,12 @@ function processGateMultipliers() {
         if (typeof sfx !== 'undefined' && sfx.pop) sfx.pop();
       }
     }
+  }
+
+  // Remember each marble's position so the next frame can test the
+  // swept interval. Clones added this pass start with prev == current.
+  for (var q = 0; q < physMarbles.length; q++) {
+    physMarbles[q]._gy = physMarbles[q].y;
   }
 }
 
