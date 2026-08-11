@@ -1,26 +1,44 @@
 // ============================================================
-// gate.js — Gate 1x1 (×2) mechanic
-// A single-cell passable tile. When a phys marble passes through
-// the pill area, the marble is doubled (1 → 2): the original
-// continues, and 1 same-color clone is spawned next to it.
-// Each marble is multiplied at most once per gate (tracked via
-// marble.passedGates).
+// gate.js — Gate 1x1 (×2) maze element
+// A single-cell passable tile. Every marble that falls through
+// the gate cell is doubled (×2): the original continues and one
+// same-color clone is spawned beside it. Each marble is doubled
+// at most once per gate (tracked via marble.passedGates), so a
+// box of 9 marbles above the gate yields 18 on the belt.
 //
-// Visually identical to the 2-cell Gate, but sized to one grid
-// cell and coloured orange to distinguish it.
+// Same banner visual as the 2-cell Gate (plaque body + end posts
+// + outlined ×2), sized to one grid cell and coloured orange.
 // ============================================================
 
 var GATE_MULTIPLIER = 2;
 
-// Orange palette (matches the green Gate's structure, shifted to orange)
-var GATE_COL_LIGHT = '#FFD08A';
-var GATE_COL_MID = '#FF9F2E';
-var GATE_COL_DARK = '#F07818';
-var GATE_COL_BORDER = '#C85E0C';
-var GATE_COL_GLOW = 'rgba(240,120,24,0.5)';
-var GATE_COL_BURST = '#FFB347';
+// Orange palette
+var GATE_BODY_TOP = '#FFC957';
+var GATE_BODY_MID = '#FBA334';
+var GATE_BODY_BOT = '#EE8B1E';
+var GATE_BODY_BORDER = '#D9741A';
+var GATE_POST_DARK = '#8A410C';
+var GATE_POST_LIGHT = '#C86A1C';
+var GATE_TEXT_OUTLINE = '#6E3208';
+var GATE_BURST = '#FFB347';
 
 // ── Drawing ──
+
+function drawGatePost(ctx, px, py, pw, ph, S) {
+  var r = pw * 0.5;
+  // Horizontal gradient → cylindrical post (dark edges, lit centre)
+  var g = ctx.createLinearGradient(px, py, px + pw, py);
+  g.addColorStop(0, GATE_POST_DARK);
+  g.addColorStop(0.5, GATE_POST_LIGHT);
+  g.addColorStop(1, GATE_POST_DARK);
+  ctx.fillStyle = g;
+  rRect(px, py, pw, ph, r);
+  ctx.fill();
+  // Soft vertical highlight down the middle
+  ctx.fillStyle = 'rgba(255,255,255,0.20)';
+  rRect(px + pw * 0.32, py + ph * 0.10, pw * 0.20, ph * 0.80, pw * 0.10);
+  ctx.fill();
+}
 
 function drawGateOnGrid(ctx, x, y, w, h, S, tick, flashT) {
   ctx.save();
@@ -28,96 +46,107 @@ function drawGateOnGrid(ctx, x, y, w, h, S, tick, flashT) {
   // Empty-slot background — the gate sits on a passable cell
   drawEmptySlot(x, y, w, h);
 
-  var pillW = w * 0.78;
-  var pillH = h * 0.42;
-  var px = x + (w - pillW) / 2;
-  var py = y + (h - pillH) / 2;
+  var cx = x + w / 2;
+  var cy = y + h / 2 + Math.sin(tick * 0.05) * 1.5 * S; // idle bob
 
-  // Idle bob
-  var bob = Math.sin(tick * 0.05) * 1.5 * S;
-  py += bob;
+  var bodyW = w * 0.82;
+  var bodyH = h * 0.44;
+  var bx = cx - bodyW / 2;
+  var by = cy - bodyH / 2;
+  var rad = Math.min(bodyH * 0.30, 8 * S);
 
-  // Outer drop shadow / glow
-  ctx.shadowColor = GATE_COL_GLOW;
-  ctx.shadowBlur = 8 * S;
-  ctx.shadowOffsetY = 2 * S;
+  var postW = Math.max(w * 0.11, 6 * S);
+  var postH = bodyH * 1.5;
+  var postY = cy - postH / 2;
+  var leftPostX = bx - postW * 0.25;
+  var rightPostX = bx + bodyW - postW * 0.75;
 
-  var grad = ctx.createLinearGradient(px, py, px, py + pillH);
-  grad.addColorStop(0, GATE_COL_LIGHT);
-  grad.addColorStop(0.5, GATE_COL_MID);
-  grad.addColorStop(1, GATE_COL_DARK);
-  ctx.fillStyle = grad;
-  rRect(px, py, pillW, pillH, pillH * 0.5);
+  // ── Banner body (with drop shadow) ──
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.32)';
+  ctx.shadowBlur = 6 * S;
+  ctx.shadowOffsetY = 3 * S;
+  var bg = ctx.createLinearGradient(bx, by, bx, by + bodyH);
+  bg.addColorStop(0, GATE_BODY_TOP);
+  bg.addColorStop(0.45, GATE_BODY_MID);
+  bg.addColorStop(1, GATE_BODY_BOT);
+  ctx.fillStyle = bg;
+  rRect(bx, by, bodyW, bodyH, rad);
+  ctx.fill();
+  ctx.restore();
+
+  // Inner top sheen
+  ctx.fillStyle = 'rgba(255,255,255,0.28)';
+  rRect(bx + 4 * S, by + 3 * S, bodyW - 8 * S, bodyH * 0.34, rad * 0.7);
   ctx.fill();
 
-  ctx.shadowColor = 'transparent';
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
-
-  // Border
-  ctx.strokeStyle = GATE_COL_BORDER;
+  // Body border
+  ctx.strokeStyle = GATE_BODY_BORDER;
   ctx.lineWidth = 1.5 * S;
-  rRect(px, py, pillW, pillH, pillH * 0.5);
+  rRect(bx, by, bodyW, bodyH, rad);
   ctx.stroke();
 
-  // Top highlight
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  rRect(px + 3 * S, py + 2 * S, pillW - 6 * S, pillH * 0.35, pillH * 0.3);
-  ctx.fill();
+  // ── End posts ──
+  drawGatePost(ctx, leftPostX, postY, postW, postH, S);
+  drawGatePost(ctx, rightPostX, postY, postW, postH, S);
 
-  // ×2 label
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold ' + Math.floor(pillH * 0.6) + 'px sans-serif';
+  // ── Flash overlay when a marble just passed through ──
+  if (flashT && flashT > 0) {
+    ctx.globalAlpha = flashT * 0.6;
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    rRect(bx, by, bodyW, bodyH, rad);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // ── ×2 label (white fill + dark outline) ──
+  var tx = cx, ty = cy + 1 * S;
+  ctx.font = 'bold ' + Math.floor(bodyH * 0.72) + 'px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.shadowColor = 'rgba(0,0,0,0.35)';
+  ctx.lineJoin = 'round';
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.30)';
   ctx.shadowBlur = 2 * S;
-  ctx.shadowOffsetY = 1 * S;
-  ctx.fillText('×2', px + pillW / 2, py + pillH / 2 + 1 * S);
-
-  // Flash overlay when a marble just passed through
-  if (flashT && flashT > 0) {
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
-    ctx.globalAlpha = flashT * 0.7;
-    ctx.fillStyle = 'rgba(255,255,255,0.95)';
-    rRect(px, py, pillW, pillH, pillH * 0.5);
-    ctx.fill();
-  }
+  ctx.shadowOffsetY = 1.5 * S;
+  ctx.lineWidth = Math.max(3 * S, bodyH * 0.16);
+  ctx.strokeStyle = GATE_TEXT_OUTLINE;
+  ctx.strokeText('×2', tx, ty);
+  ctx.restore();
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('×2', tx, ty);
 
   ctx.restore();
 }
 
-// ── Logic: detect marble overlap with gate pill, spawn clones ──
+// ── Logic: double every marble that falls through the gate cell ──
 
 function processGateMultipliers() {
   if (!stock || stock.length === 0) return;
   if (physMarbles.length === 0) return;
 
-  var pillW = L.bw * 0.78;
-  var pillH = L.bh * 0.42;
-  var pillOffX = (L.bw - pillW) / 2;
-  var pillOffY = (L.bh - pillH) / 2;
-
   for (var i = 0; i < stock.length; i++) {
     var g = stock[i];
     if (!g.isGate) continue;
-    var gx = g.x + pillOffX;
-    var gy = g.y + pillOffY;
 
-    // Iterate forwards — newly added clones go to the end and we
-    // skip them on this pass via length cap.
+    // Detection band = the full gate cell, so a fast-falling marble
+    // cannot tunnel through a thin strip between frames. Combined
+    // with the passedGates guard, each marble is doubled exactly once.
+    var gx0 = g.x, gx1 = g.x + L.bw;
+    var gy0 = g.y, gy1 = g.y + L.bh;
+
+    // Cap the loop at the current length — clones added this pass go
+    // to the end and are skipped until the next frame.
     var n = physMarbles.length;
     for (var m = 0; m < n; m++) {
       var marble = physMarbles[m];
       if (!marble.passedGates) marble.passedGates = {};
       if (marble.passedGates[i]) continue;
 
-      if (marble.x >= gx && marble.x <= gx + pillW &&
-          marble.y >= gy && marble.y <= gy + pillH) {
+      if (marble.x >= gx0 && marble.x <= gx1 &&
+          marble.y >= gy0 && marble.y <= gy1) {
         marble.passedGates[i] = true;
 
-        var MR = marble.r;
         var clonesToSpawn = GATE_MULTIPLIER - 1;
         for (var k = 0; k < clonesToSpawn; k++) {
           var ang = clonesToSpawn > 1
@@ -131,20 +160,20 @@ function processGateMultipliers() {
             vx: marble.vx + Math.cos(ang) * 1.2 * S,
             vy: marble.vy + (Math.random() - 0.5) * 0.6 * S,
             ci: marble.ci,
-            r: MR,
+            r: marble.r,
             spawnT: 1.0,
             passedGates: {}
           };
-          // Clones inherit the parent's passed-gates so they don't
-          // re-trigger the same gate, but other gates are open.
+          // Clone inherits parent's passed gates so it won't re-trigger
+          // this gate, but stays open to any other gates.
           for (var pk in marble.passedGates) clone.passedGates[pk] = true;
           physMarbles.push(clone);
         }
 
         g.flashT = 1.0;
-        var cx = g.x + L.bw / 2, cy = g.y + L.bh / 2;
+        var ccx = g.x + L.bw / 2, ccy = g.y + L.bh / 2;
         if (typeof spawnBurst === 'function') {
-          spawnBurst(cx, cy, GATE_COL_BURST, 8);
+          spawnBurst(ccx, ccy, GATE_BURST, 8);
           spawnBurst(marble.x, marble.y, COLORS[marble.ci].fill, 6);
         }
         if (typeof sfx !== 'undefined' && sfx.pop) sfx.pop();
