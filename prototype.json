@@ -4,117 +4,31 @@
   "howToPlay": "Tap boxes to drop marbles onto the belt; matching marbles fill the customer at the front of each lane. Three lanes hold a chained (locked) customer that refuses marbles and blocks its lane. Clear the customers ahead of all three so they sit at the front together — they snap open at once, then fill and clear like normal. While they wait, you only have one free lane, so plan the conveyor ahead. In the editor, open the Customers panel to choose which trio is linked.",
   "author": "Claude",
   "showcaseLevel": {
-    "name": "Connected Trio",
-    "desc": "A single trio locks three of four lanes until they line up at the front.",
-    "mrbPerBox": 6,
+    "name": "Custom Level",
+    "desc": "My custom level",
+    "mrbPerBox": 9,
     "sortCap": 3,
     "lockButtons": 0,
     "connectedLinks": [
-      {
-        "col": 0,
-        "depth": 2
-      }
+      { "col": 0, "depth": 1 },
+      { "col": 1, "depth": 3 },
+      { "col": 0, "depth": 5 },
+      { "col": 1, "depth": 7 }
     ],
     "sortLayout": [
-      [
-        0,
-        1,
-        2,
-        3
-      ],
-      [
-        0,
-        1,
-        2,
-        3
-      ],
-      [
-        0,
-        1,
-        2,
-        3
-      ],
-      [
-        0,
-        1,
-        2,
-        3
-      ]
+      [0, 1, 1, 3, 3, 4, 5, 6, 6],
+      [0, 1, 2, 3, 3, 4, 5, 6, 7],
+      [0, 1, 2, 3, 4, 4, 5, 6, 7],
+      [1, 1, 2, 3, 4, 4, 6, 6, 7]
     ],
     "grid": [
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      {
-        "ci": 3,
-        "type": "default"
-      },
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      {
-        "ci": 0,
-        "type": "default"
-      },
-      null,
-      {
-        "ci": 1,
-        "type": "default"
-      },
-      null,
-      {
-        "ci": 2,
-        "type": "default"
-      },
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      {
-        "ci": 0,
-        "type": "default"
-      },
-      null,
-      {
-        "ci": 1,
-        "type": "default"
-      },
-      null,
-      {
-        "ci": 2,
-        "type": "default"
-      },
-      null,
-      {
-        "ci": 3,
-        "type": "default"
-      },
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null
+      { "wall": true }, { "wall": true }, { "wall": true }, { "wall": true }, { "wall": true }, { "wall": true }, { "wall": true },
+      { "wall": true }, { "wall": true }, { "wall": true }, { "wall": true }, { "wall": true }, { "wall": true }, { "wall": true },
+      { "wall": true }, { "wall": true }, { "wall": true }, { "wall": true }, { "wall": true }, { "wall": true }, { "wall": true },
+      { "wall": true }, { "wall": true }, { "ci": 4, "type": "default" }, { "ci": 6, "type": "default" }, { "ci": 3, "type": "default" }, { "wall": true }, { "wall": true },
+      { "wall": true }, { "wall": true }, { "ci": 2, "type": "default" }, { "ci": 5, "type": "default" }, { "ci": 1, "type": "default" }, { "wall": true }, { "wall": true },
+      { "wall": true }, { "wall": true }, { "ci": 1, "type": "default" }, { "ci": 4, "type": "default" }, { "ci": 7, "type": "default" }, { "wall": true }, { "wall": true },
+      { "wall": true }, { "wall": true }, { "ci": 0, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 6, "type": "default" }, { "wall": true }, { "wall": true }
     ]
   }
 }
