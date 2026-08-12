@@ -11,6 +11,7 @@ var editor = {
   mrbPerBox: 9,
   sortCap: 3,
   lockButtons: 0,
+  connectedTrios: 0,   // three-lane connected customer trios
   activeColor: 0,      // -1=eraser, 0-7=color
   activeType: BoxTypeOrder[0],
   tunnelMode: false,    // true when placing tunnels
@@ -28,6 +29,7 @@ function editorInit() {
   editor.mrbPerBox = 9;
   editor.sortCap = 3;
   editor.lockButtons = 0;
+  editor.connectedTrios = 0;
   editor.activeColor = 0;
   editor.activeType = BoxTypeOrder[0];
   editor.tunnelMode = false;
@@ -537,7 +539,8 @@ function editorRenderSettings() {
   var fields = [
     { label: 'Marbles/Box', key: 'mrbPerBox', min: 1, max: 25, step: 1 },
     { label: 'Sort Cap', key: 'sortCap', min: 1, max: 9, step: 1 },
-    { label: 'Lock Btns', key: 'lockButtons', min: 0, max: 5, step: 1 }
+    { label: 'Lock Btns', key: 'lockButtons', min: 0, max: 5, step: 1 },
+    { label: 'Conn. Trios', key: 'connectedTrios', min: 0, max: 2, step: 1 }
   ];
   for (var i = 0; i < fields.length; i++) {
     var f = fields[i];
@@ -567,6 +570,7 @@ function editorBuildLevel() {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
+    connectedTrios: editor.connectedTrios,
     grid: editor.grid.slice()
   };
 }
@@ -625,6 +629,7 @@ function editorImportJSON() {
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
+      if (lvl.connectedTrios !== undefined) editor.connectedTrios = lvl.connectedTrios;
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
       var nameEl = document.getElementById('ed-name');

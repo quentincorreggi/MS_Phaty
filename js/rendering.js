@@ -431,6 +431,21 @@ function drawSortArea() {
         var sp = L.sBw / 4, mrr = 6 * S * cal.sort.s * cal.marble.s;
         for (var j2 = 0; j2 < b.filled; j2++) drawMarble((j2 - 1) * sp, 0, mrr, b.ci);
         for (var j2 = b.filled; j2 < SORT_CAP; j2++) { ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.beginPath(); ctx.arc((j2 - 1) * sp, 0, mrr * 0.55, 0, Math.PI * 2); ctx.fill(); }
+
+        // Locked connected customer: dim the box + diagonal chain hatch.
+        if (b.connected && b.locked) {
+          ctx.fillStyle = 'rgba(30,22,16,0.42)';
+          rRect(-L.sBw / 2, -L.sBh / 2, L.sBw, L.sBh, 8 * S); ctx.fill();
+          ctx.save();
+          rRect(-L.sBw / 2, -L.sBh / 2, L.sBw, L.sBh, 8 * S); ctx.clip();
+          ctx.strokeStyle = 'rgba(255,225,160,0.5)'; ctx.lineWidth = 2 * S;
+          for (var dx = -L.sBw; dx < L.sBw; dx += 9 * S) {
+            ctx.beginPath(); ctx.moveTo(dx - L.sBh, -L.sBh / 2); ctx.lineTo(dx + L.sBh, L.sBh / 2); ctx.stroke();
+          }
+          ctx.restore();
+          ctx.strokeStyle = 'rgba(255,215,120,0.85)'; ctx.lineWidth = 2 * S;
+          rRect(-L.sBw / 2, -L.sBh / 2, L.sBw, L.sBh, 8 * S); ctx.stroke();
+        }
       }
       ctx.restore();
     }
@@ -440,9 +455,10 @@ function drawSortArea() {
     }
     if (visibleBoxes.length > 0) {
       var topBox = visibleBoxes[0];
-      ctx.fillStyle = topBox.type === 'lock' ? 'rgba(200,180,100,0.6)' : 'rgba(120,100,80,0.3)';
+      var connLocked = topBox.connected && topBox.locked;
+      ctx.fillStyle = (topBox.type === 'lock' || connLocked) ? 'rgba(200,180,100,0.6)' : 'rgba(120,100,80,0.3)';
       ctx.font = 'bold ' + (8 * S) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      var label = topBox.type === 'lock' ? '\uD83D\uDD13' : visibleBoxes.length.toString();
+      var label = topBox.type === 'lock' ? '\uD83D\uDD13' : (connLocked ? '\uD83D\uDD17' : visibleBoxes.length.toString());
       ctx.fillText(label, x + L.sBw / 2, L.sTop - 8 * S);
     }
   }

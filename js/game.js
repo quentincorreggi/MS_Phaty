@@ -160,6 +160,9 @@ function initGame() {
     var lockRow = Math.min(2 + Math.floor(Math.random() * 4), sortCols[lockCol].length);
     sortCols[lockCol].splice(lockRow, 0, { type: 'lock', ci: -1, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0, triggerT: 0, triggered: false });
   }
+
+  // Three-lane connected customers (linked trios across adjacent lanes)
+  placeConnectedTrios(lvl);
 }
 
 // === REVEAL — PATH TO BOTTOM ===
@@ -382,6 +385,7 @@ function update() {
       var col = sortCols[c]; var tv = -1;
       for (var r = 0; r < col.length; r++) { if (col[r].vis) { tv = r; break; } }
       if (tv < 0 || col[tv].ci !== slot.marble) continue;
+      if (isSortBoxLocked(col[tv])) continue;  // locked connected customer blocks its lane
       var inFlight = 0;
       for (var j = 0; j < jumpers.length; j++) if (jumpers[j].targetCol === c) inFlight++;
       if (col[tv].filled + inFlight >= SORT_CAP) continue;
@@ -514,6 +518,9 @@ function update() {
     if (box.type === 'lock' && box.triggerT > 0) box.triggerT = Math.max(0, box.triggerT - 0.03);
   }
 
+  // Connected customer trios — unlock when all three reach the front
+  updateConnected();
+
   tickParticles();
   updateRollingSound();
 }
@@ -550,6 +557,7 @@ function frame() {
     drawBlockerProgress();
     drawJumpers();
     drawSortArea();
+    drawConnectedLinks();
     drawBackButton();
     drawParticles();
     drawDebugWalls();
