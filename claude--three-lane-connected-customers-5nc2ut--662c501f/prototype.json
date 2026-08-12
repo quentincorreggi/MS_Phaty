@@ -1,7 +1,7 @@
 {
   "name": "Three-Lane Connected Customers",
   "description": "Three customers, one in each of three adjacent lanes at the same queue depth, are chained together. None of them accepts marbles until all three reach the front of their lanes at the same time — turning a local pinch into a board-wide bottleneck.",
-  "howToPlay": "Tap boxes to drop marbles onto the belt; matching marbles fill the customer at the front of each lane. Three lanes hold a chained (locked) customer that refuses marbles and blocks its lane. Clear the customers ahead of all three so they sit at the front together — they snap open at once, then fill and clear like normal. While they wait, you only have one free lane, so plan the conveyor ahead.",
+  "howToPlay": "Tap boxes to drop marbles onto the belt; matching marbles fill the customer at the front of each lane. Three lanes hold a chained (locked) customer that refuses marbles and blocks its lane. Clear the customers ahead of all three so they sit at the front together — they snap open at once, then fill and clear like normal. While they wait, you only have one free lane, so plan the conveyor ahead. In the editor, open the Customers panel to choose which trio is linked.",
   "author": "Claude",
   "showcaseLevel": {
     "name": "Connected Trio",
@@ -9,7 +9,38 @@
     "mrbPerBox": 6,
     "sortCap": 3,
     "lockButtons": 0,
-    "connectedTrios": 1,
+    "connectedLinks": [
+      {
+        "col": 0,
+        "depth": 2
+      }
+    ],
+    "sortLayout": [
+      [
+        0,
+        1,
+        2,
+        3
+      ],
+      [
+        0,
+        1,
+        2,
+        3
+      ],
+      [
+        0,
+        1,
+        2,
+        3
+      ],
+      [
+        0,
+        1,
+        2,
+        3
+      ]
+    ],
     "grid": [
       null,
       null,
