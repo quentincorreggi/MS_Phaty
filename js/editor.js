@@ -11,7 +11,8 @@ var editor = {
   mrbPerBox: 9,
   sortCap: 3,
   lockButtons: 0,
-  connectedTrios: 0,   // three-lane connected customer trios
+  connectedLinks: [],  // [{col, depth}] three-lane connected customer trios
+  sortLayout: [[], [], [], []],  // deterministic customer lanes (auto-derived)
   activeColor: 0,      // -1=eraser, 0-7=color
   activeType: BoxTypeOrder[0],
   tunnelMode: false,    // true when placing tunnels
@@ -29,7 +30,8 @@ function editorInit() {
   editor.mrbPerBox = 9;
   editor.sortCap = 3;
   editor.lockButtons = 0;
-  editor.connectedTrios = 0;
+  editor.connectedLinks = [];
+  editor.sortLayout = [[], [], [], []];
   editor.activeColor = 0;
   editor.activeType = BoxTypeOrder[0];
   editor.tunnelMode = false;
@@ -62,6 +64,7 @@ function editorBuildUI() {
   editorRenderSettings();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRefreshCustomers();
 }
 
 // ── Grid ──
@@ -530,6 +533,138 @@ function editorUpdateStats() {
   }
   if (warn) html += '<span class="ed-stat-warn">' + warn + '</span>';
   el.innerHTML = html;
+
+  editorRefreshCustomers();
+}
+
+// ── Customers (sort lanes) ──
+// The customer queues are derived from the marble balance (each color needs
+// ceil(marbles / sortCap) customers) so a level always stays winnable. The
+// designer can't hand-pick customer colors, but can choose exactly where the
+// three-lane connection sits by clicking a customer in the first or second
+// lane. The layout is deterministic so the linked positions the editor shows
+// match play.
+function computeSortLayout() {
+  var regularMrb = [];
+  for (var c = 0; c < NUM_COLORS; c++) regularMrb.push(0);
+  for (var i = 0; i < 49; i++) {
+    var v = editor.grid[i];
+    if (!v || v.wall) continue;
+    if (v.tunnel) {
+      if (v.contents) {
+        for (var tc = 0; tc < v.contents.length; tc++) {
+          var it = v.contents[tc];
+          regularMrb[it.ci] += (it.type === 'blocker') ? Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX) : editor.mrbPerBox;
+        }
+      }
+      continue;
+    }
+    if (v.ci >= 0) {
+      regularMrb[v.ci] += (v.type === 'blocker') ? Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX) : editor.mrbPerBox;
+    }
+  }
+  var all = [];
+  for (var c2 = 0; c2 < NUM_COLORS; c2++) {
+    var n = editor.sortCap > 0 ? Math.ceil(regularMrb[c2] / editor.sortCap) : 0;
+    for (var r = 0; r < n; r++) all.push(c2);
+  }
+  var layout = [[], [], [], []];
+  for (var j = 0; j < all.length; j++) layout[j % 4].push(all[j]);
+  return layout;
+}
+
+// A trio anchored at (col, depth) is valid only when col is 0 or 1 and all
+// three lanes have a customer at that depth.
+function editorTrioValid(col, depth, layout) {
+  if (col < 0 || col > 1) return false;
+  for (var k = 0; k < 3; k++) {
+    var lane = layout[col + k];
+    if (!lane || depth < 0 || depth >= lane.length) return false;
+  }
+  return true;
+}
+
+// Which start-lane (0 or 1) currently holds a link at this depth, or -1.
+function editorLinkStartAt(depth) {
+  for (var i = 0; i < editor.connectedLinks.length; i++)
+    if (editor.connectedLinks[i].depth === depth) return editor.connectedLinks[i].col;
+  return -1;
+}
+
+function editorRefreshCustomers() {
+  editor.sortLayout = computeSortLayout();
+  // Drop links that no longer fit the current layout.
+  var kept = [];
+  for (var i = 0; i < editor.connectedLinks.length; i++) {
+    var lk = editor.connectedLinks[i];
+    if (editorTrioValid(lk.col, lk.depth, editor.sortLayout)) kept.push(lk);
+  }
+  editor.connectedLinks = kept;
+  editorRenderCustomers();
+}
+
+function editorRenderCustomers() {
+  var el = document.getElementById('ed-customers-body');
+  if (!el) return;
+  var layout = editor.sortLayout;
+  var maxDepth = 0;
+  for (var c = 0; c < 4; c++) if (layout[c].length > maxDepth) maxDepth = layout[c].length;
+
+  if (maxDepth === 0) {
+    el.innerHTML = '<div class="ed-cust-empty">Place boxes to generate customers.</div>';
+    return;
+  }
+
+  var html = '<div class="ed-cust-hint">Front of queue is at the top. Click a customer in lane 1 or 2 to link it with the next two lanes.</div>';
+  html += '<div class="ed-cust-grid">';
+  for (var col = 0; col < 4; col++) {
+    html += '<div class="ed-cust-lane"><div class="ed-cust-lane-h">Lane ' + (col + 1) + '</div>';
+    for (var d = 0; d < maxDepth; d++) {
+      var ci = (d < layout[col].length) ? layout[col][d] : -1;
+      if (ci < 0) { html += '<div class="ed-cust-slot ed-cust-none"></div>'; continue; }
+      var startAt = editorLinkStartAt(d);
+      var linked = (startAt >= 0 && col >= startAt && col <= startAt + 2);
+      var isMid = (startAt >= 0 && col === startAt + 1);
+      var clickable = editorTrioValid(0, d, layout) || editorTrioValid(1, d, layout);
+      var cls = 'ed-cust-slot' + (linked ? ' ed-cust-linked' : '') + (clickable ? ' ed-cust-click' : '');
+      html += '<div class="' + cls + '" style="background:' + COLORS[ci].fill + ';border-color:' + COLORS[ci].dark + '"' +
+        (clickable ? ' onclick="editorToggleLink(' + col + ',' + d + ')"' : '') + '>' +
+        (isMid ? '<span class="ed-cust-lock">&#128274;</span>' : '') +
+        '</div>';
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// Toggle the connection that contains the clicked customer at this depth.
+function editorToggleLink(col, depth) {
+  var layout = editor.sortLayout;
+  // Candidate start lanes (0 or 1) whose trio covers the clicked column.
+  var candidates = [];
+  if (editorTrioValid(0, depth, layout) && col <= 2) candidates.push(0);
+  if (editorTrioValid(1, depth, layout) && col >= 1) candidates.push(1);
+  if (!candidates.length) return;
+
+  // If a link already exists at this depth, clicking anywhere on it removes it.
+  var existing = editorLinkStartAt(depth);
+  if (existing >= 0) {
+    var out = [];
+    for (var i = 0; i < editor.connectedLinks.length; i++)
+      if (editor.connectedLinks[i].depth !== depth) out.push(editor.connectedLinks[i]);
+    editor.connectedLinks = out;
+    // If the click was on a customer NOT in the removed trio, add a new one.
+    if (!(col >= existing && col <= existing + 2)) {
+      editor.connectedLinks.push({ col: candidates[0], depth: depth });
+    }
+  } else {
+    // Prefer the trio that keeps the clicked customer as an end/anchor.
+    var start = (candidates.indexOf(col) >= 0) ? col : candidates[0];
+    if (!editorTrioValid(start, depth, layout)) start = candidates[0];
+    editor.connectedLinks.push({ col: start, depth: depth });
+  }
+  editorRenderCustomers();
 }
 
 // ── Settings ──
@@ -539,8 +674,7 @@ function editorRenderSettings() {
   var fields = [
     { label: 'Marbles/Box', key: 'mrbPerBox', min: 1, max: 25, step: 1 },
     { label: 'Sort Cap', key: 'sortCap', min: 1, max: 9, step: 1 },
-    { label: 'Lock Btns', key: 'lockButtons', min: 0, max: 5, step: 1 },
-    { label: 'Conn. Trios', key: 'connectedTrios', min: 0, max: 2, step: 1 }
+    { label: 'Lock Btns', key: 'lockButtons', min: 0, max: 5, step: 1 }
   ];
   for (var i = 0; i < fields.length; i++) {
     var f = fields[i];
@@ -570,7 +704,10 @@ function editorBuildLevel() {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
-    connectedTrios: editor.connectedTrios,
+    connectedLinks: editor.connectedLinks.slice(),
+    // Embed the deterministic lane layout only when links exist, so their
+    // positions are reproduced exactly at play time.
+    sortLayout: editor.connectedLinks.length ? editor.sortLayout.map(function (l) { return l.slice(); }) : undefined,
     grid: editor.grid.slice()
   };
 }
@@ -629,7 +766,8 @@ function editorImportJSON() {
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
-      if (lvl.connectedTrios !== undefined) editor.connectedTrios = lvl.connectedTrios;
+      if (lvl.connectedLinks !== undefined && lvl.connectedLinks.length) editor.connectedLinks = lvl.connectedLinks.slice();
+      else editor.connectedLinks = [];
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
       var nameEl = document.getElementById('ed-name');

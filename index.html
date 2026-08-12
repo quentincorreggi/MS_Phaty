@@ -115,6 +115,17 @@
   .ed-stat-total{font-size:12px;font-weight:600;color:#5A4A38}
   .ed-stat-chip{padding:2px 8px;border-radius:10px;color:white;font-size:10px;font-weight:700;text-shadow:0 1px 1px rgba(0,0,0,0.2)}
   .ed-stat-warn{font-size:10px;color:#C44;width:100%;text-align:center;margin-top:2px}
+  .ed-cust-hint{font-size:10px;color:#9C8A70;text-align:center;margin-bottom:8px;line-height:1.4}
+  .ed-cust-empty{font-size:11px;color:#9C8A70;text-align:center;padding:8px}
+  .ed-cust-grid{display:flex;gap:8px;justify-content:center}
+  .ed-cust-lane{display:flex;flex-direction:column;gap:4px;align-items:center}
+  .ed-cust-lane-h{font-size:9px;font-weight:700;color:#8B6914;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+  .ed-cust-slot{width:38px;height:22px;border-radius:6px;border:1.5px solid rgba(0,0,0,0.2);position:relative;display:flex;align-items:center;justify-content:center}
+  .ed-cust-none{background:transparent!important;border:1.5px dashed rgba(150,130,100,0.25)!important}
+  .ed-cust-click{cursor:pointer}
+  .ed-cust-click:hover{outline:2px solid rgba(255,200,80,0.9);outline-offset:1px}
+  .ed-cust-linked{box-shadow:0 0 0 2px #E8A84C, 0 0 6px rgba(232,168,76,0.7)}
+  .ed-cust-lock{font-size:12px;filter:drop-shadow(0 1px 1px rgba(0,0,0,0.5))}
   .ed-setting-row{display:flex;align-items:center;gap:6px;margin:3px 0}
   .ed-setting-row label{font-size:11px;color:#5A4A38;width:72px;text-align:right}
   .ed-setting-row input[type=range]{-webkit-appearance:none;flex:1;height:4px;background:rgba(90,74,56,0.15);border-radius:2px;outline:none}
@@ -235,6 +246,10 @@
     <div class="ed-section">
       <div class="ed-section-title"><span class="icon">&#9881;</span> Settings</div>
       <div id="ed-settings-body"></div>
+    </div>
+    <div class="ed-section">
+      <div class="ed-section-title"><span class="icon">&#128101;</span> Customers <span style="font-weight:400;font-size:10px;color:#9C8A70;margin-left:auto">click to link 3 lanes</span></div>
+      <div id="ed-customers-body"></div>
     </div>
     <div class="ed-section" style="background:transparent;border:none;box-shadow:none;padding:8px 0">
       <div class="ed-actions">

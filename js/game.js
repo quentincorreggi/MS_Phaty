@@ -146,12 +146,26 @@ function initGame() {
   updateBoxReveals(false);
 
   // ── Sort columns ──
-  var allBoxes = [];
-  for (var c = 0; c < NUM_COLORS; c++) for (var r = 0; r < sortPerColor[c]; r++)
-    allBoxes.push({ ci: c, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0 });
-  shuffle(allBoxes);
   sortCols = [[], [], [], []];
-  for (var i = 0; i < allBoxes.length; i++) sortCols[i % 4].push(allBoxes[i]);
+  if (lvl.sortLayout && lvl.sortLayout.length === 4) {
+    // Explicit, deterministic lane layout (used when the editor defines
+    // connected customers, so the linked positions match what was designed).
+    for (var c = 0; c < 4; c++) {
+      var lane = lvl.sortLayout[c] || [];
+      for (var r = 0; r < lane.length; r++)
+        sortCols[c].push({ ci: lane[r], filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0 });
+    }
+  } else {
+    var allBoxes = [];
+    for (var c = 0; c < NUM_COLORS; c++) for (var r = 0; r < sortPerColor[c]; r++)
+      allBoxes.push({ ci: c, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0 });
+    shuffle(allBoxes);
+    for (var i = 0; i < allBoxes.length; i++) sortCols[i % 4].push(allBoxes[i]);
+  }
+
+  // Three-lane connected customers (before lock buttons so link depths line
+  // up with the layout the editor showed).
+  placeConnectedTrios(lvl);
 
   // Lock buttons
   var numLocks = lvl.lockButtons || 0;
@@ -160,9 +174,6 @@ function initGame() {
     var lockRow = Math.min(2 + Math.floor(Math.random() * 4), sortCols[lockCol].length);
     sortCols[lockCol].splice(lockRow, 0, { type: 'lock', ci: -1, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0, triggerT: 0, triggered: false });
   }
-
-  // Three-lane connected customers (linked trios across adjacent lanes)
-  placeConnectedTrios(lvl);
 }
 
 // === REVEAL — PATH TO BOTTOM ===

@@ -16,9 +16,39 @@
 // Group objects live in the global `connectedGroups` (see config.js) and
 // hold { cols:[X,X+1,X+2], depth:N, members:[box,box,box], unlocked, unlockT }.
 
+// Turn three sort boxes (one per adjacent lane, same depth) into a locked trio.
+function makeConnectedGroup(cols, depth) {
+  for (var k = 0; k < 3; k++) {
+    var bx = sortCols[cols[k]][depth];
+    if (!bx || bx.type === 'lock' || bx.connected) return null;
+  }
+  var group = { cols: cols, depth: depth, members: [], unlocked: false, unlockT: 0 };
+  for (var k2 = 0; k2 < 3; k2++) {
+    var box = sortCols[cols[k2]][depth];
+    box.connected = true;
+    box.locked = true;
+    box.connGroup = group;
+    group.members.push(box);
+  }
+  connectedGroups.push(group);
+  return group;
+}
+
 // ── Placement (called from initGame after sort columns are built) ──
 function placeConnectedTrios(lvl) {
   connectedGroups = [];
+
+  // Explicit links chosen in the editor's Customers panel take priority.
+  if (lvl.connectedLinks && lvl.connectedLinks.length) {
+    for (var i = 0; i < lvl.connectedLinks.length; i++) {
+      var lk = lvl.connectedLinks[i];
+      if (lk.col < 0 || lk.col > 1) continue;  // needs lanes col, col+1, col+2
+      makeConnectedGroup([lk.col, lk.col + 1, lk.col + 2], lk.depth);
+    }
+    return;
+  }
+
+  // Legacy fallback: random placement from a trio count.
   var numTrios = lvl.connectedTrios || 0;
   if (numTrios <= 0) return;
 
@@ -56,16 +86,7 @@ function placeConnectedTrios(lvl) {
       if (!pool.length) continue;
 
       var N = pool[Math.floor(Math.random() * pool.length)];
-      var group = { cols: cols, depth: N, members: [], unlocked: false, unlockT: 0 };
-      for (var k2 = 0; k2 < 3; k2++) {
-        var box = sortCols[cols[k2]][N];
-        box.connected = true;
-        box.locked = true;
-        box.connGroup = group;
-        group.members.push(box);
-      }
-      connectedGroups.push(group);
-      placed = true;
+      if (makeConnectedGroup(cols, N)) placed = true;
     }
   }
 }
