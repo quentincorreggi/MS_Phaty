@@ -181,18 +181,18 @@ function drawConnectedLinks() {
       }
     }
 
-    // Padlock badge over the middle member while locked.
+    // Padlock badge centered on the middle locked box.
     if (anyLocked) {
       var mid = pts[1];
-      var bx = mid.x, by = mid.y + linkY;
+      var bx = mid.x, by = mid.y;
       ctx.fillStyle = 'rgba(60,45,35,0.9)';
-      ctx.beginPath(); ctx.arc(bx, by, 7 * S, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,220,150,0.95)'; ctx.lineWidth = 1.6 * S; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(bx, by, 9 * S, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,220,150,0.95)'; ctx.lineWidth = 2 * S; ctx.lineCap = 'round';
       // shackle
-      ctx.beginPath(); ctx.arc(bx, by - 1.5 * S, 2.6 * S, Math.PI, 0); ctx.stroke();
+      ctx.beginPath(); ctx.arc(bx, by - 2 * S, 3.3 * S, Math.PI, 0); ctx.stroke();
       // body
       ctx.fillStyle = 'rgba(255,220,150,0.95)';
-      rRect(bx - 3 * S, by - 0.5 * S, 6 * S, 5 * S, 1.2 * S); ctx.fill();
+      rRect(bx - 3.8 * S, by - 0.5 * S, 7.6 * S, 6.5 * S, 1.4 * S); ctx.fill();
     }
 
     // Snap flash: expanding rings on each member the moment they unlock.
