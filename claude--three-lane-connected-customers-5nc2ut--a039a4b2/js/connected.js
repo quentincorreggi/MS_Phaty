@@ -153,8 +153,8 @@ function drawConnectedLinks() {
     if (!anyLocked && flash <= 0) continue;
 
     ctx.save();
-    // Chain runs above the boxes so it doesn't cover the marbles.
-    var linkY = -L.sBh / 2 - 4 * S;
+    // Chain runs through the vertical center of the linked boxes.
+    var linkY = 0;
     var chainCol = grp.unlocked ? 'rgba(120,200,120,' : 'rgba(90,70,55,';
     var alpha = grp.unlocked ? (0.7 * flash) : 0.85;
 
