@@ -237,6 +237,8 @@ function drawStock() {
         }
         drawBoxLip(b.ci);
       }
+      // Box types can paint an overlay on top of the open box.
+      if (bt.drawOpenOverlay) bt.drawOpenOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick);
     }
 
     if (b.iceHP > 0) {

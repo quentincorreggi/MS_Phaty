@@ -56,6 +56,13 @@ var blockerCollectCleared = false;
 var MRB_PER_BOX = 9, SORT_CAP = 3;
 var SORT_VISIBLE_ROWS = 4;
 
+// === PAINT BUCKET ===
+// How many other boxes a single paint splash recolors.
+var PAINT_REPAINT_COUNT = 3;
+// Set true when a paint box is tapped; consumed by the first of its
+// marbles to land on the belt, which fires the paint splash.
+var paintSplashPending = false;
+
 // Snake order for 3x3 grid
 var SNAKE_ORDER = [
   { r: 0, c: 0 }, { r: 0, c: 1 }, { r: 0, c: 2 },

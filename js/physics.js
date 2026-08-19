@@ -88,6 +88,8 @@ function physicsStep() {
         beltSlots[bestIdx].arriveAnim = 0.6;
         sfx.drop();
         spawnBurst(m.x, m.y, COLORS[m.ci].fill, 6);
+        // Paint marbles fire the paint splash the moment they land.
+        if (m.paint) onPaintMarbleLanded(m.x, m.y);
         physMarbles.splice(i, 1);
       }
     }
@@ -99,6 +101,8 @@ function spawnPhysMarbles(box) {
   var count = box.remaining;
   var blockerCount = box.blockerCount || 0;
   var blockerStart = MRB_PER_BOX - blockerCount;
+  var isPaint = (box.boxType === 'paint');
+  if (isPaint) paintSplashPending = true;
   for (var idx = 0; idx < count; idx++) {
     (function (i, b, bStart) {
       setTimeout(function () {
@@ -115,7 +119,7 @@ function spawnPhysMarbles(box) {
         var vx = (Math.random() - 0.5) * 2 * S;
         var vy = -(2 + Math.random() * 2) * S;
         var marbleCi = (blockerCount > 0 && spawnIdx >= bStart) ? BLOCKER_CI : b.ci;
-        physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR, spawnT: 1.0 });
+        physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR, spawnT: 1.0, paint: isPaint });
         sfx.drop();
         spawnBurst(mx, my, COLORS[marbleCi].fill, 4);
         if (b.remaining <= 0) {
