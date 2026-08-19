@@ -62,6 +62,9 @@ var PAINT_REPAINT_COUNT = 3;
 // Set true when a paint box is tapped; consumed by the first of its
 // marbles to land on the belt, which fires the paint splash.
 var paintSplashPending = false;
+// The tapped paint box's own color — the color the splash paints
+// other boxes (and their customers) to.
+var paintSplashCi = 0;
 
 // Snake order for 3x3 grid
 var SNAKE_ORDER = [

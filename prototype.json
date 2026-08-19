@@ -1,7 +1,7 @@
 {
   "name": "Paint Bucket",
-  "description": "A box full of marbles marked with a paint bucket. Tap it and its marbles pour out — the moment they splash down onto the belt, a burst of paint randomly recolors a few other boxes AND their matching customers, so the level stays balanced.",
-  "howToPlay": "Tap the paint bucket (bottom center) to pour its marbles. Watch the splash when they land: three other boxes flip to new random colors, and their matching order slots at the bottom flip with them. Then keep sorting as usual to clear every order.",
+  "description": "A box full of marbles marked with a paint bucket. Tap it and its marbles pour out — the moment they splash down onto the belt, a burst of paint recolors 3 other boxes to the bucket's OWN color, and flips their matching customers to match too, so the level stays balanced.",
+  "howToPlay": "Tap the paint bucket in the middle to pour its marbles. Watch the splash when they land: 3 other boxes flip to the bucket's color, and their matching order slots at the bottom flip with them. Then keep sorting as usual to clear every order.",
   "author": "Claude",
   "showcaseLevel": {
     "name": "Paint Bucket Showcase",

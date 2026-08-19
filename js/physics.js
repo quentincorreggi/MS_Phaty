@@ -102,7 +102,7 @@ function spawnPhysMarbles(box) {
   var blockerCount = box.blockerCount || 0;
   var blockerStart = MRB_PER_BOX - blockerCount;
   var isPaint = (box.boxType === 'paint');
-  if (isPaint) paintSplashPending = true;
+  if (isPaint) { paintSplashPending = true; paintSplashCi = box.ci; }
   for (var idx = 0; idx < count; idx++) {
     (function (i, b, bStart) {
       setTimeout(function () {
