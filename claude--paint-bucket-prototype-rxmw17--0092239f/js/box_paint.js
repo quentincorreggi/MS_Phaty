@@ -164,15 +164,20 @@ function onPaintMarbleLanded(x, y) {
   triggerPaintSplash(x, y);
 }
 
-// Recolor up to PAINT_REPAINT_COUNT untouched boxes to new random
-// colors, mirroring each change onto matching customer slots so the
-// level stays balanced. Fires a big multicolored splash at (x, y).
+// Recolor up to PAINT_REPAINT_COUNT untouched boxes to the paint
+// bucket's OWN color, mirroring each change onto matching customer
+// slots so the level stays balanced. Visible (revealed) boxes are
+// preferred so the splash is easy to see. Fires a splash at (x, y).
 function triggerPaintSplash(x, y) {
-  // Big paint splash at the landing point
+  var newCi = paintSplashCi;
+
+  // Big paint splash at the landing point, tinted the bucket's color.
   paintSplashBurst(x, y);
   if (typeof sfx !== 'undefined' && sfx.splash) sfx.splash();
 
-  // Collect eligible target boxes: untouched, colored, plain-ish boxes.
+  // Collect eligible target boxes: untouched, colored, plain-ish boxes
+  // that are not already the bucket's color (so every pick is a real
+  // visible change).
   var eligible = [];
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
@@ -182,15 +187,17 @@ function triggerPaintSplash(x, y) {
     if (b.boxType === 'blocker') continue;      // blockers keep their identity
     if (b.boxType === 'paint') continue;        // don't repaint other buckets
     if (b.remaining !== MRB_PER_BOX) continue;  // only untouched boxes
+    if (b.ci === newCi) continue;               // already this color
     eligible.push(b);
   }
   shuffle(eligible);
+  // Prefer boxes the player can actually see change (revealed first).
+  eligible.sort(function (a, b) { return (b.revealed ? 1 : 0) - (a.revealed ? 1 : 0); });
 
   var n = Math.min(PAINT_REPAINT_COUNT, eligible.length);
   for (var k = 0; k < n; k++) {
     var box = eligible[k];
     var oldCi = box.ci;
-    var newCi = randomOtherColor(oldCi);
     box.ci = newCi;
     box.shakeT = 0.5;
     box.popT = 1;
@@ -200,13 +207,6 @@ function triggerPaintSplash(x, y) {
     // stays in step (keeps the level solvable).
     repaintMatchingCustomers(oldCi, newCi);
   }
-}
-
-// Pick a random color index that differs from `avoid`.
-function randomOtherColor(avoid) {
-  var ci = ~~(Math.random() * NUM_COLORS);
-  if (ci === avoid) ci = (ci + 1 + ~~(Math.random() * (NUM_COLORS - 1))) % NUM_COLORS;
-  return ci;
 }
 
 // Flip up to ceil(MRB_PER_BOX / SORT_CAP) still-open customer slots
@@ -236,16 +236,18 @@ function repaintMatchingCustomers(oldCi, newCi) {
   }
 }
 
-// Multicolored paint-splatter particle burst.
+// Paint-splatter particle burst, mostly the bucket's color with a
+// few stray droplets for flair.
 function paintSplashBurst(x, y) {
   for (var i = 0; i < 22; i++) {
     var a = Math.PI * 2 * i / 22 + Math.random() * 0.5;
     var sp = 3 + Math.random() * 6;
+    var col = (Math.random() < 0.75) ? COLORS[paintSplashCi].fill : COLORS[~~(Math.random() * NUM_COLORS)].fill;
     particles.push({
       x: x, y: y,
       vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S - 2 * S,
       r: (2 + Math.random() * 5) * S,
-      color: COLORS[~~(Math.random() * NUM_COLORS)].fill,
+      color: col,
       life: 1, decay: 0.02 + Math.random() * 0.02, grav: true
     });
   }
