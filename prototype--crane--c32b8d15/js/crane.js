@@ -305,34 +305,6 @@ function drawCraneOnGrid(ctx, x, y, w, h, S, tick, previewCi, playable, lifting,
   ctx.restore();
 }
 
-// Dashed link from each playable crane to the box it would lift.
-function drawCraneLinks() {
-  for (var i = 0; i < stock.length; i++) {
-    var s = stock[i];
-    if (!s || !s.isCrane || s.craneLifting || !s.revealed) continue;
-    var t = s.craneTarget;
-    if (t === undefined || t < 0 || t >= stock.length || !stock[t]) continue;
-    var tb = stock[t];
-    var pulse = 0.32 + Math.sin(tick * 0.09) * 0.18;
-
-    ctx.save();
-    ctx.setLineDash([4 * S, 4 * S]);
-    ctx.lineDashOffset = -(tick * 0.4) % (8 * S);
-    ctx.strokeStyle = 'rgba(255,194,74,' + pulse + ')';
-    ctx.lineWidth = 1.6 * S;
-    ctx.beginPath();
-    ctx.moveTo(s.x + L.bw / 2, s.y + L.bh / 2);
-    ctx.lineTo(tb.x + L.bw / 2, tb.y + L.bh / 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.strokeStyle = 'rgba(255,194,74,' + (0.45 + pulse * 0.6) + ')';
-    ctx.lineWidth = 2.4 * S;
-    rRect(tb.x - 2 * S, tb.y - 2 * S, L.bw + 4 * S, L.bh + 4 * S, 8 * S);
-    ctx.stroke();
-    ctx.restore();
-  }
-}
-
 // Boxes currently in flight between their old cell and the crane.
 function drawCraneCarries() {
   for (var i = 0; i < craneCarries.length; i++) {

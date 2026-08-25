@@ -571,7 +571,6 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
-    drawCraneLinks();
     drawCraneCarries();
     drawPhysMarbles();
     drawBelt();
