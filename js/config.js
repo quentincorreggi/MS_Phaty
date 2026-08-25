@@ -8,6 +8,7 @@ var W = 0, H = 0, S = 1;
 var L = {};
 var beltPath = [];
 var stock = [], sortCols = [], particles = [], physMarbles = [], jumpers = [];
+var craneCarries = [];   // boxes in flight from their old cell to a crane
 var score = 0, won = false, tick = 0, hoverIdx = -1;
 var audioCtx = null;
 

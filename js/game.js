@@ -30,6 +30,7 @@ function startLevel(idx) {
 // === GAME INIT ===
 function initGame() {
   won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
+  craneCarries = [];
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
   document.getElementById('win-screen').classList.remove('show');
@@ -42,12 +43,17 @@ function initGame() {
   var boxSlots = {};
   var tunnelSlots = {};
   var wallSlots = {};
+  var craneSlots = {};
   if (lvl.grid) {
     for (var i = 0; i < Math.min(lvl.grid.length, totalSlots); i++) {
       var cell = lvl.grid[i];
       if (cell === null || cell === undefined) continue;
       if (cell.wall) {
         wallSlots[i] = true;
+        continue;
+      }
+      if (cell.crane) {
+        craneSlots[i] = true;
         continue;
       }
       if (cell.tunnel) {
@@ -95,6 +101,7 @@ function initGame() {
     var slot = boxSlots[idx];
     var tSlot = tunnelSlots[idx];
     var wSlot = wallSlots[idx];
+    var cSlot = craneSlots[idx];
 
     if (tSlot) {
       // Tunnel entry
@@ -120,6 +127,18 @@ function initGame() {
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
+      });
+    } else if (cSlot) {
+      // Crane cell — holds no marbles, fetches a box when played
+      stock.push({
+        isCrane: true, isTunnel: false, isWall: false,
+        craneLifting: false, craneTarget: -1, cranePreviewCi: -1,
+        ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
+        revealed: false, empty: false, boxType: 'default',
+        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
+        idlePhase: Math.random() * Math.PI * 2
       });
     } else if (!slot) {
       stock.push({ ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
@@ -182,6 +201,7 @@ function updateBoxReveals(animate) {
     if (!s) { passable[i] = false; continue; }
     if (s.isWall) { passable[i] = false; continue; }
     if (s.isTunnel) { passable[i] = false; continue; }
+    if (s.isCrane) { passable[i] = false; continue; }
     passable[i] = !!(s.empty || s.used);
   }
 
@@ -243,7 +263,7 @@ function updateBoxReveals(animate) {
       if (animate) {
         b.revealT = 1.0;
         var bx = b.x + L.bw / 2, by = b.y + L.bh / 2;
-        var burstColor = (b.boxType === 'hidden') ? '#FFD700' : COLORS[b.ci].fill;
+        var burstColor = b.isCrane ? '#FFC24A' : ((b.boxType === 'hidden') ? '#FFD700' : COLORS[b.ci].fill);
         for (var p = 0; p < 12; p++) {
           var ang = Math.PI * 2 * p / 12 + Math.random() * 0.3;
           var sp = 3 + Math.random() * 4;
@@ -315,6 +335,7 @@ function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
   if (b.isWall) return false;      // walls are not tappable
+  if (b.craneLifting) return false; // crane is busy carrying a box
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
@@ -334,6 +355,7 @@ function handleTap(px, py) {
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
+      if (b.isCrane) { craneActivate(i); return; }
       b.popT = 1;
       sfx.pop();
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
@@ -373,6 +395,10 @@ function update() {
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
+
+  // ── Cranes: live preview + carry animation ──
+  updateCranePreviews();
+  updateCraneCarries();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -545,6 +571,8 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    drawCraneLinks();
+    drawCraneCarries();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();

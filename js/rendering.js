@@ -187,6 +187,24 @@ function drawStock() {
     var hs = 1 + b.hoverT * 0.05;
     var ts = ps * hs;
 
+    // ── Crane ──
+    if (b.isCrane) {
+      ctx.save();
+      ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2); ctx.scale(ts, ts);
+      if (isBoxTappable(i) && b.hoverT > 0.01) {
+        ctx.save();
+        ctx.globalAlpha = b.hoverT * 0.35;
+        ctx.shadowColor = 'rgba(255,194,74,0.9)'; ctx.shadowBlur = 20 * S * b.hoverT;
+        ctx.fillStyle = 'rgba(255,194,74,0.6)';
+        rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.fill();
+        ctx.restore();
+      }
+      drawCraneOnGrid(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, tick,
+        b.cranePreviewCi, b.revealed && !b.craneLifting, b.craneLifting, b.idlePhase);
+      ctx.restore();
+      continue;
+    }
+
     // Empty slot
     if (b.empty) { drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
 
