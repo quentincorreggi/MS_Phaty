@@ -1,5 +1,0 @@
-{
-  "name": "Gem Digger",
-  "description": "A marble-shooter mode on an auto-scrolling board. Shoot colored marbles to pop matching groups down to the conveyor, and free the gems buried in the field.",
-  "howToPlay": "Aim with your finger and tap to shoot. Forming a group of 3+ same-color marbles releases them to the belt. Wrong-color shots stick and fill the board. Free a gem by clearing the marble holding it up from below. Collect 5 gems to win — but don't let the board reach the red danger line or the conveyor overflow!"
-}

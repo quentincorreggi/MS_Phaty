@@ -19,12 +19,12 @@
 // ── Tunables (design knobs) ──
 var GEM_COLS          = 6;      // board width (columns)
 var GEM_NUM_COLORS    = 5;      // uses COLORS[0..4]
-var GEM_TARGET        = 5;      // gems to collect to win
+var GEM_TARGET        = 3;      // gems to collect to win
 var GEM_MIN_MATCH     = 3;      // same-colour group size needed to release
 var GEM_SCROLL_SPEED  = 0.0020; // board descent, in cells per frame (very slow)
 var GEM_SCROLL_PER_DROP = 0.03; // extra descent per marble released
-var GEM_GEM_CHANCE    = 0.11;   // chance to seed a gem in an eligible new cell
-var GEM_MAX_GEMS      = 10;     // max gems present on the board at once
+var GEM_GEM_CHANCE    = 0.14;   // chance to seed a gem in an eligible new cell
+var GEM_MAX_GEMS      = 6;      // max gems present on the board at once
 var GEM_INIT_ROWS     = 5;      // rows generated at start (near the top)
 var GEM_TARGET_ROWS   = 11;     // visible rows down to the danger line (zoom-out)
 var GEM_CLUSTER       = 0.68;   // prob a new cell copies a neighbour's colour
@@ -221,7 +221,50 @@ function gemLand(r, c, ci) {
   sfx.drop();
   spawnBurst(gemCellCX(c), gemCellCY(r), COLORS[ci].fill, 6);
   gemResolveMatch(r, c, ci);
-  gemCheckGems();
+  // Cascade: anything no longer hanging from the top falls, then collect
+  // any gem left unsupported. Repeat until the board is stable.
+  var guard = 0;
+  while (guard++ < 16) {
+    var a = gemDropFloating();
+    var b = gemCheckGems();
+    if (!a && !b) break;
+  }
+}
+
+// Release every marble that is no longer connected to the top row (the
+// board's anchor). Gems are left for gemCheckGems. Returns true if any
+// marble fell.
+function gemDropFloating() {
+  var n = gemGrid.length;
+  if (n === 0) return false;
+  var reached = [];
+  for (var r = 0; r < n; r++) reached.push(new Array(GEM_COLS));
+  var stack = [];
+  for (var c = 0; c < GEM_COLS; c++) {
+    if (gemGrid[0][c]) { reached[0][c] = true; stack.push([0, c]); }
+  }
+  while (stack.length) {
+    var cur = stack.pop();
+    var cr = cur[0], cc = cur[1];
+    var nb = [[cr - 1, cc], [cr + 1, cc], [cr, cc - 1], [cr, cc + 1]];
+    for (var i = 0; i < 4; i++) {
+      var rr = nb[i][0], ccc = nb[i][1];
+      if (rr < 0 || rr >= n || ccc < 0 || ccc >= GEM_COLS) continue;
+      if (reached[rr][ccc]) continue;
+      if (gemGrid[rr][ccc]) { reached[rr][ccc] = true; stack.push([rr, ccc]); }
+    }
+  }
+  var dropped = false;
+  for (var r2 = 0; r2 < n; r2++) {
+    for (var c2 = 0; c2 < GEM_COLS; c2++) {
+      var cell = gemGrid[r2][c2];
+      if (cell && !cell.gem && !reached[r2][c2]) {
+        gemReleaseCell(r2, c2, cell.ci);
+        dropped = true;
+      }
+    }
+  }
+  return dropped;
 }
 
 // Flood-fill the same-colour connected group; release it if 2+.
@@ -265,15 +308,17 @@ function gemReleaseCell(r, c, ci) {
 
 // Collect any gem that no longer has a marble directly below it.
 function gemCheckGems() {
+  var collected = false;
   for (var r = 0; r < gemGrid.length; r++) {
     for (var c = 0; c < GEM_COLS; c++) {
       var cell = gemGrid[r][c];
       if (!cell || !cell.gem) continue;
       var below = (r + 1 < gemGrid.length) ? gemGrid[r + 1][c] : null;
       var supported = below && below.ci !== undefined; // a marble holds it
-      if (!supported) gemCollectGem(r, c);
+      if (!supported) { gemCollectGem(r, c); collected = true; }
     }
   }
+  return collected;
 }
 
 function gemCollectGem(r, c) {
@@ -381,35 +426,63 @@ function updateGemDigger() {
 }
 
 // ── Drawing ──
-function drawGem(x, y, size, rot, glow) {
+function drawGem(x, y, size, phase, glow) {
+  phase = phase || 0;
+  var pulse = 1 + Math.sin(tick * 0.11 + phase) * 0.07;
+  var s = size * pulse;
+  // Pulsing halo so gems pop out from the marble field.
+  if (glow) {
+    ctx.save();
+    ctx.globalAlpha = 0.55 + Math.sin(tick * 0.11 + phase) * 0.2;
+    var halo = ctx.createRadialGradient(x, y, s * 0.3, x, y, s * 2.2);
+    halo.addColorStop(0, 'rgba(130,240,255,0.55)');
+    halo.addColorStop(0.5, 'rgba(130,240,255,0.18)');
+    halo.addColorStop(1, 'rgba(130,240,255,0)');
+    ctx.fillStyle = halo;
+    ctx.beginPath(); ctx.arc(x, y, s * 2.2, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+  // Diamond body (gently spinning).
   ctx.save();
   ctx.translate(x, y);
-  ctx.rotate(rot || 0);
-  if (glow) { ctx.shadowColor = 'rgba(120,230,255,0.9)'; ctx.shadowBlur = 14 * S; }
-  var grad = ctx.createLinearGradient(-size, -size, size, size);
-  grad.addColorStop(0, '#BFFCFF');
-  grad.addColorStop(0.5, '#49D6FF');
+  ctx.rotate(Math.sin(tick * 0.02 + phase) * 0.18);
+  if (glow) { ctx.shadowColor = 'rgba(60,180,255,0.85)'; ctx.shadowBlur = 12 * S; }
+  var grad = ctx.createLinearGradient(-s, -s, s, s);
+  grad.addColorStop(0, '#EFFEFF');
+  grad.addColorStop(0.42, '#5FE3FF');
   grad.addColorStop(1, '#1E7ACC');
   ctx.fillStyle = grad;
   ctx.beginPath();
-  ctx.moveTo(0, -size);
-  ctx.lineTo(size * 0.85, 0);
-  ctx.lineTo(0, size);
-  ctx.lineTo(-size * 0.85, 0);
+  ctx.moveTo(0, -s);
+  ctx.lineTo(s * 0.82, -s * 0.18);
+  ctx.lineTo(s * 0.52, s);
+  ctx.lineTo(-s * 0.52, s);
+  ctx.lineTo(-s * 0.82, -s * 0.18);
   ctx.closePath();
   ctx.fill();
   ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
-  ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.5 * S;
-  ctx.stroke();
-  // facets
-  ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1 * S;
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 1.6 * S; ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 1 * S;
   ctx.beginPath();
-  ctx.moveTo(-size * 0.85, 0); ctx.lineTo(size * 0.85, 0);
-  ctx.moveTo(0, -size); ctx.lineTo(0, size * 0.4);
+  ctx.moveTo(-s * 0.82, -s * 0.18); ctx.lineTo(s * 0.82, -s * 0.18);
+  ctx.moveTo(0, -s); ctx.lineTo(-s * 0.52, s);
+  ctx.moveTo(0, -s); ctx.lineTo(s * 0.52, s);
   ctx.stroke();
-  ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  ctx.beginPath(); ctx.arc(-size * 0.25, -size * 0.3, size * 0.14, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
+  // Twinkle sparkle on top.
+  var tw = 0.5 + 0.5 * Math.sin(tick * 0.16 + phase * 2);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(tick * 0.025 + phase);
+  ctx.globalAlpha = 0.55 + 0.45 * tw;
+  ctx.fillStyle = 'rgba(255,255,255,0.95)';
+  var sp = size * (0.5 + 0.28 * tw);
+  ctx.beginPath();
+  ctx.moveTo(0, -sp); ctx.lineTo(sp * 0.16, -sp * 0.16); ctx.lineTo(sp, 0); ctx.lineTo(sp * 0.16, sp * 0.16);
+  ctx.lineTo(0, sp); ctx.lineTo(-sp * 0.16, sp * 0.16); ctx.lineTo(-sp, 0); ctx.lineTo(-sp * 0.16, -sp * 0.16);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+  ctx.globalAlpha = 1;
 }
 
 function drawGemBoard() {
@@ -421,7 +494,7 @@ function drawGemBoard() {
       if (!cell) continue;
       var cx = gemCellCX(c);
       if (cell.gem) {
-        drawGem(cx, cy, G.mr * 0.95 * (1 + (cell.popT || 0) * 0.3), tick * 0.02 + (r + c), true);
+        drawGem(cx, cy, G.mr * 1.18 * (1 + (cell.popT || 0) * 0.35), (r * 1.7 + c), true);
       } else {
         drawMarble(cx, cy, G.mr, cell.ci);
       }
