@@ -17,18 +17,20 @@
 // ============================================================
 
 // ── Tunables (design knobs) ──
-var GEM_COLS          = 4;      // board width (columns)
+var GEM_COLS          = 6;      // board width (columns)
 var GEM_NUM_COLORS    = 5;      // uses COLORS[0..4]
 var GEM_TARGET        = 5;      // gems to collect to win
-var GEM_SCROLL_SPEED  = 0.0038; // board descent, in cells per frame (very slow)
-var GEM_SCROLL_PER_DROP = 0.06; // extra descent per marble released
-var GEM_GEM_CHANCE    = 0.13;   // chance to seed a gem in an eligible new cell
-var GEM_MAX_GEMS      = 8;      // max gems present on the board at once
-var GEM_INIT_ROWS     = 4;      // rows generated at start (near the top)
-var GEM_TARGET_ROWS   = 9;      // visible rows down to the danger line (zoom-out)
-var GEM_CLUSTER       = 0.66;   // prob a new cell copies a neighbour's colour
+var GEM_MIN_MATCH     = 3;      // same-colour group size needed to release
+var GEM_SCROLL_SPEED  = 0.0020; // board descent, in cells per frame (very slow)
+var GEM_SCROLL_PER_DROP = 0.03; // extra descent per marble released
+var GEM_GEM_CHANCE    = 0.11;   // chance to seed a gem in an eligible new cell
+var GEM_MAX_GEMS      = 10;     // max gems present on the board at once
+var GEM_INIT_ROWS     = 5;      // rows generated at start (near the top)
+var GEM_TARGET_ROWS   = 11;     // visible rows down to the danger line (zoom-out)
+var GEM_CLUSTER       = 0.68;   // prob a new cell copies a neighbour's colour
 var GEM_BELT_SLOTS    = 50;     // conveyor capacity in this mode
 var GEM_SORT_CAP      = 3;      // marbles per customer order
+var GEM_ORDER_QUEUE   = 4;      // customer orders queued (stacked) per column
 var GEM_SHOT_SPEED    = 16;     // projectile speed (px * S per frame)
 
 // ── State ──
@@ -150,9 +152,11 @@ function initGemDigger() {
   gemGrid = [newGemRow(null)];
   for (var i = 1; i < GEM_INIT_ROWS; i++) gemGrid.unshift(newGemRow(gemGrid[0]));
 
-  // Endless customers: one active order per column, refilled on completion.
+  // Endless customers: a stacked queue of orders per column, refilled as
+  // the front order completes.
   sortCols = [[], [], [], []];
-  for (var c = 0; c < 4; c++) sortCols[c].push(gemNewOrder());
+  for (var c = 0; c < 4; c++)
+    for (var q = 0; q < GEM_ORDER_QUEUE; q++) sortCols[c].push(gemNewOrder());
 
   gemShotCi = pickShotColor();
   gemNextCi = pickShotColor();
@@ -238,7 +242,7 @@ function gemResolveMatch(sr, sc, ci) {
     stack.push([r - 1, c]); stack.push([r + 1, c]);
     stack.push([r, c - 1]); stack.push([r, c + 1]);
   }
-  if (group.length >= 2) {
+  if (group.length >= GEM_MIN_MATCH) {
     for (var i = 0; i < group.length; i++) gemReleaseCell(group[i][0], group[i][1], ci);
     sfx.sort();
   }
@@ -349,11 +353,11 @@ function updateGemDigger() {
       if (gemGrid[r2][c2] && gemGrid[r2][c2].gem && gemGrid[r2][c2].popT > 0)
         gemGrid[r2][c2].popT = Math.max(0, gemGrid[r2][c2].popT - 0.03);
 
-  // Refill customers that have completed.
+  // Refill customer queues as completed orders drop off the front.
   for (var col = 0; col < 4; col++) {
     var arr = sortCols[col];
     for (var k = arr.length - 1; k >= 0; k--) if (!arr[k].vis) arr.splice(k, 1);
-    if (arr.length === 0) arr.push(gemNewOrder());
+    while (arr.length < GEM_ORDER_QUEUE) arr.push(gemNewOrder());
   }
 
   if (gemEnded) return;
