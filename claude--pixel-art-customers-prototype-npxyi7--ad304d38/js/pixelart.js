@@ -12,7 +12,8 @@
 
 var PX_W = 16;              // picture is always 16 pixels wide
 var PX_MATCH_WINDOW = 0.02; // belt-position tolerance for a lane
-var PX_ZOOM = 0.62;         // camera zoom-out factor for pixel levels
+var PX_ZOOM = 0.85;         // mild camera zoom-out for pixel levels (keeps
+                            // proportions close to the original game)
 
 // ── Normalize a raw pixelArt definition into {w,h,cells} ──
 // cells is a flat row-major array of color index (0..NUM_COLORS-1)
@@ -93,17 +94,19 @@ function computePixelLayout() {
   if (!pixelArt) return;
   var rows = pixelArt.h;
 
-  // The camera is zoomed out (small S) so the stock/funnel/belt occupy
-  // the top of the screen and leave a large area below for the picture.
-  // The picture fills that area — its size is driven by screen space,
-  // NOT by the (now narrow) belt, so a big chunk of the drawing shows.
-  var topGap = 22 * S;
-  var botMargin = 16 * S;
+  // The camera is only mildly zoomed out, so the stock/funnel/belt keep
+  // roughly their original proportions. The picture sits under the belt
+  // at about the play-area width (like the classic sort area) rather than
+  // filling the whole screen.
+  var topGap = 18 * S;
+  var botMargin = 14 * S;
   var areaTop = L.beltBotY + topGap;
   var availH = Math.max(40, H - areaTop - botMargin);
-  var availW = W * 0.94;
+  // Board width tracks the game column width so the ratio stays close to
+  // the original layout.
+  var maxBoardW = Math.min(W * 0.92, L.gameW * 1.12);
 
-  var size = Math.min(availW / PX_W, availH / rows);
+  var size = Math.min(maxBoardW / PX_W, availH / rows);
   size = Math.max(4, size);
 
   var gridW = size * PX_W;
@@ -112,7 +115,7 @@ function computePixelLayout() {
   L.pxSize = size;
   L.pxCols = PX_W;
   L.pxRows = rows;
-  L.pxLeft = W / 2 - gridW / 2;
+  L.pxLeft = L.cx - gridW / 2;
   L.pxTop = areaTop + (availH - gridH) / 2;
   if (L.pxTop < areaTop) L.pxTop = areaTop;
 
@@ -153,8 +156,38 @@ function pixelColorRow(c, ci) {
   return -1;
 }
 
+// ── Topmost row that still has any unserved pixel (the fill frontier) ──
+function pixelFrontierRow() {
+  for (var r = 0; r < L.pxRows; r++) {
+    for (var c = 0; c < PX_W; c++) {
+      var cell = pixelCells[r * PX_W + c];
+      if (cell && !cell.served) return r;
+    }
+  }
+  return L.pxRows;
+}
+
+// Rows below (frontier + PX_FILL_BAND) are not served yet, so the picture
+// fills top-to-bottom in bands rather than column by column.
+var PX_FILL_BAND = 2;
+
 // ── Belt → pixel matching + cleanup of marbles with no target ──
 function updatePixelMatching() {
+  var frontier = pixelFrontierRow();
+  var bandMax = frontier + PX_FILL_BAND;
+  // Which colours still have an unserved pixel inside the top band?
+  // A colour present in the band is filled band-first (row by row); a
+  // colour absent from the band may be served lower down so its marbles
+  // never pile up on the belt — keeping the fill safe from deadlock.
+  var bandHasColor = [];
+  for (var bc = 0; bc < NUM_COLORS; bc++) bandHasColor.push(false);
+  var bandRowMax = Math.min(bandMax, L.pxRows - 1);
+  for (var br = frontier; br <= bandRowMax; br++) {
+    for (var bx = 0; bx < PX_W; bx++) {
+      var bcell = pixelCells[br * PX_W + bx];
+      if (bcell && !bcell.served && !bcell.reserved) bandHasColor[bcell.ci] = true;
+    }
+  }
   for (var si = 0; si < BELT_SLOTS; si++) {
     var slot = beltSlots[si];
     if (slot.marble < 0) continue;
@@ -163,18 +196,25 @@ function updatePixelMatching() {
     // Blocker marbles have no home in a picture; let them ride.
     if (ci === BLOCKER_CI) continue;
 
-    // Find the closest lane that still holds a matching-color pixel.
+    // Among the lanes the marble is currently passing, prefer the one
+    // whose matching pixel is highest up (smallest row) so the picture
+    // fills row by row from the top; break ties by belt closeness.
     var slotT = getSlotT(si);
+    var rowLimit = bandHasColor[ci] ? bandMax : (L.pxRows - 1);
     var bestC = -1, bestRow = -1, bestDiff = Infinity;
     for (var c = 0; c < PX_W; c++) {
       var r = pixelColorRow(c, ci);
       if (r < 0) continue;
+      if (r > rowLimit) continue;          // keep the fill within the top band
       var diff = Math.abs(slotT - L.pxBeltT[c]);
       diff = Math.min(diff, 1 - diff);
-      if (diff < bestDiff) { bestDiff = diff; bestC = c; bestRow = r; }
+      if (diff >= PX_MATCH_WINDOW) continue;
+      if (bestC < 0 || r < bestRow || (r === bestRow && diff < bestDiff)) {
+        bestC = c; bestRow = r; bestDiff = diff;
+      }
     }
 
-    if (bestC >= 0 && bestDiff < PX_MATCH_WINDOW) {
+    if (bestC >= 0) {
       var cellIdx = bestRow * PX_W + bestC;
       var cell = pixelCells[cellIdx];
       cell.reserved = true;
@@ -235,57 +275,62 @@ function pixelArtComplete() {
 }
 
 // ============================================================
-// Preset pictures — generated so they always fit 16 wide.
+// Preset pictures — every cell is filled (a picture must be a full
+// rectangle: subject + background), generated to fit 16 wide.
 // ============================================================
+
+// Heart (crimson) with a pink outline on a blue background — 3 colours.
 function pixelPresetHeart() {
-  var w = PX_W, h = 12, cells = [];
+  var w = PX_W, h = 12;
+  var isHeart = [];
   for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
     var fx = (x - 7.5) / 6.2;
     var fy = (7.0 - y) / 5.0;
     var v = Math.pow(fx * fx + fy * fy - 1, 3) - fx * fx * fy * fy * fy;
-    cells.push(v <= 0 ? 7 : null);
+    isHeart.push(v <= 0);
+  }
+  var cells = [];
+  for (var y2 = 0; y2 < h; y2++) for (var x2 = 0; x2 < w; x2++) {
+    if (isHeart[y2 * w + x2]) { cells.push(7); continue; }
+    var edge = false;
+    for (var dy = -1; dy <= 1 && !edge; dy++) for (var dx = -1; dx <= 1; dx++) {
+      var nx = x2 + dx, ny = y2 + dy;
+      if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+      if (isHeart[ny * w + nx]) { edge = true; break; }
+    }
+    cells.push(edge ? 0 : 1); // pink outline, else blue background
   }
   return { w: w, h: h, cells: cells };
 }
 
+// Smiley: yellow face, purple features, blue background — 3 colours.
 function pixelPresetSmiley() {
-  var w = PX_W, h = 14, cells = [];
-  var cx = 7.5, cy = 6.6, R = 6.6;
+  var w = PX_W, h = 12, cells = [];
+  var cx = 7.5, cy = 5.6, R = 5.7;
   for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
     var dx = x - cx, dy = y - cy;
     var d = Math.sqrt(dx * dx + dy * dy);
-    var ci = null;
+    var ci = 1; // blue background
     if (d <= R) {
       ci = 3; // yellow face
-      // eyes
-      if ((Math.abs(dx + 2.5) < 1.1 || Math.abs(dx - 2.5) < 1.1) && dy > -3 && dy < -0.5) ci = 4;
-      // mouth (smile arc)
-      var md = Math.sqrt(dx * dx + (dy - 0.5) * (dy - 0.5));
-      if (md > 2.6 && md < 3.7 && dy > 1.2) ci = 4;
+      if ((Math.abs(dx + 2.3) < 1.0 || Math.abs(dx - 2.3) < 1.0) && dy > -2.6 && dy < -0.4) ci = 4;
+      var md = Math.sqrt(dx * dx + (dy - 0.3) * (dy - 0.3));
+      if (md > 2.2 && md < 3.2 && dy > 1.0) ci = 4;
     }
     cells.push(ci);
   }
   return { w: w, h: h, cells: cells };
 }
 
+// Mushroom: crimson cap, yellow stem, green background — 3 colours.
 function pixelPresetMushroom() {
-  var w = PX_W, h = 13, cells = [];
-  var cx = 7.5;
+  var w = PX_W, h = 12, cells = [];
   for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
-    var dx = x - cx, dy = y - 5.0;
-    var ci = null;
-    // cap: upper half ellipse
-    var cap = (dx * dx) / (6.6 * 6.6) + (dy * dy) / (5.2 * 5.2);
-    if (cap <= 1 && y <= 6) {
-      ci = 7; // crimson cap
-      // white-ish spots (use pink highlights)
-      var s1 = Math.sqrt((x - 4.0) * (x - 4.0) + (y - 3.0) * (y - 3.0));
-      var s2 = Math.sqrt((x - 11.0) * (x - 11.0) + (y - 3.5) * (y - 3.5));
-      var s3 = Math.sqrt((x - 7.5) * (x - 7.5) + (y - 1.6) * (y - 1.6));
-      if (s1 < 1.3 || s2 < 1.3 || s3 < 1.2) ci = 0;
-    }
-    // stem
-    if (y >= 6 && y <= 11 && Math.abs(dx) <= 2.6 - (y - 6) * 0.1) ci = 3;
+    var dx = x - 7.5, dyc = y - 4.6;
+    var ci = 2; // green background
+    var cap = (dx * dx) / (6.8 * 6.8) + (dyc * dyc) / (4.8 * 4.8);
+    if (cap <= 1 && y <= 6) ci = 7; // crimson cap
+    if (y >= 6 && y <= 11 && Math.abs(dx) <= 2.6 - (y - 6) * 0.12) ci = 3; // yellow stem
     cells.push(ci);
   }
   return { w: w, h: h, cells: cells };
