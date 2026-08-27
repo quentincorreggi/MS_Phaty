@@ -63,17 +63,16 @@ function pixelColorCounts() {
 // from the bottom row upward so each newly tappable row opens the
 // one above it (standard path-to-bottom reveal behaviour).
 function buildPixelStockGrid(counts, mrbPerBox) {
-  // Supply EXACTLY as many marbles as the picture needs (no surplus).
-  // The last box of each color carries the remainder so no leftover
-  // marble is ever stranded on the belt with nowhere to go.
+  // Every box always holds a FULL mrbPerBox (9) marbles — never a partial
+  // box. We place ceil(need / 9) boxes per colour, so the supply covers
+  // the picture with a small surplus. That surplus is the safety margin:
+  // if a marble is ever lost to a funnel jam, another can still fill the
+  // pixel, and once a colour is fully served its leftover marbles retire
+  // themselves at the belt (see updatePixelMatching), so nothing clogs.
   var boxes = [];
   for (var c = 0; c < NUM_COLORS; c++) {
-    var need = counts[c];
-    while (need > 0) {
-      var take = Math.min(mrbPerBox, need);
-      boxes.push({ ci: c, count: take });
-      need -= take;
-    }
+    var n = Math.ceil(counts[c] / mrbPerBox);
+    for (var k = 0; k < n; k++) boxes.push({ ci: c, count: mrbPerBox });
   }
   shuffle(boxes);
   var grid = [];
