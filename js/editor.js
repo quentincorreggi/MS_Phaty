@@ -17,6 +17,10 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  pictureMode: false,   // true when editing a pixel-art picture instead of boxes
+  pixelH: 12,           // picture height in pixels (width fixed at 16)
+  pixelCells: [],       // 16 x pixelH: null or color index
+  pixelColor: 7,        // active paint color for the picture
   visible: false
 };
 
@@ -34,6 +38,30 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.pictureMode = false;
+  editor.pixelH = 12;
+  editor.pixelColor = 7;
+  editorResizePixels(editor.pixelH);
+}
+
+// ── Pixel picture helpers ──
+function editorResizePixels(h) {
+  var old = editor.pixelCells || [];
+  var oldH = old.length / 16;
+  var cells = [];
+  for (var i = 0; i < 16 * h; i++) {
+    var row = Math.floor(i / 16), col = i % 16;
+    if (row < oldH) cells.push(old[row * 16 + col]);
+    else cells.push(null);
+  }
+  editor.pixelH = h;
+  editor.pixelCells = cells;
+}
+
+function editorPixelCount() {
+  var n = 0;
+  for (var i = 0; i < editor.pixelCells.length; i++) if (editor.pixelCells[i] !== null && editor.pixelCells[i] !== undefined) n++;
+  return n;
 }
 
 function showEditor(fresh) {
@@ -55,11 +83,174 @@ function hideEditor() {
 function editorBack() { hideEditor(); showLevelSelect(); }
 
 function editorBuildUI() {
+  editorRenderModeRow();
   editorRenderGrid();
   editorRenderToolbar();
+  editorRenderPixelUI();
+  editorApplyModeVisibility();
   editorRenderSettings();
   editorUpdateStats();
   editorRenderTunnelPanel();
+}
+
+// ── Mode row: Boxes vs Pixel Art ──
+function editorRenderModeRow() {
+  var el = document.getElementById('ed-mode-row');
+  if (!el) return;
+  el.innerHTML = '';
+  var modes = [
+    { pic: false, label: '📦 Boxes' },
+    { pic: true, label: '🎨 Pixel Art' }
+  ];
+  for (var i = 0; i < modes.length; i++) {
+    (function (m) {
+      var b = document.createElement('button');
+      b.className = 'ed-mode-btn' + (editor.pictureMode === m.pic ? ' active' : '');
+      b.innerHTML = m.label;
+      b.addEventListener('click', function () {
+        editor.pictureMode = m.pic;
+        editor.selectedTunnel = -1;
+        editorBuildUI();
+      });
+      el.appendChild(b);
+    })(modes[i]);
+  }
+}
+
+function editorApplyModeVisibility() {
+  var classic = document.getElementById('ed-classic-wrap');
+  var pixel = document.getElementById('ed-pixel-wrap');
+  var title = document.getElementById('ed-grid-title');
+  var tunnelPanel = document.getElementById('ed-tunnel-panel');
+  if (classic) classic.style.display = editor.pictureMode ? 'none' : '';
+  if (pixel) pixel.style.display = editor.pictureMode ? '' : 'none';
+  if (title) title.textContent = editor.pictureMode ? 'Draw Picture (16 wide)' : 'Box Grid';
+  if (editor.pictureMode && tunnelPanel) tunnelPanel.style.display = 'none';
+}
+
+// ── Pixel-art painter UI ──
+function editorRenderPixelUI() {
+  editorRenderPixelToolbar();
+  editorRenderPixelGrid();
+  editorRenderPixelPresets();
+}
+
+function editorRenderPixelToolbar() {
+  var el = document.getElementById('ed-pixel-toolbar');
+  if (!el) return;
+  el.innerHTML = '';
+
+  // Color palette (eraser + 8 colors)
+  var colorRow = document.createElement('div');
+  colorRow.className = 'ed-color-row';
+  var eraser = document.createElement('button');
+  eraser.className = 'ed-tool' + (editor.pixelColor === -1 ? ' active' : '');
+  eraser.style.background = 'rgba(180,165,145,0.5)';
+  eraser.innerHTML = '✖';
+  eraser.title = 'Eraser';
+  eraser.addEventListener('click', function () { editor.pixelColor = -1; editorRenderPixelToolbar(); });
+  colorRow.appendChild(eraser);
+  for (var ci = 0; ci < NUM_COLORS; ci++) {
+    (function (c) {
+      var cb = document.createElement('button');
+      cb.className = 'ed-tool' + (editor.pixelColor === c ? ' active' : '');
+      cb.style.background = COLORS[c].fill;
+      cb.title = CLR_NAMES[c];
+      cb.addEventListener('click', function () { editor.pixelColor = c; editorRenderPixelToolbar(); });
+      colorRow.appendChild(cb);
+    })(ci);
+  }
+  el.appendChild(colorRow);
+
+  // Height slider
+  var hRow = document.createElement('div');
+  hRow.id = 'ed-pixel-h-row';
+  hRow.innerHTML = '<label>Height</label>';
+  var slider = document.createElement('input');
+  slider.type = 'range'; slider.min = '4'; slider.max = '16'; slider.step = '1';
+  slider.value = editor.pixelH;
+  var val = document.createElement('span'); val.textContent = editor.pixelH + ' px';
+  slider.addEventListener('input', function () {
+    editorResizePixels(parseInt(slider.value));
+    val.textContent = slider.value + ' px';
+    editorRenderPixelGrid();
+    editorUpdateStats();
+  });
+  hRow.appendChild(slider); hRow.appendChild(val);
+  el.appendChild(hRow);
+}
+
+function editorRenderPixelGrid() {
+  var el = document.getElementById('ed-pixel-grid');
+  if (!el) return;
+  el.innerHTML = '';
+  for (var i = 0; i < editor.pixelCells.length; i++) {
+    var cell = document.createElement('div');
+    cell.className = 'ed-px';
+    var v = editor.pixelCells[i];
+    if (v !== null && v !== undefined) {
+      cell.style.background = COLORS[v].fill;
+    }
+    cell.setAttribute('data-idx', i);
+    cell.addEventListener('click', editorPixelClick);
+    cell.addEventListener('contextmenu', editorPixelErase);
+    el.appendChild(cell);
+  }
+}
+
+function editorPixelClick(e) {
+  var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+  if (editor.pixelColor === -1) editor.pixelCells[idx] = null;
+  else if (editor.pixelCells[idx] === editor.pixelColor) editor.pixelCells[idx] = null;
+  else editor.pixelCells[idx] = editor.pixelColor;
+  editorRenderPixelGrid();
+  editorUpdateStats();
+}
+
+function editorPixelErase(e) {
+  e.preventDefault();
+  var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+  editor.pixelCells[idx] = null;
+  editorRenderPixelGrid();
+  editorUpdateStats();
+}
+
+function editorRenderPixelPresets() {
+  var el = document.getElementById('ed-pixel-presets');
+  if (!el) return;
+  el.innerHTML = '';
+  var presets = [
+    { key: 'heart', label: '❤️ Heart' },
+    { key: 'smiley', label: '🙂 Smiley' },
+    { key: 'mushroom', label: '🍄 Mushroom' }
+  ];
+  for (var i = 0; i < presets.length; i++) {
+    (function (p) {
+      var b = document.createElement('button');
+      b.className = 'ed-qbtn';
+      b.innerHTML = p.label;
+      b.addEventListener('click', function () { editorLoadPreset(p.key); });
+      el.appendChild(b);
+    })(presets[i]);
+  }
+  var clr = document.createElement('button');
+  clr.className = 'ed-qbtn';
+  clr.innerHTML = '🧹 Clear';
+  clr.addEventListener('click', function () {
+    for (var i = 0; i < editor.pixelCells.length; i++) editor.pixelCells[i] = null;
+    editorRenderPixelGrid(); editorUpdateStats();
+  });
+  el.appendChild(clr);
+}
+
+function editorLoadPreset(key) {
+  if (typeof PIXEL_PRESETS === 'undefined' || !PIXEL_PRESETS[key]) return;
+  var pa = PIXEL_PRESETS[key]();
+  editor.pixelH = pa.h;
+  editor.pixelCells = pa.cells.slice();
+  editorRenderPixelToolbar();
+  editorRenderPixelGrid();
+  editorUpdateStats();
 }
 
 // ── Grid ──
@@ -447,6 +638,23 @@ function editorClearAll() {
 
 // ── Stats ──
 function editorUpdateStats() {
+  var el0 = document.getElementById('ed-stats');
+  if (editor.pictureMode) {
+    var pc = [];
+    for (var c = 0; c < NUM_COLORS; c++) pc.push(0);
+    var totalPx = 0;
+    for (var i = 0; i < editor.pixelCells.length; i++) {
+      var v = editor.pixelCells[i];
+      if (v !== null && v !== undefined) { pc[v]++; totalPx++; }
+    }
+    var html0 = '<span class="ed-stat-total">' + totalPx + ' pixels · 16×' + editor.pixelH + '</span>';
+    for (var c = 0; c < NUM_COLORS; c++) {
+      if (pc[c] > 0) html0 += '<span class="ed-stat-chip" style="background:' + COLORS[c].fill + '">' + pc[c] + '</span>';
+    }
+    if (totalPx === 0) html0 += '<span class="ed-stat-warn">Draw a picture — or load a preset below</span>';
+    el0.innerHTML = html0;
+    return;
+  }
   var counts = [];
   var regularMrb = [];
   for (var c = 0; c < NUM_COLORS; c++) { counts.push(0); regularMrb.push(0); }
@@ -563,6 +771,13 @@ function editorRenderSettings() {
 
 // ── Build level definition ──
 function editorBuildLevel() {
+  if (editor.pictureMode) {
+    return {
+      name: editor.name, desc: editor.desc,
+      mrbPerBox: editor.mrbPerBox,
+      pixelArt: { w: 16, h: editor.pixelH, cells: editor.pixelCells.slice() }
+    };
+  }
   return {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
@@ -573,9 +788,13 @@ function editorBuildLevel() {
 
 // ── Test play ──
 function editorTestPlay() {
-  var total = 0;
-  for (var i = 0; i < 49; i++) if (editor.grid[i]) total++;
-  if (total === 0) { editorShowToast('Place some boxes first!'); return; }
+  if (editor.pictureMode) {
+    if (editorPixelCount() === 0) { editorShowToast('Draw a picture first!'); return; }
+  } else {
+    var total = 0;
+    for (var i = 0; i < 49; i++) if (editor.grid[i]) total++;
+    if (total === 0) { editorShowToast('Place some boxes first!'); return; }
+  }
   hideEditor();
   var lvl = editorBuildLevel();
   var testIdx = LEVELS.length;
@@ -612,6 +831,19 @@ function editorImportJSON() {
   if (ta.style.display === 'block' && ta.value.trim()) {
     try {
       var lvl = JSON.parse(ta.value);
+      if (lvl.pixelArt && lvl.pixelArt.cells) {
+        editor.pictureMode = true;
+        var ph = lvl.pixelArt.h || Math.ceil(lvl.pixelArt.cells.length / 16);
+        var pcells = [];
+        for (var pi = 0; pi < 16 * ph; pi++) {
+          var pv = lvl.pixelArt.cells[pi];
+          pcells.push((pv === null || pv === undefined || pv < 0 || pv >= NUM_COLORS) ? null : (pv | 0));
+        }
+        editor.pixelH = ph;
+        editor.pixelCells = pcells;
+      } else {
+        editor.pictureMode = false;
+      }
       if (lvl.grid && lvl.grid.length === 49) {
         for (var i = 0; i < 49; i++) {
           var cell = lvl.grid[i];
@@ -651,9 +883,13 @@ function editorShowToast(msg) {
 
 // ── Save as Showcase (generates prototype.json content) ──
 function editorSaveShowcase() {
-  var total = 0;
-  for (var i = 0; i < 49; i++) if (editor.grid[i]) total++;
-  if (total === 0) { editorShowToast('Place some boxes first!'); return; }
+  if (editor.pictureMode) {
+    if (editorPixelCount() === 0) { editorShowToast('Draw a picture first!'); return; }
+  } else {
+    var total = 0;
+    for (var i = 0; i < 49; i++) if (editor.grid[i]) total++;
+    if (total === 0) { editorShowToast('Place some boxes first!'); return; }
+  }
 
   var level = editorBuildLevel();
   var proto = {

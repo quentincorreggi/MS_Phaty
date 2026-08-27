@@ -162,6 +162,23 @@
     display:flex;align-items:center;justify-content:center}
   .ed-tunnel-add-clr:hover{transform:scale(1.15);border-color:rgba(255,255,255,0.7)}
   .ed-tunnel-add-clr:active{transform:scale(0.9)}
+
+  /* ═══ PIXEL ART PAINTER ═══ */
+  #ed-mode-row{display:flex;gap:6px;justify-content:center;margin-bottom:10px}
+  .ed-mode-btn{padding:6px 16px;border:2px solid rgba(120,100,80,0.2);border-radius:10px;
+    font-family:'Fredoka',sans-serif;font-size:12px;font-weight:700;cursor:pointer;
+    color:#5A4A38;background:rgba(180,165,145,0.25);transition:all 0.15s}
+  .ed-mode-btn.active{background:rgba(123,82,160,0.2);border-color:rgba(123,82,160,0.55);color:#7B52A0}
+  .ed-mode-btn:hover{transform:scale(1.04)}
+  #ed-pixel-grid{display:grid;grid-template-columns:repeat(16,1fr);gap:1px;max-width:376px;margin:0 auto;
+    background:rgba(90,74,56,0.12);padding:4px;border-radius:8px}
+  .ed-px{aspect-ratio:1;border-radius:2px;cursor:pointer;background:rgba(255,255,255,0.35);
+    -webkit-tap-highlight-color:transparent;transition:transform 0.08s}
+  .ed-px:hover{transform:scale(1.25);z-index:1}
+  #ed-pixel-toolbar{display:flex;flex-direction:column;gap:6px;align-items:center;margin-bottom:8px}
+  #ed-pixel-h-row{display:flex;align-items:center;gap:8px;justify-content:center;font-size:11px;color:#5A4A38}
+  #ed-pixel-h-row input[type=range]{-webkit-appearance:none;width:120px;height:4px;background:rgba(90,74,56,0.15);border-radius:2px;outline:none}
+  #ed-pixel-h-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:#9060C4;cursor:pointer}
 </style>
 </head>
 <body>
@@ -220,12 +237,20 @@
       <div class="ed-text-row"><label>Desc</label><input id="ed-desc" type="text" value="My custom level" maxlength="50" oninput="editorSetDesc(this.value)"></div>
     </div>
     <div class="ed-section">
-      <div class="ed-section-title"><span class="icon">&#128230;</span> Box Grid <span style="font-weight:400;font-size:10px;color:#9C8A70;margin-left:auto">tap = paint &middot; right-click = erase</span></div>
-      <div id="ed-toolbar"></div>
-      <div id="ed-grid"></div>
-      <div class="ed-quick">
-        <button class="ed-qbtn" onclick="editorFillRandom()">&#127922; Random 24</button>
-        <button class="ed-qbtn" onclick="editorClearAll()">&#129529; Clear All</button>
+      <div class="ed-section-title"><span class="icon">&#128230;</span> <span id="ed-grid-title">Box Grid</span> <span style="font-weight:400;font-size:10px;color:#9C8A70;margin-left:auto">tap = paint &middot; right-click = erase</span></div>
+      <div id="ed-mode-row"></div>
+      <div id="ed-classic-wrap">
+        <div id="ed-toolbar"></div>
+        <div id="ed-grid"></div>
+        <div class="ed-quick">
+          <button class="ed-qbtn" onclick="editorFillRandom()">&#127922; Random 24</button>
+          <button class="ed-qbtn" onclick="editorClearAll()">&#129529; Clear All</button>
+        </div>
+      </div>
+      <div id="ed-pixel-wrap" style="display:none">
+        <div id="ed-pixel-toolbar"></div>
+        <div id="ed-pixel-grid"></div>
+        <div class="ed-quick" id="ed-pixel-presets"></div>
       </div>
       <div id="ed-stats"></div>
     </div>
@@ -267,6 +292,7 @@
 <script src="js/physics.js"></script>
 <script src="js/tunnel.js"></script>
 <script src="js/wall.js"></script>
+<script src="js/pixelart.js"></script>
 <script src="js/rendering.js"></script>
 <script src="js/editor.js"></script>
 <script src="js/game.js"></script>

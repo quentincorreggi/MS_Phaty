@@ -364,8 +364,15 @@ function drawJumpers() {
   for (var i = 0; i < jumpers.length; i++) {
     var j = jumpers[i]; var t = j.t;
     var e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-    var tx = L.sSx + j.targetCol * (L.sBw + L.sColGap) + L.sBw / 2 + (j.targetSlot - 1) * (L.sBw / 4);
-    var ty = getSortBoxY(j.targetCol, 0) + L.sBh / 2;
+    var tx, ty;
+    if (j.pixel) {
+      var pc = j.cellIdx % PX_W, pr = (j.cellIdx / PX_W) | 0;
+      tx = L.pxLeft + (pc + 0.5) * L.pxSize;
+      ty = L.pxTop + (pr + 0.5) * L.pxSize;
+    } else {
+      tx = L.sSx + j.targetCol * (L.sBw + L.sColGap) + L.sBw / 2 + (j.targetSlot - 1) * (L.sBw / 4);
+      ty = getSortBoxY(j.targetCol, 0) + L.sBh / 2;
+    }
     var x = j.startX + (tx - j.startX) * e;
     var y = j.startY + (ty - j.startY) * e - Math.sin(t * Math.PI) * 50 * S;
     var arcScale = 1 + Math.sin(t * Math.PI) * 0.25;
@@ -444,6 +451,79 @@ function drawSortArea() {
       ctx.font = 'bold ' + (8 * S) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       var label = topBox.type === 'lock' ? '\uD83D\uDD13' : visibleBoxes.length.toString();
       ctx.fillText(label, x + L.sBw / 2, L.sTop - 8 * S);
+    }
+  }
+}
+
+// ── Pixel art customers ──
+
+function drawPixelArt() {
+  if (!pixelArt || !L.pxSize) return;
+  var size = L.pxSize;
+  var pad = Math.max(1, size * 0.08);
+  var rad = Math.max(2 * S, size * 0.18);
+
+  // Soft board behind the whole picture.
+  var bx = L.pxLeft - pad * 2, by = L.pxTop - pad * 2;
+  var bw = size * PX_W + pad * 4, bh = size * L.pxRows + pad * 4;
+  ctx.save();
+  ctx.fillStyle = 'rgba(90,74,56,0.10)';
+  rRect(bx, by, bw, bh, size * 0.3); ctx.fill();
+  ctx.restore();
+
+  // Which pixel is "active" (next servable) in each column — for pulse.
+  var activeRow = [];
+  for (var c = 0; c < PX_W; c++) activeRow.push(pixelActiveRow(c));
+
+  for (var r = 0; r < L.pxRows; r++) {
+    for (var c2 = 0; c2 < PX_W; c2++) {
+      var idx = r * PX_W + c2;
+      var cell = pixelCells[idx];
+      if (!cell) continue;
+      var x = L.pxLeft + c2 * size + pad / 2;
+      var y = L.pxTop + r * size + pad / 2;
+      var s = size - pad;
+
+      if (cell.served) {
+        // Empty socket where the picture has been cleared.
+        if (cell.popT > 0) {
+          var pp = cell.popT;
+          ctx.save();
+          ctx.globalAlpha = pp;
+          ctx.fillStyle = COLORS[cell.ci].light;
+          var grow = 1 + (1 - pp) * 0.7;
+          rRect(x - s * (grow - 1) / 2, y - s * (grow - 1) / 2, s * grow, s * grow, rad * grow);
+          ctx.fill();
+          ctx.restore();
+        } else {
+          ctx.save();
+          ctx.fillStyle = 'rgba(90,74,56,0.06)';
+          rRect(x, y, s, s, rad); ctx.fill();
+          ctx.restore();
+        }
+        continue;
+      }
+
+      var isActive = (activeRow[c2] === r);
+      ctx.save();
+      ctx.translate(x + s / 2, y + s / 2);
+      if (isActive) {
+        var pulse = 1 + Math.sin(tick * 0.12) * 0.06;
+        ctx.scale(pulse, pulse);
+      }
+      var col = COLORS[cell.ci];
+      if (isActive) { ctx.shadowColor = col.glow; ctx.shadowBlur = size * 0.5; }
+      var g = ctx.createLinearGradient(0, -s / 2, 0, s / 2);
+      g.addColorStop(0, col.light); g.addColorStop(1, col.fill);
+      ctx.fillStyle = g;
+      rRect(-s / 2, -s / 2, s, s, rad); ctx.fill();
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+      // Top-left glossy highlight.
+      ctx.fillStyle = 'rgba(255,255,255,0.28)';
+      rRect(-s / 2 + s * 0.12, -s / 2 + s * 0.12, s * 0.5, s * 0.28, rad * 0.6); ctx.fill();
+      ctx.strokeStyle = col.dark; ctx.lineWidth = Math.max(1, s * 0.05);
+      rRect(-s / 2, -s / 2, s, s, rad); ctx.stroke();
+      ctx.restore();
     }
   }
 }

@@ -105,6 +105,11 @@ function computeLayout() {
     }
     L.sortBeltT.push(best / beltPath.length);
   }
+
+  // PIXEL ART grid (only when the current level uses picture mode)
+  if (pixelMode && pixelArt && typeof computePixelLayout === 'function') {
+    computePixelLayout();
+  }
 }
 
 function updateStockPositions() {
@@ -119,7 +124,7 @@ function updateStockPositions() {
 function resize() {
   W = window.innerWidth; H = window.innerHeight;
   canvas.width = W; canvas.height = H;
-  S = H / 850;
+  S = (H / 850) * cameraZoom;
   computeLayout();
   updateStockPositions();
 }

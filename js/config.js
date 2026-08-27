@@ -56,6 +56,13 @@ var blockerCollectCleared = false;
 var MRB_PER_BOX = 9, SORT_CAP = 3;
 var SORT_VISIBLE_ROWS = 4;
 
+// === PIXEL ART CUSTOMERS MODE ===
+var pixelMode = false;              // true when current level uses a pixel-art picture
+var pixelArt = null;                // normalized { w, h, cells } for the current level
+var pixelCells = [];                // runtime cells: null or { ci, served, reserved, popT, shineT, appearT }
+var pixelRemainingByColor = [];     // count of not-yet-served pixels per color
+var cameraZoom = 1;                 // <1 zooms the camera out (used by pixel-art levels)
+
 // Snake order for 3x3 grid
 var SNAKE_ORDER = [
   { r: 0, c: 0 }, { r: 0, c: 1 }, { r: 0, c: 2 },

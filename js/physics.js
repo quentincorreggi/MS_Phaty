@@ -71,9 +71,35 @@ function physicsStep() {
   var exitY = L.funnelBot;
   var exitL = L.funnelCx - L.funnelOpenW / 2;
   var exitR = L.funnelCx + L.funnelOpenW / 2;
+
+  // Anti-jam: marbles can form a stable arch over the narrow funnel
+  // exit. Any marble that sits nearly motionless in the lower funnel
+  // for a while gets a gentle nudge toward the exit gap to break the
+  // arch. Only stationary, stuck marbles are affected, so normal flow
+  // is untouched.
+  for (var i = 0; i < physMarbles.length; i++) {
+    var mm = physMarbles[i];
+    if (mm.lowFunnelT === undefined) mm.lowFunnelT = 0;
+    if (mm.y > L.funnelBendY) {
+      // Time spent lingering in the lower funnel, regardless of jitter.
+      mm.lowFunnelT++;
+      // Gentle nudge toward the narrow exit gap to help arches resolve.
+      if (mm.lowFunnelT > 45 && mm.lowFunnelT % 12 === 0) {
+        mm.vx += (L.funnelCx - mm.x) * 0.05 + (Math.random() - 0.5) * 1.4 * S;
+        mm.vy += 1.0 * S;
+      }
+    } else {
+      mm.lowFunnelT = 0;
+    }
+  }
+
   for (var i = physMarbles.length - 1; i >= 0; i--) {
     var m = physMarbles[i];
-    if (m.y + m.r >= exitY - 3 * S && m.x > exitL - m.r && m.x < exitR + m.r) {
+    var atExit = (m.y + m.r >= exitY - 3 * S && m.x > exitL - m.r && m.x < exitR + m.r);
+    // A marble wedged in a jam near the exit for a long time is drained
+    // onto the belt directly, so an arch can never strand marbles.
+    var forceDrain = (m.lowFunnelT > 120 && m.y + m.r >= L.funnelBendY);
+    if (atExit || forceDrain) {
       var entryT = getBeltEntryT();
       var bestIdx = -1, bestDist = Infinity;
       for (var k = 0; k < BELT_SLOTS; k++) {
@@ -83,7 +109,8 @@ function physicsStep() {
         diff = Math.min(diff, 1 - diff);
         if (diff < bestDist) { bestDist = diff; bestIdx = k; }
       }
-      if (bestIdx >= 0 && bestDist < 0.08) {
+      var limit = forceDrain ? 0.5 : 0.08;
+      if (bestIdx >= 0 && bestDist < limit) {
         beltSlots[bestIdx].marble = m.ci;
         beltSlots[bestIdx].arriveAnim = 0.6;
         sfx.drop();

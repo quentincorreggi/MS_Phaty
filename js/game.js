@@ -33,16 +33,39 @@ function initGame() {
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
   document.getElementById('win-screen').classList.remove('show');
+
+  var lvl = LEVELS[currentLevel];
+
+  // ── Pixel-art customers mode (must be set BEFORE computeLayout so the
+  //    camera zoom and pixel grid are baked into the layout) ──
+  pixelMode = !!(lvl && lvl.pixelArt);
+  if (pixelMode) {
+    pixelArt = normalizePixelArt(lvl.pixelArt);
+    cameraZoom = PX_ZOOM;
+    buildPixelState();
+  } else {
+    pixelArt = null; pixelCells = []; pixelRemainingByColor = []; cameraZoom = 1;
+  }
+
+  S = (H / 850) * cameraZoom;   // apply camera zoom before layout
   computeLayout(); initBeltSlots();
 
   var totalSlots = L.rows * L.cols;
-  var lvl = LEVELS[currentLevel];
 
   // ── Build boxSlots, tunnelSlots, wallSlots from grid or legacy random ──
   var boxSlots = {};
   var tunnelSlots = {};
   var wallSlots = {};
-  if (lvl.grid) {
+  MRB_PER_BOX = lvl.mrbPerBox ? lvl.mrbPerBox : 9;
+  if (lvl.sortCap) SORT_CAP = lvl.sortCap;
+  if (pixelMode) {
+    // Auto-generate a stock that supplies the marbles the picture needs.
+    var pcounts = pixelColorCounts();
+    var pgrid = buildPixelStockGrid(pcounts, MRB_PER_BOX);
+    for (var pgi = 0; pgi < pgrid.length; pgi++) {
+      if (pgrid[pgi]) boxSlots[pgi] = { ci: pgrid[pgi].ci, boxType: 'default', count: pgrid[pgi].count };
+    }
+  } else if (lvl.grid) {
     for (var i = 0; i < Math.min(lvl.grid.length, totalSlots); i++) {
       var cell = lvl.grid[i];
       if (cell === null || cell === undefined) continue;
@@ -59,8 +82,6 @@ function initGame() {
       }
     }
   }
-  if (lvl.mrbPerBox) MRB_PER_BOX = lvl.mrbPerBox;
-  if (lvl.sortCap) SORT_CAP = lvl.sortCap;
 
   // ── Count regular marbles per color for sort columns ──
   var colorMarblesTotal = [];
@@ -130,7 +151,7 @@ function initGame() {
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
-      stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
+      stock.push({ ci: slot.ci, used: false, remaining: (slot.count != null ? slot.count : MRB_PER_BOX), spawning: false, spawnIdx: 0,
         revealed: isIce ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
@@ -145,20 +166,24 @@ function initGame() {
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
 
-  // ── Sort columns ──
-  var allBoxes = [];
-  for (var c = 0; c < NUM_COLORS; c++) for (var r = 0; r < sortPerColor[c]; r++)
-    allBoxes.push({ ci: c, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0 });
-  shuffle(allBoxes);
-  sortCols = [[], [], [], []];
-  for (var i = 0; i < allBoxes.length; i++) sortCols[i % 4].push(allBoxes[i]);
+  // ── Sort columns (classic mode only) ──
+  if (pixelMode) {
+    sortCols = [];
+  } else {
+    var allBoxes = [];
+    for (var c = 0; c < NUM_COLORS; c++) for (var r = 0; r < sortPerColor[c]; r++)
+      allBoxes.push({ ci: c, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0 });
+    shuffle(allBoxes);
+    sortCols = [[], [], [], []];
+    for (var i = 0; i < allBoxes.length; i++) sortCols[i % 4].push(allBoxes[i]);
 
-  // Lock buttons
-  var numLocks = lvl.lockButtons || 0;
-  for (var li2 = 0; li2 < numLocks; li2++) {
-    var lockCol = Math.floor(Math.random() * 4);
-    var lockRow = Math.min(2 + Math.floor(Math.random() * 4), sortCols[lockCol].length);
-    sortCols[lockCol].splice(lockRow, 0, { type: 'lock', ci: -1, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0, triggerT: 0, triggered: false });
+    // Lock buttons
+    var numLocks = lvl.lockButtons || 0;
+    for (var li2 = 0; li2 < numLocks; li2++) {
+      var lockCol = Math.floor(Math.random() * 4);
+      var lockRow = Math.min(2 + Math.floor(Math.random() * 4), sortCols[lockCol].length);
+      sortCols[lockCol].splice(lockRow, 0, { type: 'lock', ci: -1, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0, triggerT: 0, triggered: false });
+    }
   }
 }
 
@@ -375,24 +400,28 @@ function update() {
   trySpawnFromTunnels();
 
   // Belt → sort matching
-  for (var si = 0; si < BELT_SLOTS; si++) {
-    var slot = beltSlots[si]; if (slot.marble < 0) continue;
-    var slotT = getSlotT(si);
-    for (var c = 0; c < 4; c++) {
-      var col = sortCols[c]; var tv = -1;
-      for (var r = 0; r < col.length; r++) { if (col[r].vis) { tv = r; break; } }
-      if (tv < 0 || col[tv].ci !== slot.marble) continue;
-      var inFlight = 0;
-      for (var j = 0; j < jumpers.length; j++) if (jumpers[j].targetCol === c) inFlight++;
-      if (col[tv].filled + inFlight >= SORT_CAP) continue;
-      var bt = L.sortBeltT[c]; var diff = Math.abs(slotT - bt); var wdiff = Math.min(diff, 1 - diff);
-      if (wdiff < 0.015) {
-        var aj = false;
-        for (var j = 0; j < jumpers.length; j++) if (jumpers[j].slotIdx === si) { aj = true; break; }
-        if (aj) continue;
-        var pos = getSlotPos(si);
-        jumpers.push({ ci: slot.marble, slotIdx: si, startX: pos.x, startY: pos.y, targetCol: c, targetSlot: col[tv].filled + inFlight, t: 0 });
-        slot.marble = -1; break;
+  if (pixelMode) {
+    updatePixelMatching();
+  } else {
+    for (var si = 0; si < BELT_SLOTS; si++) {
+      var slot = beltSlots[si]; if (slot.marble < 0) continue;
+      var slotT = getSlotT(si);
+      for (var c = 0; c < 4; c++) {
+        var col = sortCols[c]; var tv = -1;
+        for (var r = 0; r < col.length; r++) { if (col[r].vis) { tv = r; break; } }
+        if (tv < 0 || col[tv].ci !== slot.marble) continue;
+        var inFlight = 0;
+        for (var j = 0; j < jumpers.length; j++) if (jumpers[j].targetCol === c) inFlight++;
+        if (col[tv].filled + inFlight >= SORT_CAP) continue;
+        var bt = L.sortBeltT[c]; var diff = Math.abs(slotT - bt); var wdiff = Math.min(diff, 1 - diff);
+        if (wdiff < 0.015) {
+          var aj = false;
+          for (var j = 0; j < jumpers.length; j++) if (jumpers[j].slotIdx === si) { aj = true; break; }
+          if (aj) continue;
+          var pos = getSlotPos(si);
+          jumpers.push({ ci: slot.marble, slotIdx: si, startX: pos.x, startY: pos.y, targetCol: c, targetSlot: col[tv].filled + inFlight, t: 0 });
+          slot.marble = -1; break;
+        }
       }
     }
   }
@@ -401,6 +430,7 @@ function update() {
   for (var i = jumpers.length - 1; i >= 0; i--) {
     var j = jumpers[i]; j.t += 0.04;
     if (j.t >= 1) {
+      if (j.pixel) { servePixel(j.cellIdx, j.ci); jumpers.splice(i, 1); continue; }
       var col = sortCols[j.targetCol]; var tv = -1;
       for (var r = 0; r < col.length; r++) { if (col[r].vis) { tv = r; break; } }
       if (tv >= 0 && col[tv].ci === j.ci) {
@@ -484,6 +514,9 @@ function update() {
     if (physMarbles[i].spawnT > 0) physMarbles[i].spawnT = Math.max(0, physMarbles[i].spawnT - 0.05);
   }
 
+  // Pixel-art cell animations
+  if (pixelMode) tickPixels();
+
   // Sort box animations
   for (var c = 0; c < sortCols.length; c++) {
     var col = sortCols[c];
@@ -519,6 +552,19 @@ function update() {
 }
 
 function checkWin() {
+  if (pixelMode) {
+    if (!pixelArtComplete()) return;
+    if (!won) {
+      won = true; sfx.win();
+      document.getElementById('win-msg').textContent = 'Picture complete!';
+      spawnConfetti(W / 2, H / 3, 60);
+      setTimeout(function () { spawnConfetti(W * 0.3, H / 2, 40); }, 200);
+      setTimeout(function () { spawnConfetti(W * 0.7, H / 2, 40); }, 400);
+      setTimeout(function () { spawnConfetti(W / 2, H / 4, 50); }, 600);
+      setTimeout(function () { document.getElementById('win-screen').classList.add('show'); }, 2000);
+    }
+    return;
+  }
   for (var c = 0; c < sortCols.length; c++)
     for (var r = 0; r < sortCols[c].length; r++)
       if (sortCols[c][r].vis) return;
@@ -549,7 +595,7 @@ function frame() {
     drawBelt();
     drawBlockerProgress();
     drawJumpers();
-    drawSortArea();
+    if (pixelMode) drawPixelArt(); else drawSortArea();
     drawBackButton();
     drawParticles();
     drawDebugWalls();
@@ -566,7 +612,7 @@ function loadPrototypeJSON(callback) {
     return r.json();
   }).then(function(data) {
     prototypeInfo = data;
-    if (data.showcaseLevel && data.showcaseLevel.grid) {
+    if (data.showcaseLevel && (data.showcaseLevel.grid || data.showcaseLevel.pixelArt)) {
       LEVELS.push(data.showcaseLevel);
       levelStars.push(0);
       unlockedLevels = LEVELS.length;
