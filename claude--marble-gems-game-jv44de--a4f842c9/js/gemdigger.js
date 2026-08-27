@@ -19,9 +19,9 @@
 // ── Tunables (design knobs) ──
 var GEM_COLS          = 6;      // board width (columns)
 var GEM_NUM_COLORS    = 5;      // uses COLORS[0..4]
-var GEM_TARGET        = 3;      // gems to collect to win
+var GEM_TARGET        = 0;      // 0 = endless (no gem win); play until you lose
 var GEM_MIN_MATCH     = 3;      // same-colour group size needed to release
-var GEM_SCROLL_SPEED  = 0.0020; // board descent, in cells per frame (very slow)
+var GEM_SCROLL_SPEED  = 0.0028; // board descent, in cells per frame (slow)
 var GEM_SCROLL_PER_DROP = 0.03; // extra descent per marble released
 var GEM_GEM_CHANCE    = 0.14;   // chance to seed a gem in an eligible new cell
 var GEM_MAX_GEMS      = 6;      // max gems present on the board at once
@@ -329,7 +329,7 @@ function gemCollectGem(r, c) {
   spawnBurst(x, y, '#FFE066', 16);
   spawnConfetti(x, y, 10);
   sfx.complete();
-  if (gemCollected >= GEM_TARGET) gemGameEnd(true, '');
+  if (GEM_TARGET > 0 && gemCollected >= GEM_TARGET) gemGameEnd(true, '');
 }
 
 function gemGameEnd(win, reason) {
@@ -592,10 +592,11 @@ function drawGemHUD() {
   var y = 30 * S;
   ctx.save();
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  drawGem(W / 2 - 42 * S, y, 11 * S, 0, false);
+  var label = GEM_TARGET > 0 ? (gemCollected + ' / ' + GEM_TARGET) : String(gemCollected);
+  drawGem(W / 2 - 26 * S, y, 12 * S, 0, true);
   ctx.font = 'bold ' + (24 * S) + 'px Fredoka, sans-serif';
   ctx.fillStyle = '#5A4A38';
-  ctx.fillText(gemCollected + ' / ' + GEM_TARGET, W / 2 + 14 * S, y);
+  ctx.fillText(label, W / 2 + 14 * S, y);
   ctx.font = '600 ' + (11 * S) + 'px Fredoka, sans-serif';
   ctx.fillStyle = 'rgba(90,74,56,0.55)';
   ctx.fillText('gems collected', W / 2, y + 20 * S);
