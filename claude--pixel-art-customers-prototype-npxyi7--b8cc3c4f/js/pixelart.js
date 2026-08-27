@@ -70,19 +70,36 @@ function buildPixelStockGrid(counts, mrbPerBox) {
   // if a marble is ever lost to a funnel jam, another can still fill the
   // pixel, and once a colour is fully served its leftover marbles retire
   // themselves at the belt (see updatePixelMatching), so nothing clogs.
-  var boxes = [];
+  // Group the boxes by colour...
+  var groups = [];
   for (var c = 0; c < NUM_COLORS; c++) {
     var n = Math.ceil(counts[c] / mrbPerBox);
-    for (var k = 0; k < n; k++) boxes.push({ ci: c, count: mrbPerBox });
+    if (n > 0) {
+      var g = [];
+      for (var k = 0; k < n; k++) g.push(c);
+      groups.push(g);
+    }
   }
-  shuffle(boxes);
+  shuffle(groups); // random left-to-right order of the colours
+  // ...then interleave them round-robin so EVERY colour is reachable from
+  // the start (the bottom row holds one box of each colour). Otherwise a
+  // random shuffle can bury a colour deep in the stock, leaving its pixels
+  // exposed at a pole with no marble of that colour available for a while.
+  var boxes = [];
+  var again = true;
+  while (again) {
+    again = false;
+    for (var gi = 0; gi < groups.length; gi++) {
+      if (groups[gi].length) { boxes.push(groups[gi].shift()); again = true; }
+    }
+  }
   var grid = [];
   for (var i = 0; i < 49; i++) grid.push(null);
   // Fill bottom-up, left-to-right within each row.
   var placed = 0;
   for (var row = 6; row >= 0 && placed < boxes.length; row--) {
     for (var col = 0; col < 7 && placed < boxes.length; col++) {
-      grid[row * 7 + col] = { ci: boxes[placed].ci, count: boxes[placed].count };
+      grid[row * 7 + col] = { ci: boxes[placed], count: mrbPerBox };
       placed++;
     }
   }
