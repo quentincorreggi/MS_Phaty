@@ -219,72 +219,76 @@ function updatePixelMatching() {
   declogBelt();
 }
 
-// ── Anti-clog valve ─────────────────────────────────────────────────
+// ── Anti-clog valve (rescue serve) ──────────────────────────────────
 // With the strict pole rule the belt can jam: it fills with marbles whose
-// colour isn't exposed at any pole while the colour that IS needed sits
-// stuck in the funnel behind them. When that happens we send one belt
-// marble back up into the funnel, freeing a slot so a useful marble can
-// take its place. No marble is destroyed, the pole rule is untouched, and
-// colours keep cycling until a servable one reaches the belt.
+// colour is not exposed at any pole, while the colour that IS needed is
+// stuck elsewhere (in the funnel behind them). The rule stays intact —
+// only a pole is ever served and only by a matching colour — but during a
+// jam we relax the belt-ALIGNMENT requirement: if any marble in play (on
+// the belt or in the funnel) matches an open pole, we send it to serve
+// that pole directly. Because the supply always covers every colour, this
+// guarantees the picture can always be finished, whatever the tap order.
 var pixelClogT = 0;
 function declogBelt() {
-  // Colours currently exposed at an (unreserved) pole.
-  var poleColor = [];
-  for (var pc = 0; pc < NUM_COLORS; pc++) poleColor.push(false);
+  // First open (unreserved) pole cell for each colour.
+  var poleCell = [];
+  for (var pc = 0; pc < NUM_COLORS; pc++) poleCell.push(-1);
   for (var c = 0; c < PX_W; c++) {
     var pr = pixelActiveRow(c);
-    if (pr >= 0) { var pcell = pixelCells[pr * PX_W + c]; if (!pcell.reserved) poleColor[pcell.ci] = true; }
+    if (pr >= 0) { var pcell = pixelCells[pr * PX_W + c]; if (!pcell.reserved && poleCell[pcell.ci] < 0) poleCell[pcell.ci] = pr * PX_W + c; }
   }
+
   var emptySlots = 0, servable = false;
   for (var k = 0; k < BELT_SLOTS; k++) {
     var mk = beltSlots[k].marble;
     if (mk < 0) { emptySlots++; }
-    else if (mk !== BLOCKER_CI && poleColor[mk]) servable = true;
+    else if (mk !== BLOCKER_CI && poleCell[mk] >= 0) servable = true;
   }
+  // Not jammed: an empty slot exists, or a belt marble can serve normally.
   if (emptySlots > 0 || servable) { pixelClogT = 0; return; }
 
-  // Truly clogged: belt full, nothing on it can serve.
   pixelClogT++;
-  if (pixelClogT < 20) return;
+  if (pixelClogT < 15) return;
   pixelClogT = 0;
 
-  // Pick the belt marble nearest the belt entry to evict.
+  // Rescue: a belt marble matching an open pole (frees a belt slot too).
+  for (var k2 = 0; k2 < BELT_SLOTS; k2++) {
+    var m2 = beltSlots[k2].marble;
+    if (m2 < 0 || m2 === BLOCKER_CI) continue;
+    if (poleCell[m2] >= 0) { rescueServe(getSlotPos(k2), m2, poleCell[m2]); beltSlots[k2].marble = -1; return; }
+  }
+  // Rescue: a funnel marble matching an open pole.
+  for (var mi = 0; mi < physMarbles.length; mi++) {
+    var pm = physMarbles[mi];
+    if (pm.ci === BLOCKER_CI) continue;
+    if (poleCell[pm.ci] >= 0) { rescueServe({ x: pm.x, y: pm.y }, pm.ci, poleCell[pm.ci]); physMarbles.splice(mi, 1); return; }
+  }
+  // No in-play marble matches any pole → the needed colours are still in
+  // the boxes. Recirculate one belt marble so the belt keeps moving; the
+  // player just needs to release a colour that is at a pole.
   var entryT = getBeltEntryT();
   var worst = -1, wd = Infinity;
-  for (var k2 = 0; k2 < BELT_SLOTS; k2++) {
-    if (beltSlots[k2].marble < 0) continue;
-    var t = getSlotT(k2);
-    var d = Math.abs(t - entryT); d = Math.min(d, 1 - d);
-    if (d < wd) { wd = d; worst = k2; }
+  for (var k3 = 0; k3 < BELT_SLOTS; k3++) {
+    if (beltSlots[k3].marble < 0) continue;
+    var t = getSlotT(k3); var d = Math.abs(t - entryT); d = Math.min(d, 1 - d);
+    if (d < wd) { wd = d; worst = k3; }
   }
   if (worst < 0) return;
   var rci = beltSlots[worst].marble;
-  var pos = getSlotPos(worst);
-
-  // If a servable-colour marble is waiting in the funnel, promote it
-  // straight onto the freed slot — deterministic progress. Otherwise just
-  // recirculate the evicted marble so colours keep churning (and so the
-  // player is prompted to release a colour that is actually at a pole).
-  var fm = -1;
-  for (var mi = 0; mi < physMarbles.length; mi++) {
-    var pm = physMarbles[mi];
-    if (pm.ci !== BLOCKER_CI && poleColor[pm.ci]) { fm = mi; break; }
-  }
-  if (fm >= 0) {
-    beltSlots[worst].marble = physMarbles[fm].ci;
-    beltSlots[worst].arriveAnim = 0.6;
-    physMarbles.splice(fm, 1);
-    sfx.drop();
-  } else {
-    beltSlots[worst].marble = -1;
-  }
+  beltSlots[worst].marble = -1;
   physMarbles.push({
     x: L.funnelCx + (Math.random() - 0.5) * L.funnelOpenW,
     y: L.funnelTop + 30 * S,
     vx: (Math.random() - 0.5) * 2 * S, vy: 1.5 * S,
     ci: rci, r: getMR(), spawnT: 0, lowFunnelT: 0
   });
-  spawnBurst(pos.x, pos.y, COLORS[rci].light, 4);
+}
+
+function rescueServe(startPos, ci, cellIdx) {
+  pixelCells[cellIdx].reserved = true;
+  jumpers.push({ ci: ci, slotIdx: -1, startX: startPos.x, startY: startPos.y,
+    pixel: true, cellIdx: cellIdx, targetCol: 0, targetSlot: 0, t: 0 });
+  sfx.drop();
 }
 
 // ── Called when a pixel jumper lands ──
