@@ -35,6 +35,7 @@ function normalizePixelArt(pa) {
 // ── Build the runtime pixel state from pixelArt ──
 function buildPixelState() {
   pixelCells = [];
+  pixelClogT = 0;
   pixelRemainingByColor = [];
   for (var c = 0; c < NUM_COLORS; c++) pixelRemainingByColor.push(0);
   if (!pixelArt) return;
@@ -197,6 +198,76 @@ function updatePixelMatching() {
       }
     }
   }
+
+  declogBelt();
+}
+
+// ── Anti-clog valve ─────────────────────────────────────────────────
+// With the strict pole rule the belt can jam: it fills with marbles whose
+// colour isn't exposed at any pole while the colour that IS needed sits
+// stuck in the funnel behind them. When that happens we send one belt
+// marble back up into the funnel, freeing a slot so a useful marble can
+// take its place. No marble is destroyed, the pole rule is untouched, and
+// colours keep cycling until a servable one reaches the belt.
+var pixelClogT = 0;
+function declogBelt() {
+  // Colours currently exposed at an (unreserved) pole.
+  var poleColor = [];
+  for (var pc = 0; pc < NUM_COLORS; pc++) poleColor.push(false);
+  for (var c = 0; c < PX_W; c++) {
+    var pr = pixelActiveRow(c);
+    if (pr >= 0) { var pcell = pixelCells[pr * PX_W + c]; if (!pcell.reserved) poleColor[pcell.ci] = true; }
+  }
+  var emptySlots = 0, servable = false;
+  for (var k = 0; k < BELT_SLOTS; k++) {
+    var mk = beltSlots[k].marble;
+    if (mk < 0) { emptySlots++; }
+    else if (mk !== BLOCKER_CI && poleColor[mk]) servable = true;
+  }
+  if (emptySlots > 0 || servable) { pixelClogT = 0; return; }
+
+  // Truly clogged: belt full, nothing on it can serve.
+  pixelClogT++;
+  if (pixelClogT < 20) return;
+  pixelClogT = 0;
+
+  // Pick the belt marble nearest the belt entry to evict.
+  var entryT = getBeltEntryT();
+  var worst = -1, wd = Infinity;
+  for (var k2 = 0; k2 < BELT_SLOTS; k2++) {
+    if (beltSlots[k2].marble < 0) continue;
+    var t = getSlotT(k2);
+    var d = Math.abs(t - entryT); d = Math.min(d, 1 - d);
+    if (d < wd) { wd = d; worst = k2; }
+  }
+  if (worst < 0) return;
+  var rci = beltSlots[worst].marble;
+  var pos = getSlotPos(worst);
+
+  // If a servable-colour marble is waiting in the funnel, promote it
+  // straight onto the freed slot — deterministic progress. Otherwise just
+  // recirculate the evicted marble so colours keep churning (and so the
+  // player is prompted to release a colour that is actually at a pole).
+  var fm = -1;
+  for (var mi = 0; mi < physMarbles.length; mi++) {
+    var pm = physMarbles[mi];
+    if (pm.ci !== BLOCKER_CI && poleColor[pm.ci]) { fm = mi; break; }
+  }
+  if (fm >= 0) {
+    beltSlots[worst].marble = physMarbles[fm].ci;
+    beltSlots[worst].arriveAnim = 0.6;
+    physMarbles.splice(fm, 1);
+    sfx.drop();
+  } else {
+    beltSlots[worst].marble = -1;
+  }
+  physMarbles.push({
+    x: L.funnelCx + (Math.random() - 0.5) * L.funnelOpenW,
+    y: L.funnelTop + 30 * S,
+    vx: (Math.random() - 0.5) * 2 * S, vy: 1.5 * S,
+    ci: rci, r: getMR(), spawnT: 0, lowFunnelT: 0
+  });
+  spawnBurst(pos.x, pos.y, COLORS[rci].light, 4);
 }
 
 // ── Called when a pixel jumper lands ──
@@ -282,14 +353,20 @@ function pixelPresetSmiley() {
   return { w: w, h: h, cells: cells };
 }
 
-// Mushroom: crimson cap, yellow stem, green background — 3 colours.
+// Mushroom: crimson cap, pink spots, yellow stem, green background — 4 colours.
 function pixelPresetMushroom() {
   var w = PX_W, h = 12, cells = [];
   for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
     var dx = x - 7.5, dyc = y - 4.6;
     var ci = 2; // green background
     var cap = (dx * dx) / (6.8 * 6.8) + (dyc * dyc) / (4.8 * 4.8);
-    if (cap <= 1 && y <= 6) ci = 7; // crimson cap
+    if (cap <= 1 && y <= 6) {
+      ci = 7; // crimson cap
+      var s1 = Math.sqrt((x - 4.2) * (x - 4.2) + (y - 3.2) * (y - 3.2));
+      var s2 = Math.sqrt((x - 10.8) * (x - 10.8) + (y - 3.6) * (y - 3.6));
+      var s3 = Math.sqrt((x - 7.5) * (x - 7.5) + (y - 1.7) * (y - 1.7));
+      if (s1 < 1.5 || s2 < 1.5 || s3 < 1.3) ci = 0; // pink spots
+    }
     if (y >= 6 && y <= 11 && Math.abs(dx) <= 2.6 - (y - 6) * 0.12) ci = 3; // yellow stem
     cells.push(ci);
   }
