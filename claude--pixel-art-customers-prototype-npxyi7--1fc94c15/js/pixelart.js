@@ -132,61 +132,23 @@ function computePixelLayout() {
   }
 }
 
-// ── The topmost still-open pixel in a column (nearest the belt) ──
-// Used only as the visual "next in line" cue.
+// ── Pole position: the topmost still-open pixel in a column (nearest the
+// belt). Exactly like the front slot of a classic sort column — a marble
+// can ONLY serve this pixel, and only if it is the same colour. A marble
+// may never reach a matching pixel that sits behind a pixel of another
+// colour. Reserved pixels (a jumper already inbound) advance the pole. ──
 function pixelActiveRow(c) {
   for (var r = 0; r < L.pxRows; r++) {
     var cell = pixelCells[r * PX_W + c];
-    if (cell && !cell.served && !cell.reserved) return r;
+    // A reserved pixel (marble already inbound) is STILL the pole until it
+    // actually lands, so nothing behind it can be served first.
+    if (cell && !cell.served) return r;
   }
   return -1;
 }
-
-// ── Topmost open pixel of a given color in a column ──
-// Each pixel is an independent one-slot customer: a marble may serve
-// a matching pixel even if pixels of other colors sit above it. This
-// removes any color-ordering dependency, so with an exact marble
-// supply every marble finds its pixel within one belt loop.
-function pixelColorRow(c, ci) {
-  for (var r = 0; r < L.pxRows; r++) {
-    var cell = pixelCells[r * PX_W + c];
-    if (cell && !cell.served && !cell.reserved && cell.ci === ci) return r;
-  }
-  return -1;
-}
-
-// ── Topmost row that still has any unserved pixel (the fill frontier) ──
-function pixelFrontierRow() {
-  for (var r = 0; r < L.pxRows; r++) {
-    for (var c = 0; c < PX_W; c++) {
-      var cell = pixelCells[r * PX_W + c];
-      if (cell && !cell.served) return r;
-    }
-  }
-  return L.pxRows;
-}
-
-// Rows below (frontier + PX_FILL_BAND) are not served yet, so the picture
-// fills top-to-bottom in bands rather than column by column.
-var PX_FILL_BAND = 2;
 
 // ── Belt → pixel matching + cleanup of marbles with no target ──
 function updatePixelMatching() {
-  var frontier = pixelFrontierRow();
-  var bandMax = frontier + PX_FILL_BAND;
-  // Which colours still have an unserved pixel inside the top band?
-  // A colour present in the band is filled band-first (row by row); a
-  // colour absent from the band may be served lower down so its marbles
-  // never pile up on the belt — keeping the fill safe from deadlock.
-  var bandHasColor = [];
-  for (var bc = 0; bc < NUM_COLORS; bc++) bandHasColor.push(false);
-  var bandRowMax = Math.min(bandMax, L.pxRows - 1);
-  for (var br = frontier; br <= bandRowMax; br++) {
-    for (var bx = 0; bx < PX_W; bx++) {
-      var bcell = pixelCells[br * PX_W + bx];
-      if (bcell && !bcell.served && !bcell.reserved) bandHasColor[bcell.ci] = true;
-    }
-  }
   for (var si = 0; si < BELT_SLOTS; si++) {
     var slot = beltSlots[si];
     if (slot.marble < 0) continue;
@@ -195,22 +157,21 @@ function updatePixelMatching() {
     // Blocker marbles have no home in a picture; let them ride.
     if (ci === BLOCKER_CI) continue;
 
-    // Among the lanes the marble is currently passing, prefer the one
-    // whose matching pixel is highest up (smallest row) so the picture
-    // fills row by row from the top; break ties by belt closeness.
+    // Among the lanes the marble is currently passing, find a column whose
+    // POLE pixel (top of the column) matches this marble's colour. Closest
+    // belt alignment wins. Pixels behind the pole are never reachable.
     var slotT = getSlotT(si);
-    var rowLimit = bandHasColor[ci] ? bandMax : (L.pxRows - 1);
     var bestC = -1, bestRow = -1, bestDiff = Infinity;
     for (var c = 0; c < PX_W; c++) {
-      var r = pixelColorRow(c, ci);
+      var r = pixelActiveRow(c);
       if (r < 0) continue;
-      if (r > rowLimit) continue;          // keep the fill within the top band
+      var pole = pixelCells[r * PX_W + c];
+      if (pole.reserved) continue;          // this column's front is already being served
+      if (pole.ci !== ci) continue;         // only a same-colour marble serves the front
       var diff = Math.abs(slotT - L.pxBeltT[c]);
       diff = Math.min(diff, 1 - diff);
       if (diff >= PX_MATCH_WINDOW) continue;
-      if (bestC < 0 || r < bestRow || (r === bestRow && diff < bestDiff)) {
-        bestC = c; bestRow = r; bestDiff = diff;
-      }
+      if (diff < bestDiff) { bestDiff = diff; bestC = c; bestRow = r; }
     }
 
     if (bestC >= 0) {
