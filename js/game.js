@@ -7,6 +7,7 @@
 // === LEVEL SELECT ===
 function showLevelSelect() {
   gameActive = false;
+  gemMode = false;
   document.getElementById('win-screen').classList.remove('show');
   document.getElementById('cal-toggle').style.display = 'none';
   if (typeof editor !== 'undefined' && editor._testIdx !== undefined) {
@@ -29,6 +30,7 @@ function startLevel(idx) {
 
 // === GAME INIT ===
 function initGame() {
+  gemMode = false; BELT_SLOTS = 30;
   won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
@@ -328,6 +330,11 @@ function handleTap(px, py) {
   if (won || !gameActive) return;
   ensureAudio();
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
+  if (gemMode) {
+    if (gemEnded) { showLevelSelect(); return; }
+    gemShoot(px, py);
+    return;
+  }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
@@ -363,6 +370,7 @@ canvas.addEventListener('mousemove', function (e) {
 // === UPDATE ===
 function update() {
   if (!gameActive) return;
+  if (gemMode && gemEnded) { tickParticles(); return; }
   tick++;
   physicsStep();
 
@@ -370,6 +378,9 @@ function update() {
   for (var i = 0; i < BELT_SLOTS; i++) {
     if (beltSlots[i].arriveAnim > 0) beltSlots[i].arriveAnim = Math.max(0, beltSlots[i].arriveAnim - 0.025);
   }
+
+  // ── Gem Digger mode ──
+  if (gemMode) updateGemDigger();
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
@@ -519,6 +530,7 @@ function update() {
 }
 
 function checkWin() {
+  if (gemMode) return;
   for (var c = 0; c < sortCols.length; c++)
     for (var r = 0; r < sortCols[c].length; r++)
       if (sortCols[c][r].vis) return;
@@ -543,16 +555,21 @@ function frame() {
     update();
     ctx.clearRect(0, 0, W, H);
     drawBackground();
-    drawFunnel();
-    drawStock();
-    drawPhysMarbles();
-    drawBelt();
-    drawBlockerProgress();
-    drawJumpers();
-    drawSortArea();
-    drawBackButton();
-    drawParticles();
-    drawDebugWalls();
+    if (gemMode) {
+      drawGemMode();
+      drawParticles();
+    } else {
+      drawFunnel();
+      drawStock();
+      drawPhysMarbles();
+      drawBelt();
+      drawBlockerProgress();
+      drawJumpers();
+      drawSortArea();
+      drawBackButton();
+      drawParticles();
+      drawDebugWalls();
+    }
   }
   requestAnimationFrame(frame);
 }
