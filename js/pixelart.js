@@ -43,6 +43,7 @@ function normalizePixelArt(pa) {
 // ── Build the runtime pixel state from pixelArt ──
 function buildPixelState() {
   pixelCells = [];
+  pixelClogT = 0;
   pixelRemainingByColor = [];
   for (var c = 0; c < NUM_COLORS; c++) pixelRemainingByColor.push(0);
   if (!pixelArt) return;
@@ -160,8 +161,50 @@ function pixelActiveRow(c) {
   return -1;
 }
 
-// ── Belt → pixel matching — identical rule to the classic belt → sort.
+// ── The topmost row still holding any unserved pixel (the fill frontier).
+function pixelFrontierRow() {
+  for (var r = 0; r < L.pxRows; r++) {
+    for (var c = 0; c < PX_W; c++) {
+      var cell = pixelCells[r * PX_W + c];
+      if (cell && !cell.served) return r;
+    }
+  }
+  return L.pxRows;
+}
+
+// Horizontal priority: the fill is normally restricted to the top band
+// (frontier + PX_FILL_BAND) so the picture clears row by row. But if that
+// band cannot make progress right now — none of the colours it needs are
+// in play — the restriction is lifted so columns can clear downward
+// instead of stalling. So horizontal is preferred, vertical is the
+// fallback when there is no other choice.
+var PX_FILL_BAND = 1;
+
+function pixelFillMaxRow() {
+  var maxRow = pixelFrontierRow() + PX_FILL_BAND;
+  if (maxRow >= L.pxRows - 1) return L.pxRows;   // nothing left below anyway
+
+  // Colours currently in play (belt + funnel).
+  var inPlay = [];
+  for (var i = 0; i < NUM_COLORS; i++) inPlay.push(0);
+  for (var k = 0; k < BELT_SLOTS; k++) { var mk = beltSlots[k].marble; if (mk >= 0 && mk !== BLOCKER_CI) inPlay[mk]++; }
+  for (var p = 0; p < physMarbles.length; p++) { var pm = physMarbles[p]; if (pm.ci !== BLOCKER_CI) inPlay[pm.ci]++; }
+
+  // Can the band be advanced with what is on the board? (an open front in
+  // the band whose colour has a marble in play)
+  for (var c = 0; c < PX_W; c++) {
+    var r = pixelActiveRow(c);
+    if (r < 0 || r > maxRow) continue;
+    var cell = pixelCells[r * PX_W + c];
+    if (!cell.reserved && inPlay[cell.ci] > 0) return maxRow;   // keep it horizontal
+  }
+  return L.pxRows;   // band is stuck → allow columns to clear downward
+}
+
+// ── Belt → pixel matching — the classic belt → sort rule, biased to the
+// top fill band so the picture disappears line by line where possible.
 function updatePixelMatching() {
+  var maxRow = pixelFillMaxRow();
   for (var si = 0; si < BELT_SLOTS; si++) {
     var slot = beltSlots[si];
     if (slot.marble < 0) continue;
@@ -173,6 +216,7 @@ function updatePixelMatching() {
     for (var c = 0; c < PX_W; c++) {
       var r = pixelActiveRow(c);
       if (r < 0) continue;
+      if (r > maxRow) continue;               // keep the fill in the top band (horizontal)
       var cell = pixelCells[r * PX_W + c];
       if (cell.reserved) continue;            // front already has an inbound marble (cap 1)
       if (cell.ci !== ci) continue;           // only a same-colour marble fills the front
@@ -204,6 +248,64 @@ function updatePixelMatching() {
       }
     }
   }
+
+  declogPixels(maxRow);
+}
+
+// ── Last-resort anti-deadlock. Never fires during normal/paced play (so
+// that plays exactly like the base game); only when the belt is genuinely
+// jammed — full, with nothing on it able to serve a front in range. It
+// then serves the TOP-most matching front (keeping the horizontal wipe)
+// from a marble already in play. It only ever serves a real front with a
+// matching colour, so the classic rule is never broken. ──
+var pixelClogT = 0;
+function declogPixels(maxRow) {
+  // Top-most open front per colour, within the current serving range.
+  var frontCell = [];
+  for (var i = 0; i < NUM_COLORS; i++) frontCell.push(-1);
+  for (var c = 0; c < PX_W; c++) {
+    var r = pixelActiveRow(c);
+    if (r < 0 || r > maxRow) continue;
+    var cell = pixelCells[r * PX_W + c];
+    if (cell.reserved) continue;
+    if (frontCell[cell.ci] < 0 || r < ((frontCell[cell.ci] / PX_W) | 0)) frontCell[cell.ci] = r * PX_W + c;
+  }
+
+  var emptySlots = 0, servable = false;
+  for (var k = 0; k < BELT_SLOTS; k++) {
+    var mk = beltSlots[k].marble;
+    if (mk < 0) { emptySlots++; }
+    else if (mk !== BLOCKER_CI && frontCell[mk] >= 0) servable = true;
+  }
+  if (emptySlots > 0 || servable) { pixelClogT = 0; return; }
+
+  pixelClogT++;
+  if (pixelClogT < 15) return;
+  pixelClogT = 0;
+
+  // Serve the top-most matching front from a belt marble (frees a slot)…
+  for (var k2 = 0; k2 < BELT_SLOTS; k2++) {
+    var m2 = beltSlots[k2].marble;
+    if (m2 < 0 || m2 === BLOCKER_CI || frontCell[m2] < 0) continue;
+    rescueServePixel(getSlotPos(k2), m2, frontCell[m2]);
+    beltSlots[k2].marble = -1;
+    return;
+  }
+  // …or from a marble waiting in the funnel.
+  for (var fi = 0; fi < physMarbles.length; fi++) {
+    var fm = physMarbles[fi];
+    if (fm.ci === BLOCKER_CI || frontCell[fm.ci] < 0) continue;
+    rescueServePixel({ x: fm.x, y: fm.y }, fm.ci, frontCell[fm.ci]);
+    physMarbles.splice(fi, 1);
+    return;
+  }
+}
+
+function rescueServePixel(startPos, ci, cellIdx) {
+  pixelCells[cellIdx].reserved = true;
+  jumpers.push({ ci: ci, slotIdx: -1, startX: startPos.x, startY: startPos.y,
+    pixel: true, cellIdx: cellIdx, targetCol: 0, targetSlot: 0, t: 0 });
+  sfx.drop();
 }
 
 // ── Called when a pixel jumper lands (front customer filled) ──
