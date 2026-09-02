@@ -33,11 +33,16 @@ var scroller = {
 
   // ── tunables (level.scroller) ──
   mode: 'tap',            // 'tap' | 'auto'
-  release: 'adjacent',    // 'adjacent' = tapped box + its 4 same-colour neighbours
+  release: 'single',      // 'single'   = only the box that was tapped
+                          // 'adjacent' = it plus its 4 same-colour neighbours
                           // 'group'    = the whole connected same-colour blob
-  rowsPerTap: 0.3,        // variant A: rows advanced per tap
-  idleDrift: 0.06,        // variant A: rows per second with no input — the
-                          // board always creeps down, taps just push harder
+  rowsPerTap: 0.25,       // variant A: rows advanced per tap
+  idleDrift: 0,           // variant A: rows per second with no input. Zero by
+                          // default: in the tap variant the board moves only
+                          // when the player taps. Nothing scrolls on its own,
+                          // so a player who stops tapping stops the level —
+                          // that is the freeze risk, traded for a board that
+                          // never moves behind your back.
   autoSpeed: 0.13,        // variant B: rows per second
   gravity: 'column',      // 'column' | 'group'
   settleFrames: 5,        // frames between gravity steps
@@ -74,7 +79,10 @@ var scroller = {
   pillX: 0, pillY: 0, pillW: 0, pillH: 0
 };
 
-var SCROLL_FAST_FORWARD = 3.5;   // rows/sec when nothing is reachable
+// Only used to break a soft-lock: with no idle drift, a stack that has
+// compacted above the window leaves nothing to tap and nothing to move
+// the board, so the level would sit there forever.
+var SCROLL_FAST_FORWARD = 3.5;   // rows/sec when nothing is reachable at all
 
 // ── Setup ─────────────────────────────────────────────────────
 
@@ -104,9 +112,9 @@ function scrollerSetup(lvl) {
   if (boardViewRows > boardRows) boardViewRows = boardRows;
 
   scroller.mode = (s.mode === 'auto') ? 'auto' : 'tap';
-  scroller.release = (s.release === 'group') ? 'group' : 'adjacent';
-  scroller.rowsPerTap = scrollerNum(s.rowsPerTap, 0.3, 0, 3);
-  scroller.idleDrift = scrollerNum(s.idleDrift, 0.06, 0, 2);
+  scroller.release = (s.release === 'group' || s.release === 'adjacent') ? s.release : 'single';
+  scroller.rowsPerTap = scrollerNum(s.rowsPerTap, 0.25, 0, 3);
+  scroller.idleDrift = scrollerNum(s.idleDrift, 0, 0, 2);
   scroller.autoSpeed = scrollerNum(s.autoSpeed, 0.13, 0.01, 3);
   scroller.gravity = (s.gravity === 'group') ? 'group' : 'column';
   scroller.settleFrames = scrollerClamp(s.settleFrames || 5, 1, 30);
@@ -372,7 +380,9 @@ function scrollerCollectGroup(idx) {
   if (!target || !scrollerReleasable(idx, target.ci)) return [];
   var ci = target.ci;
 
-  if (scroller.release !== 'group') {
+  if (scroller.release === 'single') return [idx];
+
+  if (scroller.release === 'adjacent') {
     var out = [idx];
     var nbrs = scrollerNeighbours(idx);
     for (var n = 0; n < nbrs.length; n++) {
@@ -513,6 +523,12 @@ function scrollerUpdate() {
   }
   if (!scrollerHasReachableBox()) scroller.scrollTarget += SCROLL_FAST_FORWARD / 60;
   scroller.scrollRows += (scroller.scrollTarget - scroller.scrollRows) * 0.12;
+  // The ease never actually arrives. With no idle drift the target stops
+  // growing the moment the player stops tapping, so without this the last
+  // sliver of a row is never covered and the board can never finish.
+  if (Math.abs(scroller.scrollTarget - scroller.scrollRows) < 0.004) {
+    scroller.scrollRows = scroller.scrollTarget;
+  }
 
   updateStockPositions();
   scrollerCheckCrumble();
@@ -520,7 +536,7 @@ function scrollerUpdate() {
   scrollerAssignCustomers();
   if (tick % 20 === 0) scrollerFlushDeadCustomers();
 
-  if (scroller.scrollRows >= scroller.winAt) scrollerEnd('win');
+  if (scroller.scrollRows >= scroller.winAt - 0.001) scrollerEnd('win');
 }
 
 // ── Customer queues ───────────────────────────────────────────
@@ -707,13 +723,15 @@ function scrollerFlushDeadCustomers() {
   }
 }
 
-// True while at least one live box sits inside the tappable window.
+// True while at least one live box is somewhere the player could actually
+// tap it: far enough down to be hittable, not yet sunk into the line.
 function scrollerHasReachableBox() {
-  var lo = -0.6, hi = L.viewRows - 0.5;
   for (var i = 0; i < stock.length; i++) {
     if (!scrollerMovable(i)) continue;
-    var sr = scrollerScreenRow(Math.floor(i / L.cols));
-    if (sr >= lo && sr < hi) return true;
+    var b = stock[i];
+    if (b.y < L.sy - L.bh * 0.3) continue;
+    if (b.y + L.bh * 0.5 >= L.pressY) continue;
+    return true;
   }
   return false;
 }
