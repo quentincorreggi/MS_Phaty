@@ -124,7 +124,7 @@ function initGame() {
         revealed: true, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
-        slidePx: 0, crumbleT: 0, shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
+        slidePx: 0, crumbleT: 0, groupFlashT: 0, shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
     } else if (wSlot) {
       // Wall cell — inert structural element
@@ -134,14 +134,14 @@ function initGame() {
         revealed: false, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
-        slidePx: 0, crumbleT: 0, shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
+        slidePx: 0, crumbleT: 0, groupFlashT: 0, shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
     } else if (!slot) {
       stock.push({ ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
-        slidePx: 0, crumbleT: 0, shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
+        slidePx: 0, crumbleT: 0, groupFlashT: 0, shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
@@ -152,7 +152,7 @@ function initGame() {
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
-        slidePx: 0, crumbleT: 0, shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
+        slidePx: 0, crumbleT: 0, groupFlashT: 0, shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
     }
   }
@@ -171,8 +171,8 @@ function initGame() {
   sortCols = [[], [], [], []];
   for (var i = 0; i < allBoxes.length; i++) sortCols[i % 4].push(allBoxes[i]);
 
-  // Scrolling boards re-deal the queues so the visible heads stay colourful
-  scrollerArrangeCustomers();
+  // Scrolling boards take their orders as they go — see scroller.js
+  scrollerBuildCustomers(sortPerColor);
 
   // Lock buttons
   var numLocks = lvl.lockButtons || 0;

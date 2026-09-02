@@ -35,26 +35,41 @@ var scroller = {
   mode: 'tap',            // 'tap' | 'auto'
   release: 'adjacent',    // 'adjacent' = tapped box + its 4 same-colour neighbours
                           // 'group'    = the whole connected same-colour blob
-  rowsPerTap: 0.7,        // variant A: rows advanced per tap
-  idleDrift: 0.08,        // variant A: rows per second with no input
-  autoSpeed: 0.6,         // variant B: rows per second
+  rowsPerTap: 0.3,        // variant A: rows advanced per tap
+  idleDrift: 0.06,        // variant A: rows per second with no input — the
+                          // board always creeps down, taps just push harder
+  autoSpeed: 0.13,        // variant B: rows per second
   gravity: 'column',      // 'column' | 'group'
   settleFrames: 5,        // frames between gravity steps
-  crumbleStagger: 60,     // ms between marbles of a crumbling box (0 = instant dump)
-  beltCap: 26,            // occupied belt slots that count as a jam
-  beltSpeed: 1.7,         // multiplier on the calibrated conveyor speed
+  releaseStagger: 90,     // ms between marbles leaving a tapped box
+  crumbleStagger: 120,    // ms between marbles of a crumbling box (0 = instant dump)
+  loadCap: 85,            // conveyor load (belt slots + marbles backed up in
+                          // the funnel) that counts as an overflow
+  tapBlockLoad: 60,       // the line refuses a release that would push the
+                          // projected load past this. A tapped group is
+                          // 20-45 marbles and the conveyor sorts about six
+                          // a second, so without it the player buries
+                          // themselves in three taps with no warning and no
+                          // way back. Refusing teaches the pace instead of
+                          // ending the run, keeps a legal tap from ever
+                          // breaching loadCap on its own, and leaves the
+                          // crumble as the real threat. Small groups still
+                          // fit when big ones don't.
+  beltSpeed: 2.5,         // multiplier on the calibrated conveyor speed
   sortWindow: 0.05,       // how forgiving the customer hand-off is
-  jamFuse: 50,            // frames of sustained jam before the level is lost
-  startGap: 1,            // rows of breathing room below the stack at kickoff
+  funnelWiden: 1.7,       // funnel mouth multiplier — big releases jam a narrow one
+  jamFuse: 90,            // frames of sustained overflow before the level is lost
+  startGap: 3,            // rows of breathing room below the stack at kickoff
 
   // ── runtime ──
   scrollRows: 0, scrollTarget: 0, scrollStart: 0, winAt: 0,
   gravityT: 0,
-  beltOcc: 0, jamT: 0, danger: 0,
-  lineFlash: 0,
+  beltOcc: 0, load: 0, jamT: 0, danger: 0,
+  lineFlash: 0, blockFlash: 0,
   hoverGroup: null,
   ended: false, endKind: '',
   crumbledBoxes: 0, clearedBoxes: 0, taps: 0,
+  pool: null, starveT: 0,
   modeFlash: 0,
   pillX: 0, pillY: 0, pillW: 0, pillH: 0
 };
@@ -69,10 +84,12 @@ function scrollerSetup(lvl) {
   scroller.active = false;
   scroller.scrollRows = 0; scroller.scrollTarget = 0; scroller.scrollStart = 0;
   scroller.gravityT = 0; scroller.beltOcc = 0; scroller.jamT = 0;
-  scroller.danger = 0; scroller.lineFlash = 0; scroller.modeFlash = 0;
+  scroller.danger = 0; scroller.lineFlash = 0; scroller.modeFlash = 0; scroller.blockFlash = 0;
   scroller.ended = false; scroller.endKind = '';
   scroller.crumbledBoxes = 0; scroller.clearedBoxes = 0; scroller.taps = 0;
   scroller.hoverGroup = null;
+  scroller.pool = null;
+  scroller.starveT = 0;
 
   boardCols = 7; boardRows = 7; boardViewRows = 7;
   BELT_SPEED = BELT_SPEED_BASE;
@@ -88,17 +105,20 @@ function scrollerSetup(lvl) {
 
   scroller.mode = (s.mode === 'auto') ? 'auto' : 'tap';
   scroller.release = (s.release === 'group') ? 'group' : 'adjacent';
-  scroller.rowsPerTap = scrollerNum(s.rowsPerTap, 0.7, 0.05, 3);
-  scroller.idleDrift = scrollerNum(s.idleDrift, 0.08, 0, 2);
-  scroller.autoSpeed = scrollerNum(s.autoSpeed, 0.6, 0.02, 3);
+  scroller.rowsPerTap = scrollerNum(s.rowsPerTap, 0.3, 0, 3);
+  scroller.idleDrift = scrollerNum(s.idleDrift, 0.06, 0, 2);
+  scroller.autoSpeed = scrollerNum(s.autoSpeed, 0.13, 0.01, 3);
   scroller.gravity = (s.gravity === 'group') ? 'group' : 'column';
   scroller.settleFrames = scrollerClamp(s.settleFrames || 5, 1, 30);
-  scroller.crumbleStagger = scrollerNum(s.crumbleStagger, 60, 0, 400);
-  scroller.beltCap = scrollerClamp(s.beltCap || 26, 4, BELT_SLOTS);
-  scroller.beltSpeed = scrollerNum(s.beltSpeed, 1.7, 0.5, 4);
+  scroller.releaseStagger = scrollerNum(s.releaseStagger, 90, 0, 400);
+  scroller.crumbleStagger = scrollerNum(s.crumbleStagger, 120, 0, 400);
+  scroller.loadCap = scrollerClamp(s.loadCap || 85, 6, 250);
+  scroller.tapBlockLoad = scrollerClamp(s.tapBlockLoad || 60, 4, 250);
+  scroller.beltSpeed = scrollerNum(s.beltSpeed, 2.5, 0.5, 4);
   scroller.sortWindow = scrollerNum(s.sortWindow, 0.05, 0.01, 0.12);
-  scroller.jamFuse = scrollerClamp(s.jamFuse || 50, 1, 600);
-  scroller.startGap = scrollerNum(s.startGap, 1, 0, 6);
+  scroller.funnelWiden = scrollerNum(s.funnelWiden, 1.7, 1, 3);
+  scroller.jamFuse = scrollerClamp(s.jamFuse || 90, 1, 600);
+  scroller.startGap = scrollerNum(s.startGap, 3, 0, 8);
 
   // A scrolling board feeds the conveyor far faster than a normal
   // level, so the conveyor runs faster to match.
@@ -275,6 +295,13 @@ function scrollerHandleTap(px, py) {
     if (px < b.x || px > b.x + L.bw || py < b.y || py > b.y + L.bh) continue;
     if (b.y + L.bh * 0.5 >= L.pressY) return true;   // already crumbling into the line
     if (!isBoxTappable(i)) { b.shakeT = 0.5; return true; }
+    if (scroller.load + scrollerCollectGroup(i).length * MRB_PER_BOX > scroller.tapBlockLoad) {
+      // That release wouldn't fit on the line — the boxes stay shut.
+      b.shakeT = 0.6;
+      scroller.blockFlash = 1;
+      tone(170, 0.12, 'square', 0.05);
+      return true;
+    }
     scrollerReleaseGroup(i);
     return true;
   }
@@ -297,6 +324,9 @@ function scrollerHover(px, py) {
     if (b.empty || b.used || b.spawning) continue;
     if (px < b.x || px > b.x + L.bw || py < b.y || py > b.y + L.bh) continue;
     if (b.y + L.bh * 0.5 >= L.pressY || !isBoxTappable(i)) break;
+    if (scroller.load + scrollerCollectGroup(i).length * MRB_PER_BOX > scroller.tapBlockLoad) {
+      canvas.style.cursor = 'not-allowed'; return;
+    }
     hoverIdx = i;
     var group = scrollerCollectGroup(i);
     var map = {};
@@ -378,8 +408,11 @@ function scrollerReleaseGroup(idx) {
     var gi = group[g];
     var b = stock[gi];
     b.popT = 1;
+    // Every box in the group opens on the same frame — a staggered start
+    // reads as several separate taps instead of one release.
+    b.groupFlashT = 1;
     spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, group.length > 1 ? 14 : 18);
-    spawnPhysMarbles(b, { delay: g * 70 });
+    spawnPhysMarbles(b, { stagger: scroller.releaseStagger });
     damageAdjacentIce(gi);
   }
   if (group.length > 1) {
@@ -438,19 +471,24 @@ function scrollerUpdate() {
     if (!b) continue;
     if (b.slidePx) { b.slidePx *= 0.62; if (Math.abs(b.slidePx) < 0.4) b.slidePx = 0; }
     if (b.crumbleT > 0) b.crumbleT = Math.max(0, b.crumbleT - 0.02);
+    if (b.groupFlashT > 0) b.groupFlashT = Math.max(0, b.groupFlashT - 0.045);
   }
   if (scroller.lineFlash > 0) scroller.lineFlash = Math.max(0, scroller.lineFlash - 0.02);
+  if (scroller.blockFlash > 0) scroller.blockFlash = Math.max(0, scroller.blockFlash - 0.025);
   if (scroller.modeFlash > 0) scroller.modeFlash = Math.max(0, scroller.modeFlash - 0.015);
 
-  // Belt load — the single fail state
+  // Conveyor load — the single fail state. Marbles that can't get onto a
+  // full belt stack up in the funnel, so the honest measure of "the
+  // conveyor is overflowing" is the belt plus that backlog.
   var occ = 0;
   for (var s = 0; s < BELT_SLOTS; s++) if (beltSlots[s].marble >= 0) occ++;
   scroller.beltOcc = occ;
-  var dangerTarget = Math.max(0, Math.min(1, (occ - (scroller.beltCap - 5)) / 5));
+  scroller.load = occ + physMarbles.length;
+  var dangerTarget = Math.max(0, Math.min(1, (scroller.load - (scroller.loadCap - 14)) / 14));
   scroller.danger += (dangerTarget - scroller.danger) * 0.12;
 
   if (!scroller.ended) {
-    if (occ >= scroller.beltCap) {
+    if (scroller.load >= scroller.loadCap) {
       scroller.jamT++;
       if (scroller.jamT % 12 === 0) tone(150, 0.18, 'square', 0.06);
       if (scroller.jamT >= scroller.jamFuse) { scrollerEnd('lose'); return; }
@@ -479,55 +517,137 @@ function scrollerUpdate() {
   updateStockPositions();
   scrollerCheckCrumble();
 
+  scrollerAssignCustomers();
   if (tick % 20 === 0) scrollerFlushDeadCustomers();
 
   if (scroller.scrollRows >= scroller.winAt) scrollerEnd('win');
 }
 
 // ── Customer queues ───────────────────────────────────────────
-// The base game shuffles customers at random, which regularly puts the
-// same colour at the head of two, three or four columns at once. With
-// no timer that just resolves itself; on a scrolling board it starves
-// the conveyor of anywhere to put marbles and kills the run through no
-// fault of the player. So re-deal the same set of customers depth by
-// depth, keeping the visible heads as colourful as possible.
-function scrollerArrangeCustomers() {
-  if (!scroller.active) return;
-  var byColor = [];
-  for (var c = 0; c < NUM_COLORS; c++) byColor.push([]);
-  var total = 0;
-  for (var col = 0; col < sortCols.length; col++) {
-    for (var r = 0; r < sortCols[col].length; r++) {
-      var box = sortCols[col][r];
-      if (box.type === 'lock' || box.ci < 0) continue;
-      byColor[box.ci].push(box);
-      total++;
-    }
-  }
-  if (total === 0) return;
+// A tap on a scrolling board is monochrome: every box in a released
+// group shares a colour, so one tap drops 20-40 marbles of the SAME
+// colour onto the belt. With fixed pre-dealt queues only whichever
+// column happens to have that colour at its head can drain them, which
+// caps a single colour at roughly a quarter of the conveyor's rate and
+// leaves the rest of the flood circling until it overflows.
+//
+// So customers are not dealt up front. Each column's head is assigned a
+// colour the moment it becomes the head, picked from the remaining order
+// pool by what is actually backed up on the line. Tap a big pink group
+// and the columns turn pink to meet it. The pool still holds exactly the
+// marbles the board contains, so nothing is created or lost.
 
-  var dealt = [[], [], [], []];
-  while (total > 0) {
-    var usedThisRow = {};
-    for (var k = 0; k < 4; k++) {
-      var pick = -1, pickCount = 0;
-      for (var ci = 0; ci < NUM_COLORS; ci++) {
-        if (byColor[ci].length === 0) continue;
-        if (usedThisRow[ci] && pick >= 0) continue;
-        // Prefer an unused colour; among those take the deepest queue.
-        var better = (pick < 0) ||
-          (!usedThisRow[ci] && usedThisRow[pick]) ||
-          (!!usedThisRow[ci] === !!usedThisRow[pick] && byColor[ci].length > pickCount);
-        if (better) { pick = ci; pickCount = byColor[ci].length; }
-      }
-      if (pick < 0) break;
-      usedThisRow[pick] = true;
-      dealt[k].push(byColor[pick].pop());
-      total--;
-      if (total === 0) break;
-    }
+function scrollerBuildCustomers(sortPerColor) {
+  if (!scroller.active) return;
+  scroller.pool = [];
+  var total = 0;
+  for (var c = 0; c < NUM_COLORS; c++) {
+    scroller.pool.push(sortPerColor[c] || 0);
+    total += scroller.pool[c];
   }
-  sortCols = dealt;
+  sortCols = [[], [], [], []];
+  for (var i = 0; i < total; i++) {
+    // ci -1 = waiting customer, no order taken yet
+    sortCols[i % 4].push({ ci: -1, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0 });
+  }
+  scrollerAssignCustomers();
+}
+
+function scrollerAssignCustomers() {
+  if (!scroller.active || !scroller.pool) return;
+
+  // Only marbles already ON the belt can be served. Marbles still in the
+  // funnel are counted too but weighted far lower: if every column waits
+  // on a colour that is stuck behind a full belt, nothing moves at all.
+  var onBelt = [], inFunnel = [];
+  for (var c = 0; c < NUM_COLORS; c++) { onBelt.push(0); inFunnel.push(0); }
+  var beltCount = 0;
+  for (var s = 0; s < BELT_SLOTS; s++) {
+    var m = beltSlots[s].marble;
+    if (m >= 0 && m < NUM_COLORS) { onBelt[m]++; beltCount++; }
+  }
+  for (var p = 0; p < physMarbles.length; p++) {
+    if (physMarbles[p].ci < NUM_COLORS) inFunnel[physMarbles[p].ci]++;
+  }
+
+  // Free any head that has taken nothing yet and is waiting on a colour
+  // the belt isn't carrying. An unserved customer can change their order.
+  var free = [];
+  var serving = [];
+  var servable = false;
+  for (var c2 = 0; c2 < NUM_COLORS; c2++) serving.push(0);
+  for (var col = 0; col < sortCols.length; col++) {
+    var head = scrollerHeadBox(col);
+    if (!head || head.type === 'lock') continue;
+    if (head.ci < 0) { free.push(head); continue; }
+    if (head.filled === 0 && onBelt[head.ci] === 0) {
+      scroller.pool[head.ci]++;
+      head.ci = -1;
+      free.push(head);
+      continue;
+    }
+    serving[head.ci]++;
+    if (onBelt[head.ci] > 0) servable = true;
+  }
+
+  // Liveness. A part-filled head keeps its order, so the line can still
+  // deadlock: every column half-served on colours the belt isn't
+  // carrying, belt full of colours nobody wants. If that holds, the
+  // least-served customer gives up and leaves, freeing the column.
+  if (!servable && beltCount > 0 && free.length === 0) {
+    scroller.starveT = (scroller.starveT || 0) + 1;
+    if (scroller.starveT > 180) {
+      scroller.starveT = 0;
+      var give = null, giveCol = -1;
+      for (var gc = 0; gc < sortCols.length; gc++) {
+        var h = scrollerHeadBox(gc);
+        if (!h || h.type === 'lock' || h.ci < 0) continue;
+        if (!give || h.filled < give.filled) { give = h; giveCol = gc; }
+      }
+      if (give) {
+        scroller.pool[give.ci]++;      // capacity comes back with the order
+        give.popT = 1;
+        var gx = L.sSx + giveCol * (L.sBw + L.sColGap) + L.sBw / 2;
+        var gy = getSortBoxY(giveCol, 0) + L.sBh / 2;
+        spawnBurst(gx, gy, '#B8A898', 14);
+        tone(300, 0.2, 'triangle', 0.07, 180);
+        (function (ref, gen) {
+          setTimeout(function () { if (gen === gameGen) ref.vis = false; }, 350);
+        })(give, gameGen);
+      }
+      return;
+    }
+  } else {
+    scroller.starveT = 0;
+  }
+
+  if (free.length === 0) return;
+
+  for (var f = 0; f < free.length; f++) {
+    var pick = -1, best = -Infinity;
+    for (var ci = 0; ci < NUM_COLORS; ci++) {
+      if (scroller.pool[ci] <= 0) continue;
+      // What's on the belt dominates; the funnel is a hint about what is
+      // coming; the pool term only breaks ties when the line is empty.
+      // The serving discount has to divide the whole score, or with an
+      // empty line every column scores the colours identically and all
+      // four take the same order, leaving most of the line unservable.
+      var score = (onBelt[ci] * 3 + inFunnel[ci] * 0.6 + scroller.pool[ci] * 0.05) /
+                  (1 + serving[ci] * 1.1);
+      if (score > best) { best = score; pick = ci; }
+    }
+    if (pick < 0) continue;
+    free[f].ci = pick;
+    scroller.pool[pick]--;
+    serving[pick]++;
+  }
+}
+
+function scrollerHeadBox(col) {
+  var c = sortCols[col];
+  if (!c) return null;
+  for (var r = 0; r < c.length; r++) if (c[r].vis) return c[r];
+  return null;
 }
 
 // ── Dead customers ────────────────────────────────────────────
@@ -571,7 +691,7 @@ function scrollerFlushDeadCustomers() {
   }
   for (var p = 0; p < pending.length; p++) {
     var box = pending[p].box;
-    if (box.type === 'lock' || box.ci < 0) continue;
+    if (box.type === 'lock' || box.ci < 0) continue;   // unassigned: nothing to strand
     var needed = SORT_CAP - box.filled;
     if (needed <= 0 || supply[box.ci] >= needed) continue;
     // Claim what is still coming so two columns of the same colour
@@ -674,6 +794,20 @@ function drawScrollerBoard() {
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (!b) continue;
+    // A released group flashes together, so the player can see that the
+    // tap took the neighbours with it and not just the box they hit.
+    if (b.groupFlashT > 0) {
+      var gf = b.groupFlashT;
+      ctx.save();
+      ctx.globalAlpha = gf * 0.9;
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = 3 * S * gf;
+      var grow = (1 - gf) * 7 * S;
+      rRect(b.x - grow, b.y - grow, L.bw + grow * 2, L.bh + grow * 2, (6 + grow) * S);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     if (b.crumbleT > 0) {
       ctx.save();
       ctx.globalAlpha = b.crumbleT * 0.6;
@@ -802,7 +936,7 @@ function drawBeltLoad() {
   var h = 7 * S;
   if (w < 30 * S) return;
   var x = cx - w / 2, y = cy - h / 2;
-  var p = Math.max(0, Math.min(1, scroller.beltOcc / scroller.beltCap));
+  var p = Math.max(0, Math.min(1, scroller.load / scroller.loadCap));
   var d = scroller.danger;
 
   ctx.save();
@@ -819,6 +953,24 @@ function drawBeltLoad() {
     ctx.fillRect(x, y, w * p, h);
     ctx.restore();
   }
+  // Where the line stops accepting new boxes.
+  var blockX = x + w * Math.max(0, Math.min(1, scroller.tapBlockLoad / scroller.loadCap));
+  ctx.strokeStyle = 'rgba(90,74,56,0.45)';
+  ctx.lineWidth = 1.5 * S;
+  ctx.beginPath(); ctx.moveTo(blockX, y - 2.5 * S); ctx.lineTo(blockX, y + h + 2.5 * S); ctx.stroke();
+
+  if (scroller.blockFlash > 0) {
+    var bf = scroller.blockFlash;
+    ctx.globalAlpha = bf;
+    ctx.fillStyle = '#E8A84C';
+    rRect(x - 3 * S, y - 3 * S, w + 6 * S, h + 6 * S, (h + 6 * S) / 2); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(90,74,56,' + bf + ')';
+    ctx.font = 'bold ' + (9 * S) + 'px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText('LINE FULL', cx, y - 5 * S);
+  }
+
   if (d > 0.02) {
     var pulse = 0.25 + Math.sin(tick * 0.3) * 0.2;
     ctx.globalAlpha = d * pulse * 2;

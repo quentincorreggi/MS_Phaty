@@ -29,17 +29,20 @@ function editorDefaultScroller() {
     viewRows: 7,
     mode: 'tap',
     release: 'adjacent',
-    rowsPerTap: 0.7,
-    idleDrift: 0.08,
-    autoSpeed: 0.6,
+    rowsPerTap: 0.3,
+    idleDrift: 0.06,
+    autoSpeed: 0.13,
     gravity: 'column',
     settleFrames: 5,
-    crumbleStagger: 60,
-    beltCap: 26,
-    beltSpeed: 1.7,
+    releaseStagger: 90,
+    crumbleStagger: 120,
+    loadCap: 85,
+    tapBlockLoad: 60,
+    beltSpeed: 2.5,
     sortWindow: 0.05,
-    jamFuse: 50,
-    startGap: 1,
+    funnelWiden: 1.7,
+    jamFuse: 90,
+    startGap: 3,
     // generator settings (authoring only, not shipped in the level)
     colorCount: 4,
     cluster: 45,
@@ -738,8 +741,8 @@ function editorRenderScrollerPanel() {
     '<button class="ed-seg' + (sc.mode === 'auto' ? ' active' : '') + '" data-k="mode" data-v="auto">⏱ Auto</button>' +
     '</div>';
   html += editorSlider('sc-tap', 'Rows / tap', Math.round(sc.rowsPerTap * 100), 5, 200, 5, 0.01);
-  html += editorSlider('sc-drift', 'Idle drift', Math.round(sc.idleDrift * 100), 0, 100, 1, 0.01);
-  html += editorSlider('sc-auto', 'Auto rows/s', Math.round(sc.autoSpeed * 100), 2, 150, 1, 0.01);
+  html += editorSlider('sc-drift', 'Idle drift', Math.round(sc.idleDrift * 1000), 0, 300, 5, 0.001);
+  html += editorSlider('sc-auto', 'Auto rows/s', Math.round(sc.autoSpeed * 1000), 10, 800, 5, 0.001);
   html += '<div class="ed-hint">Both variants run off the same board — swap between them ' +
     'mid-run with the pill in the top-left of the play screen.</div>';
 
@@ -757,14 +760,23 @@ function editorRenderScrollerPanel() {
   html += editorSlider('sc-settle', 'Settle frames', sc.settleFrames, 1, 20, 1);
 
   html += '<div class="ed-sub-label">Pressure</div>';
-  html += editorSlider('sc-crumble', 'Crumble ms', sc.crumbleStagger, 0, 300, 10);
-  html += editorSlider('sc-belt', 'Conveyor cap', sc.beltCap, 6, BELT_SLOTS, 1);
+  html += editorSlider('sc-release', 'Release ms', sc.releaseStagger, 0, 300, 5);
+  html += editorSlider('sc-crumble', 'Crumble ms', sc.crumbleStagger, 0, 300, 5);
+  html += editorSlider('sc-load', 'Load cap', sc.loadCap, 20, 160, 1);
+  html += editorSlider('sc-block', 'Refuse past', sc.tapBlockLoad, 10, 160, 1);
   html += editorSlider('sc-fuse', 'Jam fuse (f)', sc.jamFuse, 1, 240, 1);
   html += editorSlider('sc-bspeed', 'Belt speed x', Math.round(sc.beltSpeed * 100), 50, 400, 5, 0.01);
   html += editorSlider('sc-window', 'Hand-off', Math.round(sc.sortWindow * 1000), 10, 120, 1, 0.001);
-  html += '<div class="ed-hint">The conveyor has to swallow far more marbles than a normal ' +
-    'level, so it runs faster and hands off to customers more generously. Drop these back ' +
-    'toward 1.00 / 0.015 to feel base-game throughput.</div>';
+  html += editorSlider('sc-funnel', 'Funnel mouth', Math.round(sc.funnelWiden * 100), 100, 300, 5, 0.01);
+  html += '<div class="ed-hint">Load cap counts the belt plus the marbles backed up in the ' +
+    'funnel — that total is the overflow you lose to. Above "refuse above" the line stops ' +
+    'accepting new boxes and a tap just rattles the box, so the player cannot bury themselves ' +
+    'faster than the conveyor can dig out; crumbling rows are what actually kill. The conveyor has to swallow far more ' +
+    'marbles than a normal level, so it runs faster and hands off to customers more ' +
+    'generously; drop those back toward 1.00 / 0.015 to feel base-game throughput. ' +
+    'It sorts roughly 5-6 marbles a second, so a board of 7x16 boxes at 9 marbles each is ' +
+    'about three minutes of work no matter how it is played — board length is capped by ' +
+    'marble count, not by taste.</div>';
 
   html += '<div class="ed-sub-label">Generate</div>';
   html += editorSlider('sc-colors', 'Colours', sc.colorCount, 2, NUM_COLORS, 1);
@@ -799,14 +811,17 @@ function editorRenderScrollerPanel() {
   editorBindSlider('sc-view', function (v) { sc.viewRows = v; editorUpdateStats(); });
   editorBindSlider('sc-gap', function (v) { sc.startGap = v; });
   editorBindSlider('sc-tap', function (v) { sc.rowsPerTap = v / 100; });
-  editorBindSlider('sc-drift', function (v) { sc.idleDrift = v / 100; });
-  editorBindSlider('sc-auto', function (v) { sc.autoSpeed = v / 100; });
+  editorBindSlider('sc-drift', function (v) { sc.idleDrift = v / 1000; });
+  editorBindSlider('sc-auto', function (v) { sc.autoSpeed = v / 1000; });
   editorBindSlider('sc-settle', function (v) { sc.settleFrames = v; });
   editorBindSlider('sc-crumble', function (v) { sc.crumbleStagger = v; });
-  editorBindSlider('sc-belt', function (v) { sc.beltCap = v; });
+  editorBindSlider('sc-release', function (v) { sc.releaseStagger = v; });
+  editorBindSlider('sc-load', function (v) { sc.loadCap = v; });
+  editorBindSlider('sc-block', function (v) { sc.tapBlockLoad = v; });
   editorBindSlider('sc-fuse', function (v) { sc.jamFuse = v; });
   editorBindSlider('sc-bspeed', function (v) { sc.beltSpeed = v / 100; });
   editorBindSlider('sc-window', function (v) { sc.sortWindow = v / 1000; });
+  editorBindSlider('sc-funnel', function (v) { sc.funnelWiden = v / 100; });
   editorBindSlider('sc-colors', function (v) { sc.colorCount = v; });
   editorBindSlider('sc-cluster', function (v) { sc.cluster = v; });
   editorBindSlider('sc-open', function (v) { sc.openingRows = v; });
@@ -841,10 +856,10 @@ function editorToggleScroller(e) {
   if (!editor.scroller) editor.scroller = editorDefaultScroller();
   editor.scroller.enabled = on;
   if (on) {
-    if (editor.rows <= 9) editorSetBoardSize(editor.cols, 48);
-    // A scrolling board feeds the conveyor constantly; one marble per
-    // box is what the throughput can actually absorb.
-    if (editor.mrbPerBox > 1) editor.mrbPerBox = 1;
+    // Boards are short because every box still holds a full 9 marbles:
+    // 7 columns x 18 rows is already ~1100 marbles, which is about all
+    // the conveyor can sort inside three minutes.
+    if (editor.rows <= 9) editorSetBoardSize(editor.cols, 16);
     editorRenderSettings();
   } else {
     editorSetBoardSize(7, 7);
@@ -873,10 +888,13 @@ function editorBuildLevel() {
       autoSpeed: sc.autoSpeed,
       gravity: sc.gravity,
       settleFrames: sc.settleFrames,
+      releaseStagger: sc.releaseStagger,
       crumbleStagger: sc.crumbleStagger,
-      beltCap: sc.beltCap,
+      loadCap: sc.loadCap,
+      tapBlockLoad: sc.tapBlockLoad,
       beltSpeed: sc.beltSpeed,
       sortWindow: sc.sortWindow,
+      funnelWiden: sc.funnelWiden,
       jamFuse: sc.jamFuse,
       startGap: sc.startGap,
       colorCount: sc.colorCount,

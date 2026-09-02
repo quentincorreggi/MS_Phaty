@@ -71,6 +71,41 @@ function physicsStep() {
   var exitY = L.funnelBot;
   var exitL = L.funnelCx - L.funnelOpenW / 2;
   var exitR = L.funnelCx + L.funnelOpenW / 2;
+
+  // A heavy pile can squeeze a marble straight through the funnel wall.
+  // Left alone it falls out of the world and stays in the simulation
+  // forever, so it never reaches a customer and permanently counts
+  // against the conveyor. Catch escapees and drop them back in above the
+  // exit; nudge anything that has simply come to rest on the flat floor
+  // beside the hole back toward it.
+  for (var q = physMarbles.length - 1; q >= 0; q--) {
+    var sm = physMarbles[q];
+
+    // Fell clean out of the world.
+    if (sm.y - sm.r > exitY + 8 * S) {
+      sm.x = L.funnelCx + (Math.random() - 0.5) * L.funnelOpenW * 0.5;
+      sm.y = exitY - sm.r * 1.5;
+      sm.vx = 0; sm.vy = 1 * S; sm.stall = 0;
+      continue;
+    }
+
+    // Sitting on the floor beside the hole. The corner where the funnel
+    // wall meets that floor is a wedge a marble cannot roll out of, so
+    // nudge first and, if it is still there, put it in the hole.
+    if (sm.y + sm.r >= exitY - sm.r * 3 && (sm.x <= exitL || sm.x >= exitR)) {
+      sm.stall = (sm.stall || 0) + 1;
+      if (sm.stall > 40) {
+        sm.x = L.funnelCx + (Math.random() - 0.5) * L.funnelOpenW * 0.5;
+        sm.y = exitY - sm.r * 1.2;
+        sm.vx = 0; sm.vy = 0.5 * S; sm.stall = 0;
+      } else if (Math.abs(sm.vx) < 0.6 * S && Math.abs(sm.vy) < 0.6 * S) {
+        sm.vx += (L.funnelCx > sm.x ? 1 : -1) * 0.3 * S;
+      }
+    } else {
+      sm.stall = 0;
+    }
+  }
+
   for (var i = physMarbles.length - 1; i >= 0; i--) {
     var m = physMarbles[i];
     if (m.y + m.r >= exitY - 3 * S && m.x > exitL - m.r && m.x < exitR + m.r) {

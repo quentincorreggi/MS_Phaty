@@ -53,7 +53,7 @@ You can also use these commands:
 | `js/belt.js` | Belt slot init, position helpers (`getSlotPos`, `getSlotT`) | 37 |
 | `js/tunnel.js` | Tunnel mechanic — hidden box queue, spawns into adjacent cell | 219 |
 | `js/wall.js` | Wall cell — inert structural blocker | 96 |
-| `js/scroller.js` | Scrolling Board special level — tall board, pressure line, gravity-up | 640 |
+| `js/scroller.js` | Scrolling Board special level — tall board, pressure line, gravity-up | 900 |
 | `js/editor.js` | Level editor UI — grid painting, toolbar, import/export JSON | 653 |
 | `js/particles.js` | Particle effects (bursts, confetti) | 42 |
 | `js/audio.js` | Sound effects via Web Audio API | 62 |
@@ -169,26 +169,56 @@ a fixed window toward a *pressure line* just above the funnel. See
   'adjacent'`) or its whole connected blob (`release: 'group'`).
 - Cleared cells become holes and the boxes below **rise** into them
   (`gravity: 'column'` or `'group'`), pulling the stack away from the line.
-  Vertical gaps inside a column therefore collapse when the level loads —
-  author dense boards.
+  Under per-column gravity every vertical gap collapses at load, so an empty
+  cell doesn't make a hole — it just makes that column one box shorter, and
+  uneven columns start the stack ragged and floating. Author dense.
 - A box that sinks past the line **crumbles** and dumps its marbles
   uncontrolled.
-- **Win**: the end of the board crosses the line. **Lose**: the conveyor jams
-  (`beltCap` slots occupied for `jamFuse` frames) — the single fail state.
+- **Win**: the end of the board crosses the line. **Lose**: the conveyor
+  overflows — `loadCap` (belt slots + marbles backed up in the funnel)
+  exceeded for `jamFuse` frames. That is the single fail state.
 - Two scroll variants share one board: `mode: 'tap'` (N rows per tap plus a
-  slow idle drift) and `mode: 'auto'` (continuous). The HUD pill swaps them
-  mid-run.
+  continuous idle drift) and `mode: 'auto'`. The HUD pill swaps them mid-run.
 
-Throughput matters more than anything else here: a scrolling board feeds the
-conveyor continuously, so `mrbPerBox` should be **1**, and the level raises
-`BELT_SPEED` (`beltSpeed`) and the customer hand-off window (`sortWindow`)
-above their base-game values. Scrolling boards also re-deal the customer
-queues for colour diversity (`scrollerArrangeCustomers`) and retire customers
-whose colour has run out (`scrollerFlushDeadCustomers`); without those the
-conveyor starves and jams through no fault of the player.
+### Why this mode needs its own plumbing
+
+Boxes still hold a full 9 marbles, so one tapped group is 20-45 marbles and
+the conveyor only sorts about six a second. Everything below exists because
+of that ratio, and all of it is off by default on normal levels:
+
+- **The line refuses what it can't take.** A release that would push the
+  projected load past `tapBlockLoad` is turned away and the boxes rattle
+  instead of opening. Without it a player buries themselves in three taps
+  with no warning. Keep `tapBlockLoad` at least one full group
+  (5 x `mrbPerBox`) below `loadCap`, so a legal tap can never breach the cap
+  on its own and crumbling rows stay the real threat.
+- **Customers take orders as they go** (`scrollerAssignCustomers`). A tapped
+  group is monochrome, so one tap drops 27 marbles of a single colour. With
+  fixed pre-dealt queues only the one column holding that colour could drain
+  them. Columns are therefore dealt empty and each head picks a colour when
+  it becomes the head, weighted by what is actually **on the belt** — funnel
+  marbles count far less, because a colour stuck behind a full belt can never
+  be served and every column waiting on it deadlocks. A part-filled head
+  keeps its order; if that ever starves the whole line, the least-served
+  customer gives up and leaves.
+- **The conveyor is faster and more forgiving**: `beltSpeed` scales
+  `BELT_SPEED`, `sortWindow` widens the customer hand-off, `funnelWiden`
+  opens the funnel mouth (a hole under two marbles wide arches over and jams
+  under a 30-marble dump).
+- `scrollerFlushDeadCustomers` retires customers whose colour has run out, so
+  a generated board doesn't need each colour to divide evenly by the sort cap.
+
+Two general physics fixes came out of this and apply to every level: marbles
+squeezed through a funnel wall used to fall out of the world and stay in the
+simulation forever, and the corner where the funnel wall meets the floor is a
+wedge a marble cannot roll out of. `physicsStep` now rescues both.
+
+**Board length is capped by marble count, not taste.** 7x16 boxes at 9 marbles
+each is ~1000 marbles, which is about three minutes of conveyor no matter how
+it is played. Want a longer board, use fewer marbles per box.
 
 Everything above is exposed in the level editor under **Special: Scrolling
-Board**, including a board generator for the middle section.
+Board**, including a generator for the middle of a board.
 
 ## How to Add a New Box Type
 

@@ -38,7 +38,11 @@ function computeLayout() {
   L.funnelBot = L.funnelTop + L.funnelH;
   L.funnelLeft = funnelLeft; L.funnelRight = funnelRight;
   L.funnelCx = funnelCx;
-  L.funnelOpenW = 32 * S * fCal.sw;
+  // A scrolling board can drop 30+ marbles into the funnel at once, and a
+  // hole under two marbles wide arches over and jams. Widen it for those
+  // levels only, so normal levels keep their exact geometry.
+  var funnelWiden = (typeof scroller !== 'undefined' && scroller.active) ? scroller.funnelWiden : 1;
+  L.funnelOpenW = 32 * S * fCal.sw * funnelWiden;
   L.funnelBendY = L.funnelTop + L.funnelH * 0.65;
 
   funnelWalls = [];
