@@ -63,6 +63,10 @@ var scroller = {
   beltSpeed: 2.5,         // multiplier on the calibrated conveyor speed
   sortWindow: 0.05,       // how forgiving the customer hand-off is
   funnelWiden: 1.7,       // funnel mouth multiplier — big releases jam a narrow one
+  previewRows: 7,         // customers shown per column. One tap is nine
+                          // marbles of one colour, so which box to open is
+                          // the whole decision — the player has to be able
+                          // to see who is waiting to make it.
   jamFuse: 90,            // frames of sustained overflow before the level is lost
   startGap: 3,            // rows of breathing room below the stack at kickoff
 
@@ -74,7 +78,7 @@ var scroller = {
   hoverGroup: null,
   ended: false, endKind: '',
   crumbledBoxes: 0, clearedBoxes: 0, taps: 0,
-  pool: null, starveT: 0,
+  colStarve: null,
   modeFlash: 0,
   pillX: 0, pillY: 0, pillW: 0, pillH: 0
 };
@@ -96,12 +100,12 @@ function scrollerSetup(lvl) {
   scroller.ended = false; scroller.endKind = '';
   scroller.crumbledBoxes = 0; scroller.clearedBoxes = 0; scroller.taps = 0;
   scroller.hoverGroup = null;
-  scroller.pool = null;
-  scroller.starveT = 0;
+  scroller.colStarve = [0, 0, 0, 0];
 
   boardCols = 7; boardRows = 7; boardViewRows = 7;
   BELT_SPEED = BELT_SPEED_BASE;
   SORT_WINDOW = SORT_WINDOW_BASE;
+  SORT_VISIBLE_ROWS = SORT_VISIBLE_ROWS_BASE;
   if (!lvl || !lvl.scroller || lvl.scroller.enabled === false) return;
 
   var s = lvl.scroller;
@@ -125,6 +129,7 @@ function scrollerSetup(lvl) {
   scroller.beltSpeed = scrollerNum(s.beltSpeed, 2.5, 0.5, 4);
   scroller.sortWindow = scrollerNum(s.sortWindow, 0.05, 0.01, 0.12);
   scroller.funnelWiden = scrollerNum(s.funnelWiden, 1.7, 1, 3);
+  scroller.previewRows = scrollerClamp(s.previewRows || 7, 1, 10);
   scroller.jamFuse = scrollerClamp(s.jamFuse || 90, 1, 600);
   scroller.startGap = scrollerNum(s.startGap, 3, 0, 8);
 
@@ -132,6 +137,7 @@ function scrollerSetup(lvl) {
   // level, so the conveyor runs faster to match.
   BELT_SPEED = BELT_SPEED_BASE * scroller.beltSpeed;
   SORT_WINDOW = scroller.sortWindow;
+  SORT_VISIBLE_ROWS = scroller.previewRows;
   scroller.winAt = boardRows - 0.5;
 }
 
@@ -533,130 +539,67 @@ function scrollerUpdate() {
   updateStockPositions();
   scrollerCheckCrumble();
 
-  scrollerAssignCustomers();
+  scrollerRelieveStarvation();
   if (tick % 20 === 0) scrollerFlushDeadCustomers();
 
   if (scroller.scrollRows >= scroller.winAt - 0.001) scrollerEnd('win');
 }
 
 // ── Customer queues ───────────────────────────────────────────
-// A tap on a scrolling board is monochrome: every box in a released
-// group shares a colour, so one tap drops 20-40 marbles of the SAME
-// colour onto the belt. With fixed pre-dealt queues only whichever
-// column happens to have that colour at its head can drain them, which
-// caps a single colour at roughly a quarter of the conveyor's rate and
-// leaves the rest of the flood circling until it overflows.
+// The whole queue is dealt up front and shown, so the player can read
+// which colours are coming and pick their taps to serve them. That is
+// the point of the mode: one tap is nine marbles of a single colour, so
+// choosing WHICH box to open is the decision.
 //
-// So customers are not dealt up front. Each column's head is assigned a
-// colour the moment it becomes the head, picked from the remaining order
-// pool by what is actually backed up on the line. Tap a big pink group
-// and the columns turn pink to meet it. The pool still holds exactly the
-// marbles the board contains, so nothing is created or lost.
+// Dealing is done depth by depth rather than shuffled, keeping the four
+// visible heads on four different colours wherever the remaining orders
+// allow. A shuffle regularly lands the same colour on two, three or four
+// heads at once, which leaves the conveyor with nowhere to put anything
+// else and jams the line through no fault of the player.
 
 function scrollerBuildCustomers(sortPerColor) {
   if (!scroller.active) return;
-  scroller.pool = [];
+  var left = [];
   var total = 0;
   for (var c = 0; c < NUM_COLORS; c++) {
-    scroller.pool.push(sortPerColor[c] || 0);
-    total += scroller.pool[c];
+    left.push(sortPerColor[c] || 0);
+    total += left[c];
   }
-  sortCols = [[], [], [], []];
-  for (var i = 0; i < total; i++) {
-    // ci -1 = waiting customer, no order taken yet
-    sortCols[i % 4].push({ ci: -1, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0 });
-  }
-  scrollerAssignCustomers();
-}
-
-function scrollerAssignCustomers() {
-  if (!scroller.active || !scroller.pool) return;
-
-  // Only marbles already ON the belt can be served. Marbles still in the
-  // funnel are counted too but weighted far lower: if every column waits
-  // on a colour that is stuck behind a full belt, nothing moves at all.
-  var onBelt = [], inFunnel = [];
-  for (var c = 0; c < NUM_COLORS; c++) { onBelt.push(0); inFunnel.push(0); }
-  var beltCount = 0;
-  for (var s = 0; s < BELT_SLOTS; s++) {
-    var m = beltSlots[s].marble;
-    if (m >= 0 && m < NUM_COLORS) { onBelt[m]++; beltCount++; }
-  }
-  for (var p = 0; p < physMarbles.length; p++) {
-    if (physMarbles[p].ci < NUM_COLORS) inFunnel[physMarbles[p].ci]++;
-  }
-
-  // Free any head that has taken nothing yet and is waiting on a colour
-  // the belt isn't carrying. An unserved customer can change their order.
-  var free = [];
-  var serving = [];
-  var servable = false;
-  for (var c2 = 0; c2 < NUM_COLORS; c2++) serving.push(0);
-  for (var col = 0; col < sortCols.length; col++) {
-    var head = scrollerHeadBox(col);
-    if (!head || head.type === 'lock') continue;
-    if (head.ci < 0) { free.push(head); continue; }
-    if (head.filled === 0 && onBelt[head.ci] === 0) {
-      scroller.pool[head.ci]++;
-      head.ci = -1;
-      free.push(head);
-      continue;
-    }
-    serving[head.ci]++;
-    if (onBelt[head.ci] > 0) servable = true;
-  }
-
-  // Liveness. A part-filled head keeps its order, so the line can still
-  // deadlock: every column half-served on colours the belt isn't
-  // carrying, belt full of colours nobody wants. If that holds, the
-  // least-served customer gives up and leaves, freeing the column.
-  if (!servable && beltCount > 0 && free.length === 0) {
-    scroller.starveT = (scroller.starveT || 0) + 1;
-    if (scroller.starveT > 180) {
-      scroller.starveT = 0;
-      var give = null, giveCol = -1;
-      for (var gc = 0; gc < sortCols.length; gc++) {
-        var h = scrollerHeadBox(gc);
-        if (!h || h.type === 'lock' || h.ci < 0) continue;
-        if (!give || h.filled < give.filled) { give = h; giveCol = gc; }
+  var dealt = [[], [], [], []];
+  var row = 0;
+  while (total > 0) {
+    // Pick this row's colours: deepest queues first, no repeats while the
+    // remaining orders can avoid them.
+    var usedThisRow = {};
+    var pickedRow = [];
+    for (var k = 0; k < 4 && total > 0; k++) {
+      var pick = -1, pickCount = -1;
+      for (var ci = 0; ci < NUM_COLORS; ci++) {
+        if (left[ci] <= 0 || usedThisRow[ci]) continue;
+        if (left[ci] > pickCount) { pick = ci; pickCount = left[ci]; }
       }
-      if (give) {
-        scroller.pool[give.ci]++;      // capacity comes back with the order
-        give.popT = 1;
-        var gx = L.sSx + giveCol * (L.sBw + L.sColGap) + L.sBw / 2;
-        var gy = getSortBoxY(giveCol, 0) + L.sBh / 2;
-        spawnBurst(gx, gy, '#B8A898', 14);
-        tone(300, 0.2, 'triangle', 0.07, 180);
-        (function (ref, gen) {
-          setTimeout(function () { if (gen === gameGen) ref.vis = false; }, 350);
-        })(give, gameGen);
+      if (pick < 0) {
+        // Fewer colours left than columns — repeats are unavoidable.
+        for (var ci2 = 0; ci2 < NUM_COLORS; ci2++) {
+          if (left[ci2] > 0 && left[ci2] > pickCount) { pick = ci2; pickCount = left[ci2]; }
+        }
       }
-      return;
+      if (pick < 0) break;
+      usedThisRow[pick] = true;
+      left[pick]--;
+      total--;
+      pickedRow.push(pick);
     }
-  } else {
-    scroller.starveT = 0;
-  }
-
-  if (free.length === 0) return;
-
-  for (var f = 0; f < free.length; f++) {
-    var pick = -1, best = -Infinity;
-    for (var ci = 0; ci < NUM_COLORS; ci++) {
-      if (scroller.pool[ci] <= 0) continue;
-      // What's on the belt dominates; the funnel is a hint about what is
-      // coming; the pool term only breaks ties when the line is empty.
-      // The serving discount has to divide the whole score, or with an
-      // empty line every column scores the colours identically and all
-      // four take the same order, leaving most of the line unservable.
-      var score = (onBelt[ci] * 3 + inFunnel[ci] * 0.6 + scroller.pool[ci] * 0.05) /
-                  (1 + serving[ci] * 1.1);
-      if (score > best) { best = score; pick = ci; }
+    // Rotate which column gets which. Without this the counts fall in
+    // lockstep, the same colour wins the same slot every row, and each
+    // column ends up a single colour all the way down — nothing to read
+    // and nothing to prioritise.
+    for (var j = 0; j < pickedRow.length; j++) {
+      dealt[(j + row) % 4].push({ ci: pickedRow[j], filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0 });
     }
-    if (pick < 0) continue;
-    free[f].ci = pick;
-    scroller.pool[pick]--;
-    serving[pick]++;
+    row++;
   }
+  sortCols = dealt;
 }
 
 function scrollerHeadBox(col) {
@@ -664,6 +607,79 @@ function scrollerHeadBox(col) {
   if (!c) return null;
   for (var r = 0; r < c.length; r++) if (c[r].vis) return c[r];
   return null;
+}
+
+// Safety net, per column. Only marbles already ON the belt can be served,
+// so a head waiting on a colour the belt isn't carrying does nothing —
+// and at the end of a board, with no boxes left to tap, that strands the
+// last marbles for good. Each column is timed separately: a global check
+// is useless here, because one column still ticking over keeps resetting
+// it while the other three sit dead.
+//
+// The wait is deliberately long. Mid-level the player can unstick a
+// column themselves by tapping that colour, and reordering a queue they
+// are reading and planning against is worse than a few seconds of
+// waiting.
+function scrollerRelieveStarvation() {
+  if (!scroller.active) return;
+  if (!scroller.colStarve) scroller.colStarve = [0, 0, 0, 0];
+
+  var onBelt = [];
+  for (var c = 0; c < NUM_COLORS; c++) onBelt.push(0);
+  var beltCount = 0;
+  for (var s = 0; s < BELT_SLOTS; s++) {
+    var m = beltSlots[s].marble;
+    if (m >= 0 && m < NUM_COLORS) { onBelt[m]++; beltCount++; }
+  }
+
+  var served = {};
+  for (var hc = 0; hc < sortCols.length; hc++) {
+    var hb = scrollerHeadBox(hc);
+    if (hb && hb.ci >= 0) served[hb.ci] = true;
+  }
+
+  for (var col = 0; col < sortCols.length; col++) {
+    var q = sortCols[col];
+    var headIdx = -1;
+    for (var r = 0; r < q.length; r++) if (q[r].vis) { headIdx = r; break; }
+    var head = headIdx >= 0 ? q[headIdx] : null;
+
+    // A part-served head is included on purpose: four columns each half
+    // way through an order nothing is bringing is a total deadlock, and
+    // swapping keeps the box and its progress, so nothing is lost.
+    // Skip a column with a marble already in the air, though — the
+    // landing code re-reads the head, so changing it mid-flight throws
+    // that marble away.
+    var inFlight = false;
+    for (var jj = 0; jj < jumpers.length; jj++) {
+      if (jumpers[jj].targetCol === col) { inFlight = true; break; }
+    }
+    if (beltCount < 3 || !head || head.type === 'lock' || head.ci < 0 ||
+        inFlight || onBelt[head.ci] > 0) {
+      scroller.colStarve[col] = 0;
+      continue;
+    }
+
+    scroller.colStarve[col] = (scroller.colStarve[col] || 0) + 1;
+    if (scroller.colStarve[col] < 300) continue;      // five seconds dead
+    scroller.colStarve[col] = 0;
+
+    // Bring forward this column's next customer for a colour that is
+    // actually on the line, preferring one no other head is taking so the
+    // four columns keep covering different colours.
+    var bestIdx = -1, bestScore = -1;
+    for (var d = headIdx + 1; d < q.length; d++) {
+      if (!q[d].vis || q[d].type === 'lock' || q[d].ci < 0) continue;
+      if (onBelt[q[d].ci] <= 0) continue;
+      var score = onBelt[q[d].ci] + (served[q[d].ci] ? 0 : 100);
+      if (score > bestScore) { bestScore = score; bestIdx = d; }
+    }
+    if (bestIdx < 0) continue;
+    var tmp = q[headIdx]; q[headIdx] = q[bestIdx]; q[bestIdx] = tmp;
+    q[headIdx].squishT = 1;
+    served[q[headIdx].ci] = true;
+    tone(520, 0.14, 'triangle', 0.06);
+  }
 }
 
 // ── Dead customers ────────────────────────────────────────────

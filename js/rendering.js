@@ -393,7 +393,7 @@ function drawSortArea() {
     var col = sortCols[c]; var x = L.sSx + c * (L.sBw + L.sColGap);
     var visibleBoxes = [];
     for (var r = 0; r < col.length; r++) if (col[r].vis) visibleBoxes.push(col[r]);
-    var showCount = Math.min(visibleBoxes.length, SORT_VISIBLE_ROWS);
+    var showCount = Math.min(visibleBoxes.length, SORT_VISIBLE_ROWS, L.sortMaxRows || SORT_VISIBLE_ROWS);
     var hiddenCount = visibleBoxes.length - showCount;
     for (var vi = 0; vi < showCount; vi++) {
       var b = visibleBoxes[vi]; var byy = getSortBoxY(c, vi);

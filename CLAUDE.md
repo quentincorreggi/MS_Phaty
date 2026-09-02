@@ -202,15 +202,32 @@ of that ratio, and all of it is off by default on normal levels:
   with no warning. Keep `tapBlockLoad` at least one full group
   (5 x `mrbPerBox`) below `loadCap`, so a legal tap can never breach the cap
   on its own and crumbling rows stay the real threat.
-- **Customers take orders as they go** (`scrollerAssignCustomers`). A tapped
-  group is monochrome, so one tap drops 27 marbles of a single colour. With
-  fixed pre-dealt queues only the one column holding that colour could drain
-  them. Columns are therefore dealt empty and each head picks a colour when
-  it becomes the head, weighted by what is actually **on the belt** — funnel
-  marbles count far less, because a colour stuck behind a full belt can never
-  be served and every column waiting on it deadlocks. A part-filled head
-  keeps its order; if that ever starves the whole line, the least-served
-  customer gives up and leaves.
+- **The customer queue is dealt up front and shown** (`previewRows`, default
+  7 per column, clamped to what fits). A tap is one box of a single colour,
+  so choosing *which* box to open is the whole decision, and the player can
+  only make it if they can see who is waiting. `scrollerBuildCustomers` deals
+  depth by depth, keeping the four heads on four different colours and
+  **rotating** which column gets which — without the rotation the counts fall
+  in lockstep and every column ends up a single colour all the way down.
+- **`sortCap` must equal `mrbPerBox`** (both 9). One box then fills exactly
+  one customer: tap the colour a customer is asking for and that customer is
+  served. At `sortCap` 3 those nine marbles need three separate customers of
+  the same colour, and while they wait the belt fills with colours nobody is
+  asking for — measured runs went from ~180s to over 300s, most of it spent
+  with the line refusing taps. The editor keeps the two in step.
+- **A starving column brings a customer forward** (`scrollerRelieveStarvation`).
+  Only marbles already on the belt can be served, so a head waiting on a
+  colour the belt isn't carrying does nothing, and at the end of a board —
+  no boxes left to tap — that strands the last marbles for good. Each column
+  is timed separately: a global check is useless, because one column still
+  ticking over keeps resetting it while the others sit dead. Part-filled
+  heads are included (four columns each half way through an order nothing is
+  bringing is a total deadlock) and swapping keeps the box and its progress,
+  so no capacity is lost. Columns with a marble in the air are skipped —
+  the landing code re-reads the head, so changing it mid-flight would throw
+  that marble away. The wait is five seconds: mid-level the player can
+  unstick a column themselves by tapping that colour, and reordering a queue
+  they are planning against is worse than waiting.
 - **The conveyor is faster and more forgiving**: `beltSpeed` scales
   `BELT_SPEED`, `sortWindow` widens the customer hand-off, `funnelWiden`
   opens the funnel mouth (a hole under two marbles wide arches over and jams

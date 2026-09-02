@@ -41,6 +41,7 @@ function editorDefaultScroller() {
     beltSpeed: 2.5,
     sortWindow: 0.05,
     funnelWiden: 1.7,
+    previewRows: 7,
     jamFuse: 90,
     startGap: 3,
     // generator settings (authoring only, not shipped in the level)
@@ -683,7 +684,7 @@ function editorRenderSettings() {
   var el = document.getElementById('ed-settings-body');
   el.innerHTML = '';
   var fields = [
-    { label: 'Marbles/Box', key: 'mrbPerBox', min: 1, max: 25, step: 1 },
+    { label: 'Marbles/Box', key: 'mrbPerBox', min: 1, max: 9, step: 1 },
     { label: 'Sort Cap', key: 'sortCap', min: 1, max: 9, step: 1 },
     { label: 'Lock Btns', key: 'lockButtons', min: 0, max: 5, step: 1 }
   ];
@@ -771,6 +772,7 @@ function editorRenderScrollerPanel() {
   html += editorSlider('sc-bspeed', 'Belt speed x', Math.round(sc.beltSpeed * 100), 50, 400, 5, 0.01);
   html += editorSlider('sc-window', 'Hand-off', Math.round(sc.sortWindow * 1000), 10, 120, 1, 0.001);
   html += editorSlider('sc-funnel', 'Funnel mouth', Math.round(sc.funnelWiden * 100), 100, 300, 5, 0.01);
+  html += editorSlider('sc-preview', 'Customers shown', sc.previewRows, 1, 10, 1);
   html += '<div class="ed-hint">Load cap counts the belt plus the marbles backed up in the ' +
     'funnel — that total is the overflow you lose to. Above "refuse above" the line stops ' +
     'accepting new boxes and a tap just rattles the box, so the player cannot bury themselves ' +
@@ -825,6 +827,7 @@ function editorRenderScrollerPanel() {
   editorBindSlider('sc-bspeed', function (v) { sc.beltSpeed = v / 100; });
   editorBindSlider('sc-window', function (v) { sc.sortWindow = v / 1000; });
   editorBindSlider('sc-funnel', function (v) { sc.funnelWiden = v / 100; });
+  editorBindSlider('sc-preview', function (v) { sc.previewRows = v; });
   editorBindSlider('sc-colors', function (v) { sc.colorCount = v; });
   editorBindSlider('sc-cluster', function (v) { sc.cluster = v; });
   editorBindSlider('sc-open', function (v) { sc.openingRows = v; });
@@ -860,9 +863,16 @@ function editorToggleScroller(e) {
   editor.scroller.enabled = on;
   if (on) {
     // Boards are short because every box still holds a full 9 marbles:
-    // 7 columns x 18 rows is already ~1100 marbles, which is about all
+    // 7 columns x 16 rows is already ~1000 marbles, which is about all
     // the conveyor can sort inside three minutes.
     if (editor.rows <= 9) editorSetBoardSize(editor.cols, 16);
+    // One tap is one box of a single colour, so a customer that wants
+    // exactly one box's worth is what makes the queue readable: tap the
+    // colour a customer is asking for and that customer is served. With a
+    // smaller cap those nine marbles need three separate customers of the
+    // same colour, and while they wait the belt fills with colours nobody
+    // is asking for.
+    editor.sortCap = editor.mrbPerBox;
     editorRenderSettings();
   } else {
     editorSetBoardSize(7, 7);
@@ -898,6 +908,7 @@ function editorBuildLevel() {
       beltSpeed: sc.beltSpeed,
       sortWindow: sc.sortWindow,
       funnelWiden: sc.funnelWiden,
+      previewRows: sc.previewRows,
       jamFuse: sc.jamFuse,
       startGap: sc.startGap,
       colorCount: sc.colorCount,

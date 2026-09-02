@@ -69,7 +69,9 @@ var MRB_PER_BOX = 9, SORT_CAP = 3;
 // How close (in belt-loop units) a marble must be to a customer column
 // before it jumps in. Special levels widen this to raise throughput.
 var SORT_WINDOW_BASE = 0.015, SORT_WINDOW = 0.015;
-var SORT_VISIBLE_ROWS = 4;
+// How many customers of each column's queue are shown. Special levels
+// raise it so the player can read what is coming and plan taps.
+var SORT_VISIBLE_ROWS_BASE = 4, SORT_VISIBLE_ROWS = 4;
 
 // Snake order for 3x3 grid
 var SNAKE_ORDER = [
