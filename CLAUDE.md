@@ -209,12 +209,21 @@ of that ratio, and all of it is off by default on normal levels:
   depth by depth, keeping the four heads on four different colours and
   **rotating** which column gets which — without the rotation the counts fall
   in lockstep and every column ends up a single colour all the way down.
-- **`sortCap` must equal `mrbPerBox`** (both 9). One box then fills exactly
-  one customer: tap the colour a customer is asking for and that customer is
-  served. At `sortCap` 3 those nine marbles need three separate customers of
-  the same colour, and while they wait the belt fills with colours nobody is
-  asking for — measured runs went from ~180s to over 300s, most of it spent
-  with the line refusing taps. The editor keeps the two in step.
+- **The queue is dealt in runs.** Customers take three marbles as in every
+  other level, and a box holds nine, so a box is worth a RUN of
+  `mrbPerBox / sortCap` = 3 customers. Those runs are dealt intact down a
+  single column, so tapping the colour a column is asking for serves that
+  column three times over. Dealt one customer at a time, a box's other six
+  marbles have nowhere to go until that colour comes round again and the belt
+  silts up with colours nobody wants — measured runs went from ~180s to over
+  300s, most of it with the line refusing taps.
+- **The customer hand-off window (`sortWindow`) is the biggest throughput
+  lever in the mode.** A customer wants three marbles, but the base window
+  covers only about one and a half belt slots, so it catches one per lap and
+  idles the rest. Widening it to roughly three slots took the sorter from
+  3.7 to 5.5 marbles a second. `customerClearMs` matters for the same reason:
+  a box is three customers, so the base 600ms of celebration each is nearly
+  two seconds of dead column per tap.
 - **A starving column brings a customer forward** (`scrollerRelieveStarvation`).
   Only marbles already on the belt can be served, so a head waiting on a
   colour the belt isn't carrying does nothing, and at the end of a board —

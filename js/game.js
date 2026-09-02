@@ -451,7 +451,7 @@ function update() {
           var by2 = getSortBoxY(j.targetCol, 0) + L.sBh / 2;
           spawnBurst(bx2, by2, COLORS[j.ci].fill, 20);
           spawnConfetti(bx2, by2, 15);
-          (function (box) { setTimeout(function () { box.vis = false; checkWin(); }, 600); })(col[tv]);
+          (function (box, gen) { setTimeout(function () { if (gen !== gameGen) return; box.vis = false; checkWin(); }, SORT_CLEAR_MS); })(col[tv], gameGen);
         }
       }
       jumpers.splice(i, 1);

@@ -72,6 +72,9 @@ var SORT_WINDOW_BASE = 0.015, SORT_WINDOW = 0.015;
 // How many customers of each column's queue are shown. Special levels
 // raise it so the player can read what is coming and plan taps.
 var SORT_VISIBLE_ROWS_BASE = 4, SORT_VISIBLE_ROWS = 4;
+// How long a served customer stays on screen before the next steps up.
+// It is dead time for the column, so levels that need throughput cut it.
+var SORT_CLEAR_MS_BASE = 600, SORT_CLEAR_MS = 600;
 
 // Snake order for 3x3 grid
 var SNAKE_ORDER = [
