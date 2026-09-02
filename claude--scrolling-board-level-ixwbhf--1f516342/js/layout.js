@@ -96,6 +96,8 @@ function computeLayout() {
   L.sBh = 32 * S * oCal.s; L.sGap = 3 * S * oCal.s; L.sColGap = 7 * S * oCal.s;
   var stw = 4 * L.sBw + 3 * L.sColGap;
   L.sSx = sortCx - stw / 2;
+  // How many customers actually fit below the belt on this screen.
+  L.sortMaxRows = Math.max(1, Math.floor((H - L.sTop - 18 * S) / (L.sBh + L.sGap)));
 
   // BACK BUTTON
   var bkCal = cal.back;
