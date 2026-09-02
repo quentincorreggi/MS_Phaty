@@ -16,7 +16,8 @@ document.getElementById('gravSlider').addEventListener('input', function () {
   document.getElementById('gravVal').textContent = this.value;
 });
 document.getElementById('beltSlider').addEventListener('input', function () {
-  BELT_SPEED = parseInt(this.value) / 10000;
+  BELT_SPEED_BASE = parseInt(this.value) / 10000;
+  BELT_SPEED = BELT_SPEED_BASE * (scroller.active ? scroller.beltSpeed : 1);
   document.getElementById('beltVal').textContent = this.value;
 });
 document.getElementById('lipSlider').addEventListener('input', function () {

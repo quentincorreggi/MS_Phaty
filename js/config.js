@@ -8,7 +8,17 @@ var W = 0, H = 0, S = 1;
 var L = {};
 var beltPath = [];
 var stock = [], sortCols = [], particles = [], physMarbles = [], jumpers = [];
-var score = 0, won = false, tick = 0, hoverIdx = -1;
+var score = 0, won = false, lost = false, tick = 0, hoverIdx = -1;
+// Bumped by initGame(). Deferred callbacks capture it so timers left over
+// from an abandoned or restarted level can't touch the new one.
+var gameGen = 0;
+
+// === BOARD DIMENSIONS ===
+// boardCols x boardRows is the logical grid. boardViewRows is how many
+// rows of it fit on screen at once — equal to boardRows for normal
+// levels, smaller for scrolling-board levels where the grid is a tall
+// strip that slides through a fixed window.
+var boardCols = 7, boardRows = 7, boardViewRows = 7;
 var audioCtx = null;
 
 // === LEVEL SYSTEM ===
@@ -22,7 +32,9 @@ var gameActive = false;
 var PHYS_GRAVITY = 0.67, PHYS_DAMPING = 0.997, PHYS_BOUNCE = 0.45, PHYS_FRICTION = 0.995;
 var MARBLE_R_BASE = 7;
 var funnelWalls = [];
-var BELT_SLOTS = 30, beltSlots = [], beltOffset = 0, BELT_SPEED = 0.0031;
+// BELT_SPEED_BASE is the calibrated speed; BELT_SPEED is what the game
+// runs at, which special levels may scale (see scroller.js).
+var BELT_SLOTS = 30, beltSlots = [], beltOffset = 0, BELT_SPEED_BASE = 0.0031, BELT_SPEED = 0.0031;
 var LIP_PCT = 0.28;
 var MRB_GAP_FACTOR = 0.75;
 
@@ -54,6 +66,9 @@ var blockerCollectSlots = [];
 var blockerCollectCleared = false;
 
 var MRB_PER_BOX = 9, SORT_CAP = 3;
+// How close (in belt-loop units) a marble must be to a customer column
+// before it jumps in. Special levels widen this to raise throughput.
+var SORT_WINDOW_BASE = 0.015, SORT_WINDOW = 0.015;
 var SORT_VISIBLE_ROWS = 4;
 
 // Snake order for 3x3 grid
@@ -72,6 +87,17 @@ var cal = {
   marble: { s: 1.37 },
   back:   { dx: -23, dy: 85, s: 1.0 }
 };
+
+// Where marble #i sits inside a box. The snake fills a 3x3 grid, but a
+// box holding one or two marbles should read centred rather than
+// stranded in a corner.
+function getMrbSlot(i) {
+  if (MRB_PER_BOX === 1) return SNAKE_ORDER[4];
+  if (MRB_PER_BOX === 2) return i === 0 ? SNAKE_ORDER[3] : SNAKE_ORDER[5];
+  if (MRB_PER_BOX === 3) return SNAKE_ORDER[3 + Math.min(i, 2)];
+  // The snake only has nine cells; boxes holding more wrap around it.
+  return SNAKE_ORDER[((i % SNAKE_ORDER.length) + SNAKE_ORDER.length) % SNAKE_ORDER.length];
+}
 
 // === HELPERS ===
 function getMR() { return MARBLE_R_BASE * S * cal.marble.s; }

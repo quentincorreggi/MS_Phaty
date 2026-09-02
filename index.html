@@ -19,6 +19,12 @@
     background:linear-gradient(135deg,#4EE68C,#36C76E);color:white;font-size:20px;
     font-weight:700;font-family:'Fredoka',sans-serif;cursor:pointer;box-shadow:0 6px 20px rgba(78,230,140,0.4);transition:transform .15s}
   #win-screen button:active{transform:scale(.92)}
+  .win-buttons{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+  #win-screen.lose{background:rgba(90,60,55,0.93)}
+  #win-screen.lose h1{color:#FFC0B0;text-shadow:0 0 30px rgba(232,80,60,0.6),0 4px 0 #7A2A20}
+  #win-screen.lose p{color:#F0D8D0}
+  #win-screen.lose #win-retry{background:linear-gradient(135deg,#FF9A7A,#E8503C);box-shadow:0 6px 20px rgba(232,80,60,0.4)}
+  #win-screen.lose button:not(#win-retry){background:linear-gradient(135deg,#B8A898,#8A7D6B);box-shadow:0 6px 20px rgba(0,0,0,0.25)}
   @keyframes wp{from{transform:scale(1)}to{transform:scale(1.05)}}
   #level-screen{position:absolute;inset:0;z-index:90;
     background:linear-gradient(170deg,#EDE5D8 0%,#E0D4C0 40%,#D4C4AA 100%);
@@ -84,6 +90,22 @@
   .ed-text-row input:focus{border-color:rgba(123,82,160,0.5)}
   .ed-text-row label{font-size:11px;color:#9C8A70;width:42px;text-align:right;display:flex;align-items:center;justify-content:flex-end;flex-shrink:0}
   #ed-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;max-width:320px;margin:0 auto}
+  #ed-grid-wrap{margin:0 auto}
+  #ed-grid-wrap.tall{max-height:400px;overflow-y:auto;border-radius:10px;padding:6px 4px;
+    background:rgba(0,0,0,0.05);box-shadow:inset 0 2px 6px rgba(0,0,0,0.06)}
+  .ed-grid-note{font-size:10px;color:#9C8A70;text-align:center;margin:4px 0;font-style:italic}
+  .ed-seg-row{display:flex;gap:5px;justify-content:center;margin:5px 0;flex-wrap:wrap}
+  .ed-seg{padding:5px 14px;border:2px solid rgba(120,100,80,0.2);border-radius:8px;
+    font-family:'Fredoka',sans-serif;font-size:11px;font-weight:600;cursor:pointer;
+    color:#5A4A38;background:rgba(180,165,145,0.25);transition:all 0.15s}
+  .ed-seg:hover{transform:scale(1.05)}
+  .ed-seg.active{background:rgba(78,205,196,0.28);border-color:rgba(53,168,159,0.6);color:#2E8B84}
+  .ed-toggle-row{display:flex;align-items:center;gap:9px;margin-bottom:4px}
+  .ed-toggle-row input{width:18px;height:18px;accent-color:#4ECDC4;cursor:pointer}
+  .ed-toggle-row label{font-size:12px;color:#5A4A38;font-weight:600;cursor:pointer}
+  .ed-sub-label{font-size:10px;color:#8B6914;text-transform:uppercase;letter-spacing:0.8px;
+    font-weight:700;margin:8px 0 2px;text-align:center}
+  .ed-hint{font-size:10px;color:#9C8A70;line-height:1.45;margin-top:4px}
   .ed-cell{aspect-ratio:1;border-radius:6px;cursor:pointer;border:2px solid rgba(160,140,120,0.3);
     display:flex;align-items:center;justify-content:center;transition:transform 0.12s;-webkit-tap-highlight-color:transparent;
     position:relative}
@@ -222,12 +244,18 @@
     <div class="ed-section">
       <div class="ed-section-title"><span class="icon">&#128230;</span> Box Grid <span style="font-weight:400;font-size:10px;color:#9C8A70;margin-left:auto">tap = paint &middot; right-click = erase</span></div>
       <div id="ed-toolbar"></div>
-      <div id="ed-grid"></div>
+      <div class="ed-grid-note" id="ed-grid-note-top"></div>
+      <div id="ed-grid-wrap"><div id="ed-grid"></div></div>
+      <div class="ed-grid-note" id="ed-grid-note-bot"></div>
       <div class="ed-quick">
         <button class="ed-qbtn" onclick="editorFillRandom()">&#127922; Random 24</button>
         <button class="ed-qbtn" onclick="editorClearAll()">&#129529; Clear All</button>
       </div>
       <div id="ed-stats"></div>
+    </div>
+    <div class="ed-section" id="ed-scroller-section">
+      <div class="ed-section-title"><span class="icon">&#127906;</span> Special: Scrolling Board</div>
+      <div id="ed-scroller-body"></div>
     </div>
     <div class="ed-section" id="ed-tunnel-panel">
       <!-- Tunnel contents editor — populated dynamically -->
@@ -247,8 +275,11 @@
     </div>
   </div>
 </div>
-<div id="win-screen"><h1>You Win!</h1><p id="win-msg">All marbles sorted perfectly!</p>
-  <button onclick="showLevelSelect()">Back to Menu</button>
+<div id="win-screen"><h1 id="win-title">You Win!</h1><p id="win-msg">All marbles sorted perfectly!</p>
+  <div class="win-buttons">
+    <button id="win-retry" style="display:none" onclick="retryLevel()">Try Again</button>
+    <button onclick="showLevelSelect()">Back to Menu</button>
+  </div>
 </div>
 <div id="ed-toast"></div>
 
@@ -267,6 +298,7 @@
 <script src="js/physics.js"></script>
 <script src="js/tunnel.js"></script>
 <script src="js/wall.js"></script>
+<script src="js/scroller.js"></script>
 <script src="js/rendering.js"></script>
 <script src="js/editor.js"></script>
 <script src="js/game.js"></script>

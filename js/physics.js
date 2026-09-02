@@ -94,17 +94,29 @@ function physicsStep() {
   }
 }
 
-function spawnPhysMarbles(box) {
+// opts (all optional):
+//   stagger — ms between marbles (default 120; 0 dumps them at once)
+//   delay   — ms before the first marble
+//   spread  — multiplier on the sideways kick
+//   pop     — multiplier on the upward kick
+function spawnPhysMarbles(box, opts) {
+  opts = opts || {};
+  var stagger = (typeof opts.stagger === 'number') ? opts.stagger : 120;
+  var delay = opts.delay || 0;
+  var spread = (typeof opts.spread === 'number') ? opts.spread : 1;
+  var pop = (typeof opts.pop === 'number') ? opts.pop : 1;
   box.spawning = true; box.spawnIdx = 0;
+  var gen = gameGen;
   var count = box.remaining;
   var blockerCount = box.blockerCount || 0;
   var blockerStart = MRB_PER_BOX - blockerCount;
   for (var idx = 0; idx < count; idx++) {
     (function (i, b, bStart) {
       setTimeout(function () {
+        if (!gameActive || gen !== gameGen) return;
         if (b.remaining <= 0) return;
         var spawnIdx = MRB_PER_BOX - b.remaining;
-        var si = SNAKE_ORDER[spawnIdx];
+        var si = getMrbSlot(spawnIdx);
         b.remaining--;
         b.spawnIdx = MRB_PER_BOX - b.remaining;
         var MR = getMR();
@@ -112,8 +124,8 @@ function spawnPhysMarbles(box) {
         var mgY = mg * MRB_GAP_FACTOR;
         var mx = b.x + L.bw / 2 + (si.c - 1) * mg;
         var my = b.y + L.bh / 2 + (si.r - 1) * mgY - 2 * S;
-        var vx = (Math.random() - 0.5) * 2 * S;
-        var vy = -(2 + Math.random() * 2) * S;
+        var vx = (Math.random() - 0.5) * 2 * S * spread;
+        var vy = -(2 + Math.random() * 2) * S * pop;
         var marbleCi = (blockerCount > 0 && spawnIdx >= bStart) ? BLOCKER_CI : b.ci;
         physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR, spawnT: 1.0 });
         sfx.drop();
@@ -121,6 +133,7 @@ function spawnPhysMarbles(box) {
         if (b.remaining <= 0) {
           b.emptyT = 1.0;
           setTimeout(function () {
+            if (gen !== gameGen) return;
             b.used = true;
             b.spawning = false;
             // Re-evaluate which boxes have an open path to the bottom
@@ -128,7 +141,7 @@ function spawnPhysMarbles(box) {
             updateBoxReveals(true);
           }, 300);
         }
-      }, i * 120);
+      }, delay + i * stagger);
     })(idx, box, blockerStart);
   }
 }

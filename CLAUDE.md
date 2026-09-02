@@ -53,6 +53,7 @@ You can also use these commands:
 | `js/belt.js` | Belt slot init, position helpers (`getSlotPos`, `getSlotT`) | 37 |
 | `js/tunnel.js` | Tunnel mechanic — hidden box queue, spawns into adjacent cell | 219 |
 | `js/wall.js` | Wall cell — inert structural blocker | 96 |
+| `js/scroller.js` | Scrolling Board special level — tall board, pressure line, gravity-up | 640 |
 | `js/editor.js` | Level editor UI — grid painting, toolbar, import/export JSON | 653 |
 | `js/particles.js` | Particle effects (bursts, confetti) | 42 |
 | `js/audio.js` | Sound effects via Web Audio API | 62 |
@@ -72,9 +73,10 @@ correct position:
 7. `physics.js` — marble physics
 8. `tunnel.js` — tunnel mechanic
 9. `wall.js` — wall mechanic
-10. `rendering.js` — all drawing code
-11. `editor.js` — level editor
-12. `game.js` — game loop, init, boot (must be last)
+10. `scroller.js` — scrolling board special level
+11. `rendering.js` — all drawing code
+12. `editor.js` — level editor
+13. `game.js` — game loop, init, boot (must be last)
 
 **Rule: New box type files go AFTER `registry.js` and BEFORE `calibration.js`.**
 **Rule: New mechanic files go AFTER `belt.js` and BEFORE `rendering.js`.**
@@ -147,12 +149,46 @@ Drawing helpers available: `drawBox()`, `drawMarble()`, `drawBoxMarbles()`,
 #### Level Data Format
 
 Levels are created via the level editor and played via "Test Play". There are
-no pre-built levels — the `LEVELS` array is empty at startup. Each cell in a
-level's `grid` array (49 = 7x7) is:
+no pre-built levels — the `LEVELS` array is empty at startup. A level's `grid`
+is `cols * rows` cells (default 7x7; `cols`/`rows` on the level override it).
+Each cell is:
 - `null` — empty slot
 - `{ ci: 0-7, type: 'default'|'hidden'|'ice'|'blocker' }` — box
 - `{ tunnel: true, dir: 'top'|'bottom'|'left'|'right', contents: [{ci, type}...] }` — tunnel
 - `{ wall: true }` — wall
+
+## Special Level: Scrolling Board
+
+A level with a `scroller` block plays as a tall board that slides down through
+a fixed window toward a *pressure line* just above the funnel. See
+`js/scroller.js` for the full contract. In short:
+
+- The grid is authored top-to-bottom: **row 0 is the END of the board**
+  (arrives last), the **last row is the START** (nearest the line at kickoff).
+- Tapping a box releases it plus its same-coloured neighbours (`release:
+  'adjacent'`) or its whole connected blob (`release: 'group'`).
+- Cleared cells become holes and the boxes below **rise** into them
+  (`gravity: 'column'` or `'group'`), pulling the stack away from the line.
+  Vertical gaps inside a column therefore collapse when the level loads —
+  author dense boards.
+- A box that sinks past the line **crumbles** and dumps its marbles
+  uncontrolled.
+- **Win**: the end of the board crosses the line. **Lose**: the conveyor jams
+  (`beltCap` slots occupied for `jamFuse` frames) — the single fail state.
+- Two scroll variants share one board: `mode: 'tap'` (N rows per tap plus a
+  slow idle drift) and `mode: 'auto'` (continuous). The HUD pill swaps them
+  mid-run.
+
+Throughput matters more than anything else here: a scrolling board feeds the
+conveyor continuously, so `mrbPerBox` should be **1**, and the level raises
+`BELT_SPEED` (`beltSpeed`) and the customer hand-off window (`sortWindow`)
+above their base-game values. Scrolling boards also re-deal the customer
+queues for colour diversity (`scrollerArrangeCustomers`) and retire customers
+whose colour has run out (`scrollerFlushDeadCustomers`); without those the
+conveyor starves and jams through no fault of the player.
+
+Everything above is exposed in the level editor under **Special: Scrolling
+Board**, including a board generator for the middle section.
 
 ## How to Add a New Box Type
 

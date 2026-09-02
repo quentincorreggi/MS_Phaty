@@ -72,7 +72,7 @@ function drawBoxMarbles(ci, remaining) {
   var mgY = mg * MRB_GAP_FACTOR;
   var gone = MRB_PER_BOX - remaining;
   var mrbsToDraw = [];
-  for (var si = gone; si < MRB_PER_BOX; si++) mrbsToDraw.push(SNAKE_ORDER[si]);
+  for (var si = gone; si < MRB_PER_BOX; si++) mrbsToDraw.push(getMrbSlot(si));
   mrbsToDraw.sort(function (a, b) { return a.r - b.r; });
   for (var si = 0; si < mrbsToDraw.length; si++) {
     var sp = mrbsToDraw[si];
@@ -89,7 +89,8 @@ function drawBoxMarblesWithBlockers(ci, remaining, blockerCount) {
   var blockerStart = MRB_PER_BOX - blockerCount;
   var mrbsToDraw = [];
   for (var si = gone; si < MRB_PER_BOX; si++) {
-    mrbsToDraw.push({ r: SNAKE_ORDER[si].r, c: SNAKE_ORDER[si].c, isBlocker: si >= blockerStart });
+    var sl = getMrbSlot(si);
+    mrbsToDraw.push({ r: sl.r, c: sl.c, isBlocker: si >= blockerStart });
   }
   mrbsToDraw.sort(function (a, b) { return a.r - b.r; });
   for (var si = 0; si < mrbsToDraw.length; si++) {
@@ -160,8 +161,16 @@ function drawFunnel() {
 // ── Stock grid — delegates to registered box types, handles tunnels + walls ──
 
 function drawStock() {
+  var culling = scroller.active;
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
+
+    if (culling) {
+      // Off-window rows and holes aren't drawn on a scrolling board —
+      // cleared cells read as open air, not as dashed slots.
+      if (b.y + L.bh < L.boardTopY || b.y > L.pressY + L.bh) continue;
+      if (b.empty || (b.used && b.emptyT <= 0)) continue;
+    }
 
     // ── Tunnel ──
     if (b.isTunnel) {

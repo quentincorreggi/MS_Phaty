@@ -5,9 +5,18 @@
 // ============================================================
 
 // === LEVEL SELECT ===
+function retryLevel() {
+  var screen = document.getElementById('win-screen');
+  screen.classList.remove('show'); screen.classList.remove('lose');
+  gameActive = true;
+  ensureAudio();
+  initGame();
+}
+
 function showLevelSelect() {
   gameActive = false;
   document.getElementById('win-screen').classList.remove('show');
+  document.getElementById('win-screen').classList.remove('lose');
   document.getElementById('cal-toggle').style.display = 'none';
   if (typeof editor !== 'undefined' && editor._testIdx !== undefined) {
     editorCleanupTest();
@@ -29,14 +38,20 @@ function startLevel(idx) {
 
 // === GAME INIT ===
 function initGame() {
-  won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
+  gameGen++;
+  won = false; lost = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
-  document.getElementById('win-screen').classList.remove('show');
+  var winScreen = document.getElementById('win-screen');
+  winScreen.classList.remove('show'); winScreen.classList.remove('lose');
+  document.getElementById('win-title').textContent = 'You Win!';
+  document.getElementById('win-retry').style.display = 'none';
+
+  var lvl = LEVELS[currentLevel];
+  scrollerSetup(lvl);           // sizes the board before the layout is computed
   computeLayout(); initBeltSlots();
 
   var totalSlots = L.rows * L.cols;
-  var lvl = LEVELS[currentLevel];
 
   // ── Build boxSlots, tunnelSlots, wallSlots from grid or legacy random ──
   var boxSlots = {};
@@ -109,7 +124,7 @@ function initGame() {
         revealed: true, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
-        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
+        slidePx: 0, crumbleT: 0, shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
     } else if (wSlot) {
       // Wall cell — inert structural element
@@ -119,14 +134,14 @@ function initGame() {
         revealed: false, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
-        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
+        slidePx: 0, crumbleT: 0, shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
     } else if (!slot) {
       stock.push({ ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
-        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
+        slidePx: 0, crumbleT: 0, shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
@@ -137,13 +152,16 @@ function initGame() {
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
-        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
+        slidePx: 0, crumbleT: 0, shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
     }
   }
 
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
+
+  // ── Scrolling board: settle the stack and park it above the line ──
+  scrollerInitBoard();
 
   // ── Sort columns ──
   var allBoxes = [];
@@ -152,6 +170,9 @@ function initGame() {
   shuffle(allBoxes);
   sortCols = [[], [], [], []];
   for (var i = 0; i < allBoxes.length; i++) sortCols[i % 4].push(allBoxes[i]);
+
+  // Scrolling boards re-deal the queues so the visible heads stay colourful
+  scrollerArrangeCustomers();
 
   // Lock buttons
   var numLocks = lvl.lockButtons || 0;
@@ -174,6 +195,17 @@ function updateBoxReveals(animate) {
   if (!stock || stock.length === 0) return;
   if (!L || !L.rows || !L.cols) return;
   var total = stock.length;
+
+  // Scrolling boards don't gate on a path to the bottom — the whole
+  // visible window is live, and cleared cells feed gravity-up instead.
+  if (scroller.active) {
+    for (var si = 0; si < total; si++) {
+      var sb = stock[si];
+      if (!sb || sb.isWall || sb.isTunnel || sb.empty || sb.used) continue;
+      sb.revealed = true;
+    }
+    return;
+  }
 
   // 1. Mark which cells are passable.
   var passable = new Array(total);
@@ -325,9 +357,10 @@ function getSortBoxY(ci, vi) { return L.sTop + vi * (L.sBh + L.sGap); }
 
 // === INPUT ===
 function handleTap(px, py) {
-  if (won || !gameActive) return;
+  if (won || lost || !gameActive) return;
   ensureAudio();
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
+  if (scroller.active) { scrollerHandleTap(px, py); return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
@@ -350,6 +383,7 @@ canvas.addEventListener('mousemove', function (e) {
   hoverIdx = -1;
   if (!gameActive) return;
   if (e.clientX >= L.bkX && e.clientX <= L.bkX + L.bkSize && e.clientY >= L.bkY && e.clientY <= L.bkY + L.bkSize) { canvas.style.cursor = 'pointer'; return; }
+  if (scroller.active) { scrollerHover(e.clientX, e.clientY); return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;
@@ -371,8 +405,11 @@ function update() {
     if (beltSlots[i].arriveAnim > 0) beltSlots[i].arriveAnim = Math.max(0, beltSlots[i].arriveAnim - 0.025);
   }
 
+  // ── Scrolling board: scroll, gravity-up, crumble, jam check ──
+  scrollerUpdate();
+
   // ── Tunnel spawning ──
-  trySpawnFromTunnels();
+  if (!scroller.active) trySpawnFromTunnels();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -386,7 +423,7 @@ function update() {
       for (var j = 0; j < jumpers.length; j++) if (jumpers[j].targetCol === c) inFlight++;
       if (col[tv].filled + inFlight >= SORT_CAP) continue;
       var bt = L.sortBeltT[c]; var diff = Math.abs(slotT - bt); var wdiff = Math.min(diff, 1 - diff);
-      if (wdiff < 0.015) {
+      if (wdiff < SORT_WINDOW) {
         var aj = false;
         for (var j = 0; j < jumpers.length; j++) if (jumpers[j].slotIdx === si) { aj = true; break; }
         if (aj) continue;
@@ -519,6 +556,9 @@ function update() {
 }
 
 function checkWin() {
+  // Scrolling boards win by surviving to the end of the board, not by
+  // emptying the sort columns — scrollerUpdate() owns that call.
+  if (scroller.active) return;
   for (var c = 0; c < sortCols.length; c++)
     for (var r = 0; r < sortCols[c].length; r++)
       if (sortCols[c][r].vis) return;
@@ -544,13 +584,14 @@ function frame() {
     ctx.clearRect(0, 0, W, H);
     drawBackground();
     drawFunnel();
-    drawStock();
+    if (scroller.active) drawScrollerBoard(); else drawStock();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();
     drawJumpers();
     drawSortArea();
     drawBackButton();
+    if (scroller.active) drawScrollerHUD();
     drawParticles();
     drawDebugWalls();
   }

@@ -5,19 +5,25 @@
 function computeLayout() {
   var cx = W / 2;
 
-  // STOCK — 7x7 grid
+  // STOCK — boardCols x boardRows grid, boardViewRows of it on screen
   var sCal = cal.stock;
-  var cols = 7, rows = 7;
+  var cols = boardCols, rows = boardRows, vRows = boardViewRows;
   var bg2 = 4 * S * sCal.s;
   var bw = Math.floor((380 * S * sCal.s - (cols - 1) * bg2) / cols);
   var bh = bw;
+  // Keep the visible window the same height as the classic 7-row grid
+  // when a level shows a different number of rows at once.
+  if (vRows !== 7) bh = Math.max(6, Math.min(bw, Math.floor((384 * S * sCal.s) / vRows) - bg2));
   var gameW = cols * bw + (cols - 1) * bg2;
   var stockCx = cx + sCal.dx * S;
   var stockLeft = stockCx - gameW / 2;
   L.cx = cx; L.bw = bw; L.bh = bh; L.bg = bg2;
-  L.cols = cols; L.rows = rows;
+  L.cols = cols; L.rows = rows; L.viewRows = vRows;
   L.gameW = gameW; L.gameLeft = stockLeft; L.gameRight = stockLeft + gameW;
   L.sx = stockLeft; L.sy = 46 * S + sCal.dy * S;
+  // Pressure line: the lower edge of the last visible row.
+  L.pressY = L.sy + vRows * (bh + bg2) - bg2;
+  L.boardTopY = Math.max(48 * S, L.sy - 1.9 * (bh + bg2));
 
   // FUNNEL
   var fCal = cal.funnel;
@@ -25,7 +31,8 @@ function computeLayout() {
   var funnelCx = cx + fCal.dx * S;
   var funnelLeft = funnelCx - funnelW / 2;
   var funnelRight = funnelCx + funnelW / 2;
-  var stockBot = L.sy + rows * (bh + bg2);
+  var stockBot = L.sy + vRows * (bh + bg2);
+  L.stockBot = stockBot;
   L.funnelTop = stockBot + fCal.dy * S;
   L.funnelH = 190 * S * fCal.sh;
   L.funnelBot = L.funnelTop + L.funnelH;
@@ -92,6 +99,14 @@ function computeLayout() {
   L.bkX = L.gameLeft + 8 * S + bkCal.dx * S;
   L.bkY = 10 * S + bkCal.dy * S;
   L.bkSize = bkSize;
+  // Scrolling boards need the strip above the grid for preview rows,
+  // so the back button moves up into the HUD bar.
+  if (typeof scroller !== 'undefined' && scroller.active) {
+    bkSize = 32 * S;
+    L.bkSize = bkSize;
+    L.bkX = L.gameLeft;
+    L.bkY = 7 * S;
+  }
 
   // Sort-belt alignment
   L.sortBeltT = [];
@@ -109,10 +124,11 @@ function computeLayout() {
 
 function updateStockPositions() {
   if (!stock || !stock.length) return;
+  var yOff = (typeof scrollerYOffset === 'function') ? scrollerYOffset() : 0;
   for (var i = 0; i < stock.length; i++) {
     var r = Math.floor(i / L.cols); var c = i % L.cols;
     stock[i].x = L.sx + c * (L.bw + L.bg);
-    stock[i].y = L.sy + r * (L.bh + L.bg);
+    stock[i].y = L.sy + r * (L.bh + L.bg) + yOff + (stock[i].slidePx || 0);
   }
 }
 

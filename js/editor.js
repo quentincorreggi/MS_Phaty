@@ -5,7 +5,9 @@
 // ============================================================
 
 var editor = {
-  grid: [],            // 7x7: null = empty, { ci, type } or { tunnel: true, ... } or { wall: true }
+  grid: [],            // cols x rows: null = empty, { ci, type } or { tunnel: true, ... } or { wall: true }
+  cols: 7,
+  rows: 7,
   name: 'Custom Level',
   desc: 'My custom level',
   mrbPerBox: 9,
@@ -17,12 +19,42 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
-  visible: false
+  visible: false,
+  scroller: null        // set by editorDefaultScroller()
 };
 
+function editorDefaultScroller() {
+  return {
+    enabled: false,
+    viewRows: 7,
+    mode: 'tap',
+    release: 'adjacent',
+    rowsPerTap: 0.7,
+    idleDrift: 0.08,
+    autoSpeed: 0.6,
+    gravity: 'column',
+    settleFrames: 5,
+    crumbleStagger: 60,
+    beltCap: 26,
+    beltSpeed: 1.7,
+    sortWindow: 0.05,
+    jamFuse: 50,
+    startGap: 1,
+    // generator settings (authoring only, not shipped in the level)
+    colorCount: 4,
+    cluster: 45,
+    openingRows: 4,
+    finaleRows: 4
+  };
+}
+
+function editorCells() { return editor.cols * editor.rows; }
+
 function editorInit() {
+  editor.cols = 7;
+  editor.rows = 7;
   editor.grid = [];
-  for (var i = 0; i < 49; i++) editor.grid.push(null);
+  for (var i = 0; i < editorCells(); i++) editor.grid.push(null);
   editor.name = 'Custom Level';
   editor.desc = 'My custom level';
   editor.mrbPerBox = 9;
@@ -34,6 +66,27 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.scroller = editorDefaultScroller();
+}
+
+// Resize the board, keeping what fits. Rows are anchored at the BOTTOM
+// because that end of the board is where play starts.
+function editorSetBoardSize(cols, rows) {
+  cols = Math.max(3, Math.min(9, cols));
+  rows = Math.max(6, Math.min(120, rows));
+  if (cols === editor.cols && rows === editor.rows) return;
+  var old = editor.grid, oc = editor.cols, or = editor.rows;
+  var next = [];
+  for (var i = 0; i < cols * rows; i++) next.push(null);
+  for (var r = 0; r < rows; r++) {
+    var sr = or - rows + r;                 // bottom-anchored
+    if (sr < 0 || sr >= or) continue;
+    for (var c = 0; c < cols && c < oc; c++) next[r * cols + c] = old[sr * oc + c];
+  }
+  editor.grid = next;
+  editor.cols = cols;
+  editor.rows = rows;
+  editor.selectedTunnel = -1;
 }
 
 function showEditor(fresh) {
@@ -58,6 +111,7 @@ function editorBuildUI() {
   editorRenderGrid();
   editorRenderToolbar();
   editorRenderSettings();
+  editorRenderScrollerPanel();
   editorUpdateStats();
   editorRenderTunnelPanel();
 }
@@ -65,8 +119,30 @@ function editorBuildUI() {
 // ── Grid ──
 function editorRenderGrid() {
   var el = document.getElementById('ed-grid');
+  var wrap = document.getElementById('ed-grid-wrap');
+  var noteTop = document.getElementById('ed-grid-note-top');
+  var noteBot = document.getElementById('ed-grid-note-bot');
+  var scrolling = editor.scroller && editor.scroller.enabled;
+
+  var cellPx = editor.rows > 12 ? 26 : (editor.rows > 9 ? 32 : 42);
+  var gridW = Math.min(320, editor.cols * (cellPx + 4));
+  el.style.gridTemplateColumns = 'repeat(' + editor.cols + ',1fr)';
+  el.style.maxWidth = gridW + 'px';
+  if (wrap) {
+    wrap.className = editor.rows > 9 ? 'tall' : '';
+    wrap.style.maxWidth = (gridW + 16) + 'px';
+  }
+  if (noteTop) {
+    noteTop.textContent = scrolling ? '▲ END of board — arrives last' : '';
+    noteTop.style.display = scrolling ? '' : 'none';
+  }
+  if (noteBot) {
+    noteBot.textContent = scrolling ? '▼ START — this row sits at the pressure line' : '';
+    noteBot.style.display = scrolling ? '' : 'none';
+  }
+
   el.innerHTML = '';
-  for (var i = 0; i < 49; i++) {
+  for (var i = 0; i < editorCells(); i++) {
     var cell = document.createElement('div');
     cell.className = 'ed-cell';
     var v = editor.grid[i];
@@ -314,18 +390,18 @@ function editorRenderTunnelPanel() {
   html += '</div>';
 
   // Exit tile info
-  var row = Math.floor(editor.selectedTunnel / 7);
-  var col = editor.selectedTunnel % 7;
+  var row = Math.floor(editor.selectedTunnel / editor.cols);
+  var col = editor.selectedTunnel % editor.cols;
   var er = row, ec = col;
   if (tunnel.dir === 'top') er = row - 1;
   else if (tunnel.dir === 'bottom') er = row + 1;
   else if (tunnel.dir === 'left') ec = col - 1;
   else if (tunnel.dir === 'right') ec = col + 1;
-  var exitValid = (er >= 0 && er < 7 && ec >= 0 && ec < 7);
+  var exitValid = (er >= 0 && er < editor.rows && ec >= 0 && ec < editor.cols);
   if (!exitValid) {
     html += '<div class="ed-stat-warn" style="margin:4px 0">Exit points outside the grid!</div>';
   } else {
-    var exitIdx = er * 7 + ec;
+    var exitIdx = er * editor.cols + ec;
     var exitCell = editor.grid[exitIdx];
     if (exitCell && !exitCell.tunnel) {
       html += '<div class="ed-stat-warn" style="margin:4px 0">Exit tile is occupied by a box</div>';
@@ -428,21 +504,70 @@ function editorRenderTunnelPanel() {
 
 // ── Quick actions ──
 function editorFillRandom() {
-  for (var i = 0; i < 49; i++) editor.grid[i] = null;
+  var cells = editorCells();
+  for (var i = 0; i < cells; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
+  var perColor = Math.max(1, Math.round(cells * 0.49 / 4));
   var cl = [];
-  for (var c = 0; c < 4; c++) for (var n = 0; n < 6; n++) cl.push(c);
+  for (var c = 0; c < 4; c++) for (var n = 0; n < perColor; n++) cl.push(c);
   shuffle(cl);
-  var indices = []; for (var i = 0; i < 49; i++) indices.push(i);
+  var indices = []; for (var i = 0; i < cells; i++) indices.push(i);
   shuffle(indices);
-  for (var i = 0; i < cl.length; i++) editor.grid[indices[i]] = { ci: cl[i], type: 'default' };
+  for (var i = 0; i < cl.length && i < cells; i++) editor.grid[indices[i]] = { ci: cl[i], type: 'default' };
   editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
 }
 
 function editorClearAll() {
-  for (var i = 0; i < 49; i++) editor.grid[i] = null;
+  for (var i = 0; i < editorCells(); i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
   editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+}
+
+// ── Board generator ──
+// Fills a row range solid. Holes are deliberately NOT generated: under
+// per-column gravity-up every gap collapses at load, so an authored hole
+// doesn't make a hole, it just makes that column shorter — and columns of
+// unequal length leave the stack's bottom edge ragged and floating above
+// the pressure line. What actually shapes play is the colour sequence,
+// so that is all the generator varies.
+//
+// `cluster` is the chance a cell copies a neighbour's colour, which is
+// what produces readable groups (and therefore chains) instead of
+// confetti. Higher cluster = bigger groups = more marbles per tap.
+function editorGenerateRows(rowFrom, rowTo) {
+  var sc = editor.scroller || editorDefaultScroller();
+  var nColors = Math.max(2, Math.min(NUM_COLORS, sc.colorCount));
+  var cluster = Math.max(0, Math.min(100, sc.cluster)) / 100;
+  rowFrom = Math.max(0, rowFrom);
+  rowTo = Math.min(editor.rows, rowTo);
+  for (var r = rowFrom; r < rowTo; r++) {
+    for (var c = 0; c < editor.cols; c++) {
+      var idx = r * editor.cols + c;
+      var ci = Math.floor(Math.random() * nColors);
+      if (Math.random() < cluster) {
+        var opts = [];
+        if (c > 0 && editor.grid[idx - 1] && editor.grid[idx - 1].ci >= 0) opts.push(editor.grid[idx - 1].ci);
+        if (r > rowFrom && editor.grid[idx - editor.cols] && editor.grid[idx - editor.cols].ci >= 0) {
+          opts.push(editor.grid[idx - editor.cols].ci);
+        }
+        if (opts.length) ci = opts[Math.floor(Math.random() * opts.length)];
+      }
+      editor.grid[idx] = { ci: ci, type: 'default' };
+    }
+  }
+  editor.selectedTunnel = -1;
+  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel(); editorRenderScrollerPanel();
+}
+
+function editorGenerateMiddle() {
+  var sc = editor.scroller || editorDefaultScroller();
+  editorGenerateRows(sc.finaleRows, editor.rows - sc.openingRows);
+  editorShowToast('Middle generated — opening and finale untouched');
+}
+
+function editorGenerateAll() {
+  editorGenerateRows(0, editor.rows);
+  editorShowToast('Whole board generated');
 }
 
 // ── Stats ──
@@ -453,7 +578,7 @@ function editorUpdateStats() {
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
   var wallCount = 0;
-  for (var i = 0; i < 49; i++) {
+  for (var i = 0; i < editorCells(); i++) {
     var v = editor.grid[i];
     if (!v) continue;
     if (v.wall) {
@@ -511,8 +636,28 @@ function editorUpdateStats() {
   }
   var warn = '';
   var totalAll = total + tunnelBoxCount;
+  var scrolling = editor.scroller && editor.scroller.enabled;
   if (totalAll === 0) {
     warn = 'Place some boxes to create a level';
+  } else if (scrolling) {
+    // Scrolling boards don't need marbles to divide evenly — a customer
+    // that can no longer be completed is retired automatically at runtime.
+    // What does matter is column height: gaps collapse upward, so a short
+    // column starts floating above the pressure line.
+    var tallest = 0, shortest = Infinity;
+    for (var c2 = 0; c2 < editor.cols; c2++) {
+      var h = 0;
+      for (var r2 = 0; r2 < editor.rows; r2++) { var g2 = editor.grid[r2 * editor.cols + c2]; if (g2 && g2.ci >= 0) h++; }
+      if (h > tallest) tallest = h;
+      if (h < shortest) shortest = h;
+    }
+    if (shortest === Infinity) shortest = 0;
+    html += '<span class="ed-stat-chip" style="background:#4ECDC4">columns ' + shortest + '–' + tallest + ' tall</span>';
+    if (tallest < editor.scroller.viewRows) {
+      warn = 'Board is shorter than the window — it will be over fast';
+    } else if (editor.scroller.gravity === 'column' && tallest - shortest > 2) {
+      warn = 'Columns differ by ' + (tallest - shortest) + ' — the stack will start ragged. Even them up.';
+    }
   } else {
     for (var c = 0; c < NUM_COLORS; c++) {
       if (regularMrb[c] > 0) {
@@ -561,20 +706,192 @@ function editorRenderSettings() {
   }
 }
 
+// ── Scrolling board panel ──
+function editorRenderScrollerPanel() {
+  var el = document.getElementById('ed-scroller-body');
+  if (!el) return;
+  if (!editor.scroller) editor.scroller = editorDefaultScroller();
+  var sc = editor.scroller;
+
+  var html = '';
+  html += '<div class="ed-toggle-row">' +
+    '<input type="checkbox" id="ed-sc-on"' + (sc.enabled ? ' checked' : '') + '>' +
+    '<label for="ed-sc-on">Make this a scrolling board</label></div>';
+
+  if (!sc.enabled) {
+    html += '<div class="ed-hint">A tall board that slides down toward a pressure line. ' +
+      'Tap a box to release its whole same-colour group; cleared cells let the boxes below ' +
+      'rise into them. Anything that sinks past the line crumbles onto the conveyor.</div>';
+    el.innerHTML = html;
+    document.getElementById('ed-sc-on').addEventListener('change', editorToggleScroller);
+    return;
+  }
+
+  html += editorSlider('sc-rows', 'Board rows', editor.rows, 8, 120, 1);
+  html += editorSlider('sc-cols', 'Columns', editor.cols, 3, 9, 1);
+  html += editorSlider('sc-view', 'Window rows', sc.viewRows, 4, 10, 1);
+  html += editorSlider('sc-gap', 'Start gap', sc.startGap, 0, 6, 1);
+
+  html += '<div class="ed-sub-label">Scroll variant</div>';
+  html += '<div class="ed-seg-row">' +
+    '<button class="ed-seg' + (sc.mode === 'tap' ? ' active' : '') + '" data-k="mode" data-v="tap">☝ Per tap</button>' +
+    '<button class="ed-seg' + (sc.mode === 'auto' ? ' active' : '') + '" data-k="mode" data-v="auto">⏱ Auto</button>' +
+    '</div>';
+  html += editorSlider('sc-tap', 'Rows / tap', Math.round(sc.rowsPerTap * 100), 5, 200, 5, 0.01);
+  html += editorSlider('sc-drift', 'Idle drift', Math.round(sc.idleDrift * 100), 0, 100, 1, 0.01);
+  html += editorSlider('sc-auto', 'Auto rows/s', Math.round(sc.autoSpeed * 100), 2, 150, 1, 0.01);
+  html += '<div class="ed-hint">Both variants run off the same board — swap between them ' +
+    'mid-run with the pill in the top-left of the play screen.</div>';
+
+  html += '<div class="ed-sub-label">What a tap releases</div>';
+  html += '<div class="ed-seg-row">' +
+    '<button class="ed-seg' + (sc.release === 'adjacent' ? ' active' : '') + '" data-k="release" data-v="adjacent">Box + neighbours</button>' +
+    '<button class="ed-seg' + (sc.release === 'group' ? ' active' : '') + '" data-k="release" data-v="group">Whole blob</button>' +
+    '</div>';
+
+  html += '<div class="ed-sub-label">Gravity-up</div>';
+  html += '<div class="ed-seg-row">' +
+    '<button class="ed-seg' + (sc.gravity === 'column' ? ' active' : '') + '" data-k="gravity" data-v="column">Per column</button>' +
+    '<button class="ed-seg' + (sc.gravity === 'group' ? ' active' : '') + '" data-k="gravity" data-v="group">Per group</button>' +
+    '</div>';
+  html += editorSlider('sc-settle', 'Settle frames', sc.settleFrames, 1, 20, 1);
+
+  html += '<div class="ed-sub-label">Pressure</div>';
+  html += editorSlider('sc-crumble', 'Crumble ms', sc.crumbleStagger, 0, 300, 10);
+  html += editorSlider('sc-belt', 'Conveyor cap', sc.beltCap, 6, BELT_SLOTS, 1);
+  html += editorSlider('sc-fuse', 'Jam fuse (f)', sc.jamFuse, 1, 240, 1);
+  html += editorSlider('sc-bspeed', 'Belt speed x', Math.round(sc.beltSpeed * 100), 50, 400, 5, 0.01);
+  html += editorSlider('sc-window', 'Hand-off', Math.round(sc.sortWindow * 1000), 10, 120, 1, 0.001);
+  html += '<div class="ed-hint">The conveyor has to swallow far more marbles than a normal ' +
+    'level, so it runs faster and hands off to customers more generously. Drop these back ' +
+    'toward 1.00 / 0.015 to feel base-game throughput.</div>';
+
+  html += '<div class="ed-sub-label">Generate</div>';
+  html += editorSlider('sc-colors', 'Colours', sc.colorCount, 2, NUM_COLORS, 1);
+  html += editorSlider('sc-cluster', 'Cluster %', sc.cluster, 0, 90, 5);
+  html += editorSlider('sc-open', 'Opening rows', sc.openingRows, 0, 12, 1);
+  html += editorSlider('sc-finale', 'Finale rows', sc.finaleRows, 0, 12, 1);
+  html += '<div class="ed-quick">' +
+    '<button class="ed-qbtn" id="ed-sc-gen-mid">🎲 Generate middle</button>' +
+    '<button class="ed-qbtn" id="ed-sc-gen-all">🎲 Generate all</button>' +
+    '</div>';
+  html += '<div class="ed-hint">Hand-author the opening (bottom rows) and the finale (top rows), ' +
+    'generate everything between. Colours are what shape play: fewer colours and a higher ' +
+    'cluster make bigger groups, which means more marbles per tap. Under per-column ' +
+    'gravity every gap collapses upward at load, so an empty cell does not make a hole — it ' +
+    'just makes that column one shorter. Keep columns the same height or the stack starts ' +
+    'ragged and floating above the line.</div>';
+
+  el.innerHTML = html;
+
+  document.getElementById('ed-sc-on').addEventListener('change', editorToggleScroller);
+
+  var segs = el.querySelectorAll('.ed-seg');
+  for (var s = 0; s < segs.length; s++) {
+    segs[s].addEventListener('click', function () {
+      editor.scroller[this.getAttribute('data-k')] = this.getAttribute('data-v');
+      editorRenderScrollerPanel();
+    });
+  }
+
+  editorBindSlider('sc-rows', function (v) { editorSetBoardSize(editor.cols, v); editorRenderGrid(); editorUpdateStats(); });
+  editorBindSlider('sc-cols', function (v) { editorSetBoardSize(v, editor.rows); editorRenderGrid(); editorUpdateStats(); });
+  editorBindSlider('sc-view', function (v) { sc.viewRows = v; editorUpdateStats(); });
+  editorBindSlider('sc-gap', function (v) { sc.startGap = v; });
+  editorBindSlider('sc-tap', function (v) { sc.rowsPerTap = v / 100; });
+  editorBindSlider('sc-drift', function (v) { sc.idleDrift = v / 100; });
+  editorBindSlider('sc-auto', function (v) { sc.autoSpeed = v / 100; });
+  editorBindSlider('sc-settle', function (v) { sc.settleFrames = v; });
+  editorBindSlider('sc-crumble', function (v) { sc.crumbleStagger = v; });
+  editorBindSlider('sc-belt', function (v) { sc.beltCap = v; });
+  editorBindSlider('sc-fuse', function (v) { sc.jamFuse = v; });
+  editorBindSlider('sc-bspeed', function (v) { sc.beltSpeed = v / 100; });
+  editorBindSlider('sc-window', function (v) { sc.sortWindow = v / 1000; });
+  editorBindSlider('sc-colors', function (v) { sc.colorCount = v; });
+  editorBindSlider('sc-cluster', function (v) { sc.cluster = v; });
+  editorBindSlider('sc-open', function (v) { sc.openingRows = v; });
+  editorBindSlider('sc-finale', function (v) { sc.finaleRows = v; });
+
+  document.getElementById('ed-sc-gen-mid').addEventListener('click', editorGenerateMiddle);
+  document.getElementById('ed-sc-gen-all').addEventListener('click', editorGenerateAll);
+}
+
+function editorSlider(id, label, value, min, max, step, scale) {
+  var shown = scale ? (value * scale).toFixed(2) : value;
+  return '<div class="ed-setting-row"><label>' + label + '</label>' +
+    '<input type="range" id="ed-' + id + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + value + '"' +
+    (scale ? ' data-scale="' + scale + '"' : '') + '>' +
+    '<span class="ed-s-val" id="ed-' + id + '-v">' + shown + '</span></div>';
+}
+
+function editorBindSlider(id, onChange) {
+  var sl = document.getElementById('ed-' + id);
+  var vl = document.getElementById('ed-' + id + '-v');
+  if (!sl) return;
+  sl.addEventListener('input', function () {
+    var v = parseInt(sl.value, 10);
+    var scale = parseFloat(sl.getAttribute('data-scale'));
+    vl.textContent = scale ? (v * scale).toFixed(2) : v;
+    onChange(v);
+  });
+}
+
+function editorToggleScroller(e) {
+  var on = e.currentTarget.checked;
+  if (!editor.scroller) editor.scroller = editorDefaultScroller();
+  editor.scroller.enabled = on;
+  if (on) {
+    if (editor.rows <= 9) editorSetBoardSize(editor.cols, 48);
+    // A scrolling board feeds the conveyor constantly; one marble per
+    // box is what the throughput can actually absorb.
+    if (editor.mrbPerBox > 1) editor.mrbPerBox = 1;
+    editorRenderSettings();
+  } else {
+    editorSetBoardSize(7, 7);
+  }
+  editorBuildUI();
+}
+
 // ── Build level definition ──
 function editorBuildLevel() {
-  return {
+  var lvl = {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
+    cols: editor.cols, rows: editor.rows,
     grid: editor.grid.slice()
   };
+  if (editor.scroller && editor.scroller.enabled) {
+    var sc = editor.scroller;
+    lvl.scroller = {
+      enabled: true,
+      viewRows: sc.viewRows,
+      mode: sc.mode,
+      release: sc.release,
+      rowsPerTap: sc.rowsPerTap,
+      idleDrift: sc.idleDrift,
+      autoSpeed: sc.autoSpeed,
+      gravity: sc.gravity,
+      settleFrames: sc.settleFrames,
+      crumbleStagger: sc.crumbleStagger,
+      beltCap: sc.beltCap,
+      beltSpeed: sc.beltSpeed,
+      sortWindow: sc.sortWindow,
+      jamFuse: sc.jamFuse,
+      startGap: sc.startGap,
+      colorCount: sc.colorCount,
+      cluster: sc.cluster,
+      openingRows: sc.openingRows,
+      finaleRows: sc.finaleRows
+    };
+  }
+  return lvl;
 }
 
 // ── Test play ──
 function editorTestPlay() {
   var total = 0;
-  for (var i = 0; i < 49; i++) if (editor.grid[i]) total++;
+  for (var i = 0; i < editorCells(); i++) if (editor.grid[i]) total++;
   if (total === 0) { editorShowToast('Place some boxes first!'); return; }
   hideEditor();
   var lvl = editorBuildLevel();
@@ -612,8 +929,14 @@ function editorImportJSON() {
   if (ta.style.display === 'block' && ta.value.trim()) {
     try {
       var lvl = JSON.parse(ta.value);
-      if (lvl.grid && lvl.grid.length === 49) {
-        for (var i = 0; i < 49; i++) {
+      if (lvl.grid && lvl.grid.length > 0) {
+        var cols = lvl.cols || 7;
+        var rows = lvl.rows || Math.max(1, Math.round(lvl.grid.length / cols));
+        editor.cols = Math.max(3, Math.min(9, cols));
+        editor.rows = Math.max(1, Math.min(120, rows));
+        editor.grid = [];
+        for (var gi = 0; gi < editorCells(); gi++) editor.grid.push(null);
+        for (var i = 0; i < editorCells() && i < lvl.grid.length; i++) {
           var cell = lvl.grid[i];
           if (cell === null || cell === undefined || cell === -1) editor.grid[i] = null;
           else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
@@ -625,6 +948,13 @@ function editorImportJSON() {
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
+      editor.scroller = editorDefaultScroller();
+      if (lvl.scroller) {
+        for (var sk in lvl.scroller) {
+          if (lvl.scroller[sk] !== undefined) editor.scroller[sk] = lvl.scroller[sk];
+        }
+        editor.scroller.enabled = lvl.scroller.enabled !== false;
+      }
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
       var nameEl = document.getElementById('ed-name');
@@ -652,7 +982,7 @@ function editorShowToast(msg) {
 // ── Save as Showcase (generates prototype.json content) ──
 function editorSaveShowcase() {
   var total = 0;
-  for (var i = 0; i < 49; i++) if (editor.grid[i]) total++;
+  for (var i = 0; i < editorCells(); i++) if (editor.grid[i]) total++;
   if (total === 0) { editorShowToast('Place some boxes first!'); return; }
 
   var level = editorBuildLevel();
