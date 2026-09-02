@@ -1,0 +1,23 @@
+{
+  "name": "Lucky Clovers",
+  "description": "Four clovers sit on boxes around the board. Tap a box to grab its clover — it flies up on a rainbow trail into the tray above the maze. Fill all four slots for a gold coin jackpot.",
+  "howToPlay": "Tap the boxes with a clover on top to collect them. One clover is on an ice box (break the ice first by tapping the two boxes next to it) and one is on a box locked in by its neighbours (clear one of them to open it up). Fill all 4 slots in the tray for the money celebration.",
+  "author": "simaocristo",
+  "showcaseLevel": {
+    "name": "Lucky Clovers",
+    "desc": "Collect all 4 clovers",
+    "mrbPerBox": 6,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "cloverCount": 4,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, null, null, null, { "ci": 1, "type": "default", "clover": true }, null, null,
+      null, null, null, { "ci": 2, "type": "default" }, null, null, null,
+      null, null, { "ci": 3, "type": "default" }, { "ci": 0, "type": "default", "clover": true }, { "ci": 1, "type": "default" }, null, null,
+      null, null, null, { "ci": 2, "type": "default" }, null, null, null,
+      null, null, { "ci": 3, "type": "default" }, { "ci": 0, "type": "ice", "clover": true }, null, null, null,
+      null, null, { "ci": 1, "type": "default", "clover": true }, null, { "ci": 2, "type": "default" }, null, null
+    ]
+  }
+}
