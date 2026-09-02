@@ -29,7 +29,7 @@ function editorDefaultScroller() {
     viewRows: 7,
     mode: 'tap',
     release: 'single',
-    rowsPerTap: 0.25,
+    rowsPerTap: 0.22,
     idleDrift: 0,
     autoSpeed: 0.13,
     gravity: 'column',
@@ -38,10 +38,11 @@ function editorDefaultScroller() {
     crumbleStagger: 120,
     loadCap: 85,
     tapBlockLoad: 60,
-    beltSpeed: 2.5,
-    sortWindow: 0.05,
+    beltSpeed: 3.0,
+    sortWindow: 0.09,
     funnelWiden: 1.7,
     previewRows: 7,
+    customerClearMs: 220,
     jamFuse: 90,
     startGap: 3,
     // generator settings (authoring only, not shipped in the level)
@@ -770,9 +771,10 @@ function editorRenderScrollerPanel() {
   html += editorSlider('sc-block', 'Refuse past', sc.tapBlockLoad, 10, 160, 1);
   html += editorSlider('sc-fuse', 'Jam fuse (f)', sc.jamFuse, 1, 240, 1);
   html += editorSlider('sc-bspeed', 'Belt speed x', Math.round(sc.beltSpeed * 100), 50, 400, 5, 0.01);
-  html += editorSlider('sc-window', 'Hand-off', Math.round(sc.sortWindow * 1000), 10, 120, 1, 0.001);
+  html += editorSlider('sc-window', 'Hand-off', Math.round(sc.sortWindow * 1000), 10, 140, 1, 0.001);
   html += editorSlider('sc-funnel', 'Funnel mouth', Math.round(sc.funnelWiden * 100), 100, 300, 5, 0.01);
   html += editorSlider('sc-preview', 'Customers shown', sc.previewRows, 1, 10, 1);
+  html += editorSlider('sc-clear', 'Served ms', sc.customerClearMs, 40, 900, 20);
   html += '<div class="ed-hint">Load cap counts the belt plus the marbles backed up in the ' +
     'funnel — that total is the overflow you lose to. Above "refuse above" the line stops ' +
     'accepting new boxes and a tap just rattles the box, so the player cannot bury themselves ' +
@@ -828,6 +830,7 @@ function editorRenderScrollerPanel() {
   editorBindSlider('sc-window', function (v) { sc.sortWindow = v / 1000; });
   editorBindSlider('sc-funnel', function (v) { sc.funnelWiden = v / 100; });
   editorBindSlider('sc-preview', function (v) { sc.previewRows = v; });
+  editorBindSlider('sc-clear', function (v) { sc.customerClearMs = v; });
   editorBindSlider('sc-colors', function (v) { sc.colorCount = v; });
   editorBindSlider('sc-cluster', function (v) { sc.cluster = v; });
   editorBindSlider('sc-open', function (v) { sc.openingRows = v; });
@@ -865,14 +868,11 @@ function editorToggleScroller(e) {
     // Boards are short because every box still holds a full 9 marbles:
     // 7 columns x 16 rows is already ~1000 marbles, which is about all
     // the conveyor can sort inside three minutes.
-    if (editor.rows <= 9) editorSetBoardSize(editor.cols, 16);
-    // One tap is one box of a single colour, so a customer that wants
-    // exactly one box's worth is what makes the queue readable: tap the
-    // colour a customer is asking for and that customer is served. With a
-    // smaller cap those nine marbles need three separate customers of the
-    // same colour, and while they wait the belt fills with colours nobody
-    // is asking for.
-    editor.sortCap = editor.mrbPerBox;
+    if (editor.rows <= 9) editorSetBoardSize(editor.cols, 13);
+    // Customers still take three marbles, as in every other level. A box
+    // is nine, so it is worth a run of three customers — the queue is
+    // dealt in runs so one tap serves one column three times over.
+    editor.sortCap = 3;
     editorRenderSettings();
   } else {
     editorSetBoardSize(7, 7);
@@ -909,6 +909,7 @@ function editorBuildLevel() {
       sortWindow: sc.sortWindow,
       funnelWiden: sc.funnelWiden,
       previewRows: sc.previewRows,
+      customerClearMs: sc.customerClearMs,
       jamFuse: sc.jamFuse,
       startGap: sc.startGap,
       colorCount: sc.colorCount,

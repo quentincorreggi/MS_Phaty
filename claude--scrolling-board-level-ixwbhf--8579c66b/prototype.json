@@ -7,10 +7,10 @@
     "name": "Scrolling Board",
     "desc": "Survive the descent",
     "mrbPerBox": 9,
-    "sortCap": 9,
+    "sortCap": 3,
     "lockButtons": 0,
     "cols": 7,
-    "rows": 16,
+    "rows": 13,
     "grid": [
       {
         "ci": 4,
@@ -153,23 +153,7 @@
         "type": "default"
       },
       {
-        "ci": 1,
-        "type": "default"
-      },
-      {
-        "ci": 3,
-        "type": "default"
-      },
-      {
-        "ci": 0,
-        "type": "default"
-      },
-      {
-        "ci": 3,
-        "type": "default"
-      },
-      {
-        "ci": 3,
+        "ci": 2,
         "type": "default"
       },
       {
@@ -177,7 +161,11 @@
         "type": "default"
       },
       {
-        "ci": 1,
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 4,
         "type": "default"
       },
       {
@@ -186,78 +174,6 @@
       },
       {
         "ci": 3,
-        "type": "default"
-      },
-      {
-        "ci": 2,
-        "type": "default"
-      },
-      {
-        "ci": 0,
-        "type": "default"
-      },
-      {
-        "ci": 3,
-        "type": "default"
-      },
-      {
-        "ci": 1,
-        "type": "default"
-      },
-      {
-        "ci": 1,
-        "type": "default"
-      },
-      {
-        "ci": 2,
-        "type": "default"
-      },
-      {
-        "ci": 0,
-        "type": "default"
-      },
-      {
-        "ci": 0,
-        "type": "default"
-      },
-      {
-        "ci": 0,
-        "type": "default"
-      },
-      {
-        "ci": 3,
-        "type": "default"
-      },
-      {
-        "ci": 3,
-        "type": "default"
-      },
-      {
-        "ci": 1,
-        "type": "default"
-      },
-      {
-        "ci": 2,
-        "type": "default"
-      },
-      {
-        "ci": 3,
-        "type": "default"
-      },
-      {
-        "ci": 0,
-        "type": "default"
-      },
-      {
-        "ci": 0,
-        "type": "default"
-      },
-      {
-        "ci": 2,
-        "type": "default"
-      },
-      {
-        "ci": 1,
         "type": "default"
       },
       {
@@ -466,7 +382,7 @@
       "viewRows": 7,
       "mode": "tap",
       "release": "single",
-      "rowsPerTap": 0.25,
+      "rowsPerTap": 0.22,
       "idleDrift": 0,
       "autoSpeed": 0.13,
       "gravity": "column",
@@ -475,10 +391,11 @@
       "crumbleStagger": 120,
       "loadCap": 85,
       "tapBlockLoad": 60,
-      "beltSpeed": 2.5,
-      "sortWindow": 0.05,
+      "beltSpeed": 3,
+      "sortWindow": 0.09,
       "funnelWiden": 1.7,
       "previewRows": 7,
+      "customerClearMs": 220,
       "jamFuse": 90,
       "startGap": 3,
       "colorCount": 4,
