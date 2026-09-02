@@ -426,6 +426,27 @@ function drawSortArea() {
           ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 3 * S; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
           ctx.beginPath(); ctx.moveTo(-iconS * 0.5, 0); ctx.lineTo(-iconS * 0.1, iconS * 0.4); ctx.lineTo(iconS * 0.5, -iconS * 0.3); ctx.stroke();
         }
+      } else if (b.ci < 0) {
+        // Waiting customer — hasn't taken an order yet (scrolling boards
+        // assign the colour when the box reaches the head of its column).
+        ctx.shadowColor = 'rgba(0,0,0,0.15)'; ctx.shadowBlur = 4 * S; ctx.shadowOffsetY = 2 * S;
+        var wGrad = ctx.createLinearGradient(0, -L.sBh / 2, 0, L.sBh / 2);
+        wGrad.addColorStop(0, 'rgba(196,183,164,0.75)');
+        wGrad.addColorStop(1, 'rgba(168,154,134,0.75)');
+        ctx.fillStyle = wGrad;
+        rRect(-L.sBw / 2, -L.sBh / 2, L.sBw, L.sBh, 8 * S); ctx.fill();
+        ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+        ctx.strokeStyle = 'rgba(140,120,95,0.35)'; ctx.lineWidth = 1 * S;
+        ctx.setLineDash([3 * S, 3 * S]);
+        rRect(-L.sBw / 2, -L.sBh / 2, L.sBw, L.sBh, 8 * S); ctx.stroke();
+        ctx.setLineDash([]);
+        var wsp = L.sBw / (SORT_CAP + 1);
+        var wmr = Math.min(6 * S * cal.sort.s * cal.marble.s, wsp * 0.46);
+        var woff = (SORT_CAP - 1) / 2;
+        for (var wj = 0; wj < SORT_CAP; wj++) {
+          ctx.fillStyle = 'rgba(255,255,255,0.16)';
+          ctx.beginPath(); ctx.arc((wj - woff) * wsp, 0, wmr * 0.55, 0, Math.PI * 2); ctx.fill();
+        }
       } else {
         ctx.shadowColor = 'rgba(0,0,0,0.22)'; ctx.shadowBlur = 5 * S; ctx.shadowOffsetY = 3 * S;
         var sc = COLORS[b.ci];
@@ -437,9 +458,11 @@ function drawSortArea() {
         ctx.strokeStyle = sc.dark; ctx.lineWidth = 1 * S;
         rRect(-L.sBw / 2, -L.sBh / 2, L.sBw, L.sBh, 8 * S); ctx.stroke();
         if (b.shineT > 0) { ctx.fillStyle = 'rgba(255,255,255,' + b.shineT * 0.35 + ')'; rRect(-L.sBw / 2, -L.sBh / 2, L.sBw, L.sBh, 8 * S); ctx.fill(); }
-        var sp = L.sBw / 4, mrr = 6 * S * cal.sort.s * cal.marble.s;
-        for (var j2 = 0; j2 < b.filled; j2++) drawMarble((j2 - 1) * sp, 0, mrr, b.ci);
-        for (var j2 = b.filled; j2 < SORT_CAP; j2++) { ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.beginPath(); ctx.arc((j2 - 1) * sp, 0, mrr * 0.55, 0, Math.PI * 2); ctx.fill(); }
+        var sp = L.sBw / (SORT_CAP + 1);
+        var mrr = Math.min(6 * S * cal.sort.s * cal.marble.s, sp * 0.46);
+        var off = (SORT_CAP - 1) / 2;
+        for (var j2 = 0; j2 < b.filled; j2++) drawMarble((j2 - off) * sp, 0, mrr, b.ci);
+        for (var j2 = b.filled; j2 < SORT_CAP; j2++) { ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.beginPath(); ctx.arc((j2 - off) * sp, 0, mrr * 0.55, 0, Math.PI * 2); ctx.fill(); }
       }
       ctx.restore();
     }
