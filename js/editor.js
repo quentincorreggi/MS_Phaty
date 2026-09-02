@@ -11,12 +11,14 @@ var editor = {
   mrbPerBox: 9,
   sortCap: 3,
   lockButtons: 0,
+  cloverCount: 4,      // random clovers used when none are painted
   activeColor: 0,      // -1=eraser, 0-7=color
   activeType: BoxTypeOrder[0],
   tunnelMode: false,    // true when placing tunnels
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  cloverMode: false,    // true when placing clovers
   visible: false
 };
 
@@ -28,12 +30,14 @@ function editorInit() {
   editor.mrbPerBox = 9;
   editor.sortCap = 3;
   editor.lockButtons = 0;
+  editor.cloverCount = 4;
   editor.activeColor = 0;
   editor.activeType = BoxTypeOrder[0];
   editor.tunnelMode = false;
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.cloverMode = false;
 }
 
 function showEditor(fresh) {
@@ -91,6 +95,7 @@ function editorRenderGrid() {
       cell.style.background = st.background;
       cell.style.borderColor = st.borderColor;
       cell.innerHTML = bt.editorCellHTML(v.ci);
+      if (v.clover) cell.innerHTML += '<span class="ed-clover-badge">&#127808;</span>';
     } else {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
@@ -104,6 +109,18 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.cloverMode) {
+    // Clover placement mode — clovers only stick to boxes
+    var cv = editor.grid[idx];
+    if (cv && !cv.wall && !cv.tunnel && cv.ci >= 0) {
+      if (cv.clover) delete cv.clover;
+      else cv.clover = true;
+      editorRenderGrid();
+      editorUpdateStats();
+    }
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -144,7 +161,9 @@ function editorCellClick(e) {
       if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
         editor.grid[idx] = null;
       } else {
+        var keepClover = !!(existing && existing.clover);
         editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
+        if (keepClover) editor.grid[idx].clover = true;
       }
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     }
@@ -157,6 +176,18 @@ function editorCellClick(e) {
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.cloverMode) {
+    // Clover placement mode — clovers only stick to boxes
+    var cv = editor.grid[idx];
+    if (cv && !cv.wall && !cv.tunnel && cv.ci >= 0) {
+      if (cv.clover) delete cv.clover;
+      else cv.clover = true;
+      editorRenderGrid();
+      editorUpdateStats();
+    }
+    return;
+  }
   editor.grid[idx] = null;
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
   editorRenderGrid();
@@ -178,13 +209,14 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.cloverMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.cloverMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -200,6 +232,7 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.cloverMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -214,10 +247,26 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.cloverMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(tunnelBtn);
+
+  // Clover mode button
+  var cloverBtn = document.createElement('button');
+  cloverBtn.className = 'ed-type-btn' + (editor.cloverMode ? ' active' : '');
+  cloverBtn.textContent = '\uD83C\uDF40 Clover';
+  cloverBtn.style.borderColor = editor.cloverMode ? 'rgba(45,184,102,0.6)' : '';
+  cloverBtn.style.color = editor.cloverMode ? '#2DB866' : '';
+  cloverBtn.addEventListener('click', function () {
+    editor.cloverMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(cloverBtn);
 
   el.appendChild(typeRow);
 
@@ -254,6 +303,12 @@ function editorRenderToolbar() {
       dirRow.appendChild(db);
     }
     el.appendChild(dirRow);
+  } else if (editor.cloverMode) {
+    // Clover mode: info hint
+    var clvInfo = document.createElement('div');
+    clvInfo.className = 'ed-color-row';
+    clvInfo.innerHTML = '<span style="font-size:11px;color:#2DB866">Click a box to add or remove its clover</span>';
+    el.appendChild(clvInfo);
   } else if (editor.wallMode) {
     // Wall mode: just show info hint
     var wallInfo = document.createElement('div');
@@ -453,6 +508,7 @@ function editorUpdateStats() {
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
   var wallCount = 0;
+  var cloverPainted = 0;
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
@@ -481,6 +537,7 @@ function editorUpdateStats() {
       counts[v.ci]++;
       total++;
       typeCounts[v.type] = (typeCounts[v.type] || 0) + 1;
+      if (v.clover) cloverPainted++;
       if (v.type === 'blocker') {
         regularMrb[v.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
         totalBlockers += BLOCKER_PER_BOX;
@@ -496,6 +553,11 @@ function editorUpdateStats() {
     if (typeCounts[tid]) {
       html += '<span class="ed-stat-chip" style="background:' + BoxTypes[tid].editorColor + '">' + typeCounts[tid] + ' ' + BoxTypes[tid].label.toLowerCase() + '</span>';
     }
+  }
+  if (cloverPainted > 0) {
+    html += '<span class="ed-stat-chip" style="background:#2DB866">' + cloverPainted + ' clover' + (cloverPainted > 1 ? 's' : '') + '</span>';
+  } else if (editor.cloverCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#2DB866">' + editor.cloverCount + ' random clovers</span>';
   }
   if (wallCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#8A7D6B">' + wallCount + ' wall' + (wallCount > 1 ? 's' : '') + '</span>';
@@ -537,7 +599,8 @@ function editorRenderSettings() {
   var fields = [
     { label: 'Marbles/Box', key: 'mrbPerBox', min: 1, max: 25, step: 1 },
     { label: 'Sort Cap', key: 'sortCap', min: 1, max: 9, step: 1 },
-    { label: 'Lock Btns', key: 'lockButtons', min: 0, max: 5, step: 1 }
+    { label: 'Lock Btns', key: 'lockButtons', min: 0, max: 5, step: 1 },
+    { label: 'Clovers', key: 'cloverCount', min: 0, max: 6, step: 1 }
   ];
   for (var i = 0; i < fields.length; i++) {
     var f = fields[i];
@@ -567,6 +630,7 @@ function editorBuildLevel() {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
+    cloverCount: editor.cloverCount,
     grid: editor.grid.slice()
   };
 }
@@ -625,6 +689,7 @@ function editorImportJSON() {
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
+      if (lvl.cloverCount !== undefined) editor.cloverCount = lvl.cloverCount;
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
       var nameEl = document.getElementById('ed-name');

@@ -145,6 +145,9 @@ function initGame() {
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
 
+  // ── Lucky clovers ──
+  initClovers(lvl);
+
   // ── Sort columns ──
   var allBoxes = [];
   for (var c = 0; c < NUM_COLORS; c++) for (var r = 0; r < sortPerColor[c]; r++)
@@ -339,6 +342,7 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      tryCollectClover(i);
       return;
     }
   }
@@ -373,6 +377,9 @@ function update() {
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
+
+  // ── Lucky clovers ──
+  updateClovers();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -545,6 +552,7 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    drawBoxClovers();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();
@@ -552,6 +560,10 @@ function frame() {
     drawSortArea();
     drawBackButton();
     drawParticles();
+    drawCloverTray();
+    drawCloverFliers();
+    drawCloverCoins();
+    drawCloverReward();
     drawDebugWalls();
   }
   requestAnimationFrame(frame);
@@ -593,7 +605,7 @@ function updateShowcaseUI() {
   }
   if (btn) btn.style.display = '';
   if (info) {
-    info.style.display = '';
+    info.style.display = 'block';
     var html = '';
     if (prototypeInfo.name) html += '<div class="ls-showcase-name">' + prototypeInfo.name + '</div>';
     if (prototypeInfo.description) html += '<div class="ls-showcase-desc">' + prototypeInfo.description + '</div>';

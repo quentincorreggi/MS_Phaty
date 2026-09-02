@@ -53,6 +53,16 @@ var blockerCollectT = 0;
 var blockerCollectSlots = [];
 var blockerCollectCleared = false;
 
+// === LUCKY CLOVERS ===
+var cloverSlots = [];        // tray slots: { filled, popT, ringT }
+var cloverFliers = [];       // clovers in flight to the tray
+var cloverCoins = [];        // gold coins from the jackpot celebration
+var cloverTotal = 0;
+var cloversCollected = 0;
+var cloverJackpotT = 0;
+var cloverRewardT = 0;
+var cloverAllDone = false;
+
 var MRB_PER_BOX = 9, SORT_CAP = 3;
 var SORT_VISIBLE_ROWS = 4;
 
