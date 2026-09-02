@@ -28,9 +28,9 @@ function editorDefaultScroller() {
     enabled: false,
     viewRows: 7,
     mode: 'tap',
-    release: 'adjacent',
-    rowsPerTap: 0.3,
-    idleDrift: 0.06,
+    release: 'single',
+    rowsPerTap: 0.25,
+    idleDrift: 0,
     autoSpeed: 0.13,
     gravity: 'column',
     settleFrames: 5,
@@ -744,11 +744,14 @@ function editorRenderScrollerPanel() {
   html += editorSlider('sc-drift', 'Idle drift', Math.round(sc.idleDrift * 1000), 0, 300, 5, 0.001);
   html += editorSlider('sc-auto', 'Auto rows/s', Math.round(sc.autoSpeed * 1000), 10, 800, 5, 0.001);
   html += '<div class="ed-hint">Both variants run off the same board — swap between them ' +
-    'mid-run with the pill in the top-left of the play screen.</div>';
+    'mid-run with the pill in the top-left of the play screen. Idle drift 0 means the ' +
+    'tap variant never moves on its own; the board only advances when the player taps, so ' +
+    'they can also stop it dead by not tapping.</div>';
 
   html += '<div class="ed-sub-label">What a tap releases</div>';
   html += '<div class="ed-seg-row">' +
-    '<button class="ed-seg' + (sc.release === 'adjacent' ? ' active' : '') + '" data-k="release" data-v="adjacent">Box + neighbours</button>' +
+    '<button class="ed-seg' + (sc.release === 'single' ? ' active' : '') + '" data-k="release" data-v="single">Just that box</button>' +
+    '<button class="ed-seg' + (sc.release === 'adjacent' ? ' active' : '') + '" data-k="release" data-v="adjacent">+ neighbours</button>' +
     '<button class="ed-seg' + (sc.release === 'group' ? ' active' : '') + '" data-k="release" data-v="group">Whole blob</button>' +
     '</div>';
 

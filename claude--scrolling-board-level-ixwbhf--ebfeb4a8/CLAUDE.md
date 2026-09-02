@@ -165,8 +165,10 @@ a fixed window toward a *pressure line* just above the funnel. See
 
 - The grid is authored top-to-bottom: **row 0 is the END of the board**
   (arrives last), the **last row is the START** (nearest the line at kickoff).
-- Tapping a box releases it plus its same-coloured neighbours (`release:
-  'adjacent'`) or its whole connected blob (`release: 'group'`).
+- Tapping a box releases **only that box** (`release: 'single'`, the
+  default). `'adjacent'` also takes its same-coloured neighbours and
+  `'group'` the whole connected blob — note that colour adjacency, and so
+  the whole "free chain" idea, only means anything under those two.
 - Cleared cells become holes and the boxes below **rise** into them
   (`gravity: 'column'` or `'group'`), pulling the stack away from the line.
   Under per-column gravity every vertical gap collapses at load, so an empty
@@ -177,13 +179,21 @@ a fixed window toward a *pressure line* just above the funnel. See
 - **Win**: the end of the board crosses the line. **Lose**: the conveyor
   overflows — `loadCap` (belt slots + marbles backed up in the funnel)
   exceeded for `jamFuse` frames. That is the single fail state.
-- Two scroll variants share one board: `mode: 'tap'` (N rows per tap plus a
-  continuous idle drift) and `mode: 'auto'`. The HUD pill swaps them mid-run.
+- Two scroll variants share one board: `mode: 'tap'` and `mode: 'auto'`. The
+  HUD pill swaps them mid-run. In the tap variant `idleDrift` is **0**: the
+  board moves only when the player taps, and stopping tapping stops the
+  level dead. That is the freeze risk the design brief flagged, accepted
+  deliberately in exchange for a board that never moves behind your back;
+  raise `idleDrift` to trade back. The one thing that still moves the board
+  on its own is the soft-lock breaker, which fires only when there is no
+  box the player could tap at all (the stack has compacted above the
+  window), because otherwise nothing could ever start it again.
 
 ### Why this mode needs its own plumbing
 
-Boxes still hold a full 9 marbles, so one tapped group is 20-45 marbles and
-the conveyor only sorts about six a second. Everything below exists because
+Boxes still hold a full 9 marbles, and the conveyor only sorts about six a
+second — so a single tap is already 1.5 seconds of conveyor, and a group
+release under `'adjacent'` or `'group'` is 20-45 marbles. Everything below exists because
 of that ratio, and all of it is off by default on normal levels:
 
 - **The line refuses what it can't take.** A release that would push the
