@@ -58,13 +58,14 @@ function initGame() {
         var cType = cell.type || 'default';
         if (cType === 'crate') {
           // A crate is anchored at its top-left cell and covers a
-          // CRATE_SIZE x CRATE_SIZE block of boxes.
+          // cw x ch block of boxes (2x2 when the level doesn't say).
+          var cGw = cell.cw || CRATE_SIZE, cGh = cell.ch || CRATE_SIZE;
           var aRow = Math.floor(i / L.cols), aCol = i % L.cols;
-          var fits = (aRow + CRATE_SIZE <= L.rows) && (aCol + CRATE_SIZE <= L.cols);
+          var fits = (aRow + cGh <= L.rows) && (aCol + cGw <= L.cols);
           var cCells = [];
           if (fits) {
-            for (var dr = 0; dr < CRATE_SIZE && fits; dr++) {
-              for (var dc = 0; dc < CRATE_SIZE; dc++) {
+            for (var dr = 0; dr < cGh && fits; dr++) {
+              for (var dc = 0; dc < cGw; dc++) {
                 var cIdx = (aRow + dr) * L.cols + (aCol + dc);
                 // Every covered cell must be free for the crate to fit
                 if (cIdx !== i && lvl.grid[cIdx]) { fits = false; break; }
@@ -73,13 +74,22 @@ function initGame() {
             }
           }
           if (fits) {
+            // The lock is a list of colors, one per plank. Without one, the
+            // crate wants CRATE_HP taps of its own color, as it used to.
+            var cLocks = [];
+            if (cell.locks && cell.locks.length) {
+              for (var lk = 0; lk < cell.locks.length; lk++) cLocks.push(cell.locks[lk]);
+            } else {
+              for (var lk = 0; lk < CRATE_HP; lk++) cLocks.push(cell.ci);
+            }
             // Each compartment can hold its own color; without a contents
-            // list every box inside matches the crate's lock color.
+            // list every box inside matches the crate's first lock color.
             var contents = cell.contents || [];
             for (var cc = 0; cc < cCells.length; cc++) {
               var inner = (contents[cc] === undefined || contents[cc] === null) ? cell.ci : contents[cc];
               boxSlots[cCells[cc]] = {
-                ci: inner, boxType: 'crate', crateAnchorIdx: i, crateCi: cell.ci
+                ci: inner, boxType: 'crate', crateAnchorIdx: i,
+                crateW: cGw, crateH: cGh, crateLocks: cLocks
               };
             }
           } else {
@@ -140,7 +150,8 @@ function initGame() {
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
-        crateHP: 0, crateHitT: 0, crateBreakT: 0, crateAnchorIdx: -1, crateCi: -1,
+        crateHP: 0, crateHitT: 0, crateBreakT: 0, crateMaxHP: 0, crateAnchorIdx: -1,
+        crateW: 0, crateH: 0, crateLocks: null,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
@@ -151,7 +162,8 @@ function initGame() {
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: false, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
-        crateHP: 0, crateHitT: 0, crateBreakT: 0, crateAnchorIdx: -1, crateCi: -1,
+        crateHP: 0, crateHitT: 0, crateBreakT: 0, crateMaxHP: 0, crateAnchorIdx: -1,
+        crateW: 0, crateH: 0, crateLocks: null,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
@@ -159,7 +171,8 @@ function initGame() {
       stock.push({ ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
-        crateHP: 0, crateHitT: 0, crateBreakT: 0, crateAnchorIdx: -1, crateCi: -1,
+        crateHP: 0, crateHitT: 0, crateBreakT: 0, crateMaxHP: 0, crateAnchorIdx: -1,
+        crateW: 0, crateH: 0, crateLocks: null,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
     } else {
@@ -172,9 +185,11 @@ function initGame() {
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
-        crateHP: isCrateAnchor ? CRATE_HP : 0, crateHitT: 0, crateBreakT: 0,
+        crateHP: isCrateAnchor ? slot.crateLocks.length : 0, crateHitT: 0, crateBreakT: 0,
+        crateMaxHP: isCrateAnchor ? slot.crateLocks.length : 0,
         crateAnchorIdx: isCrate ? slot.crateAnchorIdx : -1,
-        crateCi: isCrate ? slot.crateCi : -1,
+        crateW: isCrate ? slot.crateW : 0, crateH: isCrate ? slot.crateH : 0,
+        crateLocks: isCrateAnchor ? slot.crateLocks.slice() : null,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
@@ -353,10 +368,11 @@ function damageAdjacentIce(idx) {
 }
 
 // === CRATES ===
-// A crate is a CRATE_SIZE x CRATE_SIZE wooden cage sealing that many
-// boxes. The top-left cell is the anchor and holds the crate's HP and
-// its lock color (crateCi); every covered cell points back at it through
-// crateAnchorIdx and keeps its own color for the box it holds.
+// A crate is a crateW x crateH wooden cage sealing that many boxes. The
+// top-left cell is the anchor: it holds the footprint and crateLocks, the
+// list of colors still needed to open it — one plank per entry. Every
+// covered cell points back at the anchor through crateAnchorIdx and keeps
+// its own color for the box it holds.
 
 // Index of the sealed crate covering this cell, or -1 if there is none.
 function crateAnchorOf(idx) {
@@ -369,10 +385,12 @@ function crateAnchorOf(idx) {
 
 // The grid cells a crate anchored at anchorIdx covers.
 function crateCells(anchorIdx) {
+  var a = stock[anchorIdx];
+  var gw = a.crateW || CRATE_SIZE, gh = a.crateH || CRATE_SIZE;
   var ar = Math.floor(anchorIdx / L.cols), ac = anchorIdx % L.cols;
   var out = [];
-  for (var dr = 0; dr < CRATE_SIZE; dr++) {
-    for (var dc = 0; dc < CRATE_SIZE; dc++) {
+  for (var dr = 0; dr < gh; dr++) {
+    for (var dc = 0; dc < gw; dc++) {
       var r = ar + dr, c = ac + dc;
       if (r < L.rows && c < L.cols) out.push(r * L.cols + c);
     }
@@ -388,8 +406,15 @@ function crateContents(anchorIdx) {
   return out;
 }
 
-// Width/height of a crate in pixels — its cells plus the gaps between them.
-function crateSpan() { return CRATE_SIZE * L.bw + (CRATE_SIZE - 1) * L.bg; }
+// Pixel size of a crate — its cells plus the gaps between them.
+function crateSpanW(anchorIdx) {
+  var gw = stock[anchorIdx].crateW || CRATE_SIZE;
+  return gw * L.bw + (gw - 1) * L.bg;
+}
+function crateSpanH(anchorIdx) {
+  var gh = stock[anchorIdx].crateH || CRATE_SIZE;
+  return gh * L.bh + (gh - 1) * L.bg;
+}
 
 // Shake every cell of a crate together so it wobbles as one object.
 function shakeCrate(anchorIdx, amount) {
@@ -398,8 +423,9 @@ function shakeCrate(anchorIdx, amount) {
 }
 
 // === CRATE DAMAGE ===
-// Crates are picky: only an adjacent box of the SAME color hurts them.
-// Any other color just knocks against the wood and does nothing.
+// Crates are picky: a tap only counts if that color is still somewhere on
+// the crate's lock list. It knocks off the topmost plank of that color.
+// Any other color just thuds against the wood.
 // tapCi is the color of the box that was just tapped.
 function damageAdjacentCrates(idx, tapCi) {
   var row = Math.floor(idx / L.cols), col = idx % L.cols;
@@ -419,19 +445,24 @@ function damageAdjacentCrates(idx, tapCi) {
     hit.push(anchorIdx);
 
     var cr = stock[anchorIdx];
-    var span = crateSpan();
-    var bx = cr.x + span / 2, by = cr.y + span / 2;
+    var spanW = crateSpanW(anchorIdx), spanH = crateSpanH(anchorIdx);
+    var plankIdx = cr.crateLocks.indexOf(tapCi);
 
-    // ── Wrong color: bounce off the wood ──
-    // The lock color is the crate's own, not the color of any box inside it.
-    if (cr.crateCi !== tapCi) {
+    // ── Not on the list: bounce off the wood ──
+    if (plankIdx < 0) {
       shakeCrate(anchorIdx, 0.28);
       if (!playedThud) { sfx.thud(); playedThud = true; }
       continue;
     }
 
-    // ── Right color: the crate splits ──
-    cr.crateHP--;
+    // ── On the list: that plank splinters off ──
+    // Burst from where the plank sits so the feedback points at it.
+    var plankT = (cr.crateLocks.length > 1) ? (plankIdx / (cr.crateLocks.length - 1)) : 0.5;
+    var bx = cr.x + spanW / 2;
+    var by = cr.y + spanH * (0.12 + plankT * 0.5);
+
+    cr.crateLocks.splice(plankIdx, 1);
+    cr.crateHP = cr.crateLocks.length;
     cr.crateHitT = 1.0;
     shakeCrate(anchorIdx, 0.45);
 
@@ -441,11 +472,11 @@ function damageAdjacentCrates(idx, tapCi) {
         var a = Math.PI * 2 * p / 16 + Math.random() * 0.4, sp = 2 + Math.random() * 4;
         particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S - 1 * S,
           r: (1.5 + Math.random() * 3.5) * S,
-          color: Math.random() > 0.5 ? 'rgba(169,116,63,0.95)' : 'rgba(201,144,85,0.95)',
+          color: Math.random() > 0.6 ? COLORS[tapCi].fill : 'rgba(169,116,63,0.95)',
           life: 0.85, decay: 0.028 + Math.random() * 0.02, grav: true });
       }
     } else {
-      openCrate(anchorIdx, bx, by);
+      openCrate(anchorIdx, cr.x + spanW / 2, cr.y + spanH / 2);
     }
   }
 }
@@ -457,6 +488,7 @@ function openCrate(anchorIdx, bx, by) {
     var b = stock[cells[i]];
     b.crateHP = 0;
     b.crateAnchorIdx = -1;
+    b.crateLocks = null;
     b.boxType = 'default';
     b.crateBreakT = 1.0;
     b.popT = 0.9;
@@ -466,8 +498,9 @@ function openCrate(anchorIdx, bx, by) {
   sfx.complete();
 
   // Wooden splinters flying out of the whole footprint
-  for (var p = 0; p < 34; p++) {
-    var a = Math.PI * 2 * p / 34 + Math.random() * 0.3, sp = 3 + Math.random() * 6;
+  var burst = 22 + cells.length * 3;
+  for (var p = 0; p < burst; p++) {
+    var a = Math.PI * 2 * p / burst + Math.random() * 0.3, sp = 3 + Math.random() * 6;
     particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S - 2.5 * S,
       r: (2 + Math.random() * 4.5) * S,
       color: Math.random() > 0.5 ? 'rgba(169,116,63,0.95)' : 'rgba(124,83,38,0.95)',

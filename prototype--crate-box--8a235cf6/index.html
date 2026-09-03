@@ -142,7 +142,20 @@
   .ed-crate-lock{margin-left:auto;padding:2px 8px;border-radius:10px;color:white;font-size:10px;
     font-weight:700;text-shadow:0 1px 1px rgba(0,0,0,0.25);text-transform:none;letter-spacing:0}
   .ed-crate-hint{font-size:11px;color:#8A7250;margin-bottom:8px;line-height:1.4}
-  .ed-crate-slots{display:grid;gap:5px;max-width:120px;margin:0 auto 8px;
+  .ed-crate-row{display:flex;gap:5px;justify-content:center;flex-wrap:wrap}
+  .ed-crate-size{padding:5px 12px;border:2px solid rgba(169,116,63,0.35);border-radius:8px;
+    font-family:'Fredoka',sans-serif;font-size:12px;font-weight:700;cursor:pointer;
+    color:#7C5326;background:rgba(255,255,255,0.5);transition:all 0.15s}
+  .ed-crate-size.active{background:rgba(169,116,63,0.3);border-color:#8A5B2C;color:#5E3C18}
+  .ed-crate-size:hover{transform:scale(1.06)}
+  .ed-crate-planks{display:flex;flex-direction:column;gap:3px;max-width:150px;margin:0 auto 8px;
+    padding:5px;background:repeating-linear-gradient(180deg,#C99055 0px,#A9743F 5px,#7C5326 7px,#C99055 9px);
+    border-radius:8px;border:2px solid rgba(90,60,30,0.35)}
+  .ed-crate-plank{height:14px;border-radius:3px;cursor:pointer;
+    border:1px solid rgba(255,255,255,0.35);box-shadow:0 1px 2px rgba(0,0,0,0.25);
+    transition:transform 0.12s}
+  .ed-crate-plank:hover{transform:scaleX(1.05)}.ed-crate-plank:active{transform:scaleX(0.94)}
+  .ed-crate-slots{display:grid;gap:5px;margin:0 auto 8px;
     padding:6px;background:linear-gradient(135deg,#C99055,#7C5326);border-radius:8px;
     border:2px solid rgba(90,60,30,0.35)}
   .ed-crate-slot{aspect-ratio:1;border-radius:6px;cursor:pointer;

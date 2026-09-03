@@ -1,0 +1,31 @@
+{
+  "name": "Color Crate",
+  "description": "A wooden crate whose planks are its health: one plank per required color, knocked off by popping that color next to it.",
+  "howToPlay": "Read the crate's planks top to bottom — each one names a color it needs. Tap a box of that color anywhere around the crate's footprint and that plank splinters off. Colors it doesn't want just thud. Clear every plank and the crate bursts, freeing all the boxes inside.",
+  "author": "",
+  "showcaseLevel": {
+    "name": "Crack the Crates",
+    "desc": "Planks are health — knock off every one",
+    "mrbPerBox": 3,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      { "ci": 4, "type": "crate", "cw": 2, "ch": 2, "locks": [4, 4, 1], "contents": [4, 4, 1, 1] },
+      null, { "ci": 4, "type": "default" }, null, null, null, null,
+
+      null, null, { "ci": 1, "type": "default" }, null, null, null, null,
+
+      { "ci": 4, "type": "default" }, null, null, null, { "ci": 3, "type": "default" }, null, null,
+
+      null, null, null,
+      { "ci": 2, "type": "crate", "cw": 3, "ch": 3, "locks": [2, 2, 3, 5, 2], "contents": [2, 2, 3, 2, 5, 3, 2, 5, 2] },
+      null, null, { "ci": 2, "type": "default" },
+
+      null, null, { "ci": 2, "type": "default" }, null, null, null, null,
+
+      null, null, null, null, null, null, { "ci": 5, "type": "default" },
+
+      null, null, null, { "ci": 2, "type": "default" }, null, null, null
+    ]
+  }
+}
