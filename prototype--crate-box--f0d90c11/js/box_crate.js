@@ -12,9 +12,10 @@ registerBoxType('crate', {
   editorColor: '#A9743F',
 
   // ── Draw the wooden crate (called from drawCrates for the whole footprint) ──
-  // The crate is one object spanning every cell it covers. Its frame carries
-  // the lock color — the only color that damages it — while each compartment
-  // shows the color of the box sealed in that cell.
+  // The crate is one object spanning every cell it covers. Its planks are
+  // painted in the lock color — the only color that damages it — over a plain
+  // wooden frame, while each compartment shows the color of the box sealed in
+  // that cell.
   // contents = one color index per compartment, in reading order.
   drawCrateOverlay: function (ctx, x, y, w, h, S, hp, ci, tick, contents) {
     var c = COLORS[ci] || COLORS[0];
@@ -38,10 +39,10 @@ registerBoxType('crate', {
       var py = startY + p * (plankH + gap);
       if (p === brokenPlank) {
         // Broken plank — two stubs with a bite out of the middle
-        this.drawPlank(ctx, x - w * 0.05, py, w * 0.40, plankH, S, tick, p);
-        this.drawPlank(ctx, x + w * 0.70, py, w * 0.40, plankH, S, tick, p);
+        this.drawPlank(ctx, x - w * 0.05, py, w * 0.40, plankH, S, tick, p, c);
+        this.drawPlank(ctx, x + w * 0.70, py, w * 0.40, plankH, S, tick, p, c);
       } else {
-        this.drawPlank(ctx, x - w * 0.05, py, w * 1.1, plankH, S, tick, p);
+        this.drawPlank(ctx, x - w * 0.05, py, w * 1.1, plankH, S, tick, p, c);
       }
     }
 
@@ -72,25 +73,25 @@ registerBoxType('crate', {
     }
     ctx.restore();
 
-    // ── Colored frame so the crate's color always reads at a glance ──
-    ctx.strokeStyle = c.fill;
+    // ── Plain wooden frame — the color lives on the planks ──
+    ctx.strokeStyle = '#8A5B2C';
     ctx.lineWidth = 4.5 * S;
     ctx.globalAlpha = 0.95;
     rRect(x + 2 * S, y + 2 * S, w - 4 * S, h - 4 * S, 7 * S); ctx.stroke();
-    ctx.globalAlpha = 0.35;
-    ctx.strokeStyle = c.light;
+    ctx.strokeStyle = '#5E3C18';
     ctx.lineWidth = 1.4 * S;
-    rRect(x + 6 * S, y + 6 * S, w - 12 * S, h - 12 * S, 5 * S); ctx.stroke();
+    ctx.globalAlpha = 0.55;
+    rRect(x + 5 * S, y + 5 * S, w - 10 * S, h - 10 * S, 5 * S); ctx.stroke();
     ctx.globalAlpha = 1;
 
-    // ── Nails in the corners, tinted with the crate color ──
+    // ── Iron nails in the corners ──
     var nailR = w * 0.02;
     var nails = [[0.09, 0.09], [0.91, 0.09], [0.09, 0.91], [0.91, 0.91]];
     for (var n = 0; n < nails.length; n++) {
       var nx = x + w * nails[n][0], ny = y + h * nails[n][1];
-      ctx.fillStyle = 'rgba(60,40,22,0.55)';
+      ctx.fillStyle = 'rgba(40,26,12,0.6)';
       ctx.beginPath(); ctx.arc(nx + 0.7 * S, ny + 0.7 * S, nailR, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = c.light;
+      ctx.fillStyle = '#D8CFC2';
       ctx.beginPath(); ctx.arc(nx, ny, nailR, 0, Math.PI * 2); ctx.fill();
     }
 
@@ -148,24 +149,31 @@ registerBoxType('crate', {
     ctx.restore();
   },
 
-  // ── One wooden plank with grain and shading ──
-  drawPlank: function (ctx, px, py, pw, ph, S, tick, seed) {
+  // ── One plank with grain and shading ──
+  // pc is the color to paint it (the crate's lock color); omit for bare wood.
+  drawPlank: function (ctx, px, py, pw, ph, S, tick, seed, pc) {
     ctx.save();
     var grad = ctx.createLinearGradient(px, py, px, py + ph);
-    grad.addColorStop(0, '#C99055');
-    grad.addColorStop(0.35, '#A9743F');
-    grad.addColorStop(1, '#7C5326');
+    if (pc) {
+      grad.addColorStop(0, pc.light);
+      grad.addColorStop(0.4, pc.fill);
+      grad.addColorStop(1, pc.dark);
+    } else {
+      grad.addColorStop(0, '#C99055');
+      grad.addColorStop(0.35, '#A9743F');
+      grad.addColorStop(1, '#7C5326');
+    }
     ctx.fillStyle = grad;
     ctx.fillRect(px, py, pw, ph);
 
     // Top highlight + bottom shadow give the planks depth
-    ctx.fillStyle = 'rgba(255,225,180,0.22)';
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
     ctx.fillRect(px, py, pw, ph * 0.14);
-    ctx.fillStyle = 'rgba(50,30,14,0.28)';
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
     ctx.fillRect(px, py + ph * 0.84, pw, ph * 0.16);
 
-    // Wood grain lines
-    ctx.strokeStyle = 'rgba(90,58,26,0.28)';
+    // Grain lines
+    ctx.strokeStyle = pc ? 'rgba(0,0,0,0.16)' : 'rgba(90,58,26,0.28)';
     ctx.lineWidth = 1 * S;
     for (var g = 0; g < 2; g++) {
       var gy = py + ph * (0.35 + g * 0.28);
@@ -176,7 +184,7 @@ registerBoxType('crate', {
     }
 
     // A small knot in the wood
-    ctx.strokeStyle = 'rgba(80,50,22,0.3)';
+    ctx.strokeStyle = pc ? 'rgba(0,0,0,0.2)' : 'rgba(80,50,22,0.3)';
     var kx = px + pw * (seed === 1 ? 0.7 : 0.3), ky = py + ph * 0.5;
     ctx.beginPath(); ctx.ellipse(kx, ky, pw * 0.035, ph * 0.16, 0.4, 0, Math.PI * 2); ctx.stroke();
 
@@ -186,7 +194,7 @@ registerBoxType('crate', {
   // ── Cracks that deepen as the crate takes hits ──
   drawCracks: function (ctx, x, y, w, h, S, hp) {
     ctx.save();
-    ctx.strokeStyle = 'rgba(38,22,8,0.7)';
+    ctx.strokeStyle = 'rgba(26,16,6,0.75)';
     ctx.lineWidth = 2.2 * S;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -261,8 +269,9 @@ registerBoxType('crate', {
   editorCellStyle: function (ci) {
     var c = COLORS[ci];
     return {
-      background: 'linear-gradient(135deg,#C99055 0%,#A9743F 45%,#7C5326 100%)',
-      borderColor: c.fill
+      background: 'repeating-linear-gradient(180deg,' + c.light + ' 0px,' + c.fill +
+        ' 5px,' + c.dark + ' 7px,' + c.light + ' 9px)',
+      borderColor: '#7C5326'
     };
   },
 
@@ -276,8 +285,9 @@ registerBoxType('crate', {
   editorCoverStyle: function (ci) {
     var c = COLORS[ci];
     return {
-      background: 'linear-gradient(135deg,#B07E45 0%,#98673A 45%,#6E4520 100%)',
-      borderColor: c.fill
+      background: 'repeating-linear-gradient(180deg,' + c.light + ' 0px,' + c.fill +
+        ' 5px,' + c.dark + ' 7px,' + c.light + ' 9px)',
+      borderColor: '#7C5326'
     };
   }
 });
