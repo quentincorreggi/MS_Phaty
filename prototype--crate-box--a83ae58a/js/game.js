@@ -73,8 +73,14 @@ function initGame() {
             }
           }
           if (fits) {
+            // Each compartment can hold its own color; without a contents
+            // list every box inside matches the crate's lock color.
+            var contents = cell.contents || [];
             for (var cc = 0; cc < cCells.length; cc++) {
-              boxSlots[cCells[cc]] = { ci: cell.ci, boxType: 'crate', crateAnchorIdx: i };
+              var inner = (contents[cc] === undefined || contents[cc] === null) ? cell.ci : contents[cc];
+              boxSlots[cCells[cc]] = {
+                ci: inner, boxType: 'crate', crateAnchorIdx: i, crateCi: cell.ci
+              };
             }
           } else {
             boxSlots[i] = { ci: cell.ci, boxType: 'default' };   // no room — plain box
@@ -134,7 +140,7 @@ function initGame() {
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
-        crateHP: 0, crateHitT: 0, crateBreakT: 0, crateAnchorIdx: -1,
+        crateHP: 0, crateHitT: 0, crateBreakT: 0, crateAnchorIdx: -1, crateCi: -1,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
@@ -145,7 +151,7 @@ function initGame() {
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: false, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
-        crateHP: 0, crateHitT: 0, crateBreakT: 0, crateAnchorIdx: -1,
+        crateHP: 0, crateHitT: 0, crateBreakT: 0, crateAnchorIdx: -1, crateCi: -1,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
@@ -153,7 +159,7 @@ function initGame() {
       stock.push({ ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
-        crateHP: 0, crateHitT: 0, crateBreakT: 0, crateAnchorIdx: -1,
+        crateHP: 0, crateHitT: 0, crateBreakT: 0, crateAnchorIdx: -1, crateCi: -1,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
     } else {
@@ -168,6 +174,7 @@ function initGame() {
         iceCrackT: 0, iceShatterT: 0,
         crateHP: isCrateAnchor ? CRATE_HP : 0, crateHitT: 0, crateBreakT: 0,
         crateAnchorIdx: isCrate ? slot.crateAnchorIdx : -1,
+        crateCi: isCrate ? slot.crateCi : -1,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
@@ -347,8 +354,9 @@ function damageAdjacentIce(idx) {
 
 // === CRATES ===
 // A crate is a CRATE_SIZE x CRATE_SIZE wooden cage sealing that many
-// boxes. The top-left cell is the anchor and holds the crate's HP;
-// every covered cell points back at it through crateAnchorIdx.
+// boxes. The top-left cell is the anchor and holds the crate's HP and
+// its lock color (crateCi); every covered cell points back at it through
+// crateAnchorIdx and keeps its own color for the box it holds.
 
 // Index of the sealed crate covering this cell, or -1 if there is none.
 function crateAnchorOf(idx) {
@@ -369,6 +377,14 @@ function crateCells(anchorIdx) {
       if (r < L.rows && c < L.cols) out.push(r * L.cols + c);
     }
   }
+  return out;
+}
+
+// The color of the box in each compartment, in reading order.
+function crateContents(anchorIdx) {
+  var cells = crateCells(anchorIdx);
+  var out = [];
+  for (var i = 0; i < cells.length; i++) out.push(stock[cells[i]].ci);
   return out;
 }
 
@@ -407,7 +423,8 @@ function damageAdjacentCrates(idx, tapCi) {
     var bx = cr.x + span / 2, by = cr.y + span / 2;
 
     // ── Wrong color: bounce off the wood ──
-    if (cr.ci !== tapCi) {
+    // The lock color is the crate's own, not the color of any box inside it.
+    if (cr.crateCi !== tapCi) {
       shakeCrate(anchorIdx, 0.28);
       if (!playedThud) { sfx.thud(); playedThud = true; }
       continue;

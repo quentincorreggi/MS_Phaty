@@ -12,43 +12,25 @@ registerBoxType('crate', {
   editorColor: '#A9743F',
 
   // ── Draw the wooden crate (called from drawCrates for the whole footprint) ──
-  // The crate is one object spanning every cell it covers. Its color shows
-  // through the seams between the planks, and faint compartments hint at the
-  // boxes sealed inside.
-  drawCrateOverlay: function (ctx, x, y, w, h, S, hp, ci, tick) {
+  // The crate is one object spanning every cell it covers. Its frame carries
+  // the lock color — the only color that damages it — while each compartment
+  // shows the color of the box sealed in that cell.
+  // contents = one color index per compartment, in reading order.
+  drawCrateOverlay: function (ctx, x, y, w, h, S, hp, ci, tick, contents) {
     var c = COLORS[ci] || COLORS[0];
     ctx.save();
 
     // Clip everything to the crate shape
     rRect(x, y, w, h, 8 * S); ctx.clip();
 
-    // ── Colored light from the boxes packed inside ──
-    var back = ctx.createLinearGradient(x, y, x, y + h);
-    back.addColorStop(0, c.light);
-    back.addColorStop(1, c.dark);
-    ctx.fillStyle = back;
-    ctx.globalAlpha = 0.92;
-    ctx.fillRect(x, y, w, h);
-    ctx.globalAlpha = 1;
-
-    // ── Compartments: one per box sealed inside ──
-    this.drawCompartments(ctx, x, y, w, h, S, c);
+    // ── Compartments: one per box sealed inside, each in its own color ──
+    this.drawCompartments(ctx, x, y, w, h, S, c, contents);
 
     // ── Horizontal planks, with wide gaps so the color glows through ──
     var PLANKS = 4;
     var plankH = h * 0.185;
     var gap = h * 0.077;
     var startY = y + h * 0.021;
-
-    // Bright seams of colored light between the planks
-    ctx.save();
-    ctx.globalAlpha = 0.55;
-    ctx.fillStyle = c.light;
-    for (var s2 = 0; s2 < PLANKS - 1; s2++) {
-      var sy = startY + plankH + s2 * (plankH + gap);
-      ctx.fillRect(x, sy + gap * 0.2, w, gap * 0.6);
-    }
-    ctx.restore();
 
     var brokenPlank = (hp <= 1) ? 2 : -1;   // a plank splits away at 1 HP
 
@@ -118,10 +100,42 @@ registerBoxType('crate', {
     ctx.restore();
   },
 
-  // ── The boxes sealed inside, hinted as marbles in shadowed compartments ──
-  drawCompartments: function (ctx, x, y, w, h, S, c) {
+  // ── The boxes sealed inside: one colored compartment per cell ──
+  drawCompartments: function (ctx, x, y, w, h, S, lockColor, contents) {
     var cw = w / CRATE_SIZE, ch = h / CRATE_SIZE;
     ctx.save();
+
+    for (var r = 0; r < CRATE_SIZE; r++) {
+      for (var col = 0; col < CRATE_SIZE; col++) {
+        var slot = r * CRATE_SIZE + col;
+        var cc = (contents && COLORS[contents[slot]]) ? COLORS[contents[slot]] : lockColor;
+        var qx = x + cw * col, qy = y + ch * r;
+
+        // The box filling this compartment
+        var grad = ctx.createLinearGradient(qx, qy, qx, qy + ch);
+        grad.addColorStop(0, cc.light);
+        grad.addColorStop(1, cc.dark);
+        ctx.fillStyle = grad;
+        ctx.fillRect(qx, qy, cw, ch);
+
+        // Its marbles, spread over two rows so some always land in the gaps
+        // between the planks
+        var mr = cw * 0.115;
+        var ccx = qx + cw * 0.5, ccy = qy + ch * 0.5;
+        for (var mrow = 0; mrow < 2; mrow++) {
+          for (var m = 0; m < 3; m++) {
+            var mx = ccx + (m - 1) * mr * 2.3;
+            var my = ccy + (mrow - 0.5) * mr * 2.3;
+            ctx.fillStyle = 'rgba(40,26,12,0.3)';
+            ctx.beginPath(); ctx.arc(mx, my + mr * 0.25, mr, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = cc.fill;
+            ctx.beginPath(); ctx.arc(mx, my, mr, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(255,255,255,0.45)';
+            ctx.beginPath(); ctx.arc(mx - mr * 0.3, my - mr * 0.3, mr * 0.32, 0, Math.PI * 2); ctx.fill();
+          }
+        }
+      }
+    }
 
     // Divider shadows between the compartments
     ctx.strokeStyle = 'rgba(48,30,12,0.6)';
@@ -131,26 +145,6 @@ registerBoxType('crate', {
       ctx.beginPath(); ctx.moveTo(x, y + ch * d); ctx.lineTo(x + w, y + ch * d); ctx.stroke();
     }
 
-    // Marbles packed into each compartment, spread over two rows so some of
-    // them always land in the gaps between the planks
-    var mr = cw * 0.115;
-    for (var r = 0; r < CRATE_SIZE; r++) {
-      for (var col = 0; col < CRATE_SIZE; col++) {
-        var ccx = x + cw * (col + 0.5), ccy = y + ch * (r + 0.5);
-        for (var mr2 = 0; mr2 < 2; mr2++) {
-          for (var m = 0; m < 3; m++) {
-            var mx = ccx + (m - 1) * mr * 2.3;
-            var my = ccy + (mr2 - 0.5) * mr * 2.3;
-            ctx.fillStyle = 'rgba(40,26,12,0.3)';
-            ctx.beginPath(); ctx.arc(mx, my + mr * 0.25, mr, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = c.light;
-            ctx.beginPath(); ctx.arc(mx, my, mr, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = 'rgba(255,255,255,0.45)';
-            ctx.beginPath(); ctx.arc(mx - mr * 0.3, my - mr * 0.3, mr * 0.32, 0, Math.PI * 2); ctx.fill();
-          }
-        }
-      }
-    }
     ctx.restore();
   },
 

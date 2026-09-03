@@ -288,7 +288,8 @@ function drawCrates() {
     ctx.save();
     ctx.translate(b.x + span / 2 + ox, b.y + span / 2);
     ctx.scale(ts, ts);
-    crateType.drawCrateOverlay(ctx, -span / 2, -span / 2, span, span, S, b.crateHP, b.ci, tick);
+    crateType.drawCrateOverlay(ctx, -span / 2, -span / 2, span, span, S,
+      b.crateHP, b.crateCi, tick, crateContents(i));
 
     // A hit makes the crate flash pale for a few frames
     if (b.crateHitT > 0) {
