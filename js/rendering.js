@@ -254,22 +254,6 @@ function drawStock() {
       ctx.restore();
     }
 
-    // Wooden crate on top of the box while it still has HP
-    if (b.crateHP > 0) {
-      var crateType = getBoxType('crate');
-      if (crateType && crateType.drawCrateOverlay) {
-        ctx.save();
-        // A hit makes the crate flash pale for a few frames
-        crateType.drawCrateOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, b.crateHP, b.ci, tick);
-        if (b.crateHitT > 0) {
-          ctx.globalAlpha = b.crateHitT * 0.35;
-          ctx.fillStyle = 'rgba(255,235,205,1)';
-          rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.fill();
-        }
-        ctx.restore();
-      }
-    }
-
     // Flash as the crate bursts open
     if (b.crateBreakT > 0) {
       ctx.save();
@@ -279,6 +263,39 @@ function drawStock() {
       ctx.restore();
     }
 
+    ctx.restore();
+  }
+
+  drawCrates();
+}
+
+// ── Crates ──
+// Each crate is one wooden cage spanning its whole CRATE_SIZE x CRATE_SIZE
+// footprint, drawn after the boxes so it sits over every cell it covers.
+function drawCrates() {
+  var crateType = getBoxType('crate');
+  if (!crateType || !crateType.drawCrateOverlay) return;
+  var span = crateSpan();
+
+  for (var i = 0; i < stock.length; i++) {
+    var b = stock[i];
+    if (!b || b.crateHP <= 0) continue;
+
+    var ox = 0;
+    if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
+    var ts = 1 + b.popT * 0.12;
+
+    ctx.save();
+    ctx.translate(b.x + span / 2 + ox, b.y + span / 2);
+    ctx.scale(ts, ts);
+    crateType.drawCrateOverlay(ctx, -span / 2, -span / 2, span, span, S, b.crateHP, b.ci, tick);
+
+    // A hit makes the crate flash pale for a few frames
+    if (b.crateHitT > 0) {
+      ctx.globalAlpha = b.crateHitT * 0.35;
+      ctx.fillStyle = 'rgba(255,235,205,1)';
+      rRect(-span / 2, -span / 2, span, span, 8 * S); ctx.fill();
+    }
     ctx.restore();
   }
 }

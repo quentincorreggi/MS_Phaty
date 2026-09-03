@@ -11,44 +11,53 @@ registerBoxType('crate', {
   label: 'Crate',
   editorColor: '#A9743F',
 
-  // ── Draw wooden crate overlay (called from drawStock after the base box) ──
-  // The crate color shows through the gaps between the planks so the
-  // player can tell which color has to be tapped next to it.
+  // ── Draw the wooden crate (called from drawCrates for the whole footprint) ──
+  // The crate is one object spanning every cell it covers. Its color shows
+  // through the seams between the planks, and faint compartments hint at the
+  // boxes sealed inside.
   drawCrateOverlay: function (ctx, x, y, w, h, S, hp, ci, tick) {
     var c = COLORS[ci] || COLORS[0];
     ctx.save();
 
-    // Clip everything to the box shape
-    rRect(x, y, w, h, 6 * S); ctx.clip();
+    // Clip everything to the crate shape
+    rRect(x, y, w, h, 8 * S); ctx.clip();
 
-    // ── Colored light seeping out from behind the planks ──
-    ctx.fillStyle = c.fill;
-    ctx.globalAlpha = 0.85;
+    // ── Colored light from the boxes packed inside ──
+    var back = ctx.createLinearGradient(x, y, x, y + h);
+    back.addColorStop(0, c.light);
+    back.addColorStop(1, c.dark);
+    ctx.fillStyle = back;
+    ctx.globalAlpha = 0.92;
     ctx.fillRect(x, y, w, h);
     ctx.globalAlpha = 1;
 
-    // ── Three horizontal planks, with wide gaps so the color glows through ──
-    var plankH = h * 0.235;
-    var gap = h * 0.105;
-    var startY = y + h * 0.045;
+    // ── Compartments: one per box sealed inside ──
+    this.drawCompartments(ctx, x, y, w, h, S, c);
 
-    // Bright seams of colored light in the gaps
+    // ── Horizontal planks, with wide gaps so the color glows through ──
+    var PLANKS = 4;
+    var plankH = h * 0.185;
+    var gap = h * 0.077;
+    var startY = y + h * 0.021;
+
+    // Bright seams of colored light between the planks
     ctx.save();
-    ctx.globalAlpha = 0.9;
+    ctx.globalAlpha = 0.55;
     ctx.fillStyle = c.light;
-    for (var s2 = 0; s2 < 2; s2++) {
+    for (var s2 = 0; s2 < PLANKS - 1; s2++) {
       var sy = startY + plankH + s2 * (plankH + gap);
       ctx.fillRect(x, sy + gap * 0.2, w, gap * 0.6);
     }
     ctx.restore();
-    var brokenPlank = (hp <= 1) ? 1 : -1;   // middle plank splits at 1 HP
 
-    for (var p = 0; p < 3; p++) {
+    var brokenPlank = (hp <= 1) ? 2 : -1;   // a plank splits away at 1 HP
+
+    for (var p = 0; p < PLANKS; p++) {
       var py = startY + p * (plankH + gap);
       if (p === brokenPlank) {
-        // Broken plank — two stubs with a jagged bite out of the middle
-        this.drawPlank(ctx, x - w * 0.05, py, w * 0.42, plankH, S, tick, p);
-        this.drawPlank(ctx, x + w * 0.68, py, w * 0.42, plankH, S, tick, p);
+        // Broken plank — two stubs with a bite out of the middle
+        this.drawPlank(ctx, x - w * 0.05, py, w * 0.40, plankH, S, tick, p);
+        this.drawPlank(ctx, x + w * 0.70, py, w * 0.40, plankH, S, tick, p);
       } else {
         this.drawPlank(ctx, x - w * 0.05, py, w * 1.1, plankH, S, tick, p);
       }
@@ -62,43 +71,43 @@ registerBoxType('crate', {
     braceGrad.addColorStop(0.5, '#9C6A38');
     braceGrad.addColorStop(1, '#7A5028');
     ctx.strokeStyle = braceGrad;
-    ctx.lineWidth = w * 0.105;
+    ctx.lineWidth = w * 0.085;
     ctx.lineCap = 'butt';
     ctx.beginPath();
-    ctx.moveTo(x + w * 0.06, y + h * 0.06);
-    ctx.lineTo(x + w * 0.94, y + h * 0.94);
+    ctx.moveTo(x + w * 0.05, y + h * 0.05);
+    ctx.lineTo(x + w * 0.95, y + h * 0.95);
     ctx.stroke();
     if (hp >= 2) {   // second brace snaps off at 1 HP
       ctx.beginPath();
-      ctx.moveTo(x + w * 0.94, y + h * 0.06);
-      ctx.lineTo(x + w * 0.06, y + h * 0.94);
+      ctx.moveTo(x + w * 0.95, y + h * 0.05);
+      ctx.lineTo(x + w * 0.05, y + h * 0.95);
       ctx.stroke();
     } else {
       ctx.beginPath();
-      ctx.moveTo(x + w * 0.94, y + h * 0.06);
-      ctx.lineTo(x + w * 0.58, y + h * 0.42);
+      ctx.moveTo(x + w * 0.95, y + h * 0.05);
+      ctx.lineTo(x + w * 0.60, y + h * 0.40);
       ctx.stroke();
     }
     ctx.restore();
 
     // ── Colored frame so the crate's color always reads at a glance ──
     ctx.strokeStyle = c.fill;
-    ctx.lineWidth = 3.5 * S;
+    ctx.lineWidth = 4.5 * S;
     ctx.globalAlpha = 0.95;
-    rRect(x + 1.5 * S, y + 1.5 * S, w - 3 * S, h - 3 * S, 5 * S); ctx.stroke();
+    rRect(x + 2 * S, y + 2 * S, w - 4 * S, h - 4 * S, 7 * S); ctx.stroke();
     ctx.globalAlpha = 0.35;
     ctx.strokeStyle = c.light;
-    ctx.lineWidth = 1.2 * S;
-    rRect(x + 4.5 * S, y + 4.5 * S, w - 9 * S, h - 9 * S, 4 * S); ctx.stroke();
+    ctx.lineWidth = 1.4 * S;
+    rRect(x + 6 * S, y + 6 * S, w - 12 * S, h - 12 * S, 5 * S); ctx.stroke();
     ctx.globalAlpha = 1;
 
     // ── Nails in the corners, tinted with the crate color ──
-    var nailR = w * 0.028;
-    var nails = [[0.12, 0.12], [0.88, 0.12], [0.12, 0.88], [0.88, 0.88]];
+    var nailR = w * 0.02;
+    var nails = [[0.09, 0.09], [0.91, 0.09], [0.09, 0.91], [0.91, 0.91]];
     for (var n = 0; n < nails.length; n++) {
       var nx = x + w * nails[n][0], ny = y + h * nails[n][1];
       ctx.fillStyle = 'rgba(60,40,22,0.55)';
-      ctx.beginPath(); ctx.arc(nx + 0.6 * S, ny + 0.6 * S, nailR, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(nx + 0.7 * S, ny + 0.7 * S, nailR, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = c.light;
       ctx.beginPath(); ctx.arc(nx, ny, nailR, 0, Math.PI * 2); ctx.fill();
     }
@@ -106,6 +115,42 @@ registerBoxType('crate', {
     // ── Damage cracks ──
     if (hp <= 2) this.drawCracks(ctx, x, y, w, h, S, hp);
 
+    ctx.restore();
+  },
+
+  // ── The boxes sealed inside, hinted as marbles in shadowed compartments ──
+  drawCompartments: function (ctx, x, y, w, h, S, c) {
+    var cw = w / CRATE_SIZE, ch = h / CRATE_SIZE;
+    ctx.save();
+
+    // Divider shadows between the compartments
+    ctx.strokeStyle = 'rgba(48,30,12,0.6)';
+    ctx.lineWidth = 3.5 * S;
+    for (var d = 1; d < CRATE_SIZE; d++) {
+      ctx.beginPath(); ctx.moveTo(x + cw * d, y); ctx.lineTo(x + cw * d, y + h); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x, y + ch * d); ctx.lineTo(x + w, y + ch * d); ctx.stroke();
+    }
+
+    // Marbles packed into each compartment, spread over two rows so some of
+    // them always land in the gaps between the planks
+    var mr = cw * 0.115;
+    for (var r = 0; r < CRATE_SIZE; r++) {
+      for (var col = 0; col < CRATE_SIZE; col++) {
+        var ccx = x + cw * (col + 0.5), ccy = y + ch * (r + 0.5);
+        for (var mr2 = 0; mr2 < 2; mr2++) {
+          for (var m = 0; m < 3; m++) {
+            var mx = ccx + (m - 1) * mr * 2.3;
+            var my = ccy + (mr2 - 0.5) * mr * 2.3;
+            ctx.fillStyle = 'rgba(40,26,12,0.3)';
+            ctx.beginPath(); ctx.arc(mx, my + mr * 0.25, mr, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = c.light;
+            ctx.beginPath(); ctx.arc(mx, my, mr, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(255,255,255,0.45)';
+            ctx.beginPath(); ctx.arc(mx - mr * 0.3, my - mr * 0.3, mr * 0.32, 0, Math.PI * 2); ctx.fill();
+          }
+        }
+      }
+    }
     ctx.restore();
   },
 
@@ -147,8 +192,8 @@ registerBoxType('crate', {
   // ── Cracks that deepen as the crate takes hits ──
   drawCracks: function (ctx, x, y, w, h, S, hp) {
     ctx.save();
-    ctx.strokeStyle = 'rgba(32,18,6,0.85)';
-    ctx.lineWidth = 2.6 * S;
+    ctx.strokeStyle = 'rgba(38,22,8,0.7)';
+    ctx.lineWidth = 2.2 * S;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
@@ -199,19 +244,10 @@ registerBoxType('crate', {
     ctx.restore();
   },
 
-  // ── Closed state: crate over a dim version of the box ──
-  // The crate overlay itself is drawn by drawStock, so we only lay
-  // down the colored box underneath here.
-  drawClosed: function (ctx, x, y, w, h, ci, S, tick, idlePhase) {
-    ctx.save();
-    ctx.globalAlpha = 0.85;
-    var c = COLORS[ci];
-    var grad = ctx.createLinearGradient(x, y, x, y + h);
-    grad.addColorStop(0, c.light); grad.addColorStop(1, c.dark);
-    ctx.fillStyle = grad;
-    rRect(x, y, w, h, 6 * S); ctx.fill();
-    ctx.restore();
-  },
+  // ── Closed state: nothing per cell ──
+  // A crate spans several cells and is drawn as one piece by drawCrates(),
+  // so the individual boxes it covers draw nothing of their own.
+  drawClosed: function (ctx, x, y, w, h, ci, S, tick, idlePhase) {},
 
   // ── Reveal animation (box under the crate opens up) ──
   drawReveal: function (ctx, x, y, w, h, ci, S, phase, remaining, tick) {
@@ -240,5 +276,14 @@ registerBoxType('crate', {
     var c = COLORS[ci];
     return '<span class="ed-cell-dot" style="font-size:13px;text-shadow:0 0 6px ' + c.fill +
       ',0 0 3px ' + c.fill + '">&#128230;</span>';
+  },
+
+  // Covered cells of a placed crate (everything but its top-left anchor)
+  editorCoverStyle: function (ci) {
+    var c = COLORS[ci];
+    return {
+      background: 'linear-gradient(135deg,#B07E45 0%,#98673A 45%,#6E4520 100%)',
+      borderColor: c.fill
+    };
   }
 });

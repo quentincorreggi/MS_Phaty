@@ -20,6 +20,51 @@ var editor = {
   visible: false
 };
 
+// ── Crate helpers: crates occupy a CRATE_SIZE x CRATE_SIZE block, stored
+//    in the grid as a single entry at the top-left (anchor) cell ──
+
+// Index of the crate covering this cell (its anchor), or -1 if none.
+function editorCrateAnchorAt(idx) {
+  var row = Math.floor(idx / 7), col = idx % 7;
+  for (var dr = 0; dr < CRATE_SIZE; dr++) {
+    for (var dc = 0; dc < CRATE_SIZE; dc++) {
+      var r = row - dr, c = col - dc;
+      if (r < 0 || c < 0) continue;
+      var a = r * 7 + c;
+      var v = editor.grid[a];
+      if (v && !v.tunnel && !v.wall && v.type === 'crate') return a;
+    }
+  }
+  return -1;
+}
+
+// Can a crate be anchored here? It needs a free CRATE_SIZE x CRATE_SIZE block.
+function editorCrateFits(idx) {
+  var row = Math.floor(idx / 7), col = idx % 7;
+  if (row + CRATE_SIZE > 7 || col + CRATE_SIZE > 7) return false;
+  for (var dr = 0; dr < CRATE_SIZE; dr++) {
+    for (var dc = 0; dc < CRATE_SIZE; dc++) {
+      var c2 = (row + dr) * 7 + (col + dc);
+      if (editor.grid[c2]) return false;
+      if (editorCrateAnchorAt(c2) >= 0) return false;
+    }
+  }
+  return true;
+}
+
+// Clear whatever occupies this cell, removing a whole crate if one covers it.
+// Returns true if a crate was removed.
+function editorClearCell(idx) {
+  var anchor = editorCrateAnchorAt(idx);
+  if (anchor >= 0) {
+    editor.grid[anchor] = null;
+    if (editor.selectedTunnel === anchor) editor.selectedTunnel = -1;
+    return true;
+  }
+  editor.grid[idx] = null;
+  return false;
+}
+
 function editorInit() {
   editor.grid = [];
   for (var i = 0; i < 49; i++) editor.grid.push(null);
@@ -91,6 +136,13 @@ function editorRenderGrid() {
       cell.style.background = st.background;
       cell.style.borderColor = st.borderColor;
       cell.innerHTML = bt.editorCellHTML(v.ci);
+    } else if (editorCrateAnchorAt(i) >= 0) {
+      // Cell covered by a crate anchored elsewhere
+      var anc = editor.grid[editorCrateAnchorAt(i)];
+      var cbt = getBoxType('crate');
+      var cst = cbt.editorCoverStyle(anc.ci);
+      cell.style.background = cst.background;
+      cell.style.borderColor = cst.borderColor;
     } else {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
@@ -104,6 +156,15 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  // A cell covered by a crate belongs to that crate — any click frees it first
+  if (editorCrateAnchorAt(idx) >= 0) {
+    editorClearCell(idx);
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderTunnelPanel();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -143,6 +204,15 @@ function editorCellClick(e) {
       var existing = editor.grid[idx];
       if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
         editor.grid[idx] = null;
+      } else if (editor.activeType === 'crate') {
+        // Crates need a free block of cells, anchored at the one tapped
+        editor.grid[idx] = null;
+        if (!editorCrateFits(idx)) {
+          editorShowToast('Crate needs a free ' + CRATE_SIZE + 'x' + CRATE_SIZE + ' space');
+          editorRenderGrid();
+          return;
+        }
+        editor.grid[idx] = { ci: editor.activeColor, type: 'crate' };
       } else {
         editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
       }
@@ -157,7 +227,7 @@ function editorCellClick(e) {
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
-  editor.grid[idx] = null;
+  editorClearCell(idx);
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
   editorRenderGrid();
   editorUpdateStats();
@@ -478,14 +548,16 @@ function editorUpdateStats() {
       continue;
     }
     if (v.ci >= 0) {
-      counts[v.ci]++;
-      total++;
+      // A crate seals a whole block of boxes, not just the anchor cell
+      var boxesHere = (v.type === 'crate') ? CRATE_SIZE * CRATE_SIZE : 1;
+      counts[v.ci] += boxesHere;
+      total += boxesHere;
       typeCounts[v.type] = (typeCounts[v.type] || 0) + 1;
       if (v.type === 'blocker') {
         regularMrb[v.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
         totalBlockers += BLOCKER_PER_BOX;
       } else {
-        regularMrb[v.ci] += editor.mrbPerBox;
+        regularMrb[v.ci] += editor.mrbPerBox * boxesHere;
       }
     }
   }
