@@ -55,7 +55,33 @@ function initGame() {
       } else if (typeof cell === 'number') {
         if (cell >= 0) boxSlots[i] = { ci: cell, boxType: 'default' };
       } else if (typeof cell === 'object' && cell.ci >= 0) {
-        boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default' };
+        var cType = cell.type || 'default';
+        if (cType === 'crate') {
+          // A crate is anchored at its top-left cell and covers a
+          // CRATE_SIZE x CRATE_SIZE block of boxes.
+          var aRow = Math.floor(i / L.cols), aCol = i % L.cols;
+          var fits = (aRow + CRATE_SIZE <= L.rows) && (aCol + CRATE_SIZE <= L.cols);
+          var cCells = [];
+          if (fits) {
+            for (var dr = 0; dr < CRATE_SIZE && fits; dr++) {
+              for (var dc = 0; dc < CRATE_SIZE; dc++) {
+                var cIdx = (aRow + dr) * L.cols + (aCol + dc);
+                // Every covered cell must be free for the crate to fit
+                if (cIdx !== i && lvl.grid[cIdx]) { fits = false; break; }
+                cCells.push(cIdx);
+              }
+            }
+          }
+          if (fits) {
+            for (var cc = 0; cc < cCells.length; cc++) {
+              boxSlots[cCells[cc]] = { ci: cell.ci, boxType: 'crate', crateAnchorIdx: i };
+            }
+          } else {
+            boxSlots[i] = { ci: cell.ci, boxType: 'default' };   // no room — plain box
+          }
+        } else {
+          boxSlots[i] = { ci: cell.ci, boxType: cType };
+        }
       }
     }
   }
@@ -108,7 +134,7 @@ function initGame() {
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
-        crateHP: 0, crateHitT: 0, crateBreakT: 0,
+        crateHP: 0, crateHitT: 0, crateBreakT: 0, crateAnchorIdx: -1,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
@@ -119,7 +145,7 @@ function initGame() {
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: false, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
-        crateHP: 0, crateHitT: 0, crateBreakT: 0,
+        crateHP: 0, crateHitT: 0, crateBreakT: 0, crateAnchorIdx: -1,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
@@ -127,19 +153,21 @@ function initGame() {
       stock.push({ ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
-        crateHP: 0, crateHitT: 0, crateBreakT: 0,
+        crateHP: 0, crateHitT: 0, crateBreakT: 0, crateAnchorIdx: -1,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
       var isCrate = (slot.boxType === 'crate');
+      var isCrateAnchor = isCrate && (slot.crateAnchorIdx === idx);
       stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
-        revealed: (isIce || isCrate) ? true : false, empty: false,
+        revealed: isIce ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
-        crateHP: isCrate ? CRATE_HP : 0, crateHitT: 0, crateBreakT: 0,
+        crateHP: isCrateAnchor ? CRATE_HP : 0, crateHitT: 0, crateBreakT: 0,
+        crateAnchorIdx: isCrate ? slot.crateAnchorIdx : -1,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
@@ -227,6 +255,7 @@ function updateBoxReveals(animate) {
     if (!b) continue;
     if (b.isWall || b.isTunnel || b.empty || b.used) continue;
     if (b.spawning) continue;
+    if (crateAnchorOf(k) >= 0) continue;   // sealed inside a crate — stays shut
 
     var br = Math.floor(k / L.cols), bcol = k % L.cols;
     var hasPath = false;
@@ -316,6 +345,42 @@ function damageAdjacentIce(idx) {
   }
 }
 
+// === CRATES ===
+// A crate is a CRATE_SIZE x CRATE_SIZE wooden cage sealing that many
+// boxes. The top-left cell is the anchor and holds the crate's HP;
+// every covered cell points back at it through crateAnchorIdx.
+
+// Index of the sealed crate covering this cell, or -1 if there is none.
+function crateAnchorOf(idx) {
+  var b = stock[idx];
+  if (!b || b.crateAnchorIdx === undefined || b.crateAnchorIdx < 0) return -1;
+  var a = stock[b.crateAnchorIdx];
+  if (!a || a.crateHP <= 0) return -1;
+  return b.crateAnchorIdx;
+}
+
+// The grid cells a crate anchored at anchorIdx covers.
+function crateCells(anchorIdx) {
+  var ar = Math.floor(anchorIdx / L.cols), ac = anchorIdx % L.cols;
+  var out = [];
+  for (var dr = 0; dr < CRATE_SIZE; dr++) {
+    for (var dc = 0; dc < CRATE_SIZE; dc++) {
+      var r = ar + dr, c = ac + dc;
+      if (r < L.rows && c < L.cols) out.push(r * L.cols + c);
+    }
+  }
+  return out;
+}
+
+// Width/height of a crate in pixels — its cells plus the gaps between them.
+function crateSpan() { return CRATE_SIZE * L.bw + (CRATE_SIZE - 1) * L.bg; }
+
+// Shake every cell of a crate together so it wobbles as one object.
+function shakeCrate(anchorIdx, amount) {
+  var cells = crateCells(anchorIdx);
+  for (var i = 0; i < cells.length; i++) stock[cells[i]].shakeT = amount;
+}
+
 // === CRATE DAMAGE ===
 // Crates are picky: only an adjacent box of the SAME color hurts them.
 // Any other color just knocks against the wood and does nothing.
@@ -329,54 +394,76 @@ function damageAdjacentCrates(idx, tapCi) {
   if (col < L.cols - 1) neighbors.push(row * L.cols + (col + 1));
 
   var playedThud = false;   // one thud per tap, however many crates shrug it off
+  var hit = [];             // a box can touch the same crate on two cells
 
   for (var ni = 0; ni < neighbors.length; ni++) {
-    var nb = stock[neighbors[ni]];
-    if (nb.isTunnel || nb.isWall) continue;   // tunnels and walls are never crates
-    if (nb.empty || nb.used || nb.crateHP <= 0) continue;
+    var anchorIdx = crateAnchorOf(neighbors[ni]);
+    if (anchorIdx < 0) continue;
+    if (hit.indexOf(anchorIdx) >= 0) continue;
+    hit.push(anchorIdx);
 
-    var bx = nb.x + L.bw / 2, by = nb.y + L.bh / 2;
+    var cr = stock[anchorIdx];
+    var span = crateSpan();
+    var bx = cr.x + span / 2, by = cr.y + span / 2;
 
     // ── Wrong color: bounce off the wood ──
-    if (nb.ci !== tapCi) {
-      nb.shakeT = 0.28;
+    if (cr.ci !== tapCi) {
+      shakeCrate(anchorIdx, 0.28);
       if (!playedThud) { sfx.thud(); playedThud = true; }
       continue;
     }
 
     // ── Right color: the crate splits ──
-    nb.crateHP--;
-    nb.crateHitT = 1.0;
-    nb.shakeT = 0.45;
+    cr.crateHP--;
+    cr.crateHitT = 1.0;
+    shakeCrate(anchorIdx, 0.45);
 
-    if (nb.crateHP > 0) {
+    if (cr.crateHP > 0) {
       sfx.crack();
-      for (var p = 0; p < 12; p++) {
-        var a = Math.PI * 2 * p / 12 + Math.random() * 0.4, sp = 2 + Math.random() * 3;
+      for (var p = 0; p < 16; p++) {
+        var a = Math.PI * 2 * p / 16 + Math.random() * 0.4, sp = 2 + Math.random() * 4;
         particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S - 1 * S,
-          r: (1.5 + Math.random() * 3) * S,
+          r: (1.5 + Math.random() * 3.5) * S,
           color: Math.random() > 0.5 ? 'rgba(169,116,63,0.95)' : 'rgba(201,144,85,0.95)',
           life: 0.85, decay: 0.028 + Math.random() * 0.02, grav: true });
       }
     } else {
-      // ── Crate bursts open — it becomes a normal box of its color ──
-      nb.crateBreakT = 1.0;
-      nb.popT = 0.9;
-      nb.boxType = 'default';
-      sfx.crack();
-      sfx.complete();
-      // Wooden splinters flying out
-      for (var p = 0; p < 22; p++) {
-        var a = Math.PI * 2 * p / 22 + Math.random() * 0.3, sp = 3 + Math.random() * 5;
-        particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S - 2.5 * S,
-          r: (2 + Math.random() * 4) * S,
-          color: Math.random() > 0.5 ? 'rgba(169,116,63,0.95)' : 'rgba(124,83,38,0.95)',
-          life: 1, decay: 0.016 + Math.random() * 0.015, grav: true });
-      }
-      // Colored pop in the crate's own color so the payoff reads
-      spawnBurst(bx, by, COLORS[nb.ci].fill, 16);
+      openCrate(anchorIdx, bx, by);
     }
   }
+}
+
+// ── The crate bursts: all the boxes it held drop into the grid ──
+function openCrate(anchorIdx, bx, by) {
+  var cells = crateCells(anchorIdx);
+  for (var i = 0; i < cells.length; i++) {
+    var b = stock[cells[i]];
+    b.crateHP = 0;
+    b.crateAnchorIdx = -1;
+    b.boxType = 'default';
+    b.crateBreakT = 1.0;
+    b.popT = 0.9;
+  }
+
+  sfx.crack();
+  sfx.complete();
+
+  // Wooden splinters flying out of the whole footprint
+  for (var p = 0; p < 34; p++) {
+    var a = Math.PI * 2 * p / 34 + Math.random() * 0.3, sp = 3 + Math.random() * 6;
+    particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S - 2.5 * S,
+      r: (2 + Math.random() * 4.5) * S,
+      color: Math.random() > 0.5 ? 'rgba(169,116,63,0.95)' : 'rgba(124,83,38,0.95)',
+      life: 1, decay: 0.014 + Math.random() * 0.014, grav: true });
+  }
+  // A colored pop over each box that was inside
+  for (var i = 0; i < cells.length; i++) {
+    var cb = stock[cells[i]];
+    spawnBurst(cb.x + L.bw / 2, cb.y + L.bh / 2, COLORS[cb.ci].fill, 12);
+  }
+
+  // The freed boxes open up wherever they now have a path to the bottom
+  updateBoxReveals(true);
 }
 
 function isBoxTappable(idx) {
@@ -386,7 +473,7 @@ function isBoxTappable(idx) {
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
-  if (b.crateHP > 0) return false;   // still sealed in its crate
+  if (crateAnchorOf(idx) >= 0) return false;   // still sealed in a crate
   return b.revealed;
 }
 
@@ -402,7 +489,11 @@ function handleTap(px, py) {
     if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
-      if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
+      if (!isBoxTappable(i)) {
+        var ai = crateAnchorOf(i);
+        if (ai >= 0) shakeCrate(ai, 0.5); else b.shakeT = 0.5;
+        return;
+      }
       b.popT = 1;
       sfx.pop();
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);

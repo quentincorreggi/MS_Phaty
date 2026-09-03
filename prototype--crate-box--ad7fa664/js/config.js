@@ -53,8 +53,10 @@ var blockerCollectT = 0;
 var blockerCollectSlots = [];
 var blockerCollectCleared = false;
 
-// Crate boxes: sealed in wood, damaged ONLY by adjacent taps of their own color
+// Crate boxes: a 2x2 wooden cage sealing 4 boxes, damaged ONLY by
+// adjacent taps of its own color
 var CRATE_HP = 3;
+var CRATE_SIZE = 2;   // footprint in grid cells (2 = 2x2, covering 4 boxes)
 
 var MRB_PER_BOX = 9, SORT_CAP = 3;
 var SORT_VISIBLE_ROWS = 4;
