@@ -1,21 +1,30 @@
 {
-  "name": "Crate Box",
-  "description": "A 2x2 wooden crate holding four boxes, which only breaks when boxes of its own LOCK color are popped next to it.",
-  "howToPlay": "A crate's frame shows its lock color, and its four compartments show the boxes packed inside — which can each be a different color. Tap three boxes of the lock color anywhere around the 2x2 footprint to smash it open. Wrong-colored neighbours just thud against the wood.",
+  "name": "Color Crate",
+  "description": "A wooden crate whose planks are its health: one plank per required color, knocked off by popping that color next to it.",
+  "howToPlay": "Read the crate's planks top to bottom — each one names a color it needs. Tap a box of that color anywhere around the crate's footprint and that plank splinters off. Colors it doesn't want just thud. Clear every plank and the crate bursts, freeing all the boxes inside.",
   "author": "",
   "showcaseLevel": {
     "name": "Crack the Crates",
-    "desc": "Three lock-color taps free the four boxes inside",
-    "mrbPerBox": 4,
-    "sortCap": 4,
+    "desc": "Planks are health — knock off every one",
+    "mrbPerBox": 3,
+    "sortCap": 3,
     "lockButtons": 0,
     "grid": [
-      null, null, null, null, null, null, null,
-      { "ci": 4, "type": "default" }, { "ci": 4, "type": "crate", "contents": [4, 1, 1, 3] }, null, { "ci": 4, "type": "default" }, null, null, null,
-      null, null, null, { "ci": 5, "type": "default" }, null, null, null,
-      null, { "ci": 4, "type": "default" }, null, null, { "ci": 2, "type": "default" }, null, null,
-      null, null, { "ci": 2, "type": "default" }, { "ci": 2, "type": "crate", "contents": [2, 5, 5, 3] }, null, null, null,
-      null, null, null, null, null, { "ci": 3, "type": "default" }, null,
+      { "ci": 4, "type": "crate", "cw": 2, "ch": 2, "locks": [4, 4, 1], "contents": [4, 4, 1, 1] },
+      null, { "ci": 4, "type": "default" }, null, null, null, null,
+
+      null, null, { "ci": 1, "type": "default" }, null, null, null, null,
+
+      { "ci": 4, "type": "default" }, null, null, null, { "ci": 3, "type": "default" }, null, null,
+
+      null, null, null,
+      { "ci": 2, "type": "crate", "cw": 3, "ch": 3, "locks": [2, 2, 3, 5, 2], "contents": [2, 2, 3, 2, 5, 3, 2, 5, 2] },
+      null, null, { "ci": 2, "type": "default" },
+
+      null, null, { "ci": 2, "type": "default" }, null, null, null, null,
+
+      null, null, null, null, null, null, { "ci": 5, "type": "default" },
+
       null, null, null, { "ci": 2, "type": "default" }, null, null, null
     ]
   }

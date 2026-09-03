@@ -177,7 +177,9 @@ function trySpawnFromTunnels() {
     var exitCol = exitIdx % L.cols;
     var isIce = (nextBox.type === 'ice');
     var isBlocker = (nextBox.type === 'blocker');
-    var isCrate = (nextBox.type === 'crate');
+    // A crate needs a whole block of cells, so one spawned into a single
+    // exit cell arrives as a plain box of its color.
+    var spawnType = (nextBox.type === 'crate') ? 'default' : (nextBox.type || 'default');
 
     stock[exitIdx] = {
       ci: nextBox.ci,
@@ -189,13 +191,18 @@ function trySpawnFromTunnels() {
       // still has a passable path to the bottom of the grid.
       revealed: false,
       empty: false,
-      boxType: nextBox.type || 'default',
+      boxType: spawnType,
       iceHP: isIce ? 2 : 0,
       iceCrackT: 0,
       iceShatterT: 0,
-      crateHP: isCrate ? CRATE_HP : 0,
+      crateHP: 0,
+      crateMaxHP: 0,
       crateHitT: 0,
       crateBreakT: 0,
+      crateAnchorIdx: -1,
+      crateW: 0,
+      crateH: 0,
+      crateLocks: null,
       blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
       isTunnel: false,
       isWall: false,

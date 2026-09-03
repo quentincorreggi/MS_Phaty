@@ -1,10 +1,10 @@
 // ============================================================
 // box_crate.js — Crate box type
-// A box nailed shut inside a wooden crate (3 HP). The crate only
-// takes damage when an ADJACENT box OF THE SAME COLOR is tapped.
-// Any other color just thuds against the wood.
-// HP 3 → pristine crate, HP 2 → cracked, HP 1 → plank broken,
-// HP 0 → crate bursts and the box becomes tappable.
+// A block of boxes nailed shut inside a wooden crate. The crate's lock
+// is a LIST of colors — one plank per entry, painted in the color that
+// plank demands. Tapping an adjacent box whose color is still on the
+// list knocks that plank off; any other color thuds against the wood.
+// So the planks are the health bar: fewer planks, closer to bursting.
 // ============================================================
 
 registerBoxType('crate', {
@@ -12,81 +12,43 @@ registerBoxType('crate', {
   editorColor: '#A9743F',
 
   // ── Draw the wooden crate (called from drawCrates for the whole footprint) ──
-  // The crate is one object spanning every cell it covers. Its diagonal cross
-  // brace is painted in the lock color — the only color that damages it — over
-  // plain wooden planks, while each compartment shows the color of the box
-  // sealed in that cell.
-  // contents = one color index per compartment, in reading order.
-  drawCrateOverlay: function (ctx, x, y, w, h, S, hp, ci, tick, contents) {
-    var c = COLORS[ci] || COLORS[0];
+  // The crate is one object spanning every cell it covers. Its planks ARE its
+  // health: one plank per remaining lock, painted in the color that plank
+  // wants, stacked from the top. Knock them all off and the crate bursts.
+  // locks    = colors still needed, top plank first
+  // contents = one color index per compartment, in reading order
+  // cols/rows = footprint in grid cells
+  // maxHp    = planks the crate started with, so the stack reads as a bar
+  drawCrateOverlay: function (ctx, x, y, w, h, S, locks, tick, contents, cols, rows, maxHp) {
+    locks = locks || [];
+    cols = cols || CRATE_SIZE;
+    rows = rows || CRATE_SIZE;
     ctx.save();
 
     // Clip everything to the crate shape
     rRect(x, y, w, h, 8 * S); ctx.clip();
 
     // ── Compartments: one per box sealed inside, each in its own color ──
-    this.drawCompartments(ctx, x, y, w, h, S, c, contents);
+    this.drawCompartments(ctx, x, y, w, h, S, contents, cols, rows);
 
-    // ── Horizontal planks, with wide gaps so the color glows through ──
-    var PLANKS = 4;
-    var plankH = h * 0.185;
-    var gap = h * 0.077;
-    var startY = y + h * 0.021;
+    // ── Wooden cross brace, visible through and around the planks ──
+    this.drawBrace(ctx, x, y, w, h, S);
 
-    var brokenPlank = (hp <= 1) ? 2 : -1;   // a plank splits away at 1 HP
+    // ── One plank per remaining lock, in the color it demands ──
+    // The stack is sized by the health the crate started with, so a full
+    // crate is planked shut and a nearly-broken one reads as open.
+    var slots = Math.max(maxHp || locks.length, 2);
+    var margin = h * 0.02;
+    var slotH = (h - margin * 2) / slots;
+    var plankH = slotH * 0.74;
 
-    for (var p = 0; p < PLANKS; p++) {
-      var py = startY + p * (plankH + gap);
-      if (p === brokenPlank) {
-        // Broken plank — two stubs with a bite out of the middle
-        this.drawPlank(ctx, x - w * 0.05, py, w * 0.40, plankH, S, tick, p);
-        this.drawPlank(ctx, x + w * 0.70, py, w * 0.40, plankH, S, tick, p);
-      } else {
-        this.drawPlank(ctx, x - w * 0.05, py, w * 1.1, plankH, S, tick, p);
-      }
+    for (var p = 0; p < locks.length; p++) {
+      var py = y + margin + p * slotH;
+      var pc = COLORS[locks[p]] || COLORS[0];
+      this.drawPlank(ctx, x - w * 0.05, py, w * 1.1, plankH, S, tick, p, pc);
     }
 
-    // ── Diagonal cross brace, painted in the lock color ──
-    // This is the crate's colored element: the only color that breaks it.
-    ctx.save();
-    var braceGrad = ctx.createLinearGradient(x, y, x + w, y + h);
-    braceGrad.addColorStop(0, c.light);
-    braceGrad.addColorStop(0.45, c.fill);
-    braceGrad.addColorStop(1, c.dark);
-    ctx.lineCap = 'butt';
-
-    var arms = [[0.05, 0.05, 0.95, 0.95]];
-    if (hp >= 2) arms.push([0.95, 0.05, 0.05, 0.95]);
-    else         arms.push([0.95, 0.05, 0.60, 0.40]);   // one arm snaps off at 1 HP
-
-    for (var ai = 0; ai < arms.length; ai++) {
-      var a2 = arms[ai];
-      // Dark edge underneath so the brace sits on top of the planks
-      ctx.strokeStyle = 'rgba(35,22,8,0.5)';
-      ctx.lineWidth = w * 0.125;
-      ctx.beginPath();
-      ctx.moveTo(x + w * a2[0], y + h * a2[1]);
-      ctx.lineTo(x + w * a2[2], y + h * a2[3]);
-      ctx.stroke();
-
-      ctx.strokeStyle = braceGrad;
-      ctx.lineWidth = w * 0.105;
-      ctx.beginPath();
-      ctx.moveTo(x + w * a2[0], y + h * a2[1]);
-      ctx.lineTo(x + w * a2[2], y + h * a2[3]);
-      ctx.stroke();
-
-      // Highlight along the top edge of the board
-      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-      ctx.lineWidth = w * 0.022;
-      ctx.beginPath();
-      ctx.moveTo(x + w * a2[0], y + h * a2[1] - h * 0.038);
-      ctx.lineTo(x + w * a2[2], y + h * a2[3] - h * 0.038);
-      ctx.stroke();
-    }
-    ctx.restore();
-
-    // ── Plain wooden frame — the color lives on the planks ──
+    // ── Plain wooden frame ──
     ctx.strokeStyle = '#8A5B2C';
     ctx.lineWidth = 4.5 * S;
     ctx.globalAlpha = 0.95;
@@ -98,8 +60,8 @@ registerBoxType('crate', {
     ctx.globalAlpha = 1;
 
     // ── Iron nails in the corners ──
-    var nailR = w * 0.02;
-    var nails = [[0.09, 0.09], [0.91, 0.09], [0.09, 0.91], [0.91, 0.91]];
+    var nailR = Math.min(w, h) * 0.022;
+    var nails = [[0.05, 0.04], [0.95, 0.04], [0.05, 0.96], [0.95, 0.96]];
     for (var n = 0; n < nails.length; n++) {
       var nx = x + w * nails[n][0], ny = y + h * nails[n][1];
       ctx.fillStyle = 'rgba(40,26,12,0.6)';
@@ -108,21 +70,48 @@ registerBoxType('crate', {
       ctx.beginPath(); ctx.arc(nx, ny, nailR, 0, Math.PI * 2); ctx.fill();
     }
 
-    // ── Damage cracks ──
-    if (hp <= 2) this.drawCracks(ctx, x, y, w, h, S, hp);
+    ctx.restore();
+  },
 
+  // ── Diagonal cross brace holding the crate together ──
+  drawBrace: function (ctx, x, y, w, h, S) {
+    var thick = Math.min(w, h) * 0.1;
+    ctx.save();
+    var braceGrad = ctx.createLinearGradient(x, y, x + w, y + h);
+    braceGrad.addColorStop(0, '#C08A4E');
+    braceGrad.addColorStop(0.5, '#9C6A38');
+    braceGrad.addColorStop(1, '#7A5028');
+    ctx.lineCap = 'butt';
+
+    var arms = [[0.04, 0.03, 0.96, 0.97], [0.96, 0.03, 0.04, 0.97]];
+    for (var ai = 0; ai < arms.length; ai++) {
+      var a = arms[ai];
+      ctx.strokeStyle = 'rgba(35,22,8,0.45)';
+      ctx.lineWidth = thick * 1.2;
+      ctx.beginPath();
+      ctx.moveTo(x + w * a[0], y + h * a[1]);
+      ctx.lineTo(x + w * a[2], y + h * a[3]);
+      ctx.stroke();
+
+      ctx.strokeStyle = braceGrad;
+      ctx.lineWidth = thick;
+      ctx.beginPath();
+      ctx.moveTo(x + w * a[0], y + h * a[1]);
+      ctx.lineTo(x + w * a[2], y + h * a[3]);
+      ctx.stroke();
+    }
     ctx.restore();
   },
 
   // ── The boxes sealed inside: one colored compartment per cell ──
-  drawCompartments: function (ctx, x, y, w, h, S, lockColor, contents) {
-    var cw = w / CRATE_SIZE, ch = h / CRATE_SIZE;
+  drawCompartments: function (ctx, x, y, w, h, S, contents, cols, rows) {
+    var cw = w / cols, ch = h / rows;
     ctx.save();
 
-    for (var r = 0; r < CRATE_SIZE; r++) {
-      for (var col = 0; col < CRATE_SIZE; col++) {
-        var slot = r * CRATE_SIZE + col;
-        var cc = (contents && COLORS[contents[slot]]) ? COLORS[contents[slot]] : lockColor;
+    for (var r = 0; r < rows; r++) {
+      for (var col = 0; col < cols; col++) {
+        var slot = r * cols + col;
+        var cc = (contents && COLORS[contents[slot]]) ? COLORS[contents[slot]] : COLORS[0];
         var qx = x + cw * col, qy = y + ch * r;
 
         // The box filling this compartment
@@ -134,7 +123,7 @@ registerBoxType('crate', {
 
         // Its marbles, spread over two rows so some always land in the gaps
         // between the planks
-        var mr = cw * 0.115;
+        var mr = Math.min(cw, ch) * 0.115;
         var ccx = qx + cw * 0.5, ccy = qy + ch * 0.5;
         for (var mrow = 0; mrow < 2; mrow++) {
           for (var m = 0; m < 3; m++) {
@@ -154,8 +143,10 @@ registerBoxType('crate', {
     // Divider shadows between the compartments
     ctx.strokeStyle = 'rgba(48,30,12,0.6)';
     ctx.lineWidth = 3.5 * S;
-    for (var d = 1; d < CRATE_SIZE; d++) {
+    for (var d = 1; d < cols; d++) {
       ctx.beginPath(); ctx.moveTo(x + cw * d, y); ctx.lineTo(x + cw * d, y + h); ctx.stroke();
+    }
+    for (var d = 1; d < rows; d++) {
       ctx.beginPath(); ctx.moveTo(x, y + ch * d); ctx.lineTo(x + w, y + ch * d); ctx.stroke();
     }
 
@@ -204,61 +195,6 @@ registerBoxType('crate', {
     ctx.restore();
   },
 
-  // ── Cracks that deepen as the crate takes hits ──
-  drawCracks: function (ctx, x, y, w, h, S, hp) {
-    ctx.save();
-    ctx.strokeStyle = 'rgba(26,16,6,0.75)';
-    ctx.lineWidth = 2.2 * S;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    // First split — appears at 2 HP, runs right across the top plank
-    ctx.beginPath();
-    ctx.moveTo(x - w * 0.02, y + h * 0.10);
-    ctx.lineTo(x + w * 0.26, y + h * 0.20);
-    ctx.lineTo(x + w * 0.46, y + h * 0.11);
-    ctx.lineTo(x + w * 0.68, y + h * 0.22);
-    ctx.lineTo(x + w * 1.02, y + h * 0.13);
-    ctx.stroke();
-    // A crack running down out of the split
-    ctx.beginPath();
-    ctx.moveTo(x + w * 0.26, y + h * 0.20);
-    ctx.lineTo(x + w * 0.20, y + h * 0.34);
-    ctx.lineTo(x + w * 0.34, y + h * 0.48);
-    ctx.stroke();
-
-    if (hp <= 1) {
-      // Second wave of cracks — the crate is one hit from bursting
-      ctx.beginPath();
-      ctx.moveTo(x + w * 0.86, y + h * 0.22);
-      ctx.lineTo(x + w * 0.70, y + h * 0.44);
-      ctx.lineTo(x + w * 0.78, y + h * 0.56);
-      ctx.lineTo(x + w * 0.62, y + h * 0.78);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(x + w * 0.70, y + h * 0.44);
-      ctx.lineTo(x + w * 0.52, y + h * 0.60);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(x + w * 0.20, y + h * 0.70);
-      ctx.lineTo(x + w * 0.40, y + h * 0.88);
-      ctx.stroke();
-    }
-
-    // Light edge along the split so it reads on dark wood
-    ctx.strokeStyle = 'rgba(255,225,180,0.35)';
-    ctx.lineWidth = 1 * S;
-    ctx.beginPath();
-    ctx.moveTo(x - w * 0.02, y + h * 0.085);
-    ctx.lineTo(x + w * 0.26, y + h * 0.185);
-    ctx.lineTo(x + w * 0.46, y + h * 0.095);
-    ctx.lineTo(x + w * 0.68, y + h * 0.205);
-    ctx.lineTo(x + w * 1.02, y + h * 0.115);
-    ctx.stroke();
-
-    ctx.restore();
-  },
-
   // ── Closed state: nothing per cell ──
   // A crate spans several cells and is drawn as one piece by drawCrates(),
   // so the individual boxes it covers draw nothing of their own.
@@ -280,16 +216,22 @@ registerBoxType('crate', {
   },
 
   editorCellStyle: function (ci) {
-    return { background: this.editorCrateBg(ci), borderColor: '#7C5326' };
+    return { background: this.editorCrateBg([ci]), borderColor: '#7C5326' };
   },
 
-  // Wooden tile crossed by a brace in the lock color
-  editorCrateBg: function (ci) {
-    var c = COLORS[ci];
-    return 'linear-gradient(45deg,transparent 42%,' + c.dark + ' 42%,' + c.fill +
-      ' 50%,' + c.dark + ' 58%,transparent 58%),' +
-      'linear-gradient(-45deg,transparent 42%,' + c.dark + ' 42%,' + c.fill +
-      ' 50%,' + c.dark + ' 58%,transparent 58%),' +
+  // Wooden tile with the crate's planks stacked on top, in their own colors
+  editorCrateBg: function (locks) {
+    locks = (locks && locks.length) ? locks : [0];
+    var slots = Math.max(locks.length, 2);
+    var bands = [];
+    for (var i = 0; i < locks.length; i++) {
+      var c = COLORS[locks[i]] || COLORS[0];
+      var from = (i / slots * 100).toFixed(1) + '%';
+      var mid = ((i + 0.74) / slots * 100).toFixed(1) + '%';
+      bands.push(c.light + ' ' + from + ',' + c.dark + ' ' + mid +
+        ',transparent ' + mid + ',transparent ' + ((i + 1) / slots * 100).toFixed(1) + '%');
+    }
+    return 'linear-gradient(180deg,' + bands.join(',') + '),' +
       'repeating-linear-gradient(180deg,#C99055 0px,#A9743F 5px,#7C5326 7px,#C99055 9px)';
   },
 
@@ -301,6 +243,6 @@ registerBoxType('crate', {
 
   // Covered cells of a placed crate (everything but its top-left anchor)
   editorCoverStyle: function (ci) {
-    return { background: this.editorCrateBg(ci), borderColor: '#7C5326' };
+    return { background: this.editorCrateBg([ci]), borderColor: '#7C5326' };
   }
 });

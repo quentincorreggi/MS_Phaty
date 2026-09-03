@@ -17,37 +17,56 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   selectedCrate: -1,    // index of selected crate for contents editing
+  crateW: CRATE_SIZE,   // footprint for new crates
+  crateH: CRATE_SIZE,
   wallMode: false,      // true when placing walls
   visible: false
 };
 
-// ── Crate helpers: crates occupy a CRATE_SIZE x CRATE_SIZE block, stored
-//    in the grid as a single entry at the top-left (anchor) cell ──
+// ── Crate helpers: a crate occupies a cw x ch block, stored in the grid as
+//    a single entry at the top-left (anchor) cell. Its lock is a list of
+//    colors, one per plank, and its contents one color per compartment ──
+
+function editorCrateW(cell) { return cell.cw || CRATE_SIZE; }
+function editorCrateH(cell) { return cell.ch || CRATE_SIZE; }
+
+// The lock list of a crate grid entry, one color per plank.
+function editorCrateLocks(cell) {
+  if (cell.locks && cell.locks.length) return cell.locks;
+  var out = [];
+  for (var i = 0; i < CRATE_HP; i++) out.push(cell.ci);
+  cell.locks = out;
+  return out;
+}
 
 // Index of the crate covering this cell (its anchor), or -1 if none.
 function editorCrateAnchorAt(idx) {
   var row = Math.floor(idx / 7), col = idx % 7;
-  for (var dr = 0; dr < CRATE_SIZE; dr++) {
-    for (var dc = 0; dc < CRATE_SIZE; dc++) {
+  for (var dr = 0; dr < CRATE_MAX_SIZE; dr++) {
+    for (var dc = 0; dc < CRATE_MAX_SIZE; dc++) {
       var r = row - dr, c = col - dc;
       if (r < 0 || c < 0) continue;
       var a = r * 7 + c;
       var v = editor.grid[a];
-      if (v && !v.tunnel && !v.wall && v.type === 'crate') return a;
+      if (!v || v.tunnel || v.wall || v.type !== 'crate') continue;
+      if (dc < editorCrateW(v) && dr < editorCrateH(v)) return a;
     }
   }
   return -1;
 }
 
-// Can a crate be anchored here? It needs a free CRATE_SIZE x CRATE_SIZE block.
-function editorCrateFits(idx) {
+// Can a crate of this size be anchored here? skipAnchor lets a crate be
+// resized in place without tripping over its own cells.
+function editorCrateFits(idx, gw, gh, skipAnchor) {
   var row = Math.floor(idx / 7), col = idx % 7;
-  if (row + CRATE_SIZE > 7 || col + CRATE_SIZE > 7) return false;
-  for (var dr = 0; dr < CRATE_SIZE; dr++) {
-    for (var dc = 0; dc < CRATE_SIZE; dc++) {
+  if (row + gh > 7 || col + gw > 7) return false;
+  for (var dr = 0; dr < gh; dr++) {
+    for (var dc = 0; dc < gw; dc++) {
       var c2 = (row + dr) * 7 + (col + dc);
-      if (editor.grid[c2]) return false;
-      if (editorCrateAnchorAt(c2) >= 0) return false;
+      var anc = editorCrateAnchorAt(c2);
+      if (anc >= 0 && anc === skipAnchor) continue;
+      if (anc >= 0) return false;
+      if (editor.grid[c2] && c2 !== skipAnchor) return false;
     }
   }
   return true;
@@ -77,12 +96,13 @@ function editorCrateSlotCi(cell, slot) {
 
 // The compartment number a covered cell corresponds to, in reading order.
 function editorCrateSlotOf(anchorIdx, idx) {
+  var cell = editor.grid[anchorIdx];
   var ar = Math.floor(anchorIdx / 7), ac = anchorIdx % 7;
   var r = Math.floor(idx / 7), c = idx % 7;
-  return (r - ar) * CRATE_SIZE + (c - ac);
+  return (r - ar) * editorCrateW(cell) + (c - ac);
 }
 
-// Small dot showing what a covered cell holds
+// Small dot showing what a crate cell holds
 function editorCrateSlotDot(anchorIdx, idx) {
   var cell = editor.grid[anchorIdx];
   var inner = editorCrateSlotCi(cell, editorCrateSlotOf(anchorIdx, idx));
@@ -103,6 +123,8 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.selectedCrate = -1;
+  editor.crateW = CRATE_SIZE;
+  editor.crateH = CRATE_SIZE;
   editor.wallMode = false;
 }
 
@@ -156,25 +178,23 @@ function editorRenderGrid() {
       var count = v.contents ? v.contents.length : 0;
       cell.innerHTML = '<span class="ed-cell-dot" style="color:#FFD080;font-size:13px">' + arrow +
         '</span><span class="ed-tunnel-badge">' + count + '</span>';
+    } else if (editorCrateAnchorAt(i) >= 0) {
+      // Any cell of a crate — the anchor shows the icon, the rest a dot
+      var ancIdx = editorCrateAnchorAt(i);
+      var anc = editor.grid[ancIdx];
+      var cbt = getBoxType('crate');
+      cell.style.background = cbt.editorCrateBg(editorCrateLocks(anc));
+      cell.style.borderColor = '#7C5326';
+      if (editor.selectedCrate === ancIdx) cell.style.boxShadow = '0 0 0 2px rgba(255,208,128,0.7)';
+      cell.innerHTML = (ancIdx === i)
+        ? '<span class="ed-cell-dot" style="font-size:12px">&#128230;</span>'
+        : editorCrateSlotDot(ancIdx, i);
     } else if (v && v.ci >= 0) {
       var bt = getBoxType(v.type);
       var st = bt.editorCellStyle(v.ci);
       cell.style.background = st.background;
       cell.style.borderColor = st.borderColor;
       cell.innerHTML = bt.editorCellHTML(v.ci);
-      if (v.type === 'crate' && editor.selectedCrate === i) {
-        cell.style.boxShadow = '0 0 0 2px rgba(255,208,128,0.6)';
-      }
-    } else if (editorCrateAnchorAt(i) >= 0) {
-      // Cell covered by a crate anchored elsewhere
-      var ancIdx = editorCrateAnchorAt(i);
-      var anc = editor.grid[ancIdx];
-      var cbt = getBoxType('crate');
-      var cst = cbt.editorCoverStyle(anc.ci);
-      cell.style.background = cst.background;
-      cell.style.borderColor = cst.borderColor;
-      if (editor.selectedCrate === ancIdx) cell.style.boxShadow = '0 0 0 2px rgba(255,208,128,0.6)';
-      cell.innerHTML = editorCrateSlotDot(ancIdx, i);
     } else {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
@@ -246,14 +266,19 @@ function editorCellClick(e) {
       } else if (editor.activeType === 'crate') {
         // Crates need a free block of cells, anchored at the one tapped
         editor.grid[idx] = null;
-        if (!editorCrateFits(idx)) {
-          editorShowToast('Crate needs a free ' + CRATE_SIZE + 'x' + CRATE_SIZE + ' space');
+        if (!editorCrateFits(idx, editor.crateW, editor.crateH)) {
+          editorShowToast('Crate needs a free ' + editor.crateW + 'x' + editor.crateH + ' space');
           editorRenderGrid();
           return;
         }
-        var startContents = [];
-        for (var sc = 0; sc < CRATE_SIZE * CRATE_SIZE; sc++) startContents.push(editor.activeColor);
-        editor.grid[idx] = { ci: editor.activeColor, type: 'crate', contents: startContents };
+        var startContents = [], startLocks = [];
+        for (var sc = 0; sc < editor.crateW * editor.crateH; sc++) startContents.push(editor.activeColor);
+        for (var sl3 = 0; sl3 < CRATE_HP; sl3++) startLocks.push(editor.activeColor);
+        editor.grid[idx] = {
+          ci: editor.activeColor, type: 'crate',
+          cw: editor.crateW, ch: editor.crateH,
+          locks: startLocks, contents: startContents
+        };
         editor.selectedCrate = idx;
       } else {
         editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
@@ -278,7 +303,7 @@ function editorCellErase(e) {
   editorRenderCratePanel();
 }
 
-// ── Crate contents panel: paint each compartment with the active color ──
+// ── Crate panel: footprint, lock list (one plank per hit), contents ──
 function editorRenderCratePanel() {
   var container = document.getElementById('ed-crate-panel');
   if (!container) return;
@@ -291,31 +316,71 @@ function editorRenderCratePanel() {
   }
   container.style.display = 'block';
 
-  var lock = COLORS[cell.ci];
-  var html = '<div class="ed-section-title"><span class="icon">&#128230;</span> Crate contents' +
-    '<span class="ed-crate-lock" style="background:' + lock.fill + '">' +
-    CLR_NAMES[cell.ci] + ' lock</span></div>';
-  html += '<div class="ed-crate-hint">Pick a color above, then tap a compartment. ' +
-    'Only <b>' + CLR_NAMES[cell.ci] + '</b> boxes next to the crate break it.</div>';
+  var gw = editorCrateW(cell), gh = editorCrateH(cell);
+  var locks = editorCrateLocks(cell);
+  var html = '';
 
-  html += '<div class="ed-crate-slots" style="grid-template-columns:repeat(' + CRATE_SIZE + ',1fr)">';
-  for (var sl = 0; sl < CRATE_SIZE * CRATE_SIZE; sl++) {
+  // ── Size ──
+  html += '<div class="ed-section-title"><span class="icon">&#128230;</span> Crate' +
+    '<span class="ed-crate-lock" style="background:#8A5B2C">' + gw + '\u00D7' + gh +
+    ' \u00B7 ' + locks.length + ' hp</span></div>';
+  html += '<div class="ed-crate-row">';
+  var sizes = [[2, 2], [2, 3], [3, 2], [3, 3]];
+  for (var z = 0; z < sizes.length; z++) {
+    var on = (sizes[z][0] === gw && sizes[z][1] === gh) ? ' active' : '';
+    html += '<button class="ed-crate-size' + on + '" data-cw="' + sizes[z][0] +
+      '" data-ch="' + sizes[z][1] + '">' + sizes[z][0] + '\u00D7' + sizes[z][1] + '</button>';
+  }
+  html += '</div>';
+
+  // ── Lock list: one plank per hit, top plank first ──
+  html += '<div class="ed-section-title" style="margin-top:10px"><span class="icon">&#128274;</span> Planks' +
+    ' <span style="font-weight:400;font-size:10px;color:#9C8A70;margin-left:auto;text-transform:none;letter-spacing:0">' +
+    'top to bottom &middot; tap to remove</span></div>';
+  html += '<div class="ed-crate-planks">';
+  for (var lk = 0; lk < locks.length; lk++) {
+    var lc = COLORS[locks[lk]] || COLORS[0];
+    html += '<div class="ed-crate-plank" data-lock="' + lk + '" title="' + CLR_NAMES[locks[lk]] +
+      ' — tap to remove" style="background:linear-gradient(180deg,' + lc.light + ',' + lc.dark + ')"></div>';
+  }
+  html += '</div>';
+  html += '<div class="ed-crate-actions">' +
+    '<button class="ed-qbtn" data-crate-act="addlock">&#10133; Add plank in selected color</button>' +
+    '</div>';
+
+  // ── Contents ──
+  html += '<div class="ed-section-title" style="margin-top:10px"><span class="icon">&#9899;</span> Boxes inside</div>';
+  html += '<div class="ed-crate-hint">Pick a color above, then tap a compartment.</div>';
+  html += '<div class="ed-crate-slots" style="grid-template-columns:repeat(' + gw + ',1fr);max-width:' +
+    (gw * 34 + 14) + 'px">';
+  for (var sl = 0; sl < gw * gh; sl++) {
     var inner = editorCrateSlotCi(cell, sl);
     html += '<div class="ed-crate-slot" data-slot="' + sl + '" title="' + CLR_NAMES[inner] +
       ' — tap to repaint" style="background:' + COLORS[inner].fill + '"></div>';
   }
   html += '</div>';
-
   html += '<div class="ed-crate-actions">' +
     '<button class="ed-qbtn" data-crate-act="all">Fill all with selected</button>' +
-    '<button class="ed-qbtn" data-crate-act="lock">Reset to lock color</button>' +
     '</div>';
 
   container.innerHTML = html;
 
+  // ── Wiring ──
+  var sizeBtns = container.querySelectorAll('.ed-crate-size');
+  for (var i = 0; i < sizeBtns.length; i++) {
+    sizeBtns[i].addEventListener('click', function () {
+      editorSetCrateSize(parseInt(this.getAttribute('data-cw')), parseInt(this.getAttribute('data-ch')));
+    });
+  }
+  var plankEls = container.querySelectorAll('.ed-crate-plank');
+  for (var q = 0; q < plankEls.length; q++) {
+    plankEls[q].addEventListener('click', function () {
+      editorRemoveCratePlank(parseInt(this.getAttribute('data-lock')));
+    });
+  }
   var slots = container.querySelectorAll('.ed-crate-slot');
-  for (var i = 0; i < slots.length; i++) {
-    slots[i].addEventListener('click', function () {
+  for (var j = 0; j < slots.length; j++) {
+    slots[j].addEventListener('click', function () {
       if (editor.activeColor === -1) { editorShowToast('Pick a color first'); return; }
       editorSetCrateSlot(parseInt(this.getAttribute('data-slot')), editor.activeColor);
     });
@@ -326,20 +391,58 @@ function editorRenderCratePanel() {
       var which = this.getAttribute('data-crate-act');
       var c = editor.grid[editor.selectedCrate];
       if (!c) return;
-      var fill = (which === 'lock') ? c.ci : editor.activeColor;
-      if (fill === -1) { editorShowToast('Pick a color first'); return; }
-      for (var sl2 = 0; sl2 < CRATE_SIZE * CRATE_SIZE; sl2++) editorSetCrateSlot(sl2, fill, true);
+      if (editor.activeColor === -1) { editorShowToast('Pick a color first'); return; }
+      if (which === 'addlock') {
+        editorCrateLocks(c).push(editor.activeColor);
+      } else if (which === 'all') {
+        var n = editorCrateW(c) * editorCrateH(c);
+        for (var sl2 = 0; sl2 < n; sl2++) editorSetCrateSlot(sl2, editor.activeColor, true);
+      }
       editorRenderGrid(); editorUpdateStats(); editorRenderCratePanel();
     });
   }
 }
 
+// Resize a placed crate, keeping the compartments that still exist.
+function editorSetCrateSize(gw, gh) {
+  var idx = editor.selectedCrate;
+  var cell = editor.grid[idx];
+  if (!cell) return;
+  var oldW = editorCrateW(cell), oldH = editorCrateH(cell);
+  if (gw === oldW && gh === oldH) return;
+  if (!editorCrateFits(idx, gw, gh, idx)) {
+    editorShowToast('No room for a ' + gw + 'x' + gh + ' crate here');
+    return;
+  }
+  var next = [];
+  for (var r = 0; r < gh; r++) {
+    for (var c = 0; c < gw; c++) {
+      next.push((r < oldH && c < oldW) ? editorCrateSlotCi(cell, r * oldW + c) : cell.ci);
+    }
+  }
+  cell.cw = gw; cell.ch = gh; cell.contents = next;
+  editor.crateW = gw; editor.crateH = gh;   // remember it for the next crate
+  editorRenderGrid(); editorUpdateStats(); editorRenderCratePanel();
+}
+
+// Remove one plank from the lock list — a crate always keeps at least one.
+function editorRemoveCratePlank(lockIdx) {
+  var cell = editor.grid[editor.selectedCrate];
+  if (!cell) return;
+  var locks = editorCrateLocks(cell);
+  if (locks.length <= 1) { editorShowToast('A crate needs at least one plank'); return; }
+  locks.splice(lockIdx, 1);
+  editorRenderGrid(); editorUpdateStats(); editorRenderCratePanel();
+}
+
 function editorSetCrateSlot(slot, ci, quiet) {
   var cell = editor.grid[editor.selectedCrate];
   if (!cell) return;
-  if (!cell.contents) {
-    cell.contents = [];
-    for (var i = 0; i < CRATE_SIZE * CRATE_SIZE; i++) cell.contents.push(cell.ci);
+  var n = editorCrateW(cell) * editorCrateH(cell);
+  if (!cell.contents || cell.contents.length !== n) {
+    var fresh = [];
+    for (var i = 0; i < n; i++) fresh.push(editorCrateSlotCi(cell, i));
+    cell.contents = fresh;
   }
   cell.contents[slot] = ci;
   if (!quiet) { editorRenderGrid(); editorUpdateStats(); editorRenderCratePanel(); }
@@ -662,7 +765,7 @@ function editorUpdateStats() {
       typeCounts[v.type] = (typeCounts[v.type] || 0) + 1;
       if (v.type === 'crate') {
         // A crate seals a block of boxes, each with its own color
-        var slots = CRATE_SIZE * CRATE_SIZE;
+        var slots = editorCrateW(v) * editorCrateH(v);
         total += slots;
         for (var cs = 0; cs < slots; cs++) {
           var inner = editorCrateSlotCi(v, cs);

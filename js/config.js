@@ -53,10 +53,12 @@ var blockerCollectT = 0;
 var blockerCollectSlots = [];
 var blockerCollectCleared = false;
 
-// Crate boxes: a 2x2 wooden cage sealing 4 boxes, damaged ONLY by
-// adjacent taps of its own color
-var CRATE_HP = 3;
-var CRATE_SIZE = 2;   // footprint in grid cells (2 = 2x2, covering 4 boxes)
+// Crate boxes: a wooden cage sealing a block of boxes. Its lock is a LIST
+// of colors — one plank per entry — and only an adjacent tap of a color
+// still on that list knocks a plank off. Empty the list and it bursts.
+var CRATE_HP = 3;             // default number of planks on a new crate
+var CRATE_SIZE = 2;           // default footprint (2 = 2x2)
+var CRATE_MAX_SIZE = 3;       // largest footprint in either direction
 
 var MRB_PER_BOX = 9, SORT_CAP = 3;
 var SORT_VISIBLE_ROWS = 4;
