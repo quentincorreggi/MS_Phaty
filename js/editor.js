@@ -16,6 +16,7 @@ var editor = {
   tunnelMode: false,    // true when placing tunnels
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
+  selectedCrate: -1,    // index of selected crate for contents editing
   wallMode: false,      // true when placing walls
   visible: false
 };
@@ -59,10 +60,33 @@ function editorClearCell(idx) {
   if (anchor >= 0) {
     editor.grid[anchor] = null;
     if (editor.selectedTunnel === anchor) editor.selectedTunnel = -1;
+    if (editor.selectedCrate === anchor) editor.selectedCrate = -1;
     return true;
   }
   editor.grid[idx] = null;
   return false;
+}
+
+// The color held in one compartment of a crate grid entry.
+function editorCrateSlotCi(cell, slot) {
+  if (cell.contents && cell.contents[slot] !== undefined && cell.contents[slot] !== null) {
+    return cell.contents[slot];
+  }
+  return cell.ci;
+}
+
+// The compartment number a covered cell corresponds to, in reading order.
+function editorCrateSlotOf(anchorIdx, idx) {
+  var ar = Math.floor(anchorIdx / 7), ac = anchorIdx % 7;
+  var r = Math.floor(idx / 7), c = idx % 7;
+  return (r - ar) * CRATE_SIZE + (c - ac);
+}
+
+// Small dot showing what a covered cell holds
+function editorCrateSlotDot(anchorIdx, idx) {
+  var cell = editor.grid[anchorIdx];
+  var inner = editorCrateSlotCi(cell, editorCrateSlotOf(anchorIdx, idx));
+  return '<span class="ed-crate-dot" style="background:' + COLORS[inner].fill + '"></span>';
 }
 
 function editorInit() {
@@ -78,6 +102,7 @@ function editorInit() {
   editor.tunnelMode = false;
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
+  editor.selectedCrate = -1;
   editor.wallMode = false;
 }
 
@@ -105,6 +130,7 @@ function editorBuildUI() {
   editorRenderSettings();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderCratePanel();
 }
 
 // ── Grid ──
@@ -136,13 +162,19 @@ function editorRenderGrid() {
       cell.style.background = st.background;
       cell.style.borderColor = st.borderColor;
       cell.innerHTML = bt.editorCellHTML(v.ci);
+      if (v.type === 'crate' && editor.selectedCrate === i) {
+        cell.style.boxShadow = '0 0 0 2px rgba(255,208,128,0.6)';
+      }
     } else if (editorCrateAnchorAt(i) >= 0) {
       // Cell covered by a crate anchored elsewhere
-      var anc = editor.grid[editorCrateAnchorAt(i)];
+      var ancIdx = editorCrateAnchorAt(i);
+      var anc = editor.grid[ancIdx];
       var cbt = getBoxType('crate');
       var cst = cbt.editorCoverStyle(anc.ci);
       cell.style.background = cst.background;
       cell.style.borderColor = cst.borderColor;
+      if (editor.selectedCrate === ancIdx) cell.style.boxShadow = '0 0 0 2px rgba(255,208,128,0.6)';
+      cell.innerHTML = editorCrateSlotDot(ancIdx, i);
     } else {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
@@ -157,12 +189,18 @@ function editorRenderGrid() {
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
 
-  // A cell covered by a crate belongs to that crate — any click frees it first
+  // A cell covered by a crate belongs to that crate
   if (editorCrateAnchorAt(idx) >= 0) {
-    editorClearCell(idx);
+    if (!editor.tunnelMode && !editor.wallMode && editor.activeType === 'crate' && editor.activeColor !== -1) {
+      // With the crate tool in hand, select it instead — edit its contents
+      editor.selectedCrate = editorCrateAnchorAt(idx);
+    } else {
+      editorClearCell(idx);
+    }
     editorRenderGrid();
     editorUpdateStats();
     editorRenderTunnelPanel();
+    editorRenderCratePanel();
     return;
   }
 
@@ -180,6 +218,7 @@ function editorCellClick(e) {
     editorRenderGrid();
     editorUpdateStats();
     editorRenderTunnelPanel();
+    editorRenderCratePanel();
     return;
   }
 
@@ -212,7 +251,10 @@ function editorCellClick(e) {
           editorRenderGrid();
           return;
         }
-        editor.grid[idx] = { ci: editor.activeColor, type: 'crate' };
+        var startContents = [];
+        for (var sc = 0; sc < CRATE_SIZE * CRATE_SIZE; sc++) startContents.push(editor.activeColor);
+        editor.grid[idx] = { ci: editor.activeColor, type: 'crate', contents: startContents };
+        editor.selectedCrate = idx;
       } else {
         editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
       }
@@ -222,6 +264,7 @@ function editorCellClick(e) {
   editorRenderGrid();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderCratePanel();
 }
 
 function editorCellErase(e) {
@@ -232,6 +275,74 @@ function editorCellErase(e) {
   editorRenderGrid();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderCratePanel();
+}
+
+// ── Crate contents panel: paint each compartment with the active color ──
+function editorRenderCratePanel() {
+  var container = document.getElementById('ed-crate-panel');
+  if (!container) return;
+
+  var sel = editor.selectedCrate;
+  var cell = (sel >= 0) ? editor.grid[sel] : null;
+  if (!cell || cell.tunnel || cell.wall || cell.type !== 'crate') {
+    container.style.display = 'none';
+    return;
+  }
+  container.style.display = 'block';
+
+  var lock = COLORS[cell.ci];
+  var html = '<div class="ed-section-title"><span class="icon">&#128230;</span> Crate contents' +
+    '<span class="ed-crate-lock" style="background:' + lock.fill + '">' +
+    CLR_NAMES[cell.ci] + ' lock</span></div>';
+  html += '<div class="ed-crate-hint">Pick a color above, then tap a compartment. ' +
+    'Only <b>' + CLR_NAMES[cell.ci] + '</b> boxes next to the crate break it.</div>';
+
+  html += '<div class="ed-crate-slots" style="grid-template-columns:repeat(' + CRATE_SIZE + ',1fr)">';
+  for (var sl = 0; sl < CRATE_SIZE * CRATE_SIZE; sl++) {
+    var inner = editorCrateSlotCi(cell, sl);
+    html += '<div class="ed-crate-slot" data-slot="' + sl + '" title="' + CLR_NAMES[inner] +
+      ' — tap to repaint" style="background:' + COLORS[inner].fill + '"></div>';
+  }
+  html += '</div>';
+
+  html += '<div class="ed-crate-actions">' +
+    '<button class="ed-qbtn" data-crate-act="all">Fill all with selected</button>' +
+    '<button class="ed-qbtn" data-crate-act="lock">Reset to lock color</button>' +
+    '</div>';
+
+  container.innerHTML = html;
+
+  var slots = container.querySelectorAll('.ed-crate-slot');
+  for (var i = 0; i < slots.length; i++) {
+    slots[i].addEventListener('click', function () {
+      if (editor.activeColor === -1) { editorShowToast('Pick a color first'); return; }
+      editorSetCrateSlot(parseInt(this.getAttribute('data-slot')), editor.activeColor);
+    });
+  }
+  var acts = container.querySelectorAll('[data-crate-act]');
+  for (var a = 0; a < acts.length; a++) {
+    acts[a].addEventListener('click', function () {
+      var which = this.getAttribute('data-crate-act');
+      var c = editor.grid[editor.selectedCrate];
+      if (!c) return;
+      var fill = (which === 'lock') ? c.ci : editor.activeColor;
+      if (fill === -1) { editorShowToast('Pick a color first'); return; }
+      for (var sl2 = 0; sl2 < CRATE_SIZE * CRATE_SIZE; sl2++) editorSetCrateSlot(sl2, fill, true);
+      editorRenderGrid(); editorUpdateStats(); editorRenderCratePanel();
+    });
+  }
+}
+
+function editorSetCrateSlot(slot, ci, quiet) {
+  var cell = editor.grid[editor.selectedCrate];
+  if (!cell) return;
+  if (!cell.contents) {
+    cell.contents = [];
+    for (var i = 0; i < CRATE_SIZE * CRATE_SIZE; i++) cell.contents.push(cell.ci);
+  }
+  cell.contents[slot] = ci;
+  if (!quiet) { editorRenderGrid(); editorUpdateStats(); editorRenderCratePanel(); }
 }
 
 // ── Toolbar: mode toggle + type selector + color/direction palette ──
@@ -506,13 +617,13 @@ function editorFillRandom() {
   var indices = []; for (var i = 0; i < 49; i++) indices.push(i);
   shuffle(indices);
   for (var i = 0; i < cl.length; i++) editor.grid[indices[i]] = { ci: cl[i], type: 'default' };
-  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel(); editorRenderCratePanel();
 }
 
 function editorClearAll() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
-  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel(); editorRenderCratePanel();
 }
 
 // ── Stats ──
@@ -548,16 +659,25 @@ function editorUpdateStats() {
       continue;
     }
     if (v.ci >= 0) {
-      // A crate seals a whole block of boxes, not just the anchor cell
-      var boxesHere = (v.type === 'crate') ? CRATE_SIZE * CRATE_SIZE : 1;
-      counts[v.ci] += boxesHere;
-      total += boxesHere;
       typeCounts[v.type] = (typeCounts[v.type] || 0) + 1;
-      if (v.type === 'blocker') {
+      if (v.type === 'crate') {
+        // A crate seals a block of boxes, each with its own color
+        var slots = CRATE_SIZE * CRATE_SIZE;
+        total += slots;
+        for (var cs = 0; cs < slots; cs++) {
+          var inner = editorCrateSlotCi(v, cs);
+          counts[inner]++;
+          regularMrb[inner] += editor.mrbPerBox;
+        }
+      } else if (v.type === 'blocker') {
+        counts[v.ci]++;
+        total++;
         regularMrb[v.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
         totalBlockers += BLOCKER_PER_BOX;
       } else {
-        regularMrb[v.ci] += editor.mrbPerBox * boxesHere;
+        counts[v.ci]++;
+        total++;
+        regularMrb[v.ci] += editor.mrbPerBox;
       }
     }
   }
