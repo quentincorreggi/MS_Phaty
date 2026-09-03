@@ -12,10 +12,10 @@ registerBoxType('crate', {
   editorColor: '#A9743F',
 
   // ── Draw the wooden crate (called from drawCrates for the whole footprint) ──
-  // The crate is one object spanning every cell it covers. Its planks are
-  // painted in the lock color — the only color that damages it — over a plain
-  // wooden frame, while each compartment shows the color of the box sealed in
-  // that cell.
+  // The crate is one object spanning every cell it covers. Its diagonal cross
+  // brace is painted in the lock color — the only color that damages it — over
+  // plain wooden planks, while each compartment shows the color of the box
+  // sealed in that cell.
   // contents = one color index per compartment, in reading order.
   drawCrateOverlay: function (ctx, x, y, w, h, S, hp, ci, tick, contents) {
     var c = COLORS[ci] || COLORS[0];
@@ -39,36 +39,49 @@ registerBoxType('crate', {
       var py = startY + p * (plankH + gap);
       if (p === brokenPlank) {
         // Broken plank — two stubs with a bite out of the middle
-        this.drawPlank(ctx, x - w * 0.05, py, w * 0.40, plankH, S, tick, p, c);
-        this.drawPlank(ctx, x + w * 0.70, py, w * 0.40, plankH, S, tick, p, c);
+        this.drawPlank(ctx, x - w * 0.05, py, w * 0.40, plankH, S, tick, p);
+        this.drawPlank(ctx, x + w * 0.70, py, w * 0.40, plankH, S, tick, p);
       } else {
-        this.drawPlank(ctx, x - w * 0.05, py, w * 1.1, plankH, S, tick, p, c);
+        this.drawPlank(ctx, x - w * 0.05, py, w * 1.1, plankH, S, tick, p);
       }
     }
 
-    // ── Diagonal brace (the crate "X") ──
+    // ── Diagonal cross brace, painted in the lock color ──
+    // This is the crate's colored element: the only color that breaks it.
     ctx.save();
-    ctx.globalAlpha = 0.9;
     var braceGrad = ctx.createLinearGradient(x, y, x + w, y + h);
-    braceGrad.addColorStop(0, '#C08A4E');
-    braceGrad.addColorStop(0.5, '#9C6A38');
-    braceGrad.addColorStop(1, '#7A5028');
-    ctx.strokeStyle = braceGrad;
-    ctx.lineWidth = w * 0.085;
+    braceGrad.addColorStop(0, c.light);
+    braceGrad.addColorStop(0.45, c.fill);
+    braceGrad.addColorStop(1, c.dark);
     ctx.lineCap = 'butt';
-    ctx.beginPath();
-    ctx.moveTo(x + w * 0.05, y + h * 0.05);
-    ctx.lineTo(x + w * 0.95, y + h * 0.95);
-    ctx.stroke();
-    if (hp >= 2) {   // second brace snaps off at 1 HP
+
+    var arms = [[0.05, 0.05, 0.95, 0.95]];
+    if (hp >= 2) arms.push([0.95, 0.05, 0.05, 0.95]);
+    else         arms.push([0.95, 0.05, 0.60, 0.40]);   // one arm snaps off at 1 HP
+
+    for (var ai = 0; ai < arms.length; ai++) {
+      var a2 = arms[ai];
+      // Dark edge underneath so the brace sits on top of the planks
+      ctx.strokeStyle = 'rgba(35,22,8,0.5)';
+      ctx.lineWidth = w * 0.125;
       ctx.beginPath();
-      ctx.moveTo(x + w * 0.95, y + h * 0.05);
-      ctx.lineTo(x + w * 0.05, y + h * 0.95);
+      ctx.moveTo(x + w * a2[0], y + h * a2[1]);
+      ctx.lineTo(x + w * a2[2], y + h * a2[3]);
       ctx.stroke();
-    } else {
+
+      ctx.strokeStyle = braceGrad;
+      ctx.lineWidth = w * 0.105;
       ctx.beginPath();
-      ctx.moveTo(x + w * 0.95, y + h * 0.05);
-      ctx.lineTo(x + w * 0.60, y + h * 0.40);
+      ctx.moveTo(x + w * a2[0], y + h * a2[1]);
+      ctx.lineTo(x + w * a2[2], y + h * a2[3]);
+      ctx.stroke();
+
+      // Highlight along the top edge of the board
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = w * 0.022;
+      ctx.beginPath();
+      ctx.moveTo(x + w * a2[0], y + h * a2[1] - h * 0.038);
+      ctx.lineTo(x + w * a2[2], y + h * a2[3] - h * 0.038);
       ctx.stroke();
     }
     ctx.restore();
@@ -267,12 +280,17 @@ registerBoxType('crate', {
   },
 
   editorCellStyle: function (ci) {
+    return { background: this.editorCrateBg(ci), borderColor: '#7C5326' };
+  },
+
+  // Wooden tile crossed by a brace in the lock color
+  editorCrateBg: function (ci) {
     var c = COLORS[ci];
-    return {
-      background: 'repeating-linear-gradient(180deg,' + c.light + ' 0px,' + c.fill +
-        ' 5px,' + c.dark + ' 7px,' + c.light + ' 9px)',
-      borderColor: '#7C5326'
-    };
+    return 'linear-gradient(45deg,transparent 42%,' + c.dark + ' 42%,' + c.fill +
+      ' 50%,' + c.dark + ' 58%,transparent 58%),' +
+      'linear-gradient(-45deg,transparent 42%,' + c.dark + ' 42%,' + c.fill +
+      ' 50%,' + c.dark + ' 58%,transparent 58%),' +
+      'repeating-linear-gradient(180deg,#C99055 0px,#A9743F 5px,#7C5326 7px,#C99055 9px)';
   },
 
   editorCellHTML: function (ci) {
@@ -283,11 +301,6 @@ registerBoxType('crate', {
 
   // Covered cells of a placed crate (everything but its top-left anchor)
   editorCoverStyle: function (ci) {
-    var c = COLORS[ci];
-    return {
-      background: 'repeating-linear-gradient(180deg,' + c.light + ' 0px,' + c.fill +
-        ' 5px,' + c.dark + ' 7px,' + c.light + ' 9px)',
-      borderColor: '#7C5326'
-    };
+    return { background: this.editorCrateBg(ci), borderColor: '#7C5326' };
   }
 });
