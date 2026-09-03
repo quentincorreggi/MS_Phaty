@@ -53,6 +53,9 @@ var blockerCollectT = 0;
 var blockerCollectSlots = [];
 var blockerCollectCleared = false;
 
+// Crate boxes: sealed in wood, damaged ONLY by adjacent taps of their own color
+var CRATE_HP = 3;
+
 var MRB_PER_BOX = 9, SORT_CAP = 3;
 var SORT_VISIBLE_ROWS = 4;
 

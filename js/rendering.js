@@ -254,6 +254,31 @@ function drawStock() {
       ctx.restore();
     }
 
+    // Wooden crate on top of the box while it still has HP
+    if (b.crateHP > 0) {
+      var crateType = getBoxType('crate');
+      if (crateType && crateType.drawCrateOverlay) {
+        ctx.save();
+        // A hit makes the crate flash pale for a few frames
+        crateType.drawCrateOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, b.crateHP, b.ci, tick);
+        if (b.crateHitT > 0) {
+          ctx.globalAlpha = b.crateHitT * 0.35;
+          ctx.fillStyle = 'rgba(255,235,205,1)';
+          rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.fill();
+        }
+        ctx.restore();
+      }
+    }
+
+    // Flash as the crate bursts open
+    if (b.crateBreakT > 0) {
+      ctx.save();
+      ctx.globalAlpha = b.crateBreakT * 0.45;
+      ctx.fillStyle = 'rgba(230,190,140,1)';
+      rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.fill();
+      ctx.restore();
+    }
+
     ctx.restore();
   }
 }

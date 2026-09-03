@@ -24,7 +24,11 @@ var sfx = {
   drop: function () { tone(400, 0.08, 'sine', 0.04, 200); },
   sort: function () { tone(600, 0.1, 'triangle', 0.1); setTimeout(function () { tone(900, 0.1, 'triangle', 0.1); }, 80); },
   complete: function () { [523, 659, 784, 1047].forEach(function (f, i) { setTimeout(function () { tone(f, 0.2, 'sine', 0.1); }, i * 90); }); },
-  win: function () { [523, 659, 784, 1047, 1319, 1568].forEach(function (f, i) { setTimeout(function () { tone(f, 0.25, 'sine', 0.12); }, i * 100); }); }
+  win: function () { [523, 659, 784, 1047, 1319, 1568].forEach(function (f, i) { setTimeout(function () { tone(f, 0.25, 'sine', 0.12); }, i * 100); }); },
+  // Dull knock — a wrong-colored box tapped next to a crate
+  thud: function () { tone(150, 0.13, 'triangle', 0.07, 85); },
+  // Wood splitting — a crate takes a hit from its own color
+  crack: function () { tone(280, 0.09, 'square', 0.05, 140); setTimeout(function () { tone(190, 0.12, 'triangle', 0.055, 95); }, 45); }
 };
 
 function spawnMarbleClick(intensity) {

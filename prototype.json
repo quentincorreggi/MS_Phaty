@@ -1,0 +1,22 @@
+{
+  "name": "Crate Box",
+  "description": "A box sealed inside a wooden crate that only breaks when boxes of its OWN color are popped next to it.",
+  "howToPlay": "Each crate shows its color through the planks. Tap the three matching-color boxes touching it to smash the crate open, then tap the box inside. Wrong-colored neighbours just thud against the wood.",
+  "author": "",
+  "showcaseLevel": {
+    "name": "Crack the Crates",
+    "desc": "Three same-color taps break a crate",
+    "mrbPerBox": 6,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, { "ci": 4, "type": "default" }, null, null, null, null, null,
+      { "ci": 4, "type": "default" }, { "ci": 4, "type": "crate" }, { "ci": 5, "type": "default" }, null, null, null, null,
+      null, { "ci": 4, "type": "default" }, null, null, { "ci": 2, "type": "default" }, null, null,
+      null, null, null, { "ci": 2, "type": "default" }, { "ci": 2, "type": "crate" }, { "ci": 3, "type": "default" }, null,
+      null, null, null, null, { "ci": 2, "type": "default" }, null, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}
