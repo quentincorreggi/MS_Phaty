@@ -1,22 +1,22 @@
 {
   "name": "Bomb Marbles Box",
   "description": "A box flagged Bomb releases each of its marbles as a bomb in that marble's own colour. Bombs fall at normal speed and explode at the funnel neck, shoving nearby marbles outward and scrambling the order in which they reach the conveyor. The bomb's own marble is freed and carries on.",
-  "howToPlay": "Tap the six plain boxes along the bottom row in quick succession. The belt fills up, marbles back up into the funnel, and a bad clump forms at the neck. Now tap the box with the bomb badge above the right corner — each of its marbles falls as a bomb and detonates at the neck, blowing the clump apart and reshuffling the order in which marbles reach the belt. Nothing is destroyed: every bomb's own marble is freed and carries on.",
+  "howToPlay": "The grid is packed solid, so you can only dig from the bottom row upward. Work your way in until the six bomb-badged boxes in the middle open up. By then the belt is full and marbles are backed up into the funnel — tap a bomb box and each of its marbles falls as a bomb, detonating at the neck and reshuffling the order in which marbles reach the belt. Nothing is destroyed: every bomb's own marble is freed and carries on.",
   "author": "Marble Sorter prototyping",
   "showcaseLevel": {
-    "name": "Bomb Marbles",
-    "desc": "Build a clump at the neck, then blow it apart",
+    "name": "Custom Level",
+    "desc": "My custom level",
     "mrbPerBox": 9,
     "sortCap": 3,
     "lockButtons": 0,
     "grid": [
-      null, null, null, null, null, null, null,
-      null, null, null, null, null, null, null,
-      null, null, null, null, null, null, null,
-      null, null, null, null, null, null, null,
-      null, null, null, null, null, null, null,
-      null, null, null, null, null, null, { "ci": 0, "type": "default", "isBomb": true },
-      { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" }, { "ci": 4, "type": "default" }, { "ci": 5, "type": "default" }, null
+      { "wall": true }, { "wall": true }, { "wall": true }, { "wall": true }, { "wall": true }, { "wall": true }, { "wall": true },
+      { "ci": 2, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 2, "type": "default" },
+      { "ci": 2, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" },
+      { "ci": 2, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 0, "type": "default", "isBomb": true }, { "ci": 0, "type": "default", "isBomb": true }, { "ci": 0, "type": "default", "isBomb": true }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" },
+      { "ci": 2, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 0, "type": "default", "isBomb": true }, { "ci": 0, "type": "default", "isBomb": true }, { "ci": 0, "type": "default", "isBomb": true }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" },
+      { "ci": 2, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" },
+      { "ci": 2, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 2, "type": "default" }, { "ci": 2, "type": "default" }
     ]
   }
 }
