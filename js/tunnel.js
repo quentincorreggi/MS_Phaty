@@ -189,6 +189,7 @@ function trySpawnFromTunnels() {
       revealed: false,
       empty: false,
       boxType: nextBox.type || 'default',
+      isBomb: !!nextBox.isBomb,
       iceHP: isIce ? 2 : 0,
       iceCrackT: 0,
       iceShatterT: 0,

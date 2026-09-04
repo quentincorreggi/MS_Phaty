@@ -239,6 +239,12 @@ function drawStock() {
       }
     }
 
+    // Bomb wrapper — shown in every state so the player can plan tap
+    // order around it. It disappears with the box once it is used up.
+    if (b.isBomb) {
+      drawBombBoxOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, tick, !b.revealed);
+    }
+
     if (b.iceHP > 0) {
       var iceType = getBoxType('ice');
       if (iceType && iceType.drawIceOverlay) {
@@ -264,7 +270,13 @@ function drawPhysMarbles() {
   for (var i = 0; i < physMarbles.length; i++) {
     var m = physMarbles[i];
     var bounce = m.spawnT > 0 ? (1 + Math.sin(m.spawnT * Math.PI) * 0.4) : 1;
-    drawMarble(m.x, m.y, m.r, m.ci, bounce);
+    if (m.isBomb) {
+      drawBombMarble(m.x, m.y, m.r, m.ci, bounce, m);
+    } else {
+      drawMarble(m.x, m.y, m.r, m.ci, bounce);
+      drawBlastHighlight(m);
+      drawFreedHalo(m);
+    }
   }
 }
 

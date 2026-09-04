@@ -33,6 +33,12 @@ function computeLayout() {
   L.funnelCx = funnelCx;
   L.funnelOpenW = 32 * S * fCal.sw;
   L.funnelBendY = L.funnelTop + L.funnelH * 0.65;
+  // Funnel neck — the bottleneck just above the conveyor. Bomb marbles
+  // detonate on crossing funnelNeckY; funnelFuseTop is where the fuse
+  // starts burning so the blast reads as timed rather than random.
+  var coneH = L.funnelBot - L.funnelBendY;
+  L.funnelNeckY = L.funnelBendY + coneH * 0.62;
+  L.funnelFuseTop = L.funnelBendY - coneH * 0.9;
 
   funnelWalls = [];
   var exitL = funnelCx - L.funnelOpenW / 2;

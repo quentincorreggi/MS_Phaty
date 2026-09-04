@@ -68,12 +68,18 @@ function physicsStep() {
     }
   }
 
+  // ── Bomb marbles: fuse, then detonate at the funnel neck ──
+  updateBombMarbles();
+
   var exitY = L.funnelBot;
   var exitL = L.funnelCx - L.funnelOpenW / 2;
   var exitR = L.funnelCx + L.funnelOpenW / 2;
   for (var i = physMarbles.length - 1; i >= 0; i--) {
     var m = physMarbles[i];
     if (m.y + m.r >= exitY - 3 * S && m.x > exitL - m.r && m.x < exitR + m.r) {
+      // A bomb never leaves the funnel unexploded — if it somehow got
+      // past the neck line, it goes off here instead.
+      if (m.isBomb) { detonateBomb(m); continue; }
       var entryT = getBeltEntryT();
       var bestIdx = -1, bestDist = Infinity;
       for (var k = 0; k < BELT_SLOTS; k++) {
@@ -115,8 +121,12 @@ function spawnPhysMarbles(box) {
         var vx = (Math.random() - 0.5) * 2 * S;
         var vy = -(2 + Math.random() * 2) * S;
         var marbleCi = (blockerCount > 0 && spawnIdx >= bStart) ? BLOCKER_CI : b.ci;
-        physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR, spawnT: 1.0 });
-        sfx.drop();
+        // A bomb box releases every one of its marbles as a bomb, each
+        // in its own colour — blocker marbles included.
+        var isBombMrb = !!b.isBomb;
+        physMarbles.push({ x: mx, y: my, vx: vx, vy: vy, ci: marbleCi, r: MR, spawnT: 1.0,
+          isBomb: isBombMrb, fuse: 0, fuseCued: false, blastT: 0, freedT: 0 });
+        if (isBombMrb) bombSfx.release(); else sfx.drop();
         spawnBurst(mx, my, COLORS[marbleCi].fill, 4);
         if (b.remaining <= 0) {
           b.emptyT = 1.0;

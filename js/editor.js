@@ -17,8 +17,18 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  bombMode: false,      // true when toggling the Bomb wrapper on boxes
+  tunnelAddBomb: false, // Bomb wrapper for the next box added to a tunnel
   visible: false
 };
+
+// Box types the Bomb wrapper may be applied to. Walls and tunnel cells
+// are not boxes, so they are never eligible.
+var BOMB_COMPATIBLE_TYPES = ['default', 'hidden', 'ice', 'blocker'];
+
+function isBombCompatibleType(type) {
+  return BOMB_COMPATIBLE_TYPES.indexOf(type || 'default') >= 0;
+}
 
 function editorInit() {
   editor.grid = [];
@@ -34,6 +44,8 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.bombMode = false;
+  editor.tunnelAddBomb = false;
 }
 
 function showEditor(fresh) {
@@ -89,8 +101,12 @@ function editorRenderGrid() {
       var bt = getBoxType(v.type);
       var st = bt.editorCellStyle(v.ci);
       cell.style.background = st.background;
-      cell.style.borderColor = st.borderColor;
+      cell.style.borderColor = v.isBomb ? '#3A302A' : st.borderColor;
       cell.innerHTML = bt.editorCellHTML(v.ci);
+      if (v.isBomb) {
+        cell.innerHTML += '<span class="ed-bomb-badge">💣</span>';
+        cell.style.boxShadow = 'inset 0 0 0 2px rgba(58,48,42,0.55)';
+      }
     } else {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
@@ -104,6 +120,24 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.bombMode) {
+    // Bomb wrapper mode — toggles isBomb on an existing box. The Bomb
+    // property is a state applied on top of a box, never a box of its own.
+    var target = editor.grid[idx];
+    if (!target || target.wall || target.tunnel || !(target.ci >= 0)) {
+      editorShowToast('Bomb applies to boxes only');
+      return;
+    }
+    if (!isBombCompatibleType(target.type)) {
+      editorShowToast((getBoxType(target.type).label) + ' boxes are not Bomb-compatible');
+      return;
+    }
+    target.isBomb = !target.isBomb;
+    editorRenderGrid();
+    editorUpdateStats();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -178,13 +212,14 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.bombMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.bombMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -200,10 +235,26 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.bombMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(wallBtn);
+
+  // Bomb wrapper button — a state toggled on top of an existing box
+  var bombBtn = document.createElement('button');
+  bombBtn.className = 'ed-type-btn' + (editor.bombMode ? ' active' : '');
+  bombBtn.textContent = '💣 Bomb';
+  bombBtn.style.borderColor = editor.bombMode ? 'rgba(58,48,42,0.6)' : '';
+  bombBtn.style.color = editor.bombMode ? '#3A302A' : '';
+  bombBtn.addEventListener('click', function () {
+    editor.bombMode = true;
+    editor.wallMode = false;
+    editor.tunnelMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(bombBtn);
 
   // Tunnel mode button
   var tunnelBtn = document.createElement('button');
@@ -260,6 +311,12 @@ function editorRenderToolbar() {
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
+  } else if (editor.bombMode) {
+    // Bomb mode: toggling a wrapper on boxes that are already placed
+    var bombInfo = document.createElement('div');
+    bombInfo.className = 'ed-color-row';
+    bombInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click a box to make its marbles bombs &middot; click again to undo</span>';
+    el.appendChild(bombInfo);
   } else {
     // Color palette: eraser + 8 colors
     var colorRow = document.createElement('div');
@@ -344,8 +401,10 @@ function editorRenderTunnelPanel() {
       var item = tunnel.contents[ci2];
       var c = COLORS[item.ci];
       var typeLabel = (BoxTypes[item.type] || BoxTypes[BoxTypeOrder[0]]).label;
-      html += '<span class="ed-tunnel-item" data-cidx="' + ci2 + '" title="' + CLR_NAMES[item.ci] + ' ' + typeLabel + ' — click to remove" style="background:' + c.fill + '">';
-      html += '<span style="font-size:8px;opacity:0.7">' + typeLabel[0] + '</span>';
+      var bombStyle = item.isBomb ? ';box-shadow:inset 0 0 0 2px rgba(58,48,42,0.8)' : '';
+      var bombTitle = item.isBomb ? ' Bomb' : '';
+      html += '<span class="ed-tunnel-item" data-cidx="' + ci2 + '" title="' + CLR_NAMES[item.ci] + ' ' + typeLabel + bombTitle + ' — click to remove" style="background:' + c.fill + bombStyle + '">';
+      html += '<span style="font-size:8px;opacity:0.7">' + (item.isBomb ? '💣' : typeLabel[0]) + '</span>';
       html += '</span>';
     }
   }
@@ -359,6 +418,8 @@ function editorRenderTunnelPanel() {
     html += '<option value="' + BoxTypeOrder[t] + '">' + BoxTypes[BoxTypeOrder[t]].label + '</option>';
   }
   html += '</select>';
+  html += '<label class="ed-tunnel-bomb"><input type="checkbox" id="ed-tunnel-add-bomb"' +
+    (editor.tunnelAddBomb ? ' checked' : '') + '> 💣 Bomb</label>';
   html += '</div>';
   html += '<div class="ed-tunnel-add-colors">';
   for (var ci3 = 0; ci3 < NUM_COLORS; ci3++) {
@@ -404,8 +465,11 @@ function editorRenderTunnelPanel() {
       var ci4 = parseInt(this.getAttribute('data-ci'));
       var typeEl = document.getElementById('ed-tunnel-add-type');
       var type = typeEl ? typeEl.value : 'default';
+      var bombEl = document.getElementById('ed-tunnel-add-bomb');
+      var isBomb = !!(bombEl && bombEl.checked) && isBombCompatibleType(type);
+      editor.tunnelAddBomb = isBomb;
       if (editor.selectedTunnel >= 0 && editor.grid[editor.selectedTunnel]) {
-        editor.grid[editor.selectedTunnel].contents.push({ ci: ci4, type: type });
+        editor.grid[editor.selectedTunnel].contents.push({ ci: ci4, type: type, isBomb: isBomb });
         editorRenderGrid();
         editorRenderTunnelPanel();
         editorUpdateStats();
@@ -452,7 +516,7 @@ function editorUpdateStats() {
   for (var c = 0; c < NUM_COLORS; c++) { counts.push(0); regularMrb.push(0); }
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
-  var wallCount = 0;
+  var wallCount = 0, bombCount = 0;
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
@@ -467,6 +531,7 @@ function editorUpdateStats() {
         for (var tc = 0; tc < v.contents.length; tc++) {
           var tItem = v.contents[tc];
           counts[tItem.ci]++;
+          if (tItem.isBomb) bombCount++;
           if (tItem.type === 'blocker') {
             regularMrb[tItem.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
             totalBlockers += BLOCKER_PER_BOX;
@@ -481,6 +546,7 @@ function editorUpdateStats() {
       counts[v.ci]++;
       total++;
       typeCounts[v.type] = (typeCounts[v.type] || 0) + 1;
+      if (v.isBomb) bombCount++;
       if (v.type === 'blocker') {
         regularMrb[v.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
         totalBlockers += BLOCKER_PER_BOX;
@@ -499,6 +565,9 @@ function editorUpdateStats() {
   }
   if (wallCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#8A7D6B">' + wallCount + ' wall' + (wallCount > 1 ? 's' : '') + '</span>';
+  }
+  if (bombCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#3A302A">💣 ' + bombCount + ' bomb</span>';
   }
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
@@ -619,7 +688,8 @@ function editorImportJSON() {
           else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
           else if (cell.wall) editor.grid[i] = { wall: true };
           else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
-          else editor.grid[i] = cell;
+          else editor.grid[i] = { ci: cell.ci, type: cell.type || 'default',
+            isBomb: !!cell.isBomb && isBombCompatibleType(cell.type) };
         }
       }
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;

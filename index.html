@@ -93,6 +93,8 @@
     font-size:8px;font-weight:700;min-width:14px;height:14px;border-radius:7px;
     display:flex;align-items:center;justify-content:center;pointer-events:none;
     text-shadow:0 1px 1px rgba(0,0,0,0.2)}
+  .ed-bomb-badge{position:absolute;bottom:-3px;left:-3px;font-size:9px;line-height:1;
+    background:rgba(46,38,32,0.92);border-radius:6px;padding:1px 2px;pointer-events:none}
   #ed-toolbar{display:flex;flex-direction:column;gap:6px;align-items:center;margin-bottom:8px}
   .ed-type-row{display:flex;gap:4px;flex-wrap:wrap;justify-content:center}
   .ed-type-btn{padding:4px 14px;border:2px solid rgba(120,100,80,0.2);border-radius:8px;
@@ -155,6 +157,8 @@
   .ed-tunnel-add-row{display:flex;gap:6px;justify-content:center;margin-bottom:6px}
   .ed-tunnel-select{padding:4px 8px;border:1.5px solid rgba(160,140,120,0.3);border-radius:6px;
     background:rgba(255,255,255,0.7);font-family:'Fredoka',sans-serif;font-size:11px;color:#5A4A38;outline:none}
+  .ed-tunnel-bomb{display:flex;align-items:center;gap:4px;font-size:11px;color:#5A4A38;cursor:pointer}
+  .ed-tunnel-bomb input{cursor:pointer}
   .ed-tunnel-add-colors{display:flex;gap:3px;justify-content:center;flex-wrap:wrap}
   .ed-tunnel-add-clr{width:28px;height:28px;border:2px solid rgba(255,255,255,0.3);border-radius:6px;
     color:white;font-weight:700;font-size:11px;font-family:'Fredoka',sans-serif;
@@ -265,6 +269,7 @@
 <script src="js/layout.js"></script>
 <script src="js/belt.js"></script>
 <script src="js/physics.js"></script>
+<script src="js/bomb.js"></script>
 <script src="js/tunnel.js"></script>
 <script src="js/wall.js"></script>
 <script src="js/rendering.js"></script>

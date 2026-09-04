@@ -53,6 +53,22 @@ var blockerCollectT = 0;
 var blockerCollectSlots = [];
 var blockerCollectCleared = false;
 
+// === BOMB MARBLES (box-state wrapper) ===
+// A box flagged `isBomb` releases every one of its marbles as a bomb in
+// the marble's own colour. Bombs fall at normal speed and detonate on
+// reaching the funnel neck, shoving nearby marbles outward.
+// The two values below are the RC-tunable knobs from the design brief.
+// (Unlock Level, the third RC knob, has nothing to gate here — the
+// prototype has no level progression.)
+var BOMB_BLAST_RADIUS = 58;    // base px, multiplied by S
+var BOMB_BLAST_FORCE = 8.5;    // base px/frame impulse at the blast centre
+// Tuning that is not exposed to RC
+var BOMB_SCRAMBLE_JITTER = 0.9; // radians of random spread on each impulse
+var BOMB_UP_DAMP = 0.35;        // upward part of an impulse is damped (no progress reset)
+var BOMB_MIN_SPLAY = 0.55;      // minimum sideways share of an impulse — this is what shuffles the queue
+var BOMB_MAX_SPEED = 13;        // base px/frame speed cap right after a blast
+var shockwaves = [];            // active explosion rings
+
 var MRB_PER_BOX = 9, SORT_CAP = 3;
 var SORT_VISIBLE_ROWS = 4;
 

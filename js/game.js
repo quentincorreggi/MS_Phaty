@@ -30,6 +30,7 @@ function startLevel(idx) {
 // === GAME INIT ===
 function initGame() {
   won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
+  shockwaves = [];
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
   document.getElementById('win-screen').classList.remove('show');
@@ -53,9 +54,9 @@ function initGame() {
       if (cell.tunnel) {
         tunnelSlots[i] = { dir: cell.dir || 'bottom', contents: cell.contents ? cell.contents.slice() : [] };
       } else if (typeof cell === 'number') {
-        if (cell >= 0) boxSlots[i] = { ci: cell, boxType: 'default' };
+        if (cell >= 0) boxSlots[i] = { ci: cell, boxType: 'default', isBomb: false };
       } else if (typeof cell === 'object' && cell.ci >= 0) {
-        boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default' };
+        boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default', isBomb: !!cell.isBomb };
       }
     }
   }
@@ -101,12 +102,12 @@ function initGame() {
       stock.push({
         isTunnel: true, isWall: false,
         tunnelDir: tSlot.dir,
-        tunnelContents: tSlot.contents.map(function (item) { return { ci: item.ci, type: item.type || 'default' }; }),
+        tunnelContents: tSlot.contents.map(function (item) { return { ci: item.ci, type: item.type || 'default', isBomb: !!item.isBomb }; }),
         tunnelTotal: tSlot.contents.length,
         tunnelSpawning: false,
         tunnelCooldown: 60,
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
-        revealed: true, empty: false, boxType: 'default',
+        revealed: true, empty: false, boxType: 'default', isBomb: false,
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
@@ -116,14 +117,14 @@ function initGame() {
       stock.push({
         isWall: true, isTunnel: false,
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
-        revealed: false, empty: false, boxType: 'default',
+        revealed: false, empty: false, boxType: 'default', isBomb: false,
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
     } else if (!slot) {
       stock.push({ ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
-        revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
+        revealed: true, empty: true, boxType: 'default', isBomb: false, isTunnel: false, isWall: false,
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
@@ -132,7 +133,8 @@ function initGame() {
       var isBlocker = (slot.boxType === 'blocker');
       stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
         revealed: isIce ? true : false, empty: false,
-        boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
+        boxType: slot.boxType || 'default', isBomb: !!slot.isBomb,
+        isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
@@ -514,6 +516,7 @@ function update() {
     if (box.type === 'lock' && box.triggerT > 0) box.triggerT = Math.max(0, box.triggerT - 0.03);
   }
 
+  tickShockwaves();
   tickParticles();
   updateRollingSound();
 }
@@ -546,6 +549,7 @@ function frame() {
     drawFunnel();
     drawStock();
     drawPhysMarbles();
+    drawShockwaves();
     drawBelt();
     drawBlockerProgress();
     drawJumpers();
