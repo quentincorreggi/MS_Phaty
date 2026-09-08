@@ -15,6 +15,12 @@
 //   drawReveal(ctx, x, y, w, h, ci, S, phase, remaining, tick)
 //   editorCellStyle(ci)   — returns { background, borderColor }
 //   editorCellHTML(ci)     — returns inner HTML for editor grid cell
+//
+// Optional interface:
+//   drawOpenOverlay(ctx, x, y, w, h, ci, S, tick)
+//                  — drawn on top of the open (tappable) box, after
+//                    the lip. Use it for an emblem that must stay
+//                    visible in every box state.
 // ============================================================
 
 var BoxTypes = {};

@@ -153,6 +153,11 @@ function initGame() {
   sortCols = [[], [], [], []];
   for (var i = 0; i < allBoxes.length; i++) sortCols[i % 4].push(allBoxes[i]);
 
+  // ── Conveyor Lock ──
+  // Runs last: it needs the finished stock to count Conveyor Keys and
+  // the blocker total to hold the capacity floor.
+  conveyorLockInit(lvl);
+
   // Lock buttons
   var numLocks = lvl.lockButtons || 0;
   for (var li2 = 0; li2 < numLocks; li2++) {
@@ -339,6 +344,11 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      // The key lifts off now; the chain breaks when it lands. The
+      // unlock itself is bound to the box being cleared, so a key
+      // removed by any other means still fires it (see
+      // conveyorLockUpdate).
+      if (b.boxType === 'key') conveyorLockKeyPlayed(b);
       return;
     }
   }
@@ -373,6 +383,9 @@ function update() {
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
+
+  // ── Conveyor Lock — animations and runtime safeguards ──
+  conveyorLockUpdate();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -547,6 +560,7 @@ function frame() {
     drawStock();
     drawPhysMarbles();
     drawBelt();
+    drawConveyorLock();
     drawBlockerProgress();
     drawJumpers();
     drawSortArea();

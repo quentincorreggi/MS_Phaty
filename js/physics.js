@@ -77,7 +77,9 @@ function physicsStep() {
       var entryT = getBeltEntryT();
       var bestIdx = -1, bestDist = Infinity;
       for (var k = 0; k < BELT_SLOTS; k++) {
-        if (beltSlots[k].marble >= 0) continue;
+        // A slot chained by the Conveyor Lock is skipped exactly as an
+        // occupied one is, so the funnel backs up on the existing path.
+        if (beltSlots[k].marble >= 0 || beltSlots[k].locked) continue;
         var st = getSlotT(k);
         var diff = Math.abs(st - entryT);
         diff = Math.min(diff, 1 - diff);
@@ -89,6 +91,8 @@ function physicsStep() {
         sfx.drop();
         spawnBurst(m.x, m.y, COLORS[m.ci].fill, 6);
         physMarbles.splice(i, 1);
+      } else {
+        conveyorLockNotifyBlocked();
       }
     }
   }

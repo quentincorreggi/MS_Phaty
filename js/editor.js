@@ -11,6 +11,7 @@ var editor = {
   mrbPerBox: 9,
   sortCap: 3,
   lockButtons: 0,
+  beltLock: 0,         // belt slots chained shut at level start
   activeColor: 0,      // -1=eraser, 0-7=color
   activeType: BoxTypeOrder[0],
   tunnelMode: false,    // true when placing tunnels
@@ -28,6 +29,7 @@ function editorInit() {
   editor.mrbPerBox = 9;
   editor.sortCap = 3;
   editor.lockButtons = 0;
+  editor.beltLock = 0;
   editor.activeColor = 0;
   editor.activeType = BoxTypeOrder[0];
   editor.tunnelMode = false;
@@ -453,6 +455,7 @@ function editorUpdateStats() {
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
   var wallCount = 0;
+  var keyCount = 0;   // Conveyor Keys, on the grid and inside tunnels
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
@@ -467,6 +470,7 @@ function editorUpdateStats() {
         for (var tc = 0; tc < v.contents.length; tc++) {
           var tItem = v.contents[tc];
           counts[tItem.ci]++;
+          if (tItem.type === 'key') keyCount++;
           if (tItem.type === 'blocker') {
             regularMrb[tItem.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
             totalBlockers += BLOCKER_PER_BOX;
@@ -481,6 +485,7 @@ function editorUpdateStats() {
       counts[v.ci]++;
       total++;
       typeCounts[v.type] = (typeCounts[v.type] || 0) + 1;
+      if (v.type === 'key') keyCount++;
       if (v.type === 'blocker') {
         regularMrb[v.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
         totalBlockers += BLOCKER_PER_BOX;
@@ -506,6 +511,13 @@ function editorUpdateStats() {
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
   }
+  if (editor.beltLock > 0) {
+    // Same budget the mechanic enforces at runtime: chained slots and
+    // blocker marbles both come out of the belt's usable capacity.
+    var effLock = Math.max(0, Math.min(editor.beltLock, BELT_SLOTS - BELT_LOCK_MIN_CAP - totalBlockers));
+    html += '<span class="ed-stat-chip" style="background:' + CL_STEEL + ';border:1px solid ' + CL_BRASS + '">' +
+      'chain ' + effLock + ' → ' + (BELT_SLOTS - effLock) + ' slots</span>';
+  }
   for (var c = 0; c < NUM_COLORS; c++) {
     if (counts[c] > 0) html += '<span class="ed-stat-chip" style="background:' + COLORS[c].fill + '">' + counts[c] + '</span>';
   }
@@ -525,6 +537,20 @@ function editorUpdateStats() {
     if (!warn && totalBlockers > 0 && totalBlockers % 3 !== 0) {
       warn = 'Total blocker marbles (' + totalBlockers + ') must be a multiple of 3';
     }
+    // Belt Lock parity. Neither case breaks the level — the mechanic
+    // handles both at runtime — so these are notes, not blockers.
+    if (!warn && editor.beltLock > 0 && keyCount === 0) {
+      warn = 'Belt chain has no Key box — the level will start unlocked';
+    }
+    if (!warn && editor.beltLock > 0 && keyCount > 1) {
+      warn = keyCount + ' Key boxes — the first one played breaks the chain';
+    }
+    if (!warn && editor.beltLock === 0 && keyCount > 0) {
+      warn = 'Key box placed but Belt Lock is 0 — it has nothing to unlock';
+    }
+    if (!warn && editor.beltLock > BELT_SLOTS - BELT_LOCK_MIN_CAP - totalBlockers) {
+      warn = 'Belt chain clamped to keep ' + BELT_LOCK_MIN_CAP + ' usable slots';
+    }
   }
   if (warn) html += '<span class="ed-stat-warn">' + warn + '</span>';
   el.innerHTML = html;
@@ -537,7 +563,8 @@ function editorRenderSettings() {
   var fields = [
     { label: 'Marbles/Box', key: 'mrbPerBox', min: 1, max: 25, step: 1 },
     { label: 'Sort Cap', key: 'sortCap', min: 1, max: 9, step: 1 },
-    { label: 'Lock Btns', key: 'lockButtons', min: 0, max: 5, step: 1 }
+    { label: 'Lock Btns', key: 'lockButtons', min: 0, max: 5, step: 1 },
+    { label: 'Belt Lock', key: 'beltLock', min: 0, max: BELT_LOCK_MAX, step: 1 }
   ];
   for (var i = 0; i < fields.length; i++) {
     var f = fields[i];
@@ -567,6 +594,7 @@ function editorBuildLevel() {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
+    beltLock: editor.beltLock,
     grid: editor.grid.slice()
   };
 }
@@ -625,6 +653,7 @@ function editorImportJSON() {
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
+      if (lvl.beltLock !== undefined) editor.beltLock = lvl.beltLock;
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
       var nameEl = document.getElementById('ed-name');

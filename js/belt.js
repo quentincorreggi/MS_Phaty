@@ -4,7 +4,10 @@
 
 function initBeltSlots() {
   beltSlots = [];
-  for (var i = 0; i < BELT_SLOTS; i++) beltSlots.push({ marble: -1, arriveAnim: 0 });
+  // locked — chained shut by the Conveyor Lock. A locked slot is inert:
+  // it never holds a marble, so the funnel skips it exactly as it skips
+  // an occupied one.
+  for (var i = 0; i < BELT_SLOTS; i++) beltSlots.push({ marble: -1, arriveAnim: 0, locked: false });
   beltOffset = 0;
 }
 

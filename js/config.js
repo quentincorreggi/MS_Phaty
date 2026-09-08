@@ -53,6 +53,20 @@ var blockerCollectT = 0;
 var blockerCollectSlots = [];
 var blockerCollectCleared = false;
 
+// === CONVEYOR LOCK ===
+// A contiguous run of belt slots starts the level chained shut.
+var BELT_LOCK_MIN_CAP = 18;   // usable slots never fall below this
+var BELT_LOCK_MAX = 12;       // editor ceiling for the chain length
+var beltLockActive = false;   // chain currently blocking slots
+var beltLockN = 0;            // slots the chain covers
+var beltLockSlots = [];       // slot indices under the chain, run order
+var beltLockPadIdx = -1;      // slot carrying the padlock (funnel-side end)
+var beltLockSettleT = 0;      // level-start settle animation
+var beltLockBreakT = 0;       // chain-break animation
+var beltLockFreeT = [];       // per-slot light-up after the break
+var beltLockThunkCD = 0;      // cooldown on the marble-hits-padlock sound
+var keyFlights = [];          // keys travelling from their box to the padlock
+
 var MRB_PER_BOX = 9, SORT_CAP = 3;
 var SORT_VISIBLE_ROWS = 4;
 

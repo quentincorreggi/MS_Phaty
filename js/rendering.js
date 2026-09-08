@@ -237,6 +237,11 @@ function drawStock() {
         }
         drawBoxLip(b.ci);
       }
+      // Box types that carry an emblem into the open state draw it here,
+      // on top of the lip.
+      if (bt.drawOpenOverlay) {
+        bt.drawOpenOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick);
+      }
     }
 
     if (b.iceHP > 0) {
