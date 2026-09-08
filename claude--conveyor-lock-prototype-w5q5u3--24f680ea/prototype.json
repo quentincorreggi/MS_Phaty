@@ -1,0 +1,49 @@
+{
+  "name": "Conveyor Lock",
+  "description": "A chain shuts part of the conveyor at level start, cutting the belt from 30 slots to 22. One box on the maze carries the Conveyor Key — play it and the chain breaks, giving the slots back for the rest of the level.",
+  "howToPlay": "The chain sits on the belt next to the funnel entry, closed by a brass padlock. Marbles fill the belt up to the padlock and then back up in the funnel exactly as they would on a full belt. The Conveyor Key is the box with the brass key emblem, walled in at the top of the grid — the fastest route to it is five picks (r3c1, r3c2, r3c3, r2c3, r1c3), so 45 marbles go through a 22-slot belt before you can play it. Play tight until you do: emptying a 9-marble box is a real commitment on a shortened belt.",
+  "author": "louis.reyniers@voodoo.io",
+  "showcaseLevel": {
+    "name": "Chained Belt",
+    "desc": "22 slots until you find the key",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "beltLock": 8,
+    "grid": [
+      { "wall": true }, { "wall": true }, { "wall": true },
+      { "ci": 3, "type": "key" },
+      { "wall": true }, { "wall": true }, { "wall": true },
+
+      { "wall": true },
+      { "ci": 2, "type": "default" }, { "ci": 0, "type": "default" },
+      { "ci": 1, "type": "default" }, { "ci": 2, "type": "default" },
+      { "ci": 3, "type": "default" },
+      { "wall": true },
+
+      null, { "wall": true }, { "wall": true },
+      { "ci": 3, "type": "default" },
+      { "wall": true }, { "wall": true }, null,
+
+      null,
+      { "ci": 0, "type": "default" }, { "ci": 2, "type": "default" },
+      { "ci": 0, "type": "default" }, { "ci": 1, "type": "default" },
+      { "ci": 2, "type": "default" },
+      null,
+
+      null, { "wall": true }, { "wall": true },
+      { "ci": 1, "type": "default" },
+      { "wall": true }, { "wall": true }, null,
+
+      null,
+      { "ci": 1, "type": "default" }, { "ci": 0, "type": "default" },
+      { "ci": 2, "type": "default" }, { "ci": 3, "type": "default" },
+      { "ci": 0, "type": "default" },
+      null,
+
+      null, null, null,
+      { "ci": 3, "type": "default" },
+      null, null, null
+    ]
+  }
+}
