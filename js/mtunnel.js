@@ -276,62 +276,52 @@ function mtFinishVanish(head) {
 }
 
 // ── Drawing ──
-// The board camera looks straight down, so the mushroom is drawn from
-// above. Anatomy:
+// The board camera looks down but slightly from the front, the same
+// three-quarter view the boxes are drawn in. So the mushroom shows:
 //
-//   • ONE cap with TWO FUSED LOBES, one over each cell. Two lobes is
-//     what stops a 2:1 footprint reading as a capsule — a clump of
-//     fused caps is what a mushroom actually looks like from above —
-//     while the outline stays continuous, with no line dividing the
-//     cells and one dome lighting the whole body.
-//   • A wide dark SLOT cut into each flank, under the overhanging cap
-//     tip: the mouth a box is fired out of. Wide, because a box comes
-//     out of there.
-//   • The shared counter flat on the waist between the lobes.
+//   • a square-cornered CAP SLAB spanning both cells, in the board's
+//     own rounded-rect language, with a lit top face and a darker
+//     front face below the cap's edge — that edge is what makes the
+//     view read as three-quarter rather than straight down;
+//   • a sliver of STEM peeking out under the middle of the cap;
+//   • a wide dark SLOT at each END of the slab: the mouth a box is
+//     fired out of, sized for the box that comes out of it;
+//   • the shared counter on the top face, over the seam.
 //
 // ONE sprite serves both footprints. It is built in a local space where
 // +x runs along the footprint axis and +y across it, then rotated 90°
-// for the vertical footprint. A cap seen from above is still a cap when
-// you turn it, so the rotation costs nothing.
+// for the vertical footprint, so the two orientations are literally the
+// same drawing. One slab, one stem, one counter, nothing dividing the
+// two cells: the entity reads as a single thing that spawns at two
+// exits, never as two adjacent Tunnels.
 //
 //   local -x slot = head mouth  (left  when horizontal, up   when vertical)
 //   local +x slot = tail mouth  (right when horizontal, down when vertical)
 
-// The cap outline: the union of two overlapping ellipses. Both subpaths
-// wind the same way, so nonzero fill and clip both give the union and
-// the lobes read as one body rather than two discs.
-function mtCapPath(ctx, d, rx, ry) {
-  ctx.beginPath();
-  ctx.moveTo(-d + rx, 0);
-  ctx.ellipse(-d, 0, rx, ry, 0, 0, Math.PI * 2);
-  ctx.closePath();
-  ctx.moveTo(d + rx, 0);
-  ctx.ellipse(d, 0, rx, ry, 0, 0, Math.PI * 2);
-  ctx.closePath();
+var MT_CAP_FRONT = '#8A2514';   // the cap's edge, turned away from the light
+
+// The cap slab, in the board's rounded-rect language.
+function mtCapPath(ctx, HL, HT, thk, k) {
+  k = k || 1;
+  var x = -HL * 0.99 * k, w = HL * 1.98 * k;
+  var top = -HT * 1.0 * k, h = HT * 1.60 * k;
+  rRect(x, top, w, h, thk * 0.18 * k);
 }
 
 // Where a slot sits along the local axis. It shoves outward while
 // firing, which is most of what sells the spit.
 function mtSlotX(HL, thk, fire) {
-  return HL * 0.80 + thk * 0.07 * fire;
-}
-
-function mtSlotHalfSpan(thk, fire) {
-  return thk * 0.30 * (1 + 0.06 * fire);
+  return HL * 0.99 - thk * 0.14 + thk * 0.07 * fire;
 }
 
 function drawMTunnelOnGrid(ctx, head, S, tick) {
   var fp = mtFootprint(head);
   var vert = (head.mtOrient === 'v');
   var len = fp.len, thk = fp.thk;
-  var HL = len / 2;
+  var HL = len / 2, HT = thk / 2;
 
-  // Two lobes, each roughly over one cell, overlapping enough that the
-  // waist between them stays broad.
-  var capRX = HL * 0.98 / 1.55;
-  var capD = capRX * 0.55;
-  var capRY = thk * 0.50;
-  var inner = 0.93;   // body sits just inside the rim, which draws the outline
+  var capTop = -HT * 1.0, capBot = HT * 0.62;
+  var faceY = HT * 0.30;            // where the top face turns into the edge
 
   var vanish = head.mtVanishT > 0 ? (1 - head.mtVanishT) : 0;
   var remaining = head.mtContents ? head.mtContents.length : 0;
@@ -352,18 +342,17 @@ function drawMTunnelOnGrid(ctx, head, S, tick) {
 
   if (vanish > 0) ctx.globalAlpha = Math.max(0, 1 - vanish * 1.05);
 
-  // Seen from above, lifting away reads as rising toward the camera
   ctx.translate(fp.cx, fp.cy);
   var vs = 1 + vanish * 0.42;
   ctx.scale(vs, vs);
   if (vert) ctx.rotate(Math.PI / 2);
   ctx.rotate(Math.sin(tick * 0.028 + (head.mtPhase || 0)) * 0.012 + vanish * 0.12);
 
-  // ── Cast shadow on the board, which does NOT follow the lunge ──
+  // ── Cast shadow, which does NOT follow the lunge ──
   ctx.save();
-  ctx.translate(thk * 0.06, thk * 0.08);
+  ctx.translate(thk * 0.05, thk * 0.10);
   ctx.fillStyle = 'rgba(70,55,40,0.16)';
-  mtCapPath(ctx, capD, capRX, capRY);
+  mtCapPath(ctx, HL, HT, thk, 0.97);
   ctx.fill();
   ctx.restore();
 
@@ -372,124 +361,179 @@ function drawMTunnelOnGrid(ctx, head, S, tick) {
   ctx.rotate(-lside * 0.05 * lurch);
   ctx.scale(1 + 0.10 * Math.abs(lurch), 1 - 0.07 * Math.abs(lurch));
 
-  // ── Outline, as a slightly larger fill of the same union ──
-  mtCapPath(ctx, capD, capRX, capRY);
-  ctx.fillStyle = '#8E2A1A';
-  ctx.fill();
+  // ── Stem, behind the slab: only the sliver below the cap shows ──
+  mtDrawStem(ctx, thk, HT, S);
 
-  // ── Cap body — ONE dome across both lobes ──
-  mtCapPath(ctx, capD * inner, capRX * inner, capRY * inner);
-  var cg = ctx.createRadialGradient(-HL * 0.18, -capRY * 0.36, thk * 0.05, 0, 0, HL * 1.02);
-  cg.addColorStop(0, MT_CAP.light);
-  cg.addColorStop(0.55, MT_CAP.fill);
-  cg.addColorStop(1, MT_CAP.dark);
+  // ── Cap slab ──
+  mtCapPath(ctx, HL, HT, thk);
+  var cg = ctx.createLinearGradient(0, capTop, 0, capBot);
+  cg.addColorStop(0, '#FBA58A');
+  cg.addColorStop(0.34, MT_CAP.light);
+  cg.addColorStop(0.70, MT_CAP.fill);
+  cg.addColorStop(0.92, MT_CAP.dark);
+  cg.addColorStop(1, MT_CAP_FRONT);
   ctx.fillStyle = cg;
   ctx.fill();
 
   ctx.save();
-  mtCapPath(ctx, capD * inner, capRX * inner, capRY * inner);
+  mtCapPath(ctx, HL, HT, thk);
   ctx.clip();
 
+  // The cap's front edge: a darker band below the turn
+  var ff = ctx.createLinearGradient(0, faceY, 0, capBot);
+  ff.addColorStop(0, 'rgba(120,32,18,0)');
+  ff.addColorStop(0.45, 'rgba(120,32,18,0.18)');
+  ff.addColorStop(1, 'rgba(96,24,13,0.40)');
+  ctx.fillStyle = ff;
+  ctx.fillRect(-HL, faceY, len, capBot - faceY);
+
+  // Light catching the turn itself
+  ctx.strokeStyle = 'rgba(255,214,180,0.30)';
+  ctx.lineWidth = Math.max(1, thk * 0.028);
+  ctx.beginPath();
+  ctx.moveTo(-HL * 0.94, faceY);
+  ctx.lineTo(HL * 0.94, faceY);
+  ctx.stroke();
+
   // Shaded flank, down-right, opposite the light
-  var fl = ctx.createLinearGradient(-HL * 0.5, -capRY * 0.6, HL * 0.9, capRY * 0.9);
+  var fl = ctx.createLinearGradient(-HL * 0.6, capTop, HL * 0.95, capBot);
   fl.addColorStop(0, 'rgba(108,28,16,0)');
-  fl.addColorStop(1, 'rgba(108,28,16,0.32)');
+  fl.addColorStop(1, 'rgba(108,28,16,0.13)');
   ctx.fillStyle = fl;
-  ctx.fillRect(-HL, -capRY, HL * 2, capRY * 2);
+  ctx.fillRect(-HL, capTop, len, capBot - capTop);
 
-  // A crease along the waist where the two lobes meet — enough to read
-  // as fused caps, not enough to divide the body
-  var cr = ctx.createLinearGradient(0, -capRY, 0, capRY);
-  cr.addColorStop(0, 'rgba(120,34,20,0.12)');
-  cr.addColorStop(0.5, 'rgba(120,34,20,0.02)');
-  cr.addColorStop(1, 'rgba(120,34,20,0.12)');
-  ctx.fillStyle = cr;
-  ctx.fillRect(-thk * 0.035, -capRY, thk * 0.07, capRY * 2);
-
-  // Specular sheen, up-left, as the light comes from
-  var sh = ctx.createRadialGradient(-HL * 0.34, -capRY * 0.46, thk * 0.02, -HL * 0.34, -capRY * 0.46, thk * 0.60);
-  sh.addColorStop(0, 'rgba(255,255,255,0.28)');
+  // Sheen on the top face, up-left, as the light comes from
+  var sh = ctx.createRadialGradient(-HL * 0.32, capTop + HT * 0.18, thk * 0.02,
+    -HL * 0.32, capTop + HT * 0.18, thk * 0.62);
+  sh.addColorStop(0, 'rgba(255,255,255,0.26)');
   sh.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = sh;
-  ctx.fillRect(-HL, -capRY, HL * 2, capRY * 2);
+  ctx.fillRect(-HL, capTop, len, faceY - capTop);
 
-  // Cream spots, each with a touch of contact shadow so they sit ON the
-  // cap. Scattered across the whole body, ignoring the lobe boundary.
-  var span = capD + capRX;
+  // Cream spots on the top face, squashed the way a flat-on surface
+  // squashes them at this angle
   var spots = [
-    [-0.50, -0.44, 0.128], [-0.17, 0.48, 0.104], [0.12, -0.52, 0.116],
-    [0.47, 0.40, 0.110], [0.61, -0.34, 0.094], [-0.66, 0.20, 0.082]
+    [-0.66, -0.54, 0.122], [-0.44, 0.16, 0.100], [-0.30, -0.66, 0.088],
+    [0.32, -0.66, 0.094], [0.46, 0.14, 0.104], [0.68, -0.50, 0.118]
   ];
   for (var i = 0; i < spots.length; i++) {
-    var sx = spots[i][0] * span, sy = spots[i][1] * capRY, sr = spots[i][2] * thk;
+    var sx = spots[i][0] * HL, sy = spots[i][1] * HT, sr = spots[i][2] * thk;
     ctx.fillStyle = 'rgba(110,32,20,0.22)';
     ctx.beginPath();
-    ctx.ellipse(sx + sr * 0.12, sy + sr * 0.16, sr, sr * 0.94, 0, 0, Math.PI * 2);
+    ctx.ellipse(sx + sr * 0.1, sy + sr * 0.18, sr, sr * 0.84, 0, 0, Math.PI * 2);
     ctx.fill();
-    var sg = ctx.createRadialGradient(sx - sr * 0.3, sy - sr * 0.35, sr * 0.1, sx, sy, sr);
+    var sg = ctx.createRadialGradient(sx - sr * 0.3, sy - sr * 0.3, sr * 0.1, sx, sy, sr);
     sg.addColorStop(0, 'rgba(255,253,246,0.99)');
     sg.addColorStop(1, 'rgba(243,228,200,0.96)');
     ctx.fillStyle = sg;
     ctx.beginPath();
-    ctx.ellipse(sx, sy, sr, sr * 0.94, 0, 0, Math.PI * 2);
+    ctx.ellipse(sx, sy, sr, sr * 0.84, 0, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  // ── The two mouths, cut into the flanks under the overhanging tips ──
-  mtDrawSlot(ctx, -1, HL, thk, S, fireA, tick);
-  mtDrawSlot(ctx, 1, HL, thk, S, fireB, tick);
+  // ── The two mouths, at the ends of the slab ──
+  mtDrawSlot(ctx, -1, HL, HT, thk, S, fireA, tick);
+  mtDrawSlot(ctx, 1, HL, HT, thk, S, fireB, tick);
 
   // Alive while stock remains
   if (remaining > 0 && vanish === 0) {
     ctx.globalAlpha = 0.05 + Math.sin(tick * 0.045 + (head.mtPhase || 0)) * 0.035;
     ctx.fillStyle = '#FFE7B0';
-    ctx.fillRect(-HL, -capRY, HL * 2, capRY * 2);
+    ctx.fillRect(-HL, capTop, len, capBot - capTop);
     ctx.globalAlpha = 1;
   }
 
   ctx.restore();
 
+  // Slab outline
+  ctx.strokeStyle = 'rgba(126,36,21,0.55)';
+  ctx.lineWidth = 1.6 * S;
+  mtCapPath(ctx, HL, HT, thk);
+  ctx.stroke();
+
+  // Top-edge highlight
+  ctx.strokeStyle = 'rgba(255,232,206,0.24)';
+  ctx.lineWidth = 1.5 * S;
+  ctx.beginPath();
+  ctx.moveTo(-HL * 0.76, capTop + 1.6 * S);
+  ctx.lineTo(HL * 0.76, capTop + 1.6 * S);
+  ctx.stroke();
+
   // Muzzle flash, over everything
-  if (fireA > 0) mtDrawMuzzleFlash(ctx, -1, HL, thk, fireA);
-  if (fireB > 0) mtDrawMuzzleFlash(ctx, 1, HL, thk, fireB);
+  if (fireA > 0) mtDrawMuzzleFlash(ctx, -1, HL, HT, thk, fireA);
+  if (fireB > 0) mtDrawMuzzleFlash(ctx, 1, HL, HT, thk, fireB);
 
   ctx.restore();
 
-  // ── Counter — one badge on the waist between the lobes, which is the
-  // seam between the cells. It rides the lunge with the cap, but stays
-  // unrotated so it is legible in both footprints.
+  // ── Counter — one badge on the top face, over the seam, always
+  // upright. It rides the lunge with the slab.
   if (vanish < 0.35) {
     var bx = fp.cx, by = fp.cy;
-    if (vert) by += lurchShift; else bx += lurchShift;
+    var along = lurchShift, across = -thk * 0.16;
+    if (vert) { bx -= across; by += along; } else { bx += along; by += across; }
     mtDrawCounter(ctx, bx, by, thk, S, remaining, Math.max(fireA, fireB),
       vanish > 0 ? Math.max(0, 1 - vanish * 3) : 1);
   }
 }
 
-// One mouth: a wide dark slot in the cap's flank, plus the outward
+// The stem, glimpsed under the middle of the cap. Drawn before the
+// slab, so only the part below the cap's front edge shows.
+function mtDrawStem(ctx, thk, HT, S) {
+  var w = thk * 0.60, top = -HT * 0.1, bot = HT * 0.94;
+  var foot = w * 0.26;
+
+  var g = ctx.createLinearGradient(-w * 0.6, 0, w * 0.6, 0);
+  g.addColorStop(0, MT_STEM.light);
+  g.addColorStop(0.46, MT_STEM.fill);
+  g.addColorStop(1, MT_STEM.dark);
+  ctx.fillStyle = g;
+
+  // A column that widens a little toward a rounded foot
+  ctx.beginPath();
+  ctx.moveTo(-w * 0.40, top);
+  ctx.bezierCurveTo(-w * 0.42, HT * 0.45, -w * 0.50, HT * 0.80, -w * 0.50, bot - foot);
+  ctx.quadraticCurveTo(-w * 0.50, bot, -w * 0.50 + foot, bot);
+  ctx.lineTo(w * 0.50 - foot, bot);
+  ctx.quadraticCurveTo(w * 0.50, bot, w * 0.50, bot - foot);
+  ctx.bezierCurveTo(w * 0.50, HT * 0.80, w * 0.42, HT * 0.45, w * 0.40, top);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(150,118,76,0.45)';
+  ctx.lineWidth = 1.4 * S;
+  ctx.stroke();
+
+  // Shadow the cap casts down onto its own stem
+  var sg = ctx.createLinearGradient(0, HT * 0.30, 0, bot);
+  sg.addColorStop(0, 'rgba(118,74,36,0.42)');
+  sg.addColorStop(1, 'rgba(118,74,36,0)');
+  ctx.fillStyle = sg;
+  ctx.fill();
+}
+
+// One mouth: a wide dark slot at the end of the slab, plus the outward
 // chevron just inside it. dirSign -1 = head side, +1 = tail side; drawn
 // mirrored so there is literally one shape. The caller has clipped to
-// the cap, so the slot can never spill outside the body.
-function mtDrawSlot(ctx, dirSign, HL, thk, S, fire, tick) {
+// the slab, so the slot can never spill outside the body.
+function mtDrawSlot(ctx, dirSign, HL, HT, thk, S, fire, tick) {
   var sx = mtSlotX(HL, thk, fire);
-  var half = mtSlotHalfSpan(thk, fire);
-  var w = thk * 0.17;
+  var top = -HT * 0.74, bot = HT * 0.44;
+  var w = thk * 0.17 * (1 + 0.06 * fire);
 
   ctx.save();
   ctx.scale(dirSign, 1);
 
   // Shadow the cap gathers around the opening
-  var og = ctx.createLinearGradient(sx - w * 2.2, 0, sx, 0);
+  var og = ctx.createLinearGradient(sx - w * 2.4, 0, sx, 0);
   og.addColorStop(0, 'rgba(30,14,30,0)');
-  og.addColorStop(1, 'rgba(30,14,30,0.38)');
+  og.addColorStop(1, 'rgba(30,14,30,0.34)');
   ctx.fillStyle = og;
-  ctx.fillRect(sx - w * 2.2, -half * 1.1, w * 2.2, half * 2.2);
+  ctx.fillRect(sx - w * 2.4, top - HT * 0.1, w * 2.4, (bot - top) + HT * 0.2);
 
   // The slot
-  rRect(sx - w * 0.5, -half, w, half * 2, w * 0.5);
-  var mg = ctx.createLinearGradient(0, -half, 0, half);
+  rRect(sx - w * 0.5, top, w, bot - top, w * 0.46);
+  var mg = ctx.createLinearGradient(0, top, 0, bot);
   mg.addColorStop(0, '#3C2B45');
-  mg.addColorStop(0.45, '#1B1222');
+  mg.addColorStop(0.4, '#1B1222');
   mg.addColorStop(1, '#0A0610');
   ctx.fillStyle = mg;
   ctx.fill();
@@ -498,16 +542,16 @@ function mtDrawSlot(ctx, dirSign, HL, thk, S, fire, tick) {
   ctx.strokeStyle = 'rgba(255,238,208,0.5)';
   ctx.lineWidth = 1.6 * S;
   ctx.beginPath();
-  ctx.moveTo(sx + w * 0.5, -half + w * 0.5);
-  ctx.lineTo(sx + w * 0.5, half - w * 0.5);
+  ctx.moveTo(sx + w * 0.5, top + w * 0.5);
+  ctx.lineTo(sx + w * 0.5, bot - w * 0.5);
   ctx.stroke();
 
   // Depth toward the middle of the slot
-  var dg = ctx.createRadialGradient(sx, 0, thk * 0.01, sx, 0, half);
+  var dg = ctx.createRadialGradient(sx, (top + bot) * 0.5, thk * 0.01, sx, (top + bot) * 0.5, (bot - top) * 0.5);
   dg.addColorStop(0, 'rgba(0,0,0,0.5)');
   dg.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = dg;
-  rRect(sx - w * 0.5, -half, w, half * 2, w * 0.5);
+  rRect(sx - w * 0.5, top, w, bot - top, w * 0.46);
   ctx.fill();
 
   // Outward chevron — the Tunnel-family direction cue
@@ -518,9 +562,9 @@ function mtDrawSlot(ctx, dirSign, HL, thk, S, fire, tick) {
   ctx.shadowBlur = 3 * S;
   ctx.fillStyle = 'rgba(255,228,154,' + Math.min(1, pulse) + ')';
   ctx.beginPath();
-  ctx.moveTo(ax + aS, 0);
-  ctx.lineTo(ax - aS * 0.62, -aS * 0.92);
-  ctx.lineTo(ax - aS * 0.62, aS * 0.92);
+  ctx.moveTo(ax + aS, -HT * 0.12);
+  ctx.lineTo(ax - aS * 0.62, -HT * 0.12 - aS * 0.92);
+  ctx.lineTo(ax - aS * 0.62, -HT * 0.12 + aS * 0.92);
   ctx.closePath();
   ctx.fill();
   ctx.shadowColor = 'transparent';
@@ -529,18 +573,19 @@ function mtDrawSlot(ctx, dirSign, HL, thk, S, fire, tick) {
   ctx.restore();
 }
 
-function mtDrawMuzzleFlash(ctx, dirSign, HL, thk, fire) {
+function mtDrawMuzzleFlash(ctx, dirSign, HL, HT, thk, fire) {
   var sx = dirSign * mtSlotX(HL, thk, fire);
+  var cy = -HT * 0.15;
   var R = thk * 0.58;
-  var g = ctx.createRadialGradient(sx, 0, thk * 0.02, sx, 0, R);
+  var g = ctx.createRadialGradient(sx, cy, thk * 0.02, sx, cy, R);
   g.addColorStop(0, 'rgba(255,232,166,' + (0.8 * fire) + ')');
   g.addColorStop(1, 'rgba(255,232,166,0)');
   ctx.fillStyle = g;
-  ctx.beginPath(); ctx.arc(sx, 0, R, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(sx, cy, R, 0, Math.PI * 2); ctx.fill();
 }
 
 function mtDrawCounter(ctx, bx, by, span, S, remaining, glow, alpha) {
-  var R = span * 0.23;
+  var R = span * 0.205;
   ctx.save();
   ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
 
