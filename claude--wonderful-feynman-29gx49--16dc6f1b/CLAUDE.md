@@ -244,6 +244,21 @@ immediately without waiting.
 Each new push to a branch **replaces** the previous versioned folder, so only
 the latest deployment is kept on gh-pages per branch.
 
+### Permanent URL (no SHA)
+
+The versioned URL above changes on every push. For a link that can be
+bookmarked or shared once and keeps working, use the per-branch alias the
+deploy workflow also writes:
+
+`https://quentincorreggi.github.io/MS_Phaty/play/<branch-with-slashes-as-dashes>/`
+
+Example: `https://quentincorreggi.github.io/MS_Phaty/play/claude--wonderful-feynman-29gx49/`
+
+It resolves the current versioned folder from `manifest.json` at load time
+rather than baking in a SHA, so it survives both new pushes and a cached
+copy of the alias page. Give the SHA URL when pinning an exact build, and
+this one whenever the user asks for a permanent or shareable link.
+
 To verify the deploy completed, you can optionally check:
 ```bash
 gh run list --workflow=deploy-branch.yml --limit=3

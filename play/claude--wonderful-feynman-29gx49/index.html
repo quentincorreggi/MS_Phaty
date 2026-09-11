@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Marble Sorter — opening latest build</title>
+<style>
+  html,body{height:100%;margin:0;font-family:sans-serif;background:#EDE5D8;color:#5A4A38}
+  div{display:flex;height:100%;align-items:center;justify-content:center;text-align:center}
+  a{color:#7B52A0}
+</style>
+</head>
+<body>
+<div><p id="msg">Opening the latest build&hellip;</p></div>
+<script>
+var BRANCH = "claude/wonderful-feynman-29gx49";
+var FALLBACK = "../../claude--wonderful-feynman-29gx49--16dc6f1b/";
+fetch("../../manifest.json", { cache: "no-store" })
+  .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+  .then(function (d) {
+    var list = (d && d.prototypes) || [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].branch === BRANCH) {
+        location.replace("../../" + list[i].folder + "/");
+        return;
+      }
+    }
+    throw 0;
+  })
+  .catch(function () { location.replace(FALLBACK); });
+</script>
+<noscript><div><p><a href="../../claude--wonderful-feynman-29gx49--16dc6f1b/">Open the prototype</a></p></div></noscript>
+</body>
+</html>
