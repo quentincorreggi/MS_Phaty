@@ -688,18 +688,9 @@ function drawCoverZip(cv, head) {
     }
   }
 
-  // Idle shimmer travelling the seam — the whole discoverability
-  // budget, and the only thing that says "interactive" at rest.
-  if (!cv.unzipping && !single) {
-    var sf = (tick * 0.006) % 1.7;
-    if (sf <= 1) {
-      var ps = coverSpinePointF(cv, sf * end);
-      ctx.globalAlpha = alpha * (0.25 + Math.sin(sf * Math.PI) * 0.45);
-      ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(ps.x, ps.y, 2.8 * S, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = alpha;
-    }
-  }
+  // No idle highlight on the Cover's seam: the Cover is not the
+  // interactive element. Discoverability lives on the Zip Box's
+  // slider, which keeps its looping specular.
 
   // The slider lives on the Zip Box at rest — there is only ever
   // one of them — and runs the seam here while the Cover unzips.
