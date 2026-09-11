@@ -390,51 +390,81 @@ function mtFinishVanish(head) {
 }
 
 // ── Drawing ──
-// THE MUSHROOM IS THE ENTITY. It fills every cell of its footprint, and
-// it spits boxes out of a mouth at each end.
+// THE MUSHROOM IS THE ENTITY, and its cap is a real dome.
 //
-// The tension: filling cells means a rectangular silhouette, so the
-// mushroom cannot come from the outline. It comes from the surface, and
-// from the anatomy read along it:
+// A cap in mushroom proportions is about twice as wide as it is tall,
+// so it cannot fit inside a footprint that is already 2:1 — that is
+// what made every flat version read as a sausage. The cap therefore
+// ARCS ABOVE the footprint, by about a third of a cell, and the top
+// corners of the top row are given up to the arc. The mushroom still
+// occupies all of its cells; it just leans out of the grid the way a
+// cap overhangs its stem.
 //
-//   • the CAP takes the bulk of every column, shaded from a bright
-//     crown at the top to a dark falling edge at the bottom — the dome
-//     is in the light, not in the silhouette — and carries bold cream
+// One rule sets the anatomy for every footprint:
+//
+//   • the CAP is the TOP ROW, crowned by the dome that arcs above it —
+//     bright at the crown, dark where it falls away, with bold cream
 //     spots;
-//   • along every exposed bottom edge, the UNDERSIDE shows: a cream
-//     band of GILLS fanning out under the cap's rim, with a crisp dark
-//     contact line and a catchlight where the cap turns;
-//   • exactly ONE STEM, at the lowest central edge, so the whole
-//     footprint reads as one mushroom rather than several;
-//   • a MOUTH punched through each arm tip, the hole a box is fired
+//   • everything BELOW the top row is the PIED: cream stem flesh, with
+//     the sides shaded so the middle reads as one round stem;
+//   • between them the cap's RIM overhangs, showing a band of gills
+//     with a dark contact line and a catchlight;
+//   • a MOUTH is punched through each arm tip, the hole a box is fired
 //     out of, with the Tunnel family's amber arrow inside.
 //
-// Everything is assembled in SCREEN SPACE, so the light always falls
-// from the same place and no footprint needs a special case.
+// One cap, one stem, whatever the shape. Assembled in SCREEN SPACE, so
+// the light always falls from the same place.
 
-var MT_RED = { crown: '#FFB89E', light: '#FF7A5A', fill: '#EF4A2C', dark: '#A82814' };
-var MT_GILL = { light: '#FFF6E4', fill: '#EFD9AE', dark: '#C4A273' };
-var MT_STEM = { light: '#FFFCF3', fill: '#F7EAD0', dark: '#CBAE83' };
+var MT_RED = { crown: '#FFBEA6', light: '#FF7E5E', fill: '#EF4A2C', dark: '#A82814' };
+var MT_GILL = { light: '#FFF4DE', fill: '#EBD3A6', dark: '#BE9A69' };
+var MT_STEM = { light: '#FFFCF4', fill: '#F7EBD3', dark: '#CFB48B' };
 var MT_SPOT = { light: '#FFFDF7', dark: '#EFE2C8' };
-var MT_CAP_R = 6;            // corner radius in board units, same as a box
-var MT_UNDER = 0.36;         // of a cell: how much of an exposed foot is underside
+var MT_CAP_R = 6;           // corner radius in board units, same as a box
+var MT_DOME_RISE = 0.30;    // of a cell: how far the dome arcs above the footprint
+var MT_DOME_CHORD = 0.26;   // of a cell: how much of the top row the arc takes over
+var MT_FOOT = 0.36;         // of a cell: the pied, when the cap has no row below it
+var MT_GILL_BAND = 0.15;    // of a cell: the gills showing under the rim
 
-// ── Body outline ──
-// One rounded rect per cell, each stretched into its occupied
-// neighbours so the roundings are buried and the footprint reads as one
-// continuous body. Filled with nonzero, so the subpaths union.
+// ── Silhouette ──
+// The cell union, minus the top row's top corners, plus the dome that
+// arcs over the top row. Filled with nonzero, so the subpaths union and
+// the internal edges between cells never show.
 function mtBodyPath(ctx, b, grow) {
   grow = grow || 0;
-  var r = MT_CAP_R * S, pad = r + L.bg;
+  var cell = b.cell, r = MT_CAP_R * S, pad = r + L.bg;
+  var chord = b.minY + cell * MT_DOME_CHORD;
   ctx.beginPath();
+
   for (var i = 0; i < b.cells.length; i++) {
     var c = b.cells[i];
     var x0 = c.x - (mtHasCell(b.cells, c.dr, c.dc - 1) ? pad : 0) - grow;
-    var x1 = c.x + b.cell + (mtHasCell(b.cells, c.dr, c.dc + 1) ? pad : 0) + grow;
-    var y0 = c.y - (mtHasCell(b.cells, c.dr - 1, c.dc) ? pad : 0) - grow;
-    var y1 = c.y + b.cell + (mtHasCell(b.cells, c.dr + 1, c.dc) ? pad : 0) + grow;
-    mtRRectSub(ctx, x0 - 0, y0, x1 - x0, y1 - y0, r + Math.max(0, grow));
+    var x1 = c.x + cell + (mtHasCell(b.cells, c.dr, c.dc + 1) ? pad : 0) + grow;
+    // The top row starts at the dome's chord; the dome covers above it
+    var y0 = mtHasCell(b.cells, c.dr - 1, c.dc) ? c.y - pad - grow
+      : (c.y === b.minY ? chord : c.y - grow);
+    var y1 = c.y + cell + (mtHasCell(b.cells, c.dr + 1, c.dc) ? pad : 0) + grow;
+    mtRRectSub(ctx, x0, y0, x1 - x0, y1 - y0, r + Math.max(0, grow));
   }
+
+  // The dome, spanning the top row
+  var d = mtDome(b);
+  var peak = b.minY - cell * MT_DOME_RISE - grow;
+  var ctrl = chord + (peak - chord) / 0.75;
+  ctx.moveTo(d.x0 - grow, chord + grow);
+  ctx.bezierCurveTo(d.x0 - grow, ctrl, d.x1 + grow, ctrl, d.x1 + grow, chord + grow);
+  ctx.closePath();
+}
+
+// The extent of the top row, which is what the dome spans.
+function mtDome(b) {
+  var x0 = Infinity, x1 = -Infinity;
+  for (var i = 0; i < b.cells.length; i++) {
+    var c = b.cells[i];
+    if (c.y !== b.minY) continue;
+    if (c.x < x0) x0 = c.x;
+    if (c.x + b.cell > x1) x1 = c.x + b.cell;
+  }
+  return { x0: x0, x1: x1, cx: (x0 + x1) / 2 };
 }
 
 // Appends a rounded rect to the current path without starting a new one.
@@ -458,9 +488,14 @@ function mtHasCell(cells, dr, dc) {
   return false;
 }
 
-// Every contiguous column of the body as { x, cx, topY, botY, exposed }.
-// A column is one run of the cap, shaded as a single dome.
+// Every contiguous column, with the height its cap reaches: down to the
+// top row's foot when the column carries stem below, otherwise stopping
+// short of its own foot to leave room for the pied.
 function mtColumns(b) {
+  var cell = b.cell, rowBot = b.minY + cell;
+  // A cap is never much taller than it is wide, so however much room a
+  // column has, the cap stops and the pied takes over
+  var capMax = b.minY - cell * MT_DOME_RISE + cell * 1.02;
   var seen = {}, out = [];
   for (var i = 0; i < b.cells.length; i++) {
     var c = b.cells[i];
@@ -473,25 +508,19 @@ function mtColumns(b) {
       if (o.dr < top.dr) top = o;
       if (o.dr > bot.dr) bot = o;
     }
+    var botY = bot.y + cell;
+    var inTopRow = (top.y === b.minY);
     out.push({
-      dc: c.dc, dr: bot.dr, x: top.x, cx: top.cx,
-      topY: top.y, botY: bot.y + b.cell
+      dc: c.dc, x: top.x, cx: top.cx, topY: top.y, botY: botY,
+      inTopRow: inTopRow,
+      // Where the cap ends: the top row's foot if there is stem below,
+      // else short of this column's own foot.
+      capBot: inTopRow
+        ? Math.min(capMax, botY > rowBot ? rowBot : botY - cell * MT_FOOT)
+        : top.y   // a column that starts below the top row is all pied
     });
   }
   return out;
-}
-
-// The one stem stands at the lowest column, and among those the one
-// closest to the middle of the body — so there is one mushroom, not one
-// per column.
-function mtStemColumn(cols) {
-  var best = cols[0];
-  for (var i = 1; i < cols.length; i++) {
-    var c = cols[i];
-    if (c.botY > best.botY) { best = c; continue; }
-    if (c.botY === best.botY && Math.abs(c.dc) < Math.abs(best.dc)) best = c;
-  }
-  return best;
 }
 
 // Where the counter sits: the corner cell of an L, the seam of a
@@ -509,7 +538,8 @@ function drawMTunnelOnGrid(ctx, head, S, tick) {
   if (!b.cells.length) return;
   var cell = b.cell;
   var cols = mtColumns(b);
-  var stemCol = mtStemColumn(cols);
+  var dome = mtDome(b);
+  var peak = b.minY - cell * MT_DOME_RISE;
 
   var vanish = head.mtVanishT > 0 ? (1 - head.mtVanishT) : 0;
   var remaining = head.mtContents ? head.mtContents.length : 0;
@@ -527,15 +557,14 @@ function drawMTunnelOnGrid(ctx, head, S, tick) {
   ctx.save();
   if (vanish > 0) ctx.globalAlpha = Math.max(0, 1 - vanish * 1.05);
 
-  // Lifting away reads as rising toward the camera
   ctx.translate(b.cx, b.cy);
   ctx.scale(1 + vanish * 0.4, 1 + vanish * 0.4);
   ctx.rotate(Math.sin(tick * 0.03 + (head.mtPhase || 0)) * 0.007 + vanish * 0.1);
   ctx.translate(-b.cx + lx, -b.cy + ly);
 
   // ── Border and drop shadow in one pass, as an OUTSET FILL of the
-  // union. A stroke would follow the internal edges between cells too
-  // and cut the mushroom into separate tiles.
+  // silhouette. A stroke would follow the internal edges between cells
+  // too and cut the mushroom into separate tiles.
   ctx.save();
   ctx.shadowColor = 'rgba(0,0,0,0.24)';
   ctx.shadowBlur = 5 * S;
@@ -549,111 +578,116 @@ function drawMTunnelOnGrid(ctx, head, S, tick) {
   mtBodyPath(ctx, b);
   ctx.clip();
 
-  var i, k, col, underY;
+  var i, k, col;
 
-  // ── Cap, one dome per column: bright crown, dark falling edge ──
+  // ── Pied first: cream stem flesh under everything ──
+  var pg = ctx.createLinearGradient(0, b.minY, 0, b.maxY);
+  pg.addColorStop(0, MT_STEM.fill);
+  pg.addColorStop(1, MT_STEM.dark);
+  ctx.fillStyle = pg;
+  ctx.fillRect(b.minX - L.bg, b.minY - L.bg,
+    (b.maxX - b.minX) + L.bg * 2, (b.maxY - b.minY) + L.bg * 2);
+
+  // Round the stem off by shading its flanks, so the middle stands out
+  // as one column whatever the footprint below the cap looks like
+  var stemCx = dome.cx;
+  var fl = ctx.createLinearGradient(b.minX, 0, b.maxX, 0);
+  fl.addColorStop(0, 'rgba(150,112,64,0.40)');
+  fl.addColorStop(Math.max(0.02, (stemCx - cell * 0.30 - b.minX) / (b.maxX - b.minX)), 'rgba(150,112,64,0)');
+  fl.addColorStop(Math.min(0.98, (stemCx + cell * 0.30 - b.minX) / (b.maxX - b.minX)), 'rgba(150,112,64,0)');
+  fl.addColorStop(1, 'rgba(150,112,64,0.40)');
+  ctx.fillStyle = fl;
+  ctx.fillRect(b.minX - L.bg, b.minY, (b.maxX - b.minX) + L.bg * 2, b.maxY - b.minY);
+
+  // A highlight down the front of the stem
+  var hg = ctx.createLinearGradient(stemCx - cell * 0.22, 0, stemCx + cell * 0.10, 0);
+  hg.addColorStop(0, 'rgba(255,255,255,0)');
+  hg.addColorStop(0.5, 'rgba(255,255,255,0.34)');
+  hg.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = hg;
+  ctx.fillRect(stemCx - cell * 0.22, b.minY, cell * 0.32, b.maxY - b.minY);
+
+  // ── Cap, one dome per column of the top row ──
   for (i = 0; i < cols.length; i++) {
     col = cols[i];
-    var exposed = !mtHasCell(b.cells, col.dr + 1, col.dc);
-    underY = col.botY - (exposed ? cell * MT_UNDER : 0);
-    var g = ctx.createLinearGradient(0, col.topY, 0, underY);
+    if (!col.inTopRow) continue;
+    var g = ctx.createLinearGradient(0, peak, 0, col.capBot);
     g.addColorStop(0, MT_RED.crown);
-    g.addColorStop(0.22, MT_RED.light);
-    g.addColorStop(0.62, MT_RED.fill);
+    g.addColorStop(0.30, MT_RED.light);
+    g.addColorStop(0.68, MT_RED.fill);
     g.addColorStop(1, MT_RED.dark);
     ctx.fillStyle = g;
-    ctx.fillRect(col.x - L.bg, col.topY - L.bg, cell + L.bg * 2,
-      (underY - col.topY) + L.bg);
+    ctx.fillRect(col.x - L.bg, peak - cell * 0.2, cell + L.bg * 2,
+      (col.capBot - peak) + cell * 0.2);
   }
 
-  // ── Underside: gills under the cap's rim, along every exposed foot ──
+  // ── The rim: gills under the cap's edge, with contact line + catchlight ──
   for (i = 0; i < cols.length; i++) {
     col = cols[i];
-    if (mtHasCell(b.cells, col.dr + 1, col.dc)) continue;
-    underY = col.botY - cell * MT_UNDER;
+    if (!col.inTopRow) continue;
+    var band = Math.min(cell * MT_GILL_BAND, col.botY - col.capBot);
+    if (band > 0.5) {
+      var ug = ctx.createLinearGradient(0, col.capBot, 0, col.capBot + band);
+      ug.addColorStop(0, MT_GILL.dark);
+      ug.addColorStop(0.45, MT_GILL.fill);
+      ug.addColorStop(1, MT_GILL.light);
+      ctx.fillStyle = ug;
+      ctx.fillRect(col.x - L.bg, col.capBot, cell + L.bg * 2, band);
 
-    var ug = ctx.createLinearGradient(0, underY, 0, col.botY);
-    ug.addColorStop(0, MT_GILL.light);
-    ug.addColorStop(0.5, MT_GILL.fill);
-    ug.addColorStop(1, MT_GILL.dark);
-    ctx.fillStyle = ug;
-    ctx.fillRect(col.x - L.bg, underY, cell + L.bg * 2, cell * MT_UNDER + L.bg);
-
-    // Gills, fanning from under the middle of the cap
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(col.x, underY, cell, cell * MT_UNDER);
-    ctx.clip();
-    ctx.strokeStyle = 'rgba(168,124,72,0.34)';
-    ctx.lineWidth = Math.max(1, cell * 0.022);
-    for (k = -4; k <= 4; k++) {
+      ctx.save();
       ctx.beginPath();
-      ctx.moveTo(col.cx + k * cell * 0.035, underY - cell * 0.02);
-      ctx.lineTo(col.cx + k * cell * 0.125, col.botY);
-      ctx.stroke();
+      ctx.rect(col.x, col.capBot, cell, band);
+      ctx.clip();
+      ctx.strokeStyle = 'rgba(160,116,64,0.32)';
+      ctx.lineWidth = Math.max(1, cell * 0.020);
+      for (k = -4; k <= 4; k++) {
+        ctx.beginPath();
+        ctx.moveTo(col.cx + k * cell * 0.030, col.capBot - cell * 0.02);
+        ctx.lineTo(col.cx + k * cell * 0.115, col.capBot + band);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
-    ctx.restore();
-
-    // The cap's rim: a dark contact line with a catchlight above it
-    ctx.fillStyle = 'rgba(120,26,12,0.45)';
-    ctx.fillRect(col.x - L.bg, underY - cell * 0.03, cell + L.bg * 2, cell * 0.045);
-    ctx.strokeStyle = 'rgba(255,214,186,0.5)';
+    // The cap's edge
+    ctx.fillStyle = 'rgba(118,24,10,0.5)';
+    ctx.fillRect(col.x - L.bg, col.capBot - cell * 0.035, cell + L.bg * 2, cell * 0.05);
+    ctx.strokeStyle = 'rgba(255,208,180,0.55)';
     ctx.lineWidth = 1.5 * S;
     ctx.beginPath();
-    ctx.moveTo(col.x, underY - cell * 0.05);
-    ctx.lineTo(col.x + cell, underY - cell * 0.05);
+    ctx.moveTo(col.x, col.capBot - cell * 0.055);
+    ctx.lineTo(col.x + cell, col.capBot - cell * 0.055);
     ctx.stroke();
   }
 
-  // ── The one stem, standing at the lowest central edge ──
-  var sUnder = stemCol.botY - cell * MT_UNDER;
-  var sw = cell * 0.46;
-  var sg2 = ctx.createLinearGradient(stemCol.cx - sw / 2, 0, stemCol.cx + sw / 2, 0);
-  sg2.addColorStop(0, MT_STEM.light);
-  sg2.addColorStop(0.45, MT_STEM.fill);
-  sg2.addColorStop(1, MT_STEM.dark);
-  ctx.fillStyle = sg2;
-  ctx.beginPath();
-  ctx.moveTo(stemCol.cx - sw * 0.36, sUnder - cell * 0.03);
-  ctx.bezierCurveTo(stemCol.cx - sw * 0.38, sUnder + cell * 0.14,
-    stemCol.cx - sw * 0.50, sUnder + cell * 0.22, stemCol.cx - sw * 0.48, stemCol.botY);
-  ctx.lineTo(stemCol.cx + sw * 0.48, stemCol.botY);
-  ctx.bezierCurveTo(stemCol.cx + sw * 0.50, sUnder + cell * 0.22,
-    stemCol.cx + sw * 0.38, sUnder + cell * 0.14, stemCol.cx + sw * 0.36, sUnder - cell * 0.03);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(146,110,64,0.65)';
-  ctx.lineWidth = 1.6 * S;
-  ctx.stroke();
-
-  // ── Bold cream spots on the cap ──
+  // ── Bold cream spots, on the cap only ──
   var pat = [
-    [-0.24, -0.20, 0.135], [0.22, -0.27, 0.115], [0.27, 0.04, 0.100],
-    [-0.28, 0.05, 0.092], [0.00, -0.31, 0.122], [-0.05, -0.03, 0.105]
+    [-0.25, 0.16, 0.135], [0.23, 0.08, 0.115], [0.30, 0.44, 0.098],
+    [-0.31, 0.46, 0.090], [0.00, 0.04, 0.122], [-0.04, 0.42, 0.104]
   ];
-  for (i = 0; i < b.cells.length; i++) {
-    var c = b.cells[i];
-    var cExposed = !mtHasCell(b.cells, c.dr + 1, c.dc);
-    var capBot = c.y + cell - (cExposed ? cell * MT_UNDER : 0);
+  for (i = 0; i < cols.length; i++) {
+    col = cols[i];
+    if (!col.inTopRow) continue;
+    var capTop = peak, capH = col.capBot - peak;
     for (k = 0; k < 2; k++) {
-      var sp = pat[(k + i * 3) % pat.length];
-      var sx = c.cx + sp[0] * cell, sy = c.cy + sp[1] * cell, sr = sp[2] * cell;
-      if (sy + sr > capBot - cell * 0.02) sy = capBot - sr - cell * 0.05;
+      var sp = pat[(k + (col.dc + 4) * 3) % pat.length];
+      var sx = col.cx + sp[0] * cell;
+      var sy = capTop + sp[1] * capH + capH * 0.18;
+      var sr = sp[2] * cell;
+      if (sy + sr > col.capBot - cell * 0.07) sy = col.capBot - sr - cell * 0.09;
       mtDrawSpot(ctx, sx, sy, sr);
     }
   }
 
-  // Crown sheen across the top of the body
-  var sh = ctx.createLinearGradient(0, b.minY, 0, b.minY + cell * 0.42);
-  sh.addColorStop(0, 'rgba(255,255,255,0.26)');
+  // Crown sheen over the dome
+  var sh = ctx.createLinearGradient(0, peak, 0, peak + cell * 0.5);
+  sh.addColorStop(0, 'rgba(255,255,255,0.30)');
   sh.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = sh;
-  ctx.fillRect(b.minX - L.bg, b.minY - L.bg,
-    (b.maxX - b.minX) + L.bg * 2, cell * 0.42 + L.bg);
+  ctx.fillRect(dome.x0 - L.bg, peak, (dome.x1 - dome.x0) + L.bg * 2, cell * 0.5);
 
   // ── Mouths, punched through each arm tip ──
   for (i = 0; i < b.cells.length; i++) {
-    c = b.cells[i];
+    var c = b.cells[i];
     if (!c.mouth) continue;
     var mc = stock[c.idx];
     mtDrawMouth(ctx, c, cell, S, (mc && mc.mtPulseT) || 0, tick);
@@ -682,7 +716,7 @@ function drawMTunnelOnGrid(ctx, head, S, tick) {
   // ── Counter, always upright, riding the lunge ──
   if (vanish < 0.4) {
     var st = mtStandPoint(b);
-    mtDrawCounter(ctx, st.x + lx, st.y + ly - cell * 0.10, cell, S, remaining,
+    mtDrawCounter(ctx, st.x + lx, st.y + ly - cell * 0.12, cell, S, remaining,
       head.mtPulseT || 0, vanish > 0 ? Math.max(0, 1 - vanish * 2.6) : 1);
   }
 }
@@ -712,14 +746,13 @@ function mtDrawMouth(ctx, c, cell, S, fire, tick) {
   else if (c.mouth[0] < 0) ang = -Math.PI / 2;
 
   ctx.save();
-  ctx.translate(c.cx, c.cy - (c.mouth[0] === 0 ? cell * 0.06 : 0));
+  ctx.translate(c.cx, c.cy - (c.mouth[0] === 0 ? cell * 0.04 : 0));
   ctx.rotate(ang);
 
-  var half = cell * 0.27 * (1 + 0.05 * fire);
+  var half = cell * 0.26 * (1 + 0.05 * fire);
   var depth = cell * 0.30 * (1 + 0.10 * fire);
   var x = cell * 0.5 - depth * 0.40 + cell * 0.05 * fire;
 
-  // The hole: rounded at the back, open at the outward face
   ctx.beginPath();
   ctx.moveTo(x + depth * 0.7, -half);
   ctx.lineTo(x - depth * 0.3 + half * 0.6, -half);
@@ -732,15 +765,13 @@ function mtDrawMouth(ctx, c, cell, S, fire, tick) {
   ctx.fillStyle = hg;
   ctx.fill();
 
-  // Cap flesh catching light around the opening
-  ctx.strokeStyle = 'rgba(255,222,196,0.5)';
+  ctx.strokeStyle = 'rgba(255,228,202,0.5)';
   ctx.lineWidth = 1.5 * S;
   ctx.beginPath();
   ctx.moveTo(x - depth * 0.3 + half * 0.6, -half);
   ctx.arc(x - depth * 0.3 + half * 0.6, 0, half, -Math.PI / 2, Math.PI / 2, true);
   ctx.stroke();
 
-  // Amber arrow
   var aS = cell * 0.10 * (1 + fire * 0.25);
   var ax = x - depth * 0.02;
   var pulse = 0.82 + Math.sin(tick * 0.06) * 0.12 + fire * 0.18;
@@ -757,7 +788,7 @@ function mtDrawMouth(ctx, c, cell, S, fire, tick) {
 
 // ── Counter ──
 // The board already has a count badge, on the Tunnel. Same one, so the
-// two read as family, sitting on the cap where both mouths lead back to.
+// two read as family, where both mouths lead back to.
 function mtDrawCounter(ctx, bx, by, cell, S, remaining, glow, alpha) {
   var R = cell * 0.19;
   ctx.save();
