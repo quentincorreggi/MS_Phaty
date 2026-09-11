@@ -1,11 +1,12 @@
 // ============================================================
 // editor.js — Level Editor (reads box types from registry)
 //             + Tunnel placement, orientation, contents editing
+//             + Multi Cell Tunnel (mushroom) placement + shared stock
 //             + Wall placement
 // ============================================================
 
 var editor = {
-  grid: [],            // 7x7: null = empty, { ci, type } or { tunnel: true, ... } or { wall: true }
+  grid: [],            // 7x7: null = empty, { ci, type } or { tunnel: true, ... } or { wall: true } or { mtunnel: true, ... }
   name: 'Custom Level',
   desc: 'My custom level',
   mrbPerBox: 9,
@@ -16,6 +17,9 @@ var editor = {
   tunnelMode: false,    // true when placing tunnels
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
+  mtMode: false,        // true when placing multi cell tunnels
+  mtOrient: 'h',        // footprint orientation for new multi cell tunnels
+  selectedMT: -1,       // head index of selected multi cell tunnel
   wallMode: false,      // true when placing walls
   visible: false
 };
@@ -33,7 +37,72 @@ function editorInit() {
   editor.tunnelMode = false;
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
+  editor.mtMode = false;
+  editor.mtOrient = 'h';
+  editor.selectedMT = -1;
   editor.wallMode = false;
+}
+
+// ── Multi Cell Tunnel grid helpers ──
+
+// Clearing one cell of a mushroom clears the whole entity: half a
+// mushroom is not a thing that can exist on the board.
+function editorClearMT(idx) {
+  var head = mtHeadIdxOfCell(editor.grid, idx);
+  if (head < 0) {
+    if (editor.grid[idx] && editor.grid[idx].mtunnel) editor.grid[idx] = null;
+    return;
+  }
+  var tail = mtTailIdx(head, editor.grid[head].orient || 'h', 7);
+  editor.grid[head] = null;
+  if (tail >= 0) editor.grid[tail] = null;
+  if (editor.selectedMT === head) editor.selectedMT = -1;
+}
+
+// Place a mushroom with its head at idx. Returns an error string or null.
+function editorPlaceMT(idx, orient) {
+  var tail = mtTailIdx(idx, orient, 7);
+  if (tail < 0) {
+    return orient === 'v'
+      ? 'Not enough room below — a vertical mushroom needs 2 stacked cells'
+      : 'Not enough room to the right — a horizontal mushroom needs 2 cells';
+  }
+  // Anything already sitting on either cell gives way
+  editorClearMT(idx);
+  editorClearMT(tail);
+  editor.grid[idx] = { mtunnel: true, role: 'head', orient: orient, contents: [] };
+  editor.grid[tail] = { mtunnel: true, role: 'tail', orient: orient };
+  if (editor.selectedTunnel === idx || editor.selectedTunnel === tail) editor.selectedTunnel = -1;
+  editor.selectedMT = idx;
+  return null;
+}
+
+// Re-orient an existing mushroom around its head cell.
+function editorReorientMT(head, orient) {
+  var cur = editor.grid[head];
+  if (!cur || !cur.mtunnel || cur.role !== 'head') return 'Mushroom not found';
+  if ((cur.orient || 'h') === orient) return null;
+  var tail = mtTailIdx(head, orient, 7);
+  if (tail < 0) {
+    return orient === 'v'
+      ? 'No room below to stack the second cell'
+      : 'No room to the right for the second cell';
+  }
+  var oldTail = mtTailIdx(head, cur.orient || 'h', 7);
+  var contents = cur.contents || [];
+  if (oldTail >= 0) editor.grid[oldTail] = null;
+  editorClearMT(tail);
+  editor.grid[head] = { mtunnel: true, role: 'head', orient: orient, contents: contents };
+  editor.grid[tail] = { mtunnel: true, role: 'tail', orient: orient };
+  editor.selectedMT = head;
+  return null;
+}
+
+function editorSelectedMTCell() {
+  if (editor.selectedMT < 0) return null;
+  var c = editor.grid[editor.selectedMT];
+  if (!c || !c.mtunnel || c.role !== 'head') return null;
+  return c;
 }
 
 function showEditor(fresh) {
@@ -60,6 +129,15 @@ function editorBuildUI() {
   editorRenderSettings();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderMTPanel();
+}
+
+// Every editor mutation refreshes the same set of panels.
+function editorRefresh() {
+  editorRenderGrid();
+  editorUpdateStats();
+  editorRenderTunnelPanel();
+  editorRenderMTPanel();
 }
 
 // ── Grid ──
@@ -75,6 +153,36 @@ function editorRenderGrid() {
       cell.style.background = 'linear-gradient(135deg,#9A8D7B,#6F6355)';
       cell.style.borderColor = '#8A7D6B';
       cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,255,255,0.5);font-size:14px">&#9632;</span>';
+    } else if (v && v.mtunnel) {
+      // Multi Cell Tunnel cell — both halves share one look so the
+      // entity reads as continuous, with the counter on the head.
+      var mtHead = mtHeadIdxOfCell(editor.grid, i);
+      var mtOrient = v.orient || 'h';
+      var mtSel = (mtHead >= 0 && editor.selectedMT === mtHead);
+      var isHead = (v.role === 'head');
+      cell.style.background = 'linear-gradient(135deg,#E4674C,#A72E1E)';
+      cell.style.borderColor = mtSel ? '#FFD080' : '#8E2A1C';
+      if (mtSel) cell.style.boxShadow = '0 0 0 2px rgba(255,208,128,0.55)';
+      // Flatten the border on the shared seam so the two cells read as one
+      if (mtOrient === 'h') {
+        if (isHead) { cell.style.borderRightColor = 'transparent'; }
+        else { cell.style.borderLeftColor = 'transparent'; }
+      } else {
+        if (isHead) { cell.style.borderBottomColor = 'transparent'; }
+        else { cell.style.borderTopColor = 'transparent'; }
+      }
+      var mtArrow = MT_MOUTH_ARROW[mtOrient][isHead ? 0 : 1];
+      var mtInner = '<span class="ed-cell-dot" style="font-size:12px">' + mtArrow + '</span>';
+      if (isHead) {
+        var mtCount = v.contents ? v.contents.length : 0;
+        mtInner = '<span class="ed-cell-dot" style="font-size:13px">🍄</span>' +
+          '<span class="ed-mt-badge">' + mtCount + '</span>' +
+          '<span class="ed-mt-arrow ed-mt-arrow-' + (mtOrient === 'h' ? 'l' : 'u') + '">' + mtArrow + '</span>';
+      } else {
+        mtInner = '<span class="ed-cell-dot" style="font-size:13px;opacity:0.5">🍄</span>' +
+          '<span class="ed-mt-arrow ed-mt-arrow-' + (mtOrient === 'h' ? 'r' : 'd') + '">' + mtArrow + '</span>';
+      }
+      cell.innerHTML = mtInner;
     } else if (v && v.tunnel) {
       // Tunnel cell
       var isSelected = (editor.selectedTunnel === i);
@@ -105,9 +213,29 @@ function editorRenderGrid() {
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
 
+  if (editor.mtMode) {
+    // In mushroom mode: select an existing entity, or place a new one
+    var mtAt = mtHeadIdxOfCell(editor.grid, idx);
+    if (mtAt >= 0) {
+      if (editor.activeColor === -1) editorClearMT(idx);
+      else {
+        editor.selectedMT = mtAt;
+        editor.mtOrient = editor.grid[mtAt].orient || 'h';
+      }
+    } else if (editor.activeColor === -1) {
+      editor.grid[idx] = null;
+    } else {
+      var err = editorPlaceMT(idx, editor.mtOrient);
+      if (err) { editorShowToast(err); return; }
+    }
+    editorRefresh();
+    return;
+  }
+
   if (editor.wallMode) {
     // Wall placement mode
     var existing = editor.grid[idx];
+    if (existing && existing.mtunnel) editorClearMT(idx);
     if (existing && existing.wall) {
       // Toggle off: clicking existing wall removes it
       editor.grid[idx] = null;
@@ -116,15 +244,15 @@ function editorCellClick(e) {
       editor.grid[idx] = { wall: true };
     }
     if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
-    editorRenderGrid();
-    editorUpdateStats();
-    editorRenderTunnelPanel();
+    editorRefresh();
     return;
   }
 
   if (editor.tunnelMode) {
     // In tunnel mode: place or select tunnel
     var existing = editor.grid[idx];
+    if (existing && existing.mtunnel) editorClearMT(idx);
+    existing = editor.grid[idx];
     if (existing && existing.tunnel) {
       editor.selectedTunnel = idx;
     } else if (editor.activeColor === -1) {
@@ -137,10 +265,12 @@ function editorCellClick(e) {
   } else {
     // Normal box painting mode
     if (editor.activeColor === -1) {
-      editor.grid[idx] = null;
+      if (editor.grid[idx] && editor.grid[idx].mtunnel) editorClearMT(idx);
+      else editor.grid[idx] = null;
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     } else {
       var existing = editor.grid[idx];
+      if (existing && existing.mtunnel) { editorClearMT(idx); existing = null; }
       if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
         editor.grid[idx] = null;
       } else {
@@ -149,19 +279,16 @@ function editorCellClick(e) {
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     }
   }
-  editorRenderGrid();
-  editorUpdateStats();
-  editorRenderTunnelPanel();
+  editorRefresh();
 }
 
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
-  editor.grid[idx] = null;
+  if (editor.grid[idx] && editor.grid[idx].mtunnel) editorClearMT(idx);
+  else editor.grid[idx] = null;
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
-  editorRenderGrid();
-  editorUpdateStats();
-  editorRenderTunnelPanel();
+  editorRefresh();
 }
 
 // ── Toolbar: mode toggle + type selector + color/direction palette ──
@@ -178,15 +305,17 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.mtMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.mtMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
+      editorRenderMTPanel();
     });
     typeRow.appendChild(tb);
   }
@@ -200,8 +329,10 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.mtMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
+    editorRenderMTPanel();
   });
   typeRow.appendChild(wallBtn);
 
@@ -214,14 +345,79 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.mtMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
+    editorRenderMTPanel();
   });
   typeRow.appendChild(tunnelBtn);
 
+  // Multi Cell Tunnel (mushroom) mode button
+  var mtBtn = document.createElement('button');
+  mtBtn.className = 'ed-type-btn' + (editor.mtMode ? ' active' : '');
+  mtBtn.textContent = '\uD83C\uDF44 Mushroom';
+  mtBtn.title = 'Multi Cell Tunnel \u2014 two cells, two mouths, one shared stock';
+  mtBtn.style.borderColor = editor.mtMode ? 'rgba(214,71,46,0.6)' : '';
+  mtBtn.style.color = editor.mtMode ? '#C0432C' : '';
+  mtBtn.addEventListener('click', function () {
+    editor.mtMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+    editorRenderMTPanel();
+  });
+  typeRow.appendChild(mtBtn);
+
   el.appendChild(typeRow);
 
-  if (editor.tunnelMode) {
+  if (editor.mtMode) {
+    // Footprint selector row
+    var mtRow = document.createElement('div');
+    mtRow.className = 'ed-color-row';
+
+    var mtEraser = document.createElement('button');
+    mtEraser.className = 'ed-tool' + (editor.activeColor === -1 ? ' active' : '');
+    mtEraser.style.background = 'rgba(180,165,145,0.5)';
+    mtEraser.innerHTML = '\u2716';
+    mtEraser.title = 'Eraser';
+    mtEraser.addEventListener('click', function () { editor.activeColor = -1; editorRenderToolbar(); });
+    mtRow.appendChild(mtEraser);
+
+    var shapes = [
+      { o: 'h', glyph: '\u25AC\u25AC', title: 'Horizontal \u2014 2 cells side by side, mouths left + right' },
+      { o: 'v', glyph: '\u2759\u2759', title: 'Vertical \u2014 2 cells stacked, mouths up + down' }
+    ];
+    for (var sh = 0; sh < shapes.length; sh++) {
+      var sb = document.createElement('button');
+      sb.className = 'ed-tool' + (editor.mtOrient === shapes[sh].o && editor.activeColor !== -1 ? ' active' : '');
+      sb.style.background = 'linear-gradient(135deg,#E4674C,#A72E1E)';
+      sb.style.fontSize = '13px';
+      sb.style.width = '48px';
+      sb.innerHTML = shapes[sh].glyph;
+      sb.title = shapes[sh].title;
+      sb.setAttribute('data-o', shapes[sh].o);
+      sb.addEventListener('click', function () {
+        editor.mtOrient = this.getAttribute('data-o');
+        editor.activeColor = 0;
+        var sel = editorSelectedMTCell();
+        if (sel) {
+          var rerr = editorReorientMT(editor.selectedMT, editor.mtOrient);
+          if (rerr) editorShowToast(rerr);
+        }
+        editorRenderToolbar();
+        editorRefresh();
+      });
+      mtRow.appendChild(sb);
+    }
+    el.appendChild(mtRow);
+
+    var mtHint = document.createElement('div');
+    mtHint.className = 'ed-color-row';
+    mtHint.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click a cell to grow a mushroom (it takes that cell + the next one ' +
+      (editor.mtOrient === 'h' ? 'to the right' : 'below') + ')</span>';
+    el.appendChild(mtHint);
+  } else if (editor.tunnelMode) {
     // Direction selector row
     var dirRow = document.createElement('div');
     dirRow.className = 'ed-color-row';
@@ -327,10 +523,12 @@ function editorRenderTunnelPanel() {
   } else {
     var exitIdx = er * 7 + ec;
     var exitCell = editor.grid[exitIdx];
-    if (exitCell && !exitCell.tunnel) {
-      html += '<div class="ed-stat-warn" style="margin:4px 0">Exit tile is occupied by a box</div>';
-    } else if (exitCell && exitCell.tunnel) {
+    if (exitCell && exitCell.tunnel) {
       html += '<div class="ed-stat-warn" style="margin:4px 0">Exit tile is another tunnel</div>';
+    } else if (exitCell && exitCell.mtunnel) {
+      html += '<div class="ed-stat-warn" style="margin:4px 0">Exit tile is a mushroom</div>';
+    } else if (exitCell) {
+      html += '<div class="ed-stat-warn" style="margin:4px 0">Exit tile is occupied by a box</div>';
     }
   }
 
@@ -426,23 +624,197 @@ function editorRenderTunnelPanel() {
   }
 }
 
+// ── Multi Cell Tunnel panel: shape, mouth validation, shared stock ──
+function editorRenderMTPanel() {
+  var container = document.getElementById('ed-mt-panel');
+  if (!container) return;
+
+  var mt = editorSelectedMTCell();
+  if (!mt) { container.style.display = 'none'; return; }
+
+  container.style.display = 'block';
+  var head = editor.selectedMT;
+  var orient = mt.orient || 'h';
+  var mtStockList = mt.contents || [];
+  var v = mtValidate(editor.grid, head, orient);
+  var html = '';
+
+  // Shape
+  html += '<div class="ed-section-title"><span class="icon">🍄</span> Mushroom #' + (head + 1) +
+    ' — Shape</div>';
+  html += '<div class="ed-tunnel-dir-row">';
+  html += '<button class="ed-tunnel-dir-btn' + (orient === 'h' ? ' active' : '') + '" data-o="h">▬ ' + MT_ORIENT_LABEL.h + '</button>';
+  html += '<button class="ed-tunnel-dir-btn' + (orient === 'v' ? ' active' : '') + '" data-o="v">❙ ' + MT_ORIENT_LABEL.v + '</button>';
+  html += '</div>';
+
+  // Mouths — the information the whole decision rests on
+  html += '<div class="ed-mt-mouths">' +
+    '<span class="ed-mt-mouth">' + MT_MOUTH_ARROW[orient][0] + ' ' + MT_MOUTH_LABEL[orient][0] + ' mouth</span>' +
+    '<span class="ed-mt-mouth-sep">one shared stock</span>' +
+    '<span class="ed-mt-mouth">' + MT_MOUTH_LABEL[orient][1] + ' mouth ' + MT_MOUTH_ARROW[orient][1] + '</span>' +
+    '</div>';
+
+  for (var e = 0; e < v.errors.length; e++) {
+    html += '<div class="ed-stat-warn" style="margin:4px 0">' + v.errors[e] + '</div>';
+  }
+  for (var h2 = 0; h2 < v.hints.length; h2++) {
+    html += '<div class="ed-mt-hint">' + v.hints[h2] + ' — the mushroom will fill it on the first frame</div>';
+  }
+
+  // Shared stock
+  html += '<div class="ed-section-title" style="margin-top:8px"><span class="icon">📦</span> Shared Stock (' +
+    mtStockList.length + '/' + MTUNNEL_MAX_STOCK + ')</div>';
+  html += '<div class="ed-tunnel-contents">';
+  if (mtStockList.length === 0) {
+    html += '<span style="font-size:11px;color:#9C8A70;font-style:italic">Empty — add boxes below</span>';
+  } else {
+    for (var i = 0; i < mtStockList.length; i++) {
+      var item = mtStockList[i];
+      var c = COLORS[item.ci];
+      var typeLabel = (BoxTypes[item.type] || BoxTypes[BoxTypeOrder[0]]).label;
+      html += '<span class="ed-tunnel-item" data-midx="' + i + '" title="#' + (i + 1) + ' — ' +
+        CLR_NAMES[item.ci] + ' ' + typeLabel + ' — click to remove" style="background:' + c.fill + '">';
+      html += '<span style="font-size:8px;opacity:0.7">' + typeLabel[0] + '</span>';
+      html += '</span>';
+    }
+  }
+  html += '</div>';
+
+  // Pacing guidance — the player can drain the whole stock through one mouth
+  if (mtStockList.length === 1) {
+    html += '<div class="ed-stat-warn">A stock of 1 makes the side choice meaningless — use at least 2</div>';
+  } else if (mtStockList.length > 5) {
+    html += '<div class="ed-mt-hint">' + mtStockList.length + ' boxes is the top of the range — keep 6 for easy levels only</div>';
+  } else if (mtStockList.length > 0 && mtStockList.length < MTUNNEL_SOFT_STOCK) {
+    html += '<div class="ed-mt-hint">' + MTUNNEL_SOFT_STOCK + ' boxes is the recommended stock</div>';
+  }
+
+  // Add box controls
+  html += '<div class="ed-section-title" style="margin-top:8px"><span class="icon">&#10133;</span> Add Box to Stock</div>';
+  html += '<div class="ed-tunnel-add-row">';
+  html += '<select id="ed-mt-add-type" class="ed-tunnel-select">';
+  for (var t = 0; t < BoxTypeOrder.length; t++) {
+    html += '<option value="' + BoxTypeOrder[t] + '">' + BoxTypes[BoxTypeOrder[t]].label + '</option>';
+  }
+  html += '</select>';
+  html += '</div>';
+  html += '<div class="ed-tunnel-add-colors">';
+  for (var ci = 0; ci < NUM_COLORS; ci++) {
+    html += '<button class="ed-mt-add-clr" data-ci="' + ci + '" style="background:' + COLORS[ci].fill +
+      '" title="Add ' + CLR_NAMES[ci] + '">' + CLR_NAMES[ci][0].toUpperCase() + '</button>';
+  }
+  html += '</div>';
+
+  html += '<div style="text-align:center;margin-top:6px">';
+  if (mtStockList.length > 0) html += '<button class="ed-qbtn" id="ed-mt-clear">Clear Stock</button> ';
+  html += '<button class="ed-qbtn" id="ed-mt-remove">Remove Mushroom</button>';
+  html += '</div>';
+
+  container.innerHTML = html;
+
+  // ── Bind ──
+  var shapeBtns = container.querySelectorAll('.ed-tunnel-dir-btn');
+  for (var sb = 0; sb < shapeBtns.length; sb++) {
+    shapeBtns[sb].addEventListener('click', function () {
+      var o = this.getAttribute('data-o');
+      var err = editorReorientMT(editor.selectedMT, o);
+      if (err) { editorShowToast(err); return; }
+      editor.mtOrient = o;
+      editorRefresh();
+      editorRenderToolbar();
+    });
+  }
+
+  var items = container.querySelectorAll('.ed-tunnel-item');
+  for (var it = 0; it < items.length; it++) {
+    items[it].addEventListener('click', function () {
+      var midx = parseInt(this.getAttribute('data-midx'));
+      var cell = editorSelectedMTCell();
+      if (!cell) return;
+      cell.contents.splice(midx, 1);
+      editorRefresh();
+    });
+  }
+
+  var addClrs = container.querySelectorAll('.ed-mt-add-clr');
+  for (var ac = 0; ac < addClrs.length; ac++) {
+    addClrs[ac].addEventListener('click', function () {
+      var cell = editorSelectedMTCell();
+      if (!cell) return;
+      if (cell.contents.length >= MTUNNEL_MAX_STOCK) {
+        editorShowToast(MTUNNEL_MAX_STOCK + ' boxes is the hard limit for a Tunnel-family stock');
+        return;
+      }
+      var typeEl = document.getElementById('ed-mt-add-type');
+      cell.contents.push({
+        ci: parseInt(this.getAttribute('data-ci')),
+        type: typeEl ? typeEl.value : 'default'
+      });
+      editorRefresh();
+    });
+  }
+
+  var clearBtn = document.getElementById('ed-mt-clear');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', function () {
+      var cell = editorSelectedMTCell();
+      if (!cell) return;
+      cell.contents = [];
+      editorRefresh();
+    });
+  }
+
+  var removeBtn = document.getElementById('ed-mt-remove');
+  if (removeBtn) {
+    removeBtn.addEventListener('click', function () {
+      if (editor.selectedMT < 0) return;
+      editorClearMT(editor.selectedMT);
+      editorRefresh();
+    });
+  }
+}
+
+// Hard validation across every mushroom on the grid.
+function editorMTIssues() {
+  var out = [];
+  for (var i = 0; i < 49; i++) {
+    var c = editor.grid[i];
+    if (!c || !c.mtunnel) continue;
+    if (c.role !== 'head') {
+      if (mtHeadIdxOfCell(editor.grid, i) < 0) out.push('Mushroom cell ' + (i + 1) + ' has lost its other half');
+      continue;
+    }
+    if (mtHeadIdxOfCell(editor.grid, i) < 0) {
+      out.push('Mushroom #' + (i + 1) + ' has lost its other half');
+      continue;
+    }
+    var v = mtValidate(editor.grid, i, c.orient || 'h');
+    for (var e = 0; e < v.errors.length; e++) {
+      out.push('Mushroom #' + (i + 1) + ': ' + v.errors[e]);
+    }
+  }
+  return out;
+}
+
 // ── Quick actions ──
 function editorFillRandom() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
+  editor.selectedMT = -1;
   var cl = [];
   for (var c = 0; c < 4; c++) for (var n = 0; n < 6; n++) cl.push(c);
   shuffle(cl);
   var indices = []; for (var i = 0; i < 49; i++) indices.push(i);
   shuffle(indices);
   for (var i = 0; i < cl.length; i++) editor.grid[indices[i]] = { ci: cl[i], type: 'default' };
-  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+  editorRefresh();
 }
 
 function editorClearAll() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
-  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+  editor.selectedMT = -1;
+  editorRefresh();
 }
 
 // ── Stats ──
@@ -453,11 +825,32 @@ function editorUpdateStats() {
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
   var wallCount = 0;
+  var mtCount = 0, mtBoxCount = 0;
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
     if (v.wall) {
       wallCount++;
+      continue;
+    }
+    if (v.mtunnel) {
+      // Only the head carries the shared stock
+      if (v.role === 'head') {
+        mtCount++;
+        if (v.contents) {
+          mtBoxCount += v.contents.length;
+          for (var mc = 0; mc < v.contents.length; mc++) {
+            var mItem = v.contents[mc];
+            counts[mItem.ci]++;
+            if (mItem.type === 'blocker') {
+              regularMrb[mItem.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
+              totalBlockers += BLOCKER_PER_BOX;
+            } else {
+              regularMrb[mItem.ci] += editor.mrbPerBox;
+            }
+          }
+        }
+      }
       continue;
     }
     if (v.tunnel) {
@@ -503,6 +896,9 @@ function editorUpdateStats() {
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
   }
+  if (mtCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#C0432C;border:1px solid #8E2A1C">' + mtCount + ' mushroom' + (mtCount > 1 ? 's' : '') + ' (' + mtBoxCount + ' stored)</span>';
+  }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
   }
@@ -510,8 +906,11 @@ function editorUpdateStats() {
     if (counts[c] > 0) html += '<span class="ed-stat-chip" style="background:' + COLORS[c].fill + '">' + counts[c] + '</span>';
   }
   var warn = '';
-  var totalAll = total + tunnelBoxCount;
-  if (totalAll === 0) {
+  var totalAll = total + tunnelBoxCount + mtBoxCount;
+  var mtIssues = editorMTIssues();
+  if (mtIssues.length > 0) {
+    warn = mtIssues[0];
+  } else if (totalAll === 0) {
     warn = 'Place some boxes to create a level';
   } else {
     for (var c = 0; c < NUM_COLORS; c++) {
@@ -576,6 +975,10 @@ function editorTestPlay() {
   var total = 0;
   for (var i = 0; i < 49; i++) if (editor.grid[i]) total++;
   if (total === 0) { editorShowToast('Place some boxes first!'); return; }
+  // A mushroom mouth facing nothing would strand its shared stock, so
+  // the level cannot be played until every mouth has a cell in front.
+  var mtIssues = editorMTIssues();
+  if (mtIssues.length > 0) { editorShowToast(mtIssues[0]); return; }
   hideEditor();
   var lvl = editorBuildLevel();
   var testIdx = LEVELS.length;
@@ -619,6 +1022,11 @@ function editorImportJSON() {
           else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
           else if (cell.wall) editor.grid[i] = { wall: true };
           else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
+          else if (cell.mtunnel) {
+            editor.grid[i] = (cell.role === 'tail')
+              ? { mtunnel: true, role: 'tail', orient: cell.orient || 'h' }
+              : { mtunnel: true, role: 'head', orient: cell.orient || 'h', contents: cell.contents || [] };
+          }
           else editor.grid[i] = cell;
         }
       }
@@ -632,6 +1040,7 @@ function editorImportJSON() {
       if (nameEl) nameEl.value = editor.name;
       if (descEl) descEl.value = editor.desc;
       editor.selectedTunnel = -1;
+      editor.selectedMT = -1;
       ta.style.display = 'none';
       editorBuildUI();
       editorShowToast('Imported!');

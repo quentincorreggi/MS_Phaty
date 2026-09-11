@@ -150,8 +150,46 @@ function isTileAvailableForTunnel(idx) {
   var s = stock[idx];
   // Must be an empty slot or a fully-used box (not a tunnel, not an active box, not a wall)
   if (s.isTunnel) return false;
+  if (s.isMTunnel) return false;  // multi cell tunnel cells are structural
   if (s.isWall) return false;  // walls block tunnel spawning
   return s.empty || s.used;
+}
+
+// ── Shared box factory — used by Tunnel and Multi Cell Tunnel ──
+
+function makeTunnelSpawnedBox(exitIdx, nextBox) {
+  var exitRow = Math.floor(exitIdx / L.cols);
+  var exitCol = exitIdx % L.cols;
+  var isIce = (nextBox.type === 'ice');
+  var isBlocker = (nextBox.type === 'blocker');
+
+  return {
+    ci: nextBox.ci,
+    used: false,
+    remaining: MRB_PER_BOX,
+    spawning: false,
+    spawnIdx: 0,
+    // Start closed; updateBoxReveals will open it if the exit cell
+    // still has a passable path to the bottom of the grid.
+    revealed: false,
+    empty: false,
+    boxType: nextBox.type || 'default',
+    iceHP: isIce ? 2 : 0,
+    iceCrackT: 0,
+    iceShatterT: 0,
+    blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+    isTunnel: false,
+    isMTunnel: false,
+    isWall: false,
+    x: L.sx + exitCol * (L.bw + L.bg),
+    y: L.sy + exitRow * (L.bh + L.bg),
+    shakeT: 0,
+    hoverT: 0,
+    popT: 0.8,
+    revealT: 0,
+    emptyT: 0,
+    idlePhase: Math.random() * Math.PI * 2
+  };
 }
 
 // ── Spawning logic (called from update) ──
@@ -173,37 +211,7 @@ function trySpawnFromTunnels() {
     s.tunnelSpawning = true;
     s.tunnelCooldown = TUNNEL_SPAWN_COOLDOWN;
 
-    var exitRow = Math.floor(exitIdx / L.cols);
-    var exitCol = exitIdx % L.cols;
-    var isIce = (nextBox.type === 'ice');
-    var isBlocker = (nextBox.type === 'blocker');
-
-    stock[exitIdx] = {
-      ci: nextBox.ci,
-      used: false,
-      remaining: MRB_PER_BOX,
-      spawning: false,
-      spawnIdx: 0,
-      // Start closed; updateBoxReveals will open it if the exit cell
-      // still has a passable path to the bottom of the grid.
-      revealed: false,
-      empty: false,
-      boxType: nextBox.type || 'default',
-      iceHP: isIce ? 2 : 0,
-      iceCrackT: 0,
-      iceShatterT: 0,
-      blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
-      isTunnel: false,
-      isWall: false,
-      x: L.sx + exitCol * (L.bw + L.bg),
-      y: L.sy + exitRow * (L.bh + L.bg),
-      shakeT: 0,
-      hoverT: 0,
-      popT: 0.8,
-      revealT: 0,
-      emptyT: 0,
-      idlePhase: Math.random() * Math.PI * 2
-    };
+    stock[exitIdx] = makeTunnelSpawnedBox(exitIdx, nextBox);
 
     // Particles from tunnel toward exit tile
     var tx = s.x + L.bw / 2, ty = s.y + L.bh / 2;

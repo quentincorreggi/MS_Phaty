@@ -171,6 +171,14 @@ function drawStock() {
       continue;
     }
 
+    // ── Multi Cell Tunnel ──
+    // Drawn once, from the head cell, as one continuous entity across
+    // both cells. The tail cell draws nothing so there is no seam.
+    if (b.isMTunnel) {
+      if (b.mtRole === 'head') drawMTunnelOnGrid(ctx, b, S, tick);
+      continue;
+    }
+
     // ── Wall ──
     if (b.isWall) {
       drawWallOnGrid(ctx, b.x, b.y, L.bw, L.bh, S, tick);

@@ -38,14 +38,38 @@ function initGame() {
   var totalSlots = L.rows * L.cols;
   var lvl = LEVELS[currentLevel];
 
-  // ── Build boxSlots, tunnelSlots, wallSlots from grid or legacy random ──
+  // ── Build boxSlots, tunnelSlots, wallSlots, mtSlots from grid ──
   var boxSlots = {};
   var tunnelSlots = {};
   var wallSlots = {};
+  var mtSlots = {};
+
+  // Multi Cell Tunnels are validated as whole entities: a head with no
+  // matching tail (or vice versa) is dropped rather than half-built.
+  if (lvl.grid) {
+    var mtEntities = mtCollect(lvl.grid);
+    for (var mi = 0; mi < mtEntities.length; mi++) {
+      var ent = mtEntities[mi];
+      if (ent.headIdx >= totalSlots || ent.tailIdx >= totalSlots) continue;
+      mtSlots[ent.headIdx] = {
+        role: 'head', orient: ent.orient,
+        headIdx: ent.headIdx, tailIdx: ent.tailIdx,
+        contents: ent.contents.slice()
+      };
+      mtSlots[ent.tailIdx] = {
+        role: 'tail', orient: ent.orient,
+        headIdx: ent.headIdx, tailIdx: ent.tailIdx,
+        contents: null
+      };
+    }
+  }
+
   if (lvl.grid) {
     for (var i = 0; i < Math.min(lvl.grid.length, totalSlots); i++) {
       var cell = lvl.grid[i];
       if (cell === null || cell === undefined) continue;
+      if (mtSlots[i]) continue;   // claimed by a Multi Cell Tunnel
+      if (cell.mtunnel) continue; // orphaned half — ignore it
       if (cell.wall) {
         wallSlots[i] = true;
         continue;
@@ -83,6 +107,18 @@ function initGame() {
       if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
     }
   }
+  // Count marbles from multi cell tunnel stocks (head holds the shared list)
+  for (var k in mtSlots) {
+    var ms = mtSlots[k];
+    if (!ms.contents) continue;
+    for (var mc = 0; mc < ms.contents.length; mc++) {
+      var mItem = ms.contents[mc];
+      var isBlockerBox = (mItem.type === 'blocker');
+      var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
+      colorMarblesTotal[mItem.ci] += regularPerBox;
+      if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
+    }
+  }
   var sortPerColor = [];
   for (var c = 0; c < NUM_COLORS; c++) {
     sortPerColor.push(SORT_CAP > 0 ? Math.ceil(colorMarblesTotal[c] / SORT_CAP) : 0);
@@ -95,11 +131,36 @@ function initGame() {
     var slot = boxSlots[idx];
     var tSlot = tunnelSlots[idx];
     var wSlot = wallSlots[idx];
+    var mSlot = mtSlots[idx];
 
-    if (tSlot) {
+    if (mSlot) {
+      // Multi Cell Tunnel — two cells, two mouths, one shared stock.
+      // The head carries the stock; the tail reads it off the head.
+      stock.push({
+        isMTunnel: true, isTunnel: false, isWall: false,
+        mtRole: mSlot.role,
+        mtOrient: mSlot.orient,
+        mtHeadIdx: mSlot.headIdx,
+        mtTailIdx: mSlot.tailIdx,
+        mtContents: mSlot.contents
+          ? mSlot.contents.map(function (item) { return { ci: item.ci, type: item.type || 'default' }; })
+          : null,
+        mtTotal: mSlot.contents ? mSlot.contents.length : 0,
+        mtSpawning: false,
+        mtCooldown: MTUNNEL_START_COOLDOWN,
+        mtPulseT: 0,
+        mtVanishT: 0,
+        mtPhase: Math.random() * Math.PI * 2,
+        ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
+        revealed: true, empty: false, boxType: 'default',
+        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
+      });
+    } else if (tSlot) {
       // Tunnel entry
       stock.push({
-        isTunnel: true, isWall: false,
+        isTunnel: true, isMTunnel: false, isWall: false,
         tunnelDir: tSlot.dir,
         tunnelContents: tSlot.contents.map(function (item) { return { ci: item.ci, type: item.type || 'default' }; }),
         tunnelTotal: tSlot.contents.length,
@@ -114,7 +175,7 @@ function initGame() {
     } else if (wSlot) {
       // Wall cell — inert structural element
       stock.push({
-        isWall: true, isTunnel: false,
+        isWall: true, isTunnel: false, isMTunnel: false,
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: false, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
@@ -123,7 +184,7 @@ function initGame() {
       });
     } else if (!slot) {
       stock.push({ ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
-        revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
+        revealed: true, empty: true, boxType: 'default', isTunnel: false, isMTunnel: false, isWall: false,
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
@@ -132,7 +193,7 @@ function initGame() {
       var isBlocker = (slot.boxType === 'blocker');
       stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
         revealed: isIce ? true : false, empty: false,
-        boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
+        boxType: slot.boxType || 'default', isTunnel: false, isMTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
@@ -168,8 +229,10 @@ function initGame() {
 // edge of the grid. Passable cells are:
 //   • empty slots
 //   • used-up boxes
-// Walls, active (non-used) boxes, and tunnels (even depleted ones)
-// all block the path. If the path closes, the box closes itself.
+// Walls, active (non-used) boxes, tunnels (even depleted ones) and
+// multi cell tunnel cells all block the path. If the path closes,
+// the box closes itself. A spent multi cell tunnel disappears, and
+// its two cells become empty slots that do open a path.
 function updateBoxReveals(animate) {
   if (!stock || stock.length === 0) return;
   if (!L || !L.rows || !L.cols) return;
@@ -182,6 +245,7 @@ function updateBoxReveals(animate) {
     if (!s) { passable[i] = false; continue; }
     if (s.isWall) { passable[i] = false; continue; }
     if (s.isTunnel) { passable[i] = false; continue; }
+    if (s.isMTunnel) { passable[i] = false; continue; }
     passable[i] = !!(s.empty || s.used);
   }
 
@@ -220,7 +284,7 @@ function updateBoxReveals(animate) {
   for (var k = 0; k < total; k++) {
     var b = stock[k];
     if (!b) continue;
-    if (b.isWall || b.isTunnel || b.empty || b.used) continue;
+    if (b.isWall || b.isTunnel || b.isMTunnel || b.empty || b.used) continue;
     if (b.spawning) continue;
 
     var br = Math.floor(k / L.cols), bcol = k % L.cols;
@@ -273,7 +337,7 @@ function damageAdjacentIce(idx) {
   if (col < L.cols - 1) neighbors.push(row * L.cols + (col + 1));
   for (var ni = 0; ni < neighbors.length; ni++) {
     var nb = stock[neighbors[ni]];
-    if (nb.isTunnel || nb.isWall) continue;  // tunnels and walls don't have ice
+    if (nb.isTunnel || nb.isMTunnel || nb.isWall) continue;  // structural cells don't have ice
     if (nb.empty || nb.used || nb.iceHP <= 0) continue;
 
     nb.iceHP--;
@@ -314,6 +378,7 @@ function damageAdjacentIce(idx) {
 function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
+  if (b.isMTunnel) return false;   // mushroom cells are not playable
   if (b.isWall) return false;      // walls are not tappable
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
@@ -330,7 +395,7 @@ function handleTap(px, py) {
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
+    if (b.isTunnel || b.isMTunnel || b.isWall) continue;  // structural cells aren't tappable
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
@@ -352,7 +417,7 @@ canvas.addEventListener('mousemove', function (e) {
   if (e.clientX >= L.bkX && e.clientX <= L.bkX + L.bkSize && e.clientY >= L.bkY && e.clientY <= L.bkY + L.bkSize) { canvas.style.cursor = 'pointer'; return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;
+    if (b.isTunnel || b.isMTunnel || b.isWall) continue;
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (!isBoxTappable(i)) continue;
     if (e.clientX >= b.x && e.clientX <= b.x + L.bw && e.clientY >= b.y && e.clientY <= b.y + L.bh) { hoverIdx = i; break; }
@@ -373,6 +438,9 @@ function update() {
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
+
+  // ── Multi Cell Tunnel: per-mouth spawning + disappearance ──
+  updateMultiTunnels();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -467,7 +535,7 @@ function update() {
   // Stock animations
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;  // tunnels and walls don't need stock animations
+    if (b.isTunnel || b.isMTunnel || b.isWall) continue;  // structural cells have their own timers
     if (b.empty) continue;
     if (b.shakeT > 0) b.shakeT = Math.max(0, b.shakeT - 0.04);
     if (b.popT > 0) b.popT = Math.max(0, b.popT - 0.025);
@@ -524,6 +592,7 @@ function checkWin() {
       if (sortCols[c][r].vis) return;
   for (var i = 0; i < stock.length; i++) {
     if (stock[i].isTunnel && stock[i].tunnelContents && stock[i].tunnelContents.length > 0) return;
+    if (stock[i].isMTunnel && stock[i].mtContents && stock[i].mtContents.length > 0) return;
   }
   if (!won) {
     won = true; sfx.win();
