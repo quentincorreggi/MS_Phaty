@@ -1,0 +1,120 @@
+{
+  "name": "Multi Cell Tunnel",
+  "description": "A Tunnel spin-off that takes two cells and has two mouths fed by one shared stock. Every box you pull from one mouth is a box the other will never deliver.",
+  "howToPlay": "The mushroom holds a single stock of boxes \u2014 the number on its cap. Play the box in front of either mouth and the next box in the stock pushes out on THAT side. Pick a side, tap by tap, and you decide which half of the board gets refilled. When the stock hits zero the mushroom disappears and frees its two cells.",
+  "author": "Prototype",
+  "showcaseLevel": {
+    "name": "Two Mouths, One Stock",
+    "desc": "Choose which side gets fed",
+    "mrbPerBox": 6,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "mtunnel": true,
+        "role": "head",
+        "orient": "v",
+        "contents": [
+          {
+            "ci": 1,
+            "type": "default"
+          },
+          {
+            "ci": 2,
+            "type": "default"
+          }
+        ]
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "mtunnel": true,
+        "role": "tail",
+        "orient": "v"
+      },
+      null,
+      {
+        "wall": true
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "mtunnel": true,
+        "role": "head",
+        "orient": "h",
+        "contents": [
+          {
+            "ci": 2,
+            "type": "default"
+          },
+          {
+            "ci": 3,
+            "type": "default"
+          },
+          {
+            "ci": 0,
+            "type": "default"
+          }
+        ]
+      },
+      {
+        "mtunnel": true,
+        "role": "tail",
+        "orient": "h"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "wall": true
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  }
+}
