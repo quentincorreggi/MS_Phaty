@@ -149,6 +149,8 @@ function initGame() {
         mtSpawning: false,
         mtCooldown: MTUNNEL_START_COOLDOWN,
         mtPulseT: 0,
+        mtLurchT: 0,
+        mtLurchSide: -1,
         mtVanishT: 0,
         mtPhase: Math.random() * Math.PI * 2,
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
@@ -382,6 +384,7 @@ function isBoxTappable(idx) {
   if (b.isWall) return false;      // walls are not tappable
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
+  if (b.emergeT > 0) return false;   // still clearing the muzzle
   if (b.iceHP > 0) return false;
   return b.revealed;
 }
@@ -539,6 +542,7 @@ function update() {
     if (b.empty) continue;
     if (b.shakeT > 0) b.shakeT = Math.max(0, b.shakeT - 0.04);
     if (b.popT > 0) b.popT = Math.max(0, b.popT - 0.025);
+    if (b.emergeT > 0) b.emergeT = Math.max(0, b.emergeT - MTUNNEL_EMERGE_SPEED);
     if (b.revealT > 0) b.revealT = Math.max(0, b.revealT - 0.03);
     if (b.emptyT > 0) b.emptyT = Math.max(0, b.emptyT - 0.025);
     if (b.iceCrackT > 0) b.iceCrackT = Math.max(0, b.iceCrackT - 0.03);

@@ -195,6 +195,18 @@ function drawStock() {
     var hs = 1 + b.hoverT * 0.05;
     var ts = ps * hs;
 
+    // Emerging from a Multi Cell Tunnel muzzle: the box travels out of
+    // the barrel into its cell, growing as it clears the bore.
+    var emX = 0, emY = 0;
+    if (b.emergeT > 0) {
+      var ep = 1 - b.emergeT;
+      var eEase = 1 - Math.pow(1 - ep, 2.6);
+      emX = (b.emergeFromX - (b.x + L.bw / 2)) * (1 - eEase);
+      emY = (b.emergeFromY - (b.y + L.bh / 2)) * (1 - eEase);
+      // Overshoot slightly on landing so it lands with some weight
+      ts *= (0.28 + 0.72 * eEase) * (1 + Math.sin(eEase * Math.PI) * 0.12);
+    }
+
     // Empty slot
     if (b.empty) { drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
 
@@ -212,7 +224,7 @@ function drawStock() {
 
     var bt = getBoxType(b.boxType);
     ctx.save();
-    ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2); ctx.scale(ts, ts);
+    ctx.translate(b.x + L.bw / 2 + ox + emX, b.y + L.bh / 2 + emY); ctx.scale(ts, ts);
 
     if (b.revealT > 0) {
       var phase = 1 - b.revealT;

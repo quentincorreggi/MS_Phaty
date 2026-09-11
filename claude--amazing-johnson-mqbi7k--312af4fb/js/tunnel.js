@@ -188,6 +188,12 @@ function makeTunnelSpawnedBox(exitIdx, nextBox) {
     popT: 0.8,
     revealT: 0,
     emptyT: 0,
+    // Emergence animation — the Multi Cell Tunnel fires its boxes out of
+    // a muzzle, so they travel from there into the cell. Left at 0 for a
+    // regular Tunnel, which drops its boxes in place.
+    emergeT: 0,
+    emergeFromX: 0,
+    emergeFromY: 0,
     idlePhase: Math.random() * Math.PI * 2
   };
 }
