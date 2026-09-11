@@ -1,7 +1,7 @@
 {
   "name": "Multi Cell Tunnel",
-  "description": "A Tunnel spin-off that takes two cells and has two mouths fed by one shared stock. Every box you pull from one mouth is a box the other will never deliver.",
-  "howToPlay": "The mushroom holds a single stock of boxes \u2014 the number on its cap. Play the box in front of either mouth and the next box in the stock pushes out on THAT side. Pick a side, tap by tap, and you decide which half of the board gets refilled. When the stock hits zero the mushroom disappears and frees its two cells.",
+  "description": "A Tunnel spin-off that takes two or three cells and has two mouths fed by one shared stock. Every box you pull from one mouth is a box the other will never deliver.",
+  "howToPlay": "The mushroom holds a single stock of boxes \u2014 the number shown on it. Play the box in front of either mouth and the next box in the stock is fired out on THAT side, so you decide which part of the board gets refilled. Three footprints: two cells side by side, two stacked, or an L whose two arms fire at right angles with the counter in the corner cell. When the stock hits zero the mushroom disappears and frees its cells.",
   "author": "Prototype",
   "showcaseLevel": {
     "name": "Two Mouths, One Stock",
@@ -49,7 +49,9 @@
       {
         "mtunnel": true,
         "role": "tail",
-        "orient": "v"
+        "orient": "v",
+        "dr": 1,
+        "dc": 0
       },
       null,
       {
@@ -71,17 +73,15 @@
           {
             "ci": 3,
             "type": "default"
-          },
-          {
-            "ci": 0,
-            "type": "default"
           }
         ]
       },
       {
         "mtunnel": true,
         "role": "tail",
-        "orient": "h"
+        "orient": "h",
+        "dr": 0,
+        "dc": 1
       },
       {
         "ci": 1,
@@ -96,21 +96,53 @@
       },
       null,
       null,
+      {
+        "ci": 1,
+        "type": "default"
+      },
       null,
       null,
       null,
       null,
       null,
       null,
+      {
+        "mtunnel": true,
+        "role": "tail",
+        "orient": "l3",
+        "dr": -1,
+        "dc": 0
+      },
       null,
       null,
       null,
       null,
-      null,
-      null,
-      null,
-      null,
-      null,
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "mtunnel": true,
+        "role": "tail",
+        "orient": "l3",
+        "dr": 0,
+        "dc": -1
+      },
+      {
+        "mtunnel": true,
+        "role": "head",
+        "orient": "l3",
+        "contents": [
+          {
+            "ci": 0,
+            "type": "default"
+          },
+          {
+            "ci": 3,
+            "type": "default"
+          }
+        ]
+      },
       null,
       null,
       null,
