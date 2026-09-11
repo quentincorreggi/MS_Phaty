@@ -18,7 +18,7 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   mtMode: false,        // true when placing multi cell tunnels
-  mtOrient: 'h',        // footprint orientation for new multi cell tunnels
+  mtShape: 'h',         // footprint for new multi cell tunnels
   selectedMT: -1,       // head index of selected multi cell tunnel
   wallMode: false,      // true when placing walls
   visible: false
@@ -38,7 +38,7 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.mtMode = false;
-  editor.mtOrient = 'h';
+  editor.mtShape = 'h';
   editor.selectedMT = -1;
   editor.wallMode = false;
 }
@@ -53,49 +53,46 @@ function editorClearMT(idx) {
     if (editor.grid[idx] && editor.grid[idx].mtunnel) editor.grid[idx] = null;
     return;
   }
-  var tail = mtTailIdx(head, editor.grid[head].orient || 'h', 7);
-  editor.grid[head] = null;
-  if (tail >= 0) editor.grid[tail] = null;
+  var cells = mtCellsOf(head, editor.grid[head].orient || 'h', 7, 7) || [];
+  for (var i = 0; i < cells.length; i++) editor.grid[cells[i].idx] = null;
   if (editor.selectedMT === head) editor.selectedMT = -1;
 }
 
 // Place a mushroom with its head at idx. Returns an error string or null.
-function editorPlaceMT(idx, orient) {
-  var tail = mtTailIdx(idx, orient, 7);
-  if (tail < 0) {
-    return orient === 'v'
-      ? 'Not enough room below — a vertical mushroom needs 2 stacked cells'
-      : 'Not enough room to the right — a horizontal mushroom needs 2 cells';
+// For an L the head is the corner cell, which is the one the player
+// clicks and the one that carries the counter.
+function editorPlaceMT(idx, orient, contents) {
+  var cells = mtCellsOf(idx, orient, 7, 7);
+  if (!cells) return 'The ' + mtShape(orient).label + ' footprint does not fit there';
+
+  // Anything already sitting on any of the cells gives way
+  for (var i = 0; i < cells.length; i++) {
+    editorClearMT(cells[i].idx);
+    editor.grid[cells[i].idx] = null;
+    if (editor.selectedTunnel === cells[i].idx) editor.selectedTunnel = -1;
   }
-  // Anything already sitting on either cell gives way
-  editorClearMT(idx);
-  editorClearMT(tail);
-  editor.grid[idx] = { mtunnel: true, role: 'head', orient: orient, contents: [] };
-  editor.grid[tail] = { mtunnel: true, role: 'tail', orient: orient };
-  if (editor.selectedTunnel === idx || editor.selectedTunnel === tail) editor.selectedTunnel = -1;
+  for (var k = 0; k < cells.length; k++) {
+    var c = cells[k];
+    editor.grid[c.idx] = (k === 0)
+      ? { mtunnel: true, role: 'head', orient: orient, contents: contents || [] }
+      : { mtunnel: true, role: 'tail', orient: orient, dr: c.dr, dc: c.dc };
+  }
   editor.selectedMT = idx;
   return null;
 }
 
-// Re-orient an existing mushroom around its head cell.
-function editorReorientMT(head, orient) {
+// Change an existing mushroom's footprint, keeping its corner cell and
+// its stock.
+function editorReshapeMT(head, orient) {
   var cur = editor.grid[head];
   if (!cur || !cur.mtunnel || cur.role !== 'head') return 'Mushroom not found';
   if ((cur.orient || 'h') === orient) return null;
-  var tail = mtTailIdx(head, orient, 7);
-  if (tail < 0) {
-    return orient === 'v'
-      ? 'No room below to stack the second cell'
-      : 'No room to the right for the second cell';
+  if (!mtCellsOf(head, orient, 7, 7)) {
+    return 'The ' + mtShape(orient).label + ' footprint does not fit there';
   }
-  var oldTail = mtTailIdx(head, cur.orient || 'h', 7);
   var contents = cur.contents || [];
-  if (oldTail >= 0) editor.grid[oldTail] = null;
-  editorClearMT(tail);
-  editor.grid[head] = { mtunnel: true, role: 'head', orient: orient, contents: contents };
-  editor.grid[tail] = { mtunnel: true, role: 'tail', orient: orient };
-  editor.selectedMT = head;
-  return null;
+  editorClearMT(head);
+  return editorPlaceMT(head, orient, contents);
 }
 
 function editorSelectedMTCell() {
@@ -154,8 +151,9 @@ function editorRenderGrid() {
       cell.style.borderColor = '#8A7D6B';
       cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,255,255,0.5);font-size:14px">&#9632;</span>';
     } else if (v && v.mtunnel) {
-      // Multi Cell Tunnel cell — both halves share one look so the
-      // entity reads as continuous, with the counter on the head.
+      // Multi Cell Tunnel cell — every cell of an entity shares one
+      // look so it reads as continuous, the corner carries the counter,
+      // and each mouth cell shows the way it fires.
       var mtHead = mtHeadIdxOfCell(editor.grid, i);
       var mtOrient = v.orient || 'h';
       var mtSel = (mtHead >= 0 && editor.selectedMT === mtHead);
@@ -163,24 +161,37 @@ function editorRenderGrid() {
       cell.style.background = 'linear-gradient(135deg,#E4674C,#A72E1E)';
       cell.style.borderColor = mtSel ? '#FFD080' : '#8E2A1C';
       if (mtSel) cell.style.boxShadow = '0 0 0 2px rgba(255,208,128,0.55)';
-      // Flatten the border on the shared seam so the two cells read as one
-      if (mtOrient === 'h') {
-        if (isHead) { cell.style.borderRightColor = 'transparent'; }
-        else { cell.style.borderLeftColor = 'transparent'; }
-      } else {
-        if (isHead) { cell.style.borderBottomColor = 'transparent'; }
-        else { cell.style.borderTopColor = 'transparent'; }
+      // Flatten the borders on shared seams so the cells read as one body
+      var myDr = isHead ? 0 : (v.dr === undefined ? (mtOrient === 'v' ? 1 : 0) : v.dr);
+      var myDc = isHead ? 0 : (v.dc === undefined ? (mtOrient === 'v' ? 0 : 1) : v.dc);
+      if (mtHead >= 0) {
+        var sib = mtCellsOf(mtHead, mtOrient, 7, 7) || [];
+        for (var sk = 0; sk < sib.length; sk++) {
+          var sd = sib[sk];
+          if (sd.dr === myDr - 1 && sd.dc === myDc) cell.style.borderTopColor = 'transparent';
+          if (sd.dr === myDr + 1 && sd.dc === myDc) cell.style.borderBottomColor = 'transparent';
+          if (sd.dr === myDr && sd.dc === myDc - 1) cell.style.borderLeftColor = 'transparent';
+          if (sd.dr === myDr && sd.dc === myDc + 1) cell.style.borderRightColor = 'transparent';
+        }
       }
-      var mtArrow = MT_MOUTH_ARROW[mtOrient][isHead ? 0 : 1];
-      var mtInner = '<span class="ed-cell-dot" style="font-size:12px">' + mtArrow + '</span>';
+      var mtInner = '';
       if (isHead) {
         var mtCount = v.contents ? v.contents.length : 0;
-        mtInner = '<span class="ed-cell-dot" style="font-size:13px">🍄</span>' +
-          '<span class="ed-mt-badge">' + mtCount + '</span>' +
-          '<span class="ed-mt-arrow ed-mt-arrow-' + (mtOrient === 'h' ? 'l' : 'u') + '">' + mtArrow + '</span>';
+        mtInner += '<span class="ed-cell-dot" style="font-size:13px">\uD83C\uDF44</span>' +
+          '<span class="ed-mt-badge">' + mtCount + '</span>';
       } else {
-        mtInner = '<span class="ed-cell-dot" style="font-size:13px;opacity:0.5">🍄</span>' +
-          '<span class="ed-mt-arrow ed-mt-arrow-' + (mtOrient === 'h' ? 'r' : 'd') + '">' + mtArrow + '</span>';
+        // An arm shows the arrow for its own mouth
+        var mySh = mtShape(mtOrient);
+        var myMouth = null;
+        for (var mk = 0; mk < mySh.cells.length; mk++) {
+          if (mySh.cells[mk].dr === myDr && mySh.cells[mk].dc === myDc) myMouth = mySh.cells[mk].mouth;
+        }
+        if (myMouth) {
+          var cls = myMouth[0] < 0 ? 'u' : myMouth[0] > 0 ? 'd' : myMouth[1] < 0 ? 'l' : 'r';
+          mtInner += '<span class="ed-mt-arrow ed-mt-arrow-' + cls + '">' +
+            mtDirArrow(myMouth[0], myMouth[1]) + '</span>';
+        }
+        mtInner += '<span class="ed-cell-dot" style="font-size:13px;opacity:0.5">\uD83C\uDF44</span>';
       }
       cell.innerHTML = mtInner;
     } else if (v && v.tunnel) {
@@ -220,12 +231,12 @@ function editorCellClick(e) {
       if (editor.activeColor === -1) editorClearMT(idx);
       else {
         editor.selectedMT = mtAt;
-        editor.mtOrient = editor.grid[mtAt].orient || 'h';
+        editor.mtShape = editor.grid[mtAt].orient || 'h';
       }
     } else if (editor.activeColor === -1) {
       editor.grid[idx] = null;
     } else {
-      var err = editorPlaceMT(idx, editor.mtOrient);
+      var err = editorPlaceMT(idx, editor.mtShape);
       if (err) { editorShowToast(err); return; }
     }
     editorRefresh();
@@ -384,25 +395,24 @@ function editorRenderToolbar() {
     mtEraser.addEventListener('click', function () { editor.activeColor = -1; editorRenderToolbar(); });
     mtRow.appendChild(mtEraser);
 
-    var shapes = [
-      { o: 'h', glyph: '\u25AC\u25AC', title: 'Horizontal \u2014 2 cells side by side, mouths left + right' },
-      { o: 'v', glyph: '\u2759\u2759', title: 'Vertical \u2014 2 cells stacked, mouths up + down' }
-    ];
-    for (var sh = 0; sh < shapes.length; sh++) {
+    for (var sh = 0; sh < MT_SHAPE_ORDER.length; sh++) {
+      var sid = MT_SHAPE_ORDER[sh];
+      var shp = MT_SHAPES[sid];
       var sb = document.createElement('button');
-      sb.className = 'ed-tool' + (editor.mtOrient === shapes[sh].o && editor.activeColor !== -1 ? ' active' : '');
+      sb.className = 'ed-tool' + (editor.mtShape === sid && editor.activeColor !== -1 ? ' active' : '');
       sb.style.background = 'linear-gradient(135deg,#E4674C,#A72E1E)';
-      sb.style.fontSize = '13px';
-      sb.style.width = '48px';
-      sb.innerHTML = shapes[sh].glyph;
-      sb.title = shapes[sh].title;
-      sb.setAttribute('data-o', shapes[sh].o);
+      sb.style.fontSize = shp.kind === 'L' ? '17px' : '13px';
+      sb.style.width = '38px';
+      sb.innerHTML = shp.kind === 'L' ? shp.glyph : shp.glyph + shp.glyph;
+      sb.title = shp.label + (shp.kind === 'L'
+        ? ' \u2014 3 cells, corner carries the counter'
+        : ' \u2014 2 cells, mouths back to back');
+      sb.setAttribute('data-o', sid);
       sb.addEventListener('click', function () {
-        editor.mtOrient = this.getAttribute('data-o');
+        editor.mtShape = this.getAttribute('data-o');
         editor.activeColor = 0;
-        var sel = editorSelectedMTCell();
-        if (sel) {
-          var rerr = editorReorientMT(editor.selectedMT, editor.mtOrient);
+        if (editorSelectedMTCell()) {
+          var rerr = editorReshapeMT(editor.selectedMT, editor.mtShape);
           if (rerr) editorShowToast(rerr);
         }
         editorRenderToolbar();
@@ -414,8 +424,12 @@ function editorRenderToolbar() {
 
     var mtHint = document.createElement('div');
     mtHint.className = 'ed-color-row';
-    mtHint.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click a cell to grow a mushroom (it takes that cell + the next one ' +
-      (editor.mtOrient === 'h' ? 'to the right' : 'below') + ')</span>';
+    mtHint.innerHTML = '<span style="font-size:11px;color:#9C8A70">' +
+      (mtIsL(editor.mtShape)
+        ? 'Click the CORNER cell \u2014 the arms grow from it, and the counter lives there'
+        : 'Click a cell \u2014 the mushroom takes that cell plus the next one ' +
+          (editor.mtShape === 'h' ? 'to the right' : 'below')) +
+      '</span>';
     el.appendChild(mtHint);
   } else if (editor.tunnelMode) {
     // Direction selector row
@@ -643,16 +657,28 @@ function editorRenderMTPanel() {
   html += '<div class="ed-section-title"><span class="icon">🍄</span> Mushroom #' + (head + 1) +
     ' — Shape</div>';
   html += '<div class="ed-tunnel-dir-row">';
-  html += '<button class="ed-tunnel-dir-btn' + (orient === 'h' ? ' active' : '') + '" data-o="h">▬ ' + MT_ORIENT_LABEL.h + '</button>';
-  html += '<button class="ed-tunnel-dir-btn' + (orient === 'v' ? ' active' : '') + '" data-o="v">❙ ' + MT_ORIENT_LABEL.v + '</button>';
+  for (var sq = 0; sq < MT_SHAPE_ORDER.length; sq++) {
+    var sqid = MT_SHAPE_ORDER[sq];
+    html += '<button class="ed-tunnel-dir-btn' + (orient === sqid ? ' active' : '') +
+      '" data-o="' + sqid + '" title="' + MT_SHAPES[sqid].label + '">' +
+      MT_SHAPES[sqid].glyph + '</button>';
+  }
   html += '</div>';
 
   // Mouths — the information the whole decision rests on
-  html += '<div class="ed-mt-mouths">' +
-    '<span class="ed-mt-mouth">' + MT_MOUTH_ARROW[orient][0] + ' ' + MT_MOUTH_LABEL[orient][0] + ' mouth</span>' +
-    '<span class="ed-mt-mouth-sep">one shared stock</span>' +
-    '<span class="ed-mt-mouth">' + MT_MOUTH_LABEL[orient][1] + ' mouth ' + MT_MOUTH_ARROW[orient][1] + '</span>' +
-    '</div>';
+  var shapeCells = mtCellsOf(head, orient, 7, 7) || [];
+  var mouthChips = [];
+  for (var mq = 0; mq < shapeCells.length; mq++) {
+    var mm = shapeCells[mq].mouth;
+    if (!mm) continue;
+    mouthChips.push('<span class="ed-mt-mouth">' + mtDirArrow(mm[0], mm[1]) + ' ' +
+      mtDirName(mm[0], mm[1]) + ' mouth</span>');
+  }
+  html += '<div class="ed-mt-mouths">' + mouthChips.join(
+    '<span class="ed-mt-mouth-sep">one shared stock</span>') + '</div>';
+  if (mtIsL(orient)) {
+    html += '<div class="ed-mt-hint">Counter sits in the corner cell, where the two arms meet</div>';
+  }
 
   for (var e = 0; e < v.errors.length; e++) {
     html += '<div class="ed-stat-warn" style="margin:4px 0">' + v.errors[e] + '</div>';
@@ -717,9 +743,9 @@ function editorRenderMTPanel() {
   for (var sb = 0; sb < shapeBtns.length; sb++) {
     shapeBtns[sb].addEventListener('click', function () {
       var o = this.getAttribute('data-o');
-      var err = editorReorientMT(editor.selectedMT, o);
+      var err = editorReshapeMT(editor.selectedMT, o);
       if (err) { editorShowToast(err); return; }
-      editor.mtOrient = o;
+      editor.mtShape = o;
       editorRefresh();
       editorRenderToolbar();
     });
@@ -781,11 +807,11 @@ function editorMTIssues() {
     var c = editor.grid[i];
     if (!c || !c.mtunnel) continue;
     if (c.role !== 'head') {
-      if (mtHeadIdxOfCell(editor.grid, i) < 0) out.push('Mushroom cell ' + (i + 1) + ' has lost its other half');
+      if (mtHeadIdxOfCell(editor.grid, i) < 0) out.push('Mushroom cell ' + (i + 1) + ' has lost the rest of its body');
       continue;
     }
     if (mtHeadIdxOfCell(editor.grid, i) < 0) {
-      out.push('Mushroom #' + (i + 1) + ' has lost its other half');
+      out.push('Mushroom #' + (i + 1) + ' has lost part of its body');
       continue;
     }
     var v = mtValidate(editor.grid, i, c.orient || 'h');
@@ -1023,9 +1049,18 @@ function editorImportJSON() {
           else if (cell.wall) editor.grid[i] = { wall: true };
           else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
           else if (cell.mtunnel) {
-            editor.grid[i] = (cell.role === 'tail')
-              ? { mtunnel: true, role: 'tail', orient: cell.orient || 'h' }
-              : { mtunnel: true, role: 'head', orient: cell.orient || 'h', contents: cell.contents || [] };
+            var mo = cell.orient || 'h';
+            if (cell.role === 'tail') {
+              // Arms written before offsets existed derive theirs from
+              // the straight shapes, which were the only ones then.
+              var adr = cell.dr, adc = cell.dc;
+              if (adr === undefined || adc === undefined) {
+                if (mo === 'v') { adr = 1; adc = 0; } else { adr = 0; adc = 1; }
+              }
+              editor.grid[i] = { mtunnel: true, role: 'tail', orient: mo, dr: adr, dc: adc };
+            } else {
+              editor.grid[i] = { mtunnel: true, role: 'head', orient: mo, contents: cell.contents || [] };
+            }
           }
           else editor.grid[i] = cell;
         }

@@ -44,23 +44,29 @@ function initGame() {
   var wallSlots = {};
   var mtSlots = {};
 
-  // Multi Cell Tunnels are validated as whole entities: a head with no
-  // matching tail (or vice versa) is dropped rather than half-built.
+  // Multi Cell Tunnels are validated as whole entities: a footprint
+  // missing any of its cells is dropped rather than half-built.
   if (lvl.grid) {
     var mtEntities = mtCollect(lvl.grid);
     for (var mi = 0; mi < mtEntities.length; mi++) {
       var ent = mtEntities[mi];
-      if (ent.headIdx >= totalSlots || ent.tailIdx >= totalSlots) continue;
-      mtSlots[ent.headIdx] = {
-        role: 'head', orient: ent.orient,
-        headIdx: ent.headIdx, tailIdx: ent.tailIdx,
-        contents: ent.contents.slice()
-      };
-      mtSlots[ent.tailIdx] = {
-        role: 'tail', orient: ent.orient,
-        headIdx: ent.headIdx, tailIdx: ent.tailIdx,
-        contents: null
-      };
+      var idxs = [], inBounds = true;
+      for (var ci2 = 0; ci2 < ent.cells.length; ci2++) {
+        if (ent.cells[ci2].idx >= totalSlots) { inBounds = false; break; }
+        idxs.push(ent.cells[ci2].idx);
+      }
+      if (!inBounds) continue;
+      for (var ci3 = 0; ci3 < ent.cells.length; ci3++) {
+        var ec = ent.cells[ci3];
+        mtSlots[ec.idx] = {
+          role: ci3 === 0 ? 'head' : 'tail',
+          orient: ent.orient,
+          headIdx: ent.headIdx,
+          cellIdxs: idxs,
+          mouth: ec.mouth,
+          contents: ci3 === 0 ? ent.contents.slice() : null
+        };
+      }
     }
   }
 
@@ -141,7 +147,8 @@ function initGame() {
         mtRole: mSlot.role,
         mtOrient: mSlot.orient,
         mtHeadIdx: mSlot.headIdx,
-        mtTailIdx: mSlot.tailIdx,
+        mtCellIdxs: mSlot.cellIdxs,
+        mtMouth: mSlot.mouth,
         mtContents: mSlot.contents
           ? mSlot.contents.map(function (item) { return { ci: item.ci, type: item.type || 'default' }; })
           : null,
@@ -150,7 +157,8 @@ function initGame() {
         mtCooldown: MTUNNEL_START_COOLDOWN,
         mtPulseT: 0,
         mtLurchT: 0,
-        mtLurchSide: -1,
+        mtLurchDR: 0,
+        mtLurchDC: -1,
         mtVanishT: 0,
         mtPhase: Math.random() * Math.PI * 2,
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
