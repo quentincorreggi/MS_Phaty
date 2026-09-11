@@ -191,6 +191,10 @@ function orientCoverSpine(cv, detIdx) {
 // seam axis ('h' = seam runs left/right, halves part up/down).
 function assignCoverSeams(cv) {
   var sp = cv.spine;
+  var spineSet = {};
+  for (var q = 0; q < sp.length; q++) spineSet[sp[q]] = true;
+
+  // 1. Local seam axis per node
   var axes = [];
   for (var s = 0; s < sp.length; s++) {
     var ref = (s < sp.length - 1) ? sp[s + 1] : (s > 0 ? sp[s - 1] : -1);
@@ -201,18 +205,62 @@ function assignCoverSeams(cv) {
     axes.push(axis);
   }
   cv.spineAxes = axes;
+
+  // 2. Centre each node in the shape's local thickness, so the zip
+  //    always runs down the middle of the form. On an even-sized
+  //    block that middle line falls BETWEEN two rows of cells, so
+  //    the offset is a fraction of a cell, not a whole one.
+  var offs = [];
+  for (var s2 = 0; s2 < sp.length; s2++) {
+    offs.push(coverCentreOffset(cv, sp[s2], axes[s2], spineSet));
+  }
+  // Drop isolated displacements: the end of a thin arm that butts
+  // into a thicker part of the shape would otherwise kink the seam
+  // sideways by a whole cell.
+  var smoothed = offs.slice();
+  for (var s3 = 0; s3 < offs.length; s3++) {
+    if (Math.abs(offs[s3]) < 0.4) continue;
+    var lone = true;
+    if (s3 > 0 && Math.abs(offs[s3 - 1]) >= 0.1) lone = false;
+    if (s3 < offs.length - 1 && Math.abs(offs[s3 + 1]) >= 0.1) lone = false;
+    if (lone) smoothed[s3] = 0;
+  }
+  cv.spineOffs = smoothed;
+
+  // 3. Peel schedule per cell
   cv.seam = {};
   for (var i = 0; i < cv.cells.length; i++) {
     var idx = cv.cells[i];
     var cr = Math.floor(idx / L.cols), cc = idx % L.cols;
     var best = 0, bd = Infinity;
-    for (var s2 = 0; s2 < sp.length; s2++) {
-      var d = Math.abs(Math.floor(sp[s2] / L.cols) - cr) + Math.abs((sp[s2] % L.cols) - cc);
-      if (d < bd) { bd = d; best = s2; }
+    for (var s4 = 0; s4 < sp.length; s4++) {
+      var d = Math.abs(Math.floor(sp[s4] / L.cols) - cr) + Math.abs((sp[s4] % L.cols) - cc);
+      if (d < bd) { bd = d; best = s4; }
     }
     // Cells hanging off the spine peel a beat after it passes.
-    cv.seam[idx] = { s: best + bd * 0.35, axis: axes[best] || 'h' };
+    cv.seam[idx] = { s: best + bd * 0.35, node: best, axis: axes[best] || 'h' };
   }
+}
+
+// How far the seam must shift, in cells, to sit in the middle of the
+// contiguous run of covered cells crossing this node. Returns 0 when
+// another spine node shares that run — there the run is the seam's
+// own direction of travel, not the shape's thickness.
+function coverCentreOffset(cv, idx, axis, spineSet) {
+  var r = Math.floor(idx / L.cols), c = idx % L.cols;
+  var a, b, k;
+  if (axis === 'h') {
+    a = r; b = r;
+    while (a - 1 >= 0 && cv.setMap[(a - 1) * L.cols + c]) a--;
+    while (b + 1 < L.rows && cv.setMap[(b + 1) * L.cols + c]) b++;
+    for (k = a; k <= b; k++) if (k !== r && spineSet[k * L.cols + c]) return 0;
+    return (a + b) / 2 - r;
+  }
+  a = c; b = c;
+  while (a - 1 >= 0 && cv.setMap[r * L.cols + (a - 1)]) a--;
+  while (b + 1 < L.cols && cv.setMap[r * L.cols + (b + 1)]) b++;
+  for (k = a; k <= b; k++) if (k !== c && spineSet[r * L.cols + k]) return 0;
+  return (a + b) / 2 - c;
 }
 
 // The shading runs across the whole pouch, not per cell — a
@@ -303,12 +351,17 @@ function coverStitchPath(rect, inset, radius) {
 }
 
 function coverSpinePoint(cv, s) {
-  var idx = cv.spine[Math.max(0, Math.min(cv.spine.length - 1, s))];
+  var si = Math.max(0, Math.min(cv.spine.length - 1, s));
+  var idx = cv.spine[si];
   var r = Math.floor(idx / L.cols), c = idx % L.cols;
-  return {
-    x: L.sx + c * (L.bw + L.bg) + L.bw / 2,
-    y: L.sy + r * (L.bh + L.bg) + L.bh / 2
-  };
+  var x = L.sx + c * (L.bw + L.bg) + L.bw / 2;
+  var y = L.sy + r * (L.bh + L.bg) + L.bh / 2;
+  // Shift perpendicular to the seam so it lands on the shape's
+  // middle rather than on a row of cell centres.
+  var off = cv.spineOffs ? cv.spineOffs[si] : 0;
+  if (cv.spineAxes && cv.spineAxes[si] === 'v') x += off * (L.bw + L.bg);
+  else y += off * (L.bh + L.bg);
+  return { x: x, y: y };
 }
 
 function coverSpinePointF(cv, f) {
@@ -459,29 +512,49 @@ function coverEachPiece(cv, idx, head, fn) {
   var seam = cv.seam[idx];
   var w = rect.x1 - rect.x0, h = rect.y1 - rect.y0;
   var margin = 8 * S;
-  var halves = (local <= 0)
-    ? [null]
-    : (seam.axis === 'h' ? ['top', 'bottom'] : ['left', 'right']);
-  var slide = local * (seam.axis === 'h' ? h : w) * 0.5;
+  var pieces = [];
 
-  for (var k = 0; k < halves.length; k++) {
-    var half = halves[k], dx = 0, dy = 0;
-    if (half === 'top') dy = -slide;
-    else if (half === 'bottom') dy = slide;
-    else if (half === 'left') dx = -slide;
-    else if (half === 'right') dx = slide;
+  if (local <= 0) {
+    pieces.push({ x: rect.x0 - margin, y: rect.y0 - margin,
+      w: w + margin * 2, h: h + margin * 2, dx: 0, dy: 0 });
+  } else {
+    // Split the cell where the seam really crosses it. A cell the
+    // seam misses entirely lifts away whole, on its own side of it.
+    var sp = coverSpinePoint(cv, seam.node);
+    if (seam.axis === 'h') {
+      var cut = Math.max(rect.y0, Math.min(rect.y1, sp.y));
+      var slideY = local * h * 0.6;
+      if (cut - rect.y0 > 0.5) {
+        pieces.push({ x: rect.x0 - margin, y: rect.y0 - margin,
+          w: w + margin * 2, h: (cut - rect.y0) + margin, dx: 0, dy: -slideY });
+      }
+      if (rect.y1 - cut > 0.5) {
+        pieces.push({ x: rect.x0 - margin, y: cut,
+          w: w + margin * 2, h: (rect.y1 - cut) + margin, dx: 0, dy: slideY });
+      }
+    } else {
+      var cutX = Math.max(rect.x0, Math.min(rect.x1, sp.x));
+      var slideX = local * w * 0.6;
+      if (cutX - rect.x0 > 0.5) {
+        pieces.push({ x: rect.x0 - margin, y: rect.y0 - margin,
+          w: (cutX - rect.x0) + margin, h: h + margin * 2, dx: -slideX, dy: 0 });
+      }
+      if (rect.x1 - cutX > 0.5) {
+        pieces.push({ x: cutX, y: rect.y0 - margin,
+          w: (rect.x1 - cutX) + margin, h: h + margin * 2, dx: slideX, dy: 0 });
+      }
+    }
+  }
 
+  for (var k = 0; k < pieces.length; k++) {
+    var p = pieces[k];
     ctx.save();
     ctx.globalAlpha = 1 - local * local;
     // Translate first, then clip, so the clip window travels with
-    // the half and the piece is never cut off mid-slide.
-    ctx.translate(dx, dy);
+    // the piece and it is never cut off mid-slide.
+    ctx.translate(p.dx, p.dy);
     ctx.beginPath();
-    if (half === 'top') ctx.rect(rect.x0 - margin, rect.y0 - margin, w + margin * 2, h / 2 + margin);
-    else if (half === 'bottom') ctx.rect(rect.x0 - margin, rect.y0 + h / 2, w + margin * 2, h / 2 + margin);
-    else if (half === 'left') ctx.rect(rect.x0 - margin, rect.y0 - margin, w / 2 + margin, h + margin * 2);
-    else if (half === 'right') ctx.rect(rect.x0 + w / 2, rect.y0 - margin, w / 2 + margin, h + margin * 2);
-    else ctx.rect(rect.x0 - margin, rect.y0 - margin, w + margin * 2, h + margin * 2);
+    ctx.rect(p.x, p.y, p.w, p.h);
     ctx.clip();
     fn(rect);
     ctx.restore();
