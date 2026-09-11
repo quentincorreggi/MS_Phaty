@@ -1,8 +1,8 @@
 {
   "name": "Multi Cell Tunnel",
-  "description": "A Tunnel spin-off that takes two or three cells and has two mouths fed by one shared stock. Every box you pull from one mouth is a box the other will never deliver.",
-  "howToPlay": "The mushroom holds a single stock of boxes \u2014 the number shown on it. Play the box in front of either mouth and the next box in the stock is fired out on THAT side, so you decide which part of the board gets refilled. Three footprints: two cells side by side, two stacked, or an L whose two arms fire at right angles with the counter in the corner cell. When the stock hits zero the mushroom disappears and frees its cells.",
-  "author": "Prototype",
+  "description": "A Tunnel spin-off shaped like a mushroom: it takes two or three cells and has two mouths instead of one, both fed by a single shared stock of boxes. Every box you pull from one mouth is a box the other will never deliver, so where the board refills becomes a decision you own.",
+  "howToPlay": "The number on the mushroom is the stock still inside it. Play the box in front of either mouth and the next box in that single stock is fired out on THAT side \u2014 so tap by tap you choose which part of the board gets refilled. The mushroom is opaque: you pick a side without knowing the colour, betting on position. Three footprints are in the showcase: two cells side by side, two stacked, and an L whose two arms fire at right angles with the counter in the corner cell. When the stock hits zero the mushroom disappears and frees its cells.",
+  "author": "Louis Reyniers",
   "showcaseLevel": {
     "name": "Two Mouths, One Stock",
     "desc": "Choose which side gets fed",
