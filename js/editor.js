@@ -17,8 +17,16 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  coverMode: false,     // true when painting Cover cells
+  detMode: false,       // true when flagging Zip Boxes
+  activeGroup: 1,       // 0 = eraser, 1-3 = Cover/Zip Box group
   visible: false
 };
+
+// A cell that holds nothing but a Cover is really an empty cell
+function edCellIsCoverOnly(cell) {
+  return !!cell && !cell.wall && !cell.tunnel && !(cell.ci >= 0);
+}
 
 function editorInit() {
   editor.grid = [];
@@ -34,6 +42,9 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.coverMode = false;
+  editor.detMode = false;
+  editor.activeGroup = 1;
 }
 
 function showEditor(fresh) {
@@ -95,6 +106,21 @@ function editorRenderGrid() {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
     }
+    // ── Cover / Zip Box overlays. In game the Cover is opaque; in
+    //    the editor it is a translucent wash so the level designer
+    //    can still see what is being gated.
+    if (v && v.cover) {
+      var cg = getDetGroup(v.cover);
+      cell.style.borderColor = cg.dark;
+      cell.innerHTML += '<span class="ed-cover-wash" style="background:' + cg.fabric +
+        ';box-shadow:inset 0 0 0 2px ' + cg.deep + '"></span>' +
+        '<span class="ed-cover-badge" style="background:' + cg.deep + '">' + v.cover + '</span>';
+    }
+    if (v && v.detonator) {
+      var dg = getDetGroup(v.detonator);
+      cell.innerHTML += '<span class="ed-det-badge" style="background:' + dg.fabric +
+        ';border-color:' + dg.deep + '">' + v.detonator + '</span>';
+    }
     cell.setAttribute('data-idx', i);
     cell.addEventListener('click', editorCellClick);
     cell.addEventListener('contextmenu', editorCellErase);
@@ -104,6 +130,47 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.coverMode) {
+    // Cover painting: free-form, cell by cell, on top of anything
+    var cvCell = editor.grid[idx];
+    if (editor.activeGroup === 0) {
+      if (cvCell && cvCell.cover) {
+        delete cvCell.cover;
+        if (edCellIsCoverOnly(cvCell)) editor.grid[idx] = null;
+      }
+    } else if (!cvCell) {
+      editor.grid[idx] = { cover: editor.activeGroup };
+    } else if (cvCell.cover === editor.activeGroup) {
+      delete cvCell.cover;
+      if (edCellIsCoverOnly(cvCell)) editor.grid[idx] = null;
+    } else {
+      cvCell.cover = editor.activeGroup;
+    }
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderTunnelPanel();
+    return;
+  }
+
+  if (editor.detMode) {
+    // Zip Box flag: a box property, like Lock's key flag
+    var dCell = editor.grid[idx];
+    if (editor.activeGroup === 0) {
+      if (dCell && dCell.detonator) delete dCell.detonator;
+    } else if (!dCell || dCell.wall || dCell.tunnel || !(dCell.ci >= 0)) {
+      editorShowToast('A Zip Box must sit on a box');
+      return;
+    } else if (dCell.detonator === editor.activeGroup) {
+      delete dCell.detonator;
+    } else {
+      dCell.detonator = editor.activeGroup;
+    }
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderTunnelPanel();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -164,6 +231,23 @@ function editorCellErase(e) {
   editorRenderTunnelPanel();
 }
 
+// ── Paint modes ──
+function editorPaintMode() {
+  if (editor.coverMode) return 'cover';
+  if (editor.detMode) return 'det';
+  if (editor.tunnelMode) return 'tunnel';
+  if (editor.wallMode) return 'wall';
+  return 'box';
+}
+
+function editorSetMode(mode) {
+  editor.coverMode = (mode === 'cover');
+  editor.detMode = (mode === 'det');
+  editor.tunnelMode = (mode === 'tunnel');
+  editor.wallMode = (mode === 'wall');
+  if ((mode === 'cover' || mode === 'det') && !editor.activeGroup) editor.activeGroup = 1;
+}
+
 // ── Toolbar: mode toggle + type selector + color/direction palette ──
 function editorRenderToolbar() {
   var el = document.getElementById('ed-toolbar');
@@ -178,13 +262,12 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (editorPaintMode() === 'box' && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
-      editor.tunnelMode = false;
-      editor.wallMode = false;
+      editorSetMode('box');
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -198,8 +281,7 @@ function editorRenderToolbar() {
   wallBtn.style.borderColor = editor.wallMode ? 'rgba(138,125,107,0.6)' : '';
   wallBtn.style.color = editor.wallMode ? '#6F6355' : '';
   wallBtn.addEventListener('click', function () {
-    editor.wallMode = true;
-    editor.tunnelMode = false;
+    editorSetMode('wall');
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -212,8 +294,7 @@ function editorRenderToolbar() {
   tunnelBtn.style.borderColor = editor.tunnelMode ? 'rgba(255,190,80,0.6)' : '';
   tunnelBtn.style.color = editor.tunnelMode ? '#E8A84C' : '';
   tunnelBtn.addEventListener('click', function () {
-    editor.tunnelMode = true;
-    editor.wallMode = false;
+    editorSetMode('tunnel');
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -221,7 +302,72 @@ function editorRenderToolbar() {
 
   el.appendChild(typeRow);
 
-  if (editor.tunnelMode) {
+  // \u2500\u2500 Detonator Box row: paint a Cover, or flag its Zip Box \u2500\u2500
+  var zipRow = document.createElement('div');
+  zipRow.className = 'ed-type-row';
+  var g1 = getDetGroup(editor.activeGroup || 1);
+
+  var coverBtn = document.createElement('button');
+  coverBtn.className = 'ed-type-btn' + (editor.coverMode ? ' active' : '');
+  coverBtn.textContent = '\u2591 Cover';
+  coverBtn.style.borderColor = editor.coverMode ? g1.dark : '';
+  coverBtn.style.color = editor.coverMode ? g1.dark : '';
+  coverBtn.addEventListener('click', function () {
+    editorSetMode('cover');
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  zipRow.appendChild(coverBtn);
+
+  var detBtn = document.createElement('button');
+  detBtn.className = 'ed-type-btn' + (editor.detMode ? ' active' : '');
+  detBtn.textContent = '\u2B0D Zip Box';
+  detBtn.style.borderColor = editor.detMode ? g1.dark : '';
+  detBtn.style.color = editor.detMode ? g1.dark : '';
+  detBtn.addEventListener('click', function () {
+    editorSetMode('det');
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  zipRow.appendChild(detBtn);
+  el.appendChild(zipRow);
+
+  if (editor.coverMode || editor.detMode) {
+    // Group palette: eraser + the 3 pair colours
+    var groupRow = document.createElement('div');
+    groupRow.className = 'ed-color-row';
+    var gEraser = document.createElement('button');
+    gEraser.className = 'ed-tool' + (editor.activeGroup === 0 ? ' active' : '');
+    gEraser.style.background = 'rgba(180,165,145,0.5)';
+    gEraser.innerHTML = '\u2716';
+    gEraser.title = 'Remove';
+    gEraser.addEventListener('click', function () { editor.activeGroup = 0; editorRenderToolbar(); });
+    groupRow.appendChild(gEraser);
+    for (var gi = 1; gi <= DET_GROUP_COUNT; gi++) {
+      var grp = getDetGroup(gi);
+      var gb = document.createElement('button');
+      gb.className = 'ed-tool' + (editor.activeGroup === gi ? ' active' : '');
+      gb.style.background = 'linear-gradient(135deg,' + grp.light + ',' + grp.dark + ')';
+      gb.innerHTML = String(gi);
+      gb.title = 'Pair ' + gi + ' (' + grp.name + ')';
+      gb.setAttribute('data-g', gi);
+      gb.addEventListener('click', function () {
+        editor.activeGroup = parseInt(this.getAttribute('data-g'));
+        editorRenderToolbar();
+      });
+      groupRow.appendChild(gb);
+    }
+    el.appendChild(groupRow);
+
+    var hint = document.createElement('div');
+    hint.className = 'ed-color-row';
+    hint.innerHTML = '<span style="font-size:10px;color:#9C8A70;text-align:center">' +
+      (editor.coverMode
+        ? 'Paint any contiguous shape \u00B7 min 2 cells \u00B7 needs 1+ box under it'
+        : 'Tap a box to make it the trigger \u00B7 one Zip Box per Cover') +
+      '</span>';
+    el.appendChild(hint);
+  } else if (editor.tunnelMode) {
     // Direction selector row
     var dirRow = document.createElement('div');
     dirRow.className = 'ed-color-row';
@@ -453,9 +599,12 @@ function editorUpdateStats() {
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
   var wallCount = 0;
+  var coverCells = 0, coverGroupsSeen = {}, detCount = 0;
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
+    if (v.cover) { coverCells++; coverGroupsSeen[v.cover] = true; }
+    if (v.detonator) detCount++;
     if (v.wall) {
       wallCount++;
       continue;
@@ -506,6 +655,13 @@ function editorUpdateStats() {
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
   }
+  var coverGroupCount = 0;
+  for (var cg in coverGroupsSeen) coverGroupCount++;
+  if (coverGroupCount > 0 || detCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:' + getDetGroup(1).fabric + '">' +
+      coverGroupCount + ' cover' + (coverGroupCount === 1 ? '' : 's') +
+      ' (' + coverCells + ' cells) · ' + detCount + ' zip</span>';
+  }
   for (var c = 0; c < NUM_COLORS; c++) {
     if (counts[c] > 0) html += '<span class="ed-stat-chip" style="background:' + COLORS[c].fill + '">' + counts[c] + '</span>';
   }
@@ -527,6 +683,15 @@ function editorUpdateStats() {
     }
   }
   if (warn) html += '<span class="ed-stat-warn">' + warn + '</span>';
+
+  // ── Cover / Zip Box solvability. The mechanic has no runtime
+  //    safeguard by design, so every unresolvable configuration is
+  //    caught here instead, the same way a Panel counter set too
+  //    high would be.
+  var zipWarnings = validateDetonatorSetup(editor.grid, 7, 7);
+  for (var zw = 0; zw < zipWarnings.length; zw++) {
+    html += '<span class="ed-stat-warn">' + zipWarnings[zw] + '</span>';
+  }
   el.innerHTML = html;
 }
 
@@ -617,9 +782,13 @@ function editorImportJSON() {
           var cell = lvl.grid[i];
           if (cell === null || cell === undefined || cell === -1) editor.grid[i] = null;
           else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
-          else if (cell.wall) editor.grid[i] = { wall: true };
-          else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
-          else editor.grid[i] = cell;
+          else if (cell.wall) {
+            editor.grid[i] = { wall: true };
+            if (cell.cover) editor.grid[i].cover = cell.cover;
+          } else if (cell.tunnel) {
+            editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
+            if (cell.cover) editor.grid[i].cover = cell.cover;
+          } else editor.grid[i] = cell;
         }
       }
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;

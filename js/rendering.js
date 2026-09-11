@@ -6,6 +6,8 @@
 // Ice overlay is drawn on top of revealed boxes with iceHP > 0.
 // Tunnel entries are drawn via drawTunnelOnGrid.
 // Wall cells are drawn via drawWallOnGrid.
+// Zip Box frames are drawn via drawDetonatorBoxOverlay (cover.js);
+// Covers themselves draw on top of the whole grid via drawCovers.
 // ============================================================
 
 function rRect(x, y, w, h, r) {
@@ -244,6 +246,13 @@ function drawStock() {
       if (iceType && iceType.drawIceOverlay) {
         iceType.drawIceOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, b.iceHP, tick);
       }
+    }
+
+    // Zip Box: a fabric frame + slider over whatever the box type
+    // drew, so box variant, box colour and slider all stay legible.
+    if (b.detGroup) {
+      drawDetonatorBoxOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S,
+        b.detGroup, tick, b, isBoxTappable(i));
     }
 
     if (b.iceShatterT > 0) {

@@ -24,7 +24,25 @@ var sfx = {
   drop: function () { tone(400, 0.08, 'sine', 0.04, 200); },
   sort: function () { tone(600, 0.1, 'triangle', 0.1); setTimeout(function () { tone(900, 0.1, 'triangle', 0.1); }, 80); },
   complete: function () { [523, 659, 784, 1047].forEach(function (f, i) { setTimeout(function () { tone(f, 0.2, 'sine', 0.1); }, i * 90); }); },
-  win: function () { [523, 659, 784, 1047, 1319, 1568].forEach(function (f, i) { setTimeout(function () { tone(f, 0.25, 'sine', 0.12); }, i * 100); }); }
+  win: function () { [523, 659, 784, 1047, 1319, 1568].forEach(function (f, i) { setTimeout(function () { tone(f, 0.25, 'sine', 0.12); }, i * 100); }); },
+
+  // ── Zip cues (Detonator Box) ──
+  // The slider catching: a short pull-start click, layered under
+  // the box's normal release sound without masking it.
+  zipPull: function () { tone(1500, 0.05, 'square', 0.04, 950); },
+  // The zip run: dry, unmistakable, and a FIXED length so it never
+  // desyncs from the unzip animation on a large Cover.
+  zipRun: function () {
+    var n = 16;
+    for (var i = 0; i < n; i++) {
+      (function (k) {
+        setTimeout(function () {
+          tone(1050 + k * 48, 0.028, 'square', 0.026 * (1 - k / (n * 1.7)), 720 + k * 32);
+        }, k * 34);
+      })(i);
+    }
+  },
+  zipDone: function () { tone(520, 0.18, 'triangle', 0.085, 880); }
 };
 
 function spawnMarbleClick(intensity) {

@@ -42,10 +42,15 @@ function initGame() {
   var boxSlots = {};
   var tunnelSlots = {};
   var wallSlots = {};
+  var coverSlots = {};   // cell idx -> cover group 1..3
+  var detSlots = {};     // cell idx -> Zip Box group 1..3
   if (lvl.grid) {
     for (var i = 0; i < Math.min(lvl.grid.length, totalSlots); i++) {
       var cell = lvl.grid[i];
       if (cell === null || cell === undefined) continue;
+      // Cover / Zip Box flags ride on top of whatever the cell is
+      if (cell.cover) coverSlots[i] = cell.cover;
+      if (cell.detonator) detSlots[i] = cell.detonator;
       if (cell.wall) {
         wallSlots[i] = true;
         continue;
@@ -95,6 +100,8 @@ function initGame() {
     var slot = boxSlots[idx];
     var tSlot = tunnelSlots[idx];
     var wSlot = wallSlots[idx];
+    var cGroup = coverSlots[idx] || 0;
+    var dGroup = detSlots[idx] || 0;
 
     if (tSlot) {
       // Tunnel entry
@@ -108,6 +115,7 @@ function initGame() {
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        coverGroup: cGroup, detGroup: 0, detPullT: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
@@ -118,6 +126,7 @@ function initGame() {
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: false, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        coverGroup: cGroup, detGroup: 0, detPullT: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
@@ -125,6 +134,7 @@ function initGame() {
       stock.push({ ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        coverGroup: cGroup, detGroup: 0, detPullT: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
     } else {
@@ -136,11 +146,15 @@ function initGame() {
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        coverGroup: cGroup, detGroup: dGroup, detPullT: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
     }
   }
+
+  // ── Group the painted cover cells into Covers (one per group) ──
+  buildCovers();
 
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
@@ -168,8 +182,9 @@ function initGame() {
 // edge of the grid. Passable cells are:
 //   • empty slots
 //   • used-up boxes
-// Walls, active (non-used) boxes, and tunnels (even depleted ones)
-// all block the path. If the path closes, the box closes itself.
+// Walls, active (non-used) boxes, tunnels (even depleted ones) and
+// cells under an in-place Cover all block the path. If the path
+// closes, the box closes itself.
 function updateBoxReveals(animate) {
   if (!stock || stock.length === 0) return;
   if (!L || !L.rows || !L.cols) return;
@@ -182,6 +197,8 @@ function updateBoxReveals(animate) {
     if (!s) { passable[i] = false; continue; }
     if (s.isWall) { passable[i] = false; continue; }
     if (s.isTunnel) { passable[i] = false; continue; }
+    // A Cover physically seals its cells — no route runs under it.
+    if (isCoverActive(s.coverGroup)) { passable[i] = false; continue; }
     passable[i] = !!(s.empty || s.used);
   }
 
@@ -222,6 +239,8 @@ function updateBoxReveals(animate) {
     if (!b) continue;
     if (b.isWall || b.isTunnel || b.empty || b.used) continue;
     if (b.spawning) continue;
+    // Under a Cover: inaccessible and unknown until it unzips
+    if (isCoverActive(b.coverGroup)) { b.revealed = false; b.revealT = 0; continue; }
 
     var br = Math.floor(k / L.cols), bcol = k % L.cols;
     var hasPath = false;
@@ -274,6 +293,7 @@ function damageAdjacentIce(idx) {
   for (var ni = 0; ni < neighbors.length; ni++) {
     var nb = stock[neighbors[ni]];
     if (nb.isTunnel || nb.isWall) continue;  // tunnels and walls don't have ice
+    if (isCoverActive(nb.coverGroup)) continue;  // sealed under a Cover
     if (nb.empty || nb.used || nb.iceHP <= 0) continue;
 
     nb.iceHP--;
@@ -315,6 +335,7 @@ function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
   if (b.isWall) return false;      // walls are not tappable
+  if (isCoverActive(b.coverGroup)) return false;   // sealed under a Cover
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
@@ -328,6 +349,10 @@ function handleTap(px, py) {
   if (won || !gameActive) return;
   ensureAudio();
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
+  // A Cover absorbs every tap on its footprint — the boxes under it
+  // aren't even visible, so this is the generic invalid-tap cue.
+  var hitCover = coverHitTest(px, py);
+  if (hitCover) { hitCover.shakeT = 0.5; return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
@@ -339,6 +364,8 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      // Same tap: the marbles go out AND the linked Cover unzips
+      triggerDetonator(i);
       return;
     }
   }
@@ -373,6 +400,9 @@ function update() {
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
+
+  // ── Cover unzip sweeps ──
+  updateCovers();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -475,6 +505,8 @@ function update() {
     if (b.emptyT > 0) b.emptyT = Math.max(0, b.emptyT - 0.025);
     if (b.iceCrackT > 0) b.iceCrackT = Math.max(0, b.iceCrackT - 0.03);
     if (b.iceShatterT > 0) b.iceShatterT = Math.max(0, b.iceShatterT - 0.025);
+    // Zip Box slider pull runs one way, 0 -> 1, and stays there
+    if (b.detPullT > 0 && b.detPullT < 1) b.detPullT = Math.min(1, b.detPullT + 0.035);
     var th = (i === hoverIdx && !b.used && isBoxTappable(i)) ? 1 : 0;
     b.hoverT += (th - b.hoverT) * 0.12;
   }
@@ -545,6 +577,7 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    drawCovers();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();

@@ -33,7 +33,7 @@ You can also use these commands:
 ### Tech Stack
 - Vanilla JavaScript, HTML5 Canvas, Web Audio API
 - No dependencies, no build step — runs directly in browser via `index.html`
-- ~3300 lines across 17 JS files
+- ~4200 lines across 18 JS files
 
 ### File Map
 
@@ -53,6 +53,7 @@ You can also use these commands:
 | `js/belt.js` | Belt slot init, position helpers (`getSlotPos`, `getSlotT`) | 37 |
 | `js/tunnel.js` | Tunnel mechanic — hidden box queue, spawns into adjacent cell | 219 |
 | `js/wall.js` | Wall cell — inert structural blocker | 96 |
+| `js/cover.js` | Detonator Box — free-form zipped Cover + its Zip Box trigger | 914 |
 | `js/editor.js` | Level editor UI — grid painting, toolbar, import/export JSON | 653 |
 | `js/particles.js` | Particle effects (bursts, confetti) | 42 |
 | `js/audio.js` | Sound effects via Web Audio API | 62 |
@@ -72,9 +73,10 @@ correct position:
 7. `physics.js` — marble physics
 8. `tunnel.js` — tunnel mechanic
 9. `wall.js` — wall mechanic
-10. `rendering.js` — all drawing code
-11. `editor.js` — level editor
-12. `game.js` — game loop, init, boot (must be last)
+10. `cover.js` — Detonator Box mechanic (Cover + Zip Box)
+11. `rendering.js` — all drawing code
+12. `editor.js` — level editor
+13. `game.js` — game loop, init, boot (must be last)
 
 **Rule: New box type files go AFTER `registry.js` and BEFORE `calibration.js`.**
 **Rule: New mechanic files go AFTER `belt.js` and BEFORE `rendering.js`.**
@@ -153,6 +155,17 @@ level's `grid` array (49 = 7x7) is:
 - `{ ci: 0-7, type: 'default'|'hidden'|'ice'|'blocker' }` — box
 - `{ tunnel: true, dir: 'top'|'bottom'|'left'|'right', contents: [{ci, type}...] }` — tunnel
 - `{ wall: true }` — wall
+
+Two Detonator Box flags ride on top of any of the above (see `js/cover.js`):
+- `cover: 1|2|3` — this cell is under the Cover of that group. Painted cell by
+  cell, so a Cover can be any orthogonally contiguous shape. A cell holding
+  only `{ cover: n }` is an empty slot under a Cover. Covered cells are
+  opaque, untappable, and impassable for the path-to-bottom reveal rule.
+- `detonator: 1|2|3` — this box is the Zip Box for that group. One per group.
+  Tapping it releases its marbles as normal AND unzips its Cover in the same
+  tap. Works on any box variant. `validateDetonatorSetup()` warns in the
+  editor about unresolvable setups (split Cover, no box underneath, Zip Box
+  under its own Cover, circular gating, unreachable Zip Box).
 
 ## How to Add a New Box Type
 

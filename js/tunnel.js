@@ -151,6 +151,7 @@ function isTileAvailableForTunnel(idx) {
   // Must be an empty slot or a fully-used box (not a tunnel, not an active box, not a wall)
   if (s.isTunnel) return false;
   if (s.isWall) return false;  // walls block tunnel spawning
+  if (isCoverActive(s.coverGroup)) return false;  // sealed under a Cover
   return s.empty || s.used;
 }
 
@@ -195,6 +196,9 @@ function trySpawnFromTunnels() {
       blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
       isTunnel: false,
       isWall: false,
+      coverGroup: stock[exitIdx].coverGroup || 0,
+      detGroup: 0,
+      detPullT: 0,
       x: L.sx + exitCol * (L.bw + L.bg),
       y: L.sy + exitRow * (L.bh + L.bg),
       shakeT: 0,

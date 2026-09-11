@@ -162,6 +162,18 @@
     display:flex;align-items:center;justify-content:center}
   .ed-tunnel-add-clr:hover{transform:scale(1.15);border-color:rgba(255,255,255,0.7)}
   .ed-tunnel-add-clr:active{transform:scale(0.9)}
+
+  /* ═══ COVER / ZIP BOX (Detonator) ═══ */
+  /* In game the Cover is opaque. In the editor it is translucent so
+     the level designer can see the shape and what it gates. */
+  .ed-cover-wash{position:absolute;left:0;top:0;right:0;bottom:0;border-radius:4px;
+    pointer-events:none;opacity:0.72}
+  .ed-cover-badge{position:absolute;top:-4px;left:-4px;color:#fff;font-size:8px;font-weight:700;
+    min-width:14px;height:14px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+    pointer-events:none;text-shadow:0 1px 1px rgba(0,0,0,0.3)}
+  .ed-det-badge{position:absolute;bottom:-4px;right:-4px;color:#fff;font-size:8px;font-weight:700;
+    min-width:14px;height:14px;border-radius:5px;display:flex;align-items:center;justify-content:center;
+    pointer-events:none;border:1.5px solid;text-shadow:0 1px 1px rgba(0,0,0,0.3)}
 </style>
 </head>
 <body>
@@ -267,6 +279,7 @@
 <script src="js/physics.js"></script>
 <script src="js/tunnel.js"></script>
 <script src="js/wall.js"></script>
+<script src="js/cover.js"></script>
 <script src="js/rendering.js"></script>
 <script src="js/editor.js"></script>
 <script src="js/game.js"></script>
