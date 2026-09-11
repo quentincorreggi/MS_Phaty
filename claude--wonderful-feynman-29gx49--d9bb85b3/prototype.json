@@ -2,7 +2,7 @@
   "name": "Detonator/Zip!",
   "description": "A fabric Cover seals off part of the maze, painted free-form cell by cell. One box elsewhere carries the zip slider — tapping it releases its marbles AND unzips the Cover in the same action. No counter, no waiting: you choose when.",
   "howToPlay": "At the start only the blue boxes along the bottom edge can be tapped. Dig through them to reach the blue box carrying the purple slider — tap it and the purple Cover unzips off the 3x2 block in the bottom-left corner. Dig down that block to reach the yellow box on the left edge carrying the teal slider — tap it and the teal Cover unzips off the whole top bar and the arm running down the right side. The catch both times: the trigger box dumps its own marbles onto the belt at the very moment you spend it, so the only question is when.",
-  "author": "Prototype",
+  "author": "Louis Reyniers",
   "showcaseLevel": {
     "name": "Detonator/Zip!",
     "desc": "Two zip pairs, opened in sequence",
