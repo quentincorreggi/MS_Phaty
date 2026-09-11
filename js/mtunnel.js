@@ -30,10 +30,13 @@
 var MTUNNEL_SPAWN_COOLDOWN = 40;   // ticks between spawns, per mouth
 var MTUNNEL_START_COOLDOWN = 60;   // grace period at level start
 var MTUNNEL_VANISH_SPEED = 0.022;  // ~45 frames for the disappearance
+var MTUNNEL_LURCH_SPEED = 0.045;   // ~22 frames for the spit-out heave
+var MTUNNEL_EMERGE_SPEED = 0.055;  // ~18 frames for a box to clear the muzzle
+var MTUNNEL_MUZZLE_T = 0.52;       // muzzle position between the two cell centres
 var MTUNNEL_MAX_STOCK = 6;         // hard limit, same family as Tunnel
 var MTUNNEL_SOFT_STOCK = 4;        // recommended stock
 
-var MT_CAP = { light: '#F0785F', fill: '#D6472E', dark: '#95281A' };
+var MT_CAP = { light: '#F58C70', fill: '#DE4E33', dark: '#A0301F' };
 var MT_STEM = { light: '#FCF3E0', fill: '#EDDCBB', dark: '#C0A87E' };
 
 var MT_ORIENT_LABEL = { h: 'Horizontal', v: 'Vertical' };
@@ -142,6 +145,7 @@ function updateMultiTunnels() {
     s = stock[i];
     if (!s || !s.isMTunnel) continue;
     if (s.mtPulseT > 0) s.mtPulseT = Math.max(0, s.mtPulseT - 0.05);
+    if (s.mtLurchT > 0) s.mtLurchT = Math.max(0, s.mtLurchT - MTUNNEL_LURCH_SPEED);
   }
 
   // 2. Each mouth serves itself from the shared stock
@@ -167,19 +171,36 @@ function updateMultiTunnels() {
 
     stock[exitIdx] = makeTunnelSpawnedBox(exitIdx, nextBox);
 
-    // Push-out feedback: particles slide from the mouth to the cell
     var side = (s.mtRole === 'head') ? -1 : 1;
+
+    // The mushroom heaves toward the barrel that fired, as if it were
+    // spitting the box out from inside itself.
+    head.mtLurchT = 1;
+    head.mtLurchSide = side;
+
+    // The box comes OUT OF THE MUZZLE: it starts small, at the end of
+    // the barrel, and travels into its cell.
     var mx = s.x + L.bw / 2, my = s.y + L.bh / 2;
     var ex = stock[exitIdx].x + L.bw / 2, ey = stock[exitIdx].y + L.bh / 2;
-    spawnBurst(mx, my, '#FFD9A0', 8);
-    spawnBurst(ex, ey, '#FFD080', 10);
-    for (var p = 0; p < 6; p++) {
-      var f = p / 6;
+    var muzX = mx + (ex - mx) * MTUNNEL_MUZZLE_T;
+    var muzY = my + (ey - my) * MTUNNEL_MUZZLE_T;
+    stock[exitIdx].emergeT = 1;
+    stock[exitIdx].emergeFromX = muzX;
+    stock[exitIdx].emergeFromY = muzY;
+    stock[exitIdx].popT = 0;   // the emergence is the entrance
+
+    // Muzzle puff, thrown along the barrel's line of fire
+    spawnBurst(muzX, muzY, '#FFE7B0', 7);
+    var dx = ex - mx, dy = ey - my;
+    var dl = Math.sqrt(dx * dx + dy * dy) || 1;
+    for (var p = 0; p < 8; p++) {
+      var spd = (1.2 + Math.random() * 2.6) * S;
       particles.push({
-        x: mx + (ex - mx) * f, y: my + (ey - my) * f,
-        vx: (ex - mx) * 0.035, vy: (ey - my) * 0.035,
-        r: (2 + Math.random() * 3) * S, color: '#FFF0C8',
-        life: 0.9, decay: 0.035, grav: false
+        x: muzX, y: muzY,
+        vx: (dx / dl) * spd + (Math.random() - 0.5) * 1.2 * S,
+        vy: (dy / dl) * spd + (Math.random() - 0.5) * 1.2 * S,
+        r: (1.5 + Math.random() * 3) * S, color: '#FFF3D2',
+        life: 0.85, decay: 0.04, grav: false
       });
     }
     mtPushSfx(side, s.mtOrient);
@@ -255,245 +276,289 @@ function mtFinishVanish(head) {
 }
 
 // ── Drawing ──
-// The mushroom is assembled from the same four parts in both
-// footprints — one cap, one stem, two mouths, one counter — but each
-// footprint lays them out upright rather than rotating the whole
-// sprite, because a cap rotated onto its side stops reading as a cap.
+// The board camera looks straight down, so the mushroom is drawn from
+// above: a spotted cap, domed by shading rather than by silhouette,
+// with a snout poking out of each of its two tips — the bore the boxes
+// are fired from — and the shared counter in the middle.
 //
-//   Horizontal: wide cap across both cells, mouths left + right
-//               beneath its rim, counter on the seam.
-//   Vertical:   cap centred on the seam, mouths above and below it,
-//               stem running down toward the lower mouth.
+// ONE sprite serves both footprints. It is built in a local space where
+// +x runs along the footprint axis and +y across it, then rotated 90°
+// for the vertical footprint. A cap seen from above is still a cap when
+// you turn it, so the rotation costs nothing.
 //
-// Either way there is one cap, one stem and one counter across the
-// two cells, so the entity reads as a single thing that can spawn at
-// two exits — never as two adjacent Tunnels.
+//   local -x tip = head mouth  (left  when horizontal, up   when vertical)
+//   local +x tip = tail mouth  (right when horizontal, down when vertical)
+//
+// Each snout is drawn UNDER the cap, so only its muzzle shows and there
+// is no seam betraying a part stuck on. One cap, one counter, nothing
+// dividing the two cells: the entity reads as a single thing that can
+// spawn at two exits, never as two adjacent Tunnels.
+
+// The cap outline in local space — a soft blob, wider in the middle,
+// tapering toward the two tips.
+function mtCapPath(ctx, HL, HT) {
+  ctx.beginPath();
+  ctx.moveTo(-HL * 0.99, 0);
+  ctx.bezierCurveTo(-HL * 0.99, -HT * 0.86, -HL * 0.55, -HT * 0.96, 0, -HT * 0.96);
+  ctx.bezierCurveTo(HL * 0.55, -HT * 0.96, HL * 0.99, -HT * 0.86, HL * 0.99, 0);
+  ctx.bezierCurveTo(HL * 0.99, HT * 0.86, HL * 0.55, HT * 0.96, 0, HT * 0.96);
+  ctx.bezierCurveTo(-HL * 0.55, HT * 0.96, -HL * 0.99, HT * 0.86, -HL * 0.99, 0);
+  ctx.closePath();
+}
 
 function drawMTunnelOnGrid(ctx, head, S, tick) {
   var fp = mtFootprint(head);
   var vert = (head.mtOrient === 'v');
-  var fw = vert ? fp.thk : fp.len;   // footprint width on screen
-  var fh = vert ? fp.len : fp.thk;   // footprint height on screen
-  var span = Math.min(fw, fh);       // the "one cell" dimension
+  var len = fp.len, thk = fp.thk;
+  var HL = len / 2, HT = thk / 2;
 
   var vanish = head.mtVanishT > 0 ? (1 - head.mtVanishT) : 0;
   var remaining = head.mtContents ? head.mtContents.length : 0;
   var tailCell = stock[head.mtTailIdx];
-  var glowA = head.mtPulseT || 0;
-  var glowB = (tailCell && tailCell.mtPulseT) || 0;
+  var fireA = head.mtPulseT || 0;
+  var fireB = (tailCell && tailCell.mtPulseT) || 0;
 
-  // ── Part geometry, per footprint ──
-  var capSpan, capRise, capBase, stemW, stemTop, stemBot, mouths;
-  if (vert) {
-    capSpan = fw * 0.96;
-    capRise = fh * 0.38;
-    capBase = fh * 0.055;               // cap sits just below the seam
-    stemW = fw * 0.40;
-    stemTop = capBase - fh * 0.01;
-    stemBot = fh * 0.335;
-    var vDepth = fh * 0.175, vSpan = fw * 0.50;
-    mouths = [
-      { x: 0, y: -fh / 2 + vDepth / 2, depth: vDepth, span: vSpan, dir: 'u', glow: glowA },
-      { x: 0, y: fh / 2 - vDepth / 2, depth: vDepth, span: vSpan, dir: 'd', glow: glowB }
-    ];
-  } else {
-    capSpan = fw * 0.98;
-    capRise = fh * 0.60;
-    capBase = fh * 0.02;
-    stemW = fh * 0.44;
-    stemTop = capBase - fh * 0.02;
-    stemBot = fh * 0.46;
-    var hDepth = fh * 0.44, hSpan = fh * 0.44;
-    mouths = [
-      { x: -fw / 2 + hDepth / 2 + fh * 0.03, y: fh * 0.26, depth: hDepth, span: hSpan, dir: 'l', glow: glowA },
-      { x: fw / 2 - hDepth / 2 - fh * 0.03, y: fh * 0.26, depth: hDepth, span: hSpan, dir: 'r', glow: glowB }
-    ];
+  // ── The spit: the whole thing heaves toward the barrel that fired ──
+  // A quick lunge outward, then a softer counter-settle.
+  var lurch = 0, lside = head.mtLurchSide || -1;
+  if (head.mtLurchT > 0) {
+    var lp = 1 - head.mtLurchT;
+    lurch = Math.sin(lp * Math.PI * 1.9) * Math.pow(1 - lp, 1.6);
   }
+  var lurchShift = lside * thk * 0.17 * lurch;
 
   ctx.save();
+
   if (vanish > 0) ctx.globalAlpha = Math.max(0, 1 - vanish * 1.05);
 
-  // The whole mushroom lifts away as it goes
-  ctx.translate(fp.cx, fp.cy - vanish * fh * 0.6);
-  var vs = 1 + vanish * 0.2;
+  // Seen from above, lifting away reads as rising toward the camera
+  ctx.translate(fp.cx, fp.cy);
+  var vs = 1 + vanish * 0.42;
   ctx.scale(vs, vs);
-  ctx.rotate(Math.sin(tick * 0.028 + (head.mtPhase || 0)) * 0.012 + vanish * 0.09);
+  if (vert) ctx.rotate(Math.PI / 2);
+  ctx.rotate(Math.sin(tick * 0.028 + (head.mtPhase || 0)) * 0.012 + vanish * 0.12);
 
-  // ── Ground shadow — one shadow, for one entity ──
-  ctx.fillStyle = 'rgba(70,55,40,0.12)';
-  ctx.beginPath();
-  ctx.ellipse(0, fh * 0.44, fw * 0.42, span * 0.10, 0, 0, Math.PI * 2);
+  // ── Cast shadow on the board, which does NOT follow the lunge ──
+  ctx.save();
+  ctx.translate(thk * 0.05, thk * 0.07);
+  ctx.fillStyle = 'rgba(70,55,40,0.16)';
+  mtCapPath(ctx, HL * 0.97, HT * 0.95);
+  ctx.fill();
+  ctx.restore();
+
+  // Everything from here lunges and squash-stretches together
+  ctx.translate(lurchShift, 0);
+  ctx.rotate(-lside * 0.05 * lurch);
+  ctx.scale(1 + 0.10 * Math.abs(lurch), 1 - 0.07 * Math.abs(lurch));
+
+  // ── The two snouts, under the cap so only the muzzles show ──
+  mtDrawBarrel(ctx, -1, HL, HT, thk, S, fireA);
+  mtDrawBarrel(ctx, 1, HL, HT, thk, S, fireB);
+
+  // ── Cap body ──
+  mtCapPath(ctx, HL, HT);
+  var cg = ctx.createRadialGradient(-HL * 0.20, -HT * 0.30, thk * 0.06, 0, 0, HL * 0.98);
+  cg.addColorStop(0, MT_CAP.light);
+  cg.addColorStop(0.62, MT_CAP.fill);
+  cg.addColorStop(1, MT_CAP.dark);
+  ctx.fillStyle = cg;
   ctx.fill();
 
-  // ── Mouths, drawn under the cap ──
-  for (var m = 0; m < mouths.length; m++) {
-    var mo = mouths[m];
-    mtDrawMouth(ctx, mo.x, mo.y, mo.depth, mo.span, mo.dir, S, mo.glow, tick);
+  ctx.save();
+  mtCapPath(ctx, HL, HT);
+  ctx.clip();
+
+  // Rim darkening — the dome falling away at the edges
+  ctx.strokeStyle = 'rgba(118,34,20,0.26)';
+  ctx.lineWidth = thk * 0.13;
+  mtCapPath(ctx, HL, HT);
+  ctx.stroke();
+
+  // Specular sheen, up-left, as the light comes from
+  var sh = ctx.createRadialGradient(-HL * 0.30, -HT * 0.40, thk * 0.02, -HL * 0.30, -HT * 0.40, thk * 0.62);
+  sh.addColorStop(0, 'rgba(255,255,255,0.30)');
+  sh.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = sh;
+  ctx.fillRect(-HL, -HT, len, thk);
+
+  // Cream spots, each with a touch of contact shadow so they sit ON the
+  // cap. Kept clear of the rim so none reads as a bite out of the edge.
+  var spots = [
+    [-0.64, -0.24, 0.130], [-0.35, 0.30, 0.098], [-0.04, -0.42, 0.114],
+    [0.28, 0.20, 0.138], [0.54, -0.32, 0.102], [0.74, 0.26, 0.082],
+    [-0.85, 0.22, 0.070]
+  ];
+  for (var i = 0; i < spots.length; i++) {
+    var sx = spots[i][0] * HL, sy = spots[i][1] * HT, sr = spots[i][2] * thk;
+    ctx.fillStyle = 'rgba(110,32,20,0.26)';
+    ctx.beginPath();
+    ctx.ellipse(sx + sr * 0.12, sy + sr * 0.16, sr, sr * 0.94, 0, 0, Math.PI * 2);
+    ctx.fill();
+    var sg = ctx.createRadialGradient(sx - sr * 0.3, sy - sr * 0.35, sr * 0.1, sx, sy, sr);
+    sg.addColorStop(0, 'rgba(255,253,246,0.99)');
+    sg.addColorStop(1, 'rgba(243,228,200,0.96)');
+    ctx.fillStyle = sg;
+    ctx.beginPath();
+    ctx.ellipse(sx, sy, sr, sr * 0.94, 0, 0, Math.PI * 2);
+    ctx.fill();
   }
 
-  // ── Stem — one stem, centred on the seam ──
-  mtDrawStem(ctx, stemW, stemTop, stemBot, S);
+  // Shading where each snout leaves the cap, plus its direction chevron
+  mtDrawBarrelRoot(ctx, -1, HL, HT, thk, S, fireA, tick);
+  mtDrawBarrelRoot(ctx, 1, HL, HT, thk, S, fireB, tick);
 
-  // ── Cap — one continuous cap across BOTH cells ──
-  mtDrawCap(ctx, capBase, capSpan, capRise, S, tick, remaining, head.mtPhase || 0, vanish);
+  // Alive while stock remains
+  if (remaining > 0 && vanish === 0) {
+    ctx.globalAlpha = 0.05 + Math.sin(tick * 0.045 + (head.mtPhase || 0)) * 0.035;
+    ctx.fillStyle = '#FFE7B0';
+    ctx.fillRect(-HL, -HT, len, thk);
+    ctx.globalAlpha = 1;
+  }
 
   ctx.restore();
 
-  // ── Counter — one badge on the cap, on the seam, always upright ──
+  // Cap outline
+  ctx.strokeStyle = 'rgba(130,44,28,0.45)';
+  ctx.lineWidth = 1.6 * S;
+  mtCapPath(ctx, HL, HT);
+  ctx.stroke();
+
+  // Muzzles over the cap, so the bore each box is fired from is always
+  // the clearest thing at the tip
+  mtDrawMuzzle(ctx, -1, HL, thk, S, fireA);
+  mtDrawMuzzle(ctx, 1, HL, thk, S, fireB);
+
+  // Muzzle flash, over everything
+  if (fireA > 0) mtDrawMuzzleFlash(ctx, -1, HL, thk, fireA);
+  if (fireB > 0) mtDrawMuzzleFlash(ctx, 1, HL, thk, fireB);
+
+  ctx.restore();
+
+  // ── Counter — one badge in the middle, on the seam, always upright ──
+  // It rides the lunge with the cap, but stays unrotated so it is
+  // legible in both footprints.
   if (vanish < 0.35) {
-    var by = fp.cy - (vert ? fh * 0.11 : fh * 0.24) - vanish * fh * 0.6;
-    mtDrawCounter(ctx, fp.cx, by, span, S, remaining, Math.max(glowA, glowB),
+    var bx = fp.cx, by = fp.cy;
+    if (vert) by += lurchShift; else bx += lurchShift;
+    mtDrawCounter(ctx, bx, by, thk, S, remaining, Math.max(fireA, fireB),
       vanish > 0 ? Math.max(0, 1 - vanish * 3) : 1);
   }
 }
 
-// One mouth: a dark arch opening toward dir ('l','r','u','d'), with a
-// bright arrow pointing the same way. Mouth direction is the whole
-// decision, so it has to be at least as clear as on a regular Tunnel.
-function mtDrawMouth(ctx, mx, my, depth, mspan, dir, S, glow, tick) {
-  var rot = 0;
-  if (dir === 'd') rot = Math.PI / 2;
-  else if (dir === 'l') rot = Math.PI;
-  else if (dir === 'u') rot = -Math.PI / 2;
+// Where the muzzle of a snout sits, along the local axis. It thrusts
+// outward while firing, which is most of what sells the spit.
+function mtBarrelTip(HL, thk, fire) {
+  return HL * 0.97 + thk * 0.10 * fire;
+}
+
+// The tube of one snout. dirSign -1 = head tip, +1 = tail tip; drawn
+// mirrored for the head so there is literally one shape. Drawn before
+// the cap, so the cap hides its root and there is no seam betraying a
+// part stuck on.
+function mtDrawBarrel(ctx, dirSign, HL, HT, thk, S, fire) {
+  var tip = mtBarrelTip(HL, thk, fire);
+  var root = HL * 0.5;
+  var rootW = thk * 0.16;
+  var mouthW = thk * 0.26 * (1 + 0.08 * fire);
 
   ctx.save();
-  ctx.translate(mx, my);
-  ctx.rotate(rot);
-  // Local frame: the opening faces +x, depth along x, span across y.
-  var hd = depth / 2, hs = mspan / 2, r = hs;
+  ctx.scale(dirSign, 1);
 
-  // Push-out glow spilling out of the mouth that just fired
-  if (glow > 0) {
-    var gg = ctx.createRadialGradient(hd * 0.4, 0, hs * 0.2, hd * 0.4, 0, hs * 2.6);
-    gg.addColorStop(0, 'rgba(255,226,152,' + (0.55 * glow) + ')');
-    gg.addColorStop(1, 'rgba(255,226,152,0)');
-    ctx.fillStyle = gg;
-    ctx.beginPath(); ctx.arc(hd * 0.4, 0, hs * 2.6, 0, Math.PI * 2); ctx.fill();
-  }
-
-  // Dark opening — rounded at the back, open at the front
   ctx.beginPath();
-  ctx.moveTo(hd, -hs);
-  ctx.lineTo(-hd + r, -hs);
-  ctx.arc(-hd + r, 0, r, -Math.PI / 2, Math.PI / 2, true);
-  ctx.lineTo(hd, hs);
+  ctx.moveTo(root, -rootW);
+  ctx.quadraticCurveTo((root + tip) * 0.5, -mouthW * 0.88, tip, -mouthW);
+  ctx.lineTo(tip, mouthW);
+  ctx.quadraticCurveTo((root + tip) * 0.5, mouthW * 0.88, root, rootW);
   ctx.closePath();
-  var mg = ctx.createLinearGradient(-hd, 0, hd, 0);
-  mg.addColorStop(0, '#1B1220');
-  mg.addColorStop(0.55, '#2C2032');
-  mg.addColorStop(1, '#48344F');
-  ctx.fillStyle = mg;
+  var bg = ctx.createLinearGradient(0, -mouthW, 0, mouthW);
+  bg.addColorStop(0, MT_CAP.light);
+  bg.addColorStop(0.4, MT_CAP.fill);
+  bg.addColorStop(1, MT_CAP.dark);
+  ctx.fillStyle = bg;
   ctx.fill();
-  ctx.strokeStyle = 'rgba(255,238,205,0.42)';
+  ctx.strokeStyle = 'rgba(130,44,28,0.5)';
   ctx.lineWidth = 1.5 * S;
   ctx.stroke();
 
-  // Outward arrow
-  var aS = hs * 0.62 * (1 + glow * 0.28);
-  var ax = hd * 0.18;
-  var pulse = 0.74 + Math.sin(tick * 0.07) * 0.12 + glow * 0.26;
-  ctx.fillStyle = 'rgba(255,216,128,' + Math.min(1, pulse) + ')';
+  ctx.restore();
+}
+
+// The flared rim and the bore at the end of one snout — the hole the
+// box actually comes out of. Drawn after the cap.
+function mtDrawMuzzle(ctx, dirSign, HL, thk, S, fire) {
+  var tip = mtBarrelTip(HL, thk, fire);
+  var mouthW = thk * 0.26 * (1 + 0.08 * fire);
+  var rimX = thk * 0.105;
+
+  ctx.save();
+  ctx.scale(dirSign, 1);
+
+  // Flared rim
   ctx.beginPath();
-  ctx.moveTo(ax + aS, 0);
-  ctx.lineTo(ax - aS * 0.55, -aS * 0.88);
-  ctx.lineTo(ax - aS * 0.55, aS * 0.88);
-  ctx.closePath();
+  ctx.ellipse(tip, 0, rimX, mouthW, 0, 0, Math.PI * 2);
+  var rg = ctx.createLinearGradient(0, -mouthW, 0, mouthW);
+  rg.addColorStop(0, MT_CAP.light);
+  rg.addColorStop(0.45, MT_CAP.fill);
+  rg.addColorStop(1, MT_CAP.dark);
+  ctx.fillStyle = rg;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(130,44,28,0.55)';
+  ctx.lineWidth = 1.4 * S;
+  ctx.stroke();
+
+  // Lit edge on the outward side of the rim
+  ctx.strokeStyle = 'rgba(255,240,214,0.55)';
+  ctx.lineWidth = 1.5 * S;
+  ctx.beginPath();
+  ctx.ellipse(tip, 0, rimX, mouthW, 0, -Math.PI * 0.42, Math.PI * 0.42);
+  ctx.stroke();
+
+  // The bore
+  ctx.beginPath();
+  ctx.ellipse(tip, 0, rimX * 0.5, mouthW * 0.66, 0, 0, Math.PI * 2);
+  var ig = ctx.createRadialGradient(tip - rimX * 0.2, 0, thk * 0.01, tip, 0, mouthW * 0.7);
+  ig.addColorStop(0, '#0B0610');
+  ig.addColorStop(1, '#31233A');
+  ctx.fillStyle = ig;
   ctx.fill();
 
   ctx.restore();
 }
 
-function mtDrawStem(ctx, stemW, stemTop, stemBot, S) {
-  var g = ctx.createLinearGradient(-stemW * 0.6, 0, stemW * 0.6, 0);
-  g.addColorStop(0, MT_STEM.light);
-  g.addColorStop(0.55, MT_STEM.fill);
-  g.addColorStop(1, MT_STEM.dark);
+// Shading inside the cap where a snout leaves it, plus the outward
+// chevron — the Tunnel-family direction cue.
+function mtDrawBarrelRoot(ctx, dirSign, HL, HT, thk, S, fire, tick) {
+  var g = ctx.createLinearGradient(dirSign * HL * 0.60, 0, dirSign * HL, 0);
+  g.addColorStop(0, 'rgba(28,16,30,0)');
+  g.addColorStop(1, 'rgba(28,16,30,0.22)');
   ctx.fillStyle = g;
-  var h = stemBot - stemTop;
+  if (dirSign < 0) ctx.fillRect(-HL, -HT, HL * 0.40, HT * 2);
+  else ctx.fillRect(HL * 0.60, -HT, HL * 0.40, HT * 2);
+
+  var aS = thk * 0.105 * (1 + fire * 0.32);
+  var ax = dirSign * HL * 0.72;
+  var pulse = 0.8 + Math.sin(tick * 0.07) * 0.1 + fire * 0.2;
+  ctx.save();
+  ctx.shadowColor = 'rgba(60,12,6,0.7)';
+  ctx.shadowBlur = 3 * S;
+  ctx.fillStyle = 'rgba(255,224,146,' + Math.min(1, pulse) + ')';
   ctx.beginPath();
-  ctx.moveTo(-stemW * 0.42, stemTop);
-  ctx.bezierCurveTo(-stemW * 0.44, stemTop + h * 0.5, -stemW * 0.62, stemTop + h * 0.82, -stemW * 0.60, stemBot);
-  ctx.quadraticCurveTo(0, stemBot + h * 0.14, stemW * 0.60, stemBot);
-  ctx.bezierCurveTo(stemW * 0.62, stemTop + h * 0.82, stemW * 0.44, stemTop + h * 0.5, stemW * 0.42, stemTop);
+  ctx.moveTo(ax + dirSign * aS, 0);
+  ctx.lineTo(ax - dirSign * aS * 0.62, -aS * 0.92);
+  ctx.lineTo(ax - dirSign * aS * 0.62, aS * 0.92);
   ctx.closePath();
   ctx.fill();
-  ctx.strokeStyle = 'rgba(150,120,80,0.32)';
-  ctx.lineWidth = 1.2 * S;
-  ctx.stroke();
+  ctx.restore();
 }
 
-function mtDrawCap(ctx, capBase, capSpan, capRise, S, tick, remaining, phase, vanish) {
-  var HS = capSpan / 2;
-  var top = capBase - capRise;
-  var belly = capRise * 0.20;
-
-  function capPath() {
-    ctx.beginPath();
-    ctx.moveTo(-HS, capBase);
-    ctx.bezierCurveTo(-HS * 0.94, top + capRise * 0.34, -HS * 0.44, top, 0, top);
-    ctx.bezierCurveTo(HS * 0.44, top, HS * 0.94, top + capRise * 0.34, HS, capBase);
-    ctx.quadraticCurveTo(0, capBase + belly, -HS, capBase);
-    ctx.closePath();
-  }
-
-  ctx.save();
-  capPath();
-  ctx.shadowColor = 'rgba(0,0,0,0.24)';
-  ctx.shadowBlur = 7 * S;
-  ctx.shadowOffsetY = 2.5 * S;
-  var cg = ctx.createLinearGradient(0, top, 0, capBase + belly);
-  cg.addColorStop(0, MT_CAP.light);
-  cg.addColorStop(0.55, MT_CAP.fill);
-  cg.addColorStop(1, MT_CAP.dark);
-  ctx.fillStyle = cg;
-  ctx.fill();
-  ctx.restore();
-
-  // Underside shading + cream spots, clipped to the cap
-  ctx.save();
-  capPath();
-  ctx.clip();
-  ctx.fillStyle = 'rgba(110,38,24,0.42)';
-  ctx.fillRect(-HS, capBase - belly * 0.5, capSpan, belly * 3);
-  ctx.fillStyle = 'rgba(255,246,225,0.9)';
-  var spots = [
-    [-0.60, 0.28, 0.26], [-0.22, 0.14, 0.19], [0.20, 0.30, 0.29],
-    [0.62, 0.20, 0.21], [-0.86, 0.62, 0.16], [0.88, 0.58, 0.17],
-    [-0.02, 0.62, 0.14]
-  ];
-  for (var s = 0; s < spots.length; s++) {
-    var sx = spots[s][0] * HS;
-    var sy = top + spots[s][1] * capRise;
-    var sr = spots[s][2] * capRise * 0.42;
-    ctx.beginPath();
-    ctx.ellipse(sx, sy, sr * 1.12, sr, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  var sheen = ctx.createLinearGradient(0, top, 0, top + capRise * 0.7);
-  sheen.addColorStop(0, 'rgba(255,255,255,0.26)');
-  sheen.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.fillStyle = sheen;
-  ctx.fillRect(-HS, top, capSpan, capRise * 0.7);
-  ctx.restore();
-
-  // Rim
-  ctx.strokeStyle = 'rgba(120,40,26,0.5)';
-  ctx.lineWidth = 1.6 * S;
-  ctx.beginPath();
-  ctx.moveTo(-HS, capBase);
-  ctx.bezierCurveTo(-HS * 0.94, top + capRise * 0.34, -HS * 0.44, top, 0, top);
-  ctx.bezierCurveTo(HS * 0.44, top, HS * 0.94, top + capRise * 0.34, HS, capBase);
-  ctx.stroke();
-
-  // Alive while stock remains
-  if (remaining > 0 && vanish === 0) {
-    ctx.save();
-    ctx.globalAlpha = 0.05 + Math.sin(tick * 0.045 + phase) * 0.035;
-    ctx.fillStyle = '#FFE7B0';
-    capPath();
-    ctx.fill();
-    ctx.restore();
-  }
+function mtDrawMuzzleFlash(ctx, dirSign, HL, thk, fire) {
+  var tip = dirSign * mtBarrelTip(HL, thk, fire);
+  var R = thk * 0.5;
+  var g = ctx.createRadialGradient(tip, 0, thk * 0.02, tip, 0, R);
+  g.addColorStop(0, 'rgba(255,232,166,' + (0.8 * fire) + ')');
+  g.addColorStop(1, 'rgba(255,232,166,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(tip, 0, R, 0, Math.PI * 2); ctx.fill();
 }
 
 function mtDrawCounter(ctx, bx, by, span, S, remaining, glow, alpha) {
