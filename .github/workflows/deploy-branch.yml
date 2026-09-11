@@ -75,6 +75,58 @@ jobs:
             cp landing.html gh-pages/index.html
           fi
 
+      # A permanent, shareable URL per branch: /play/<folder>/
+      # The versioned folder carries the SHA and is replaced on every
+      # push, so this alias resolves the current one from manifest.json
+      # at load time rather than baking a SHA in. That keeps the link
+      # working even when the browser serves the alias from cache.
+      # It lives under play/ so the manifest loop (which only walks
+      # top-level dirs containing "--") never picks it up as a
+      # duplicate prototype, and so the "remove previous versions"
+      # glob (<folder>--*) never deletes it.
+      - name: Write permanent alias for this branch
+        run: |
+          FOLDER="${{ steps.folder.outputs.folder }}"
+          BRANCH="${{ steps.folder.outputs.branch }}"
+          VERSIONED="${{ steps.folder.outputs.versioned }}"
+          mkdir -p "gh-pages/play/$FOLDER"
+          cat > "gh-pages/play/$FOLDER/index.html" <<HTML
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Marble Sorter — opening latest build</title>
+          <style>
+            html,body{height:100%;margin:0;font-family:sans-serif;background:#EDE5D8;color:#5A4A38}
+            div{display:flex;height:100%;align-items:center;justify-content:center;text-align:center}
+            a{color:#7B52A0}
+          </style>
+          </head>
+          <body>
+          <div><p id="msg">Opening the latest build&hellip;</p></div>
+          <script>
+          var BRANCH = "$BRANCH";
+          var FALLBACK = "../../$VERSIONED/";
+          fetch("../../manifest.json", { cache: "no-store" })
+            .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+            .then(function (d) {
+              var list = (d && d.prototypes) || [];
+              for (var i = 0; i < list.length; i++) {
+                if (list[i].branch === BRANCH) {
+                  location.replace("../../" + list[i].folder + "/");
+                  return;
+                }
+              }
+              throw 0;
+            })
+            .catch(function () { location.replace(FALLBACK); });
+          </script>
+          <noscript><div><p><a href="../../$VERSIONED/">Open the prototype</a></p></div></noscript>
+          </body>
+          </html>
+          HTML
+
       - name: Regenerate manifest.json
         run: |
           cd gh-pages
@@ -132,6 +184,11 @@ jobs:
             rm -rf "$dir"
             removed=1
           done
+          # Drop the permanent alias too, or it would point at nothing
+          if [ -d "play/$FOLDER" ]; then
+            rm -rf "play/$FOLDER"
+            removed=1
+          fi
           echo "removed=$removed" >> "$GITHUB_OUTPUT"
         id: remove
 
