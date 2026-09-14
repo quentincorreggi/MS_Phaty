@@ -1,0 +1,32 @@
+{
+  "name": "Modular Elevator",
+  "description": "A bar-shaped elevator in 1x2, 1x3, 1x4, 2x1, 3x1 or 4x1 that lifts one hidden floor of boxes onto its tiles once everything on top of it is cleared, then leaves the board.",
+  "howToPlay": "Clear all the boxes sitting on a bar and the whole bar lifts at once, bringing up a second floor you never saw. Watch the pink box walled in at the top: it opens the moment the tile under it is freed, and the arriving floor slams it shut again. Take it while the window is open.",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Modular Elevator",
+    "desc": "Two bars: a 1x4 across and a 3x1 down",
+    "mrbPerBox": 6,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null, null, { "wall": true }, null, null, null, null,
+      null, { "wall": true }, { "ci": 0, "type": "default" }, { "wall": true }, null, null, null,
+      { "elevator": true, "eid": 0, "dir": "h", "len": 4, "part": 0, "surface": { "ci": 1, "type": "default" }, "deep": { "ci": 5, "type": "default" } },
+      { "elevator": true, "eid": 0, "dir": "h", "len": 4, "part": 1, "surface": { "ci": 2, "type": "default" }, "deep": { "ci": 6, "type": "default" } },
+      { "elevator": true, "eid": 0, "dir": "h", "len": 4, "part": 2, "surface": { "ci": 3, "type": "default" }, "deep": { "ci": 5, "type": "default" } },
+      { "elevator": true, "eid": 0, "dir": "h", "len": 4, "part": 3, "surface": { "ci": 4, "type": "default" }, "deep": { "ci": 6, "type": "default" } },
+      null,
+      { "elevator": true, "eid": 1, "dir": "v", "len": 3, "part": 0, "surface": { "ci": 7, "type": "default" }, "deep": { "ci": 2, "type": "default" } },
+      null,
+      null, null, null, null, null,
+      { "elevator": true, "eid": 1, "dir": "v", "len": 3, "part": 1, "surface": { "ci": 0, "type": "default" }, "deep": { "ci": 3, "type": "default" } },
+      null,
+      null, null, null, null, null,
+      { "elevator": true, "eid": 1, "dir": "v", "len": 3, "part": 2, "surface": { "ci": 1, "type": "default" }, "deep": { "ci": 4, "type": "default" } },
+      null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}
