@@ -151,6 +151,9 @@ function isTileAvailableForTunnel(idx) {
   // Must be an empty slot or a fully-used box (not a tunnel, not an active box, not a wall)
   if (s.isTunnel) return false;
   if (s.isWall) return false;  // walls block tunnel spawning
+  // An elevator that has not delivered yet owns its tiles — a tunnel
+  // box landing there would be doubled up by the lift.
+  if (typeof isElevBlocking === 'function' && isElevBlocking(s)) return false;
   return s.empty || s.used;
 }
 

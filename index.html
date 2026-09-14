@@ -162,6 +162,30 @@
     display:flex;align-items:center;justify-content:center}
   .ed-tunnel-add-clr:hover{transform:scale(1.15);border-color:rgba(255,255,255,0.7)}
   .ed-tunnel-add-clr:active{transform:scale(0.9)}
+
+  /* ═══ MODULAR ELEVATOR EDITOR ═══ */
+  #ed-elev-panel{display:none;background:rgba(43,51,64,0.08);border-radius:12px;padding:10px 12px;
+    border:1.5px solid rgba(95,212,232,0.35)}
+  .ed-elev-deep{position:absolute;bottom:-2px;right:-2px;width:10px;height:10px;border-radius:5px;
+    border:1.5px solid rgba(255,255,255,0.7);pointer-events:none}
+  .ed-elev-deep-empty{background:rgba(60,70,80,0.85);border-style:dashed}
+  .ed-tool.ed-elev-size{background:linear-gradient(135deg,#4B5866,#2B3340);color:#9FE8F5;font-size:10px}
+  .ed-elev-row{display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:4px}
+  .ed-elev-label{font-size:11px;color:#5A4A38;font-weight:600}
+  .ed-elev-slots{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;padding:6px;
+    background:rgba(0,0,0,0.05);border-radius:8px}
+  .ed-elev-slot{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;
+    color:white;font-weight:700;font-size:11px;font-family:'Fredoka',sans-serif;
+    border:2px solid rgba(255,255,255,0.3);text-shadow:0 1px 2px rgba(0,0,0,0.3)}
+  .ed-elev-slot.pick{cursor:pointer;transition:transform 0.12s}
+  .ed-elev-slot.pick:hover{transform:scale(1.12)}
+  .ed-elev-slot.selected{border-color:#5FD4E8;box-shadow:0 0 0 2px rgba(95,212,232,0.5)}
+  .ed-elev-clr{width:28px;height:28px;border:2px solid rgba(255,255,255,0.3);border-radius:6px;
+    color:white;font-weight:700;font-size:11px;font-family:'Fredoka',sans-serif;
+    cursor:pointer;transition:transform 0.12s;text-shadow:0 1px 2px rgba(0,0,0,0.2);
+    display:flex;align-items:center;justify-content:center}
+  .ed-elev-clr:hover{transform:scale(1.15);border-color:rgba(255,255,255,0.7)}
+  .ed-elev-clr:active{transform:scale(0.9)}
 </style>
 </head>
 <body>
@@ -232,6 +256,9 @@
     <div class="ed-section" id="ed-tunnel-panel">
       <!-- Tunnel contents editor — populated dynamically -->
     </div>
+    <div class="ed-section" id="ed-elev-panel">
+      <!-- Modular elevator floor editor — populated dynamically -->
+    </div>
     <div class="ed-section">
       <div class="ed-section-title"><span class="icon">&#9881;</span> Settings</div>
       <div id="ed-settings-body"></div>
@@ -267,6 +294,7 @@
 <script src="js/physics.js"></script>
 <script src="js/tunnel.js"></script>
 <script src="js/wall.js"></script>
+<script src="js/elevator.js"></script>
 <script src="js/rendering.js"></script>
 <script src="js/editor.js"></script>
 <script src="js/game.js"></script>

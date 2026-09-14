@@ -38,16 +38,25 @@ function initGame() {
   var totalSlots = L.rows * L.cols;
   var lvl = LEVELS[currentLevel];
 
-  // ── Build boxSlots, tunnelSlots, wallSlots from grid or legacy random ──
+  // ── Build boxSlots, tunnelSlots, wallSlots, elevSlots from grid ──
   var boxSlots = {};
   var tunnelSlots = {};
   var wallSlots = {};
+  var elevSlots = {};
   if (lvl.grid) {
     for (var i = 0; i < Math.min(lvl.grid.length, totalSlots); i++) {
       var cell = lvl.grid[i];
       if (cell === null || cell === undefined) continue;
       if (cell.wall) {
         wallSlots[i] = true;
+        continue;
+      }
+      if (cell.elevator) {
+        elevSlots[i] = {
+          eid: cell.eid, dir: cell.dir || 'h', len: cell.len || 2, part: cell.part || 0,
+          surface: cell.surface ? { ci: cell.surface.ci, type: cell.surface.type || 'default' } : null,
+          deep: cell.deep ? { ci: cell.deep.ci, type: cell.deep.type || 'default' } : null
+        };
         continue;
       }
       if (cell.tunnel) {
@@ -72,6 +81,19 @@ function initGame() {
     colorMarblesTotal[bs.ci] += regularPerBox;
     if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
   }
+  // Count marbles from elevator surface boxes and lifted floors
+  for (var k in elevSlots) {
+    var es = elevSlots[k];
+    var eParts = [es.surface, es.deep];
+    for (var ep = 0; ep < eParts.length; ep++) {
+      var eBox = eParts[ep];
+      if (!eBox) continue;
+      var isBlockerBox = (eBox.type === 'blocker');
+      var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
+      colorMarblesTotal[eBox.ci] += regularPerBox;
+      if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
+    }
+  }
   // Count marbles from tunnel contents
   for (var k in tunnelSlots) {
     var ts = tunnelSlots[k];
@@ -95,8 +117,31 @@ function initGame() {
     var slot = boxSlots[idx];
     var tSlot = tunnelSlots[idx];
     var wSlot = wallSlots[idx];
+    var eSlot = elevSlots[idx];
 
-    if (tSlot) {
+    if (eSlot) {
+      // Modular elevator tile — holds the surface box the player sees,
+      // and carries the hidden floor box that arrives after the lift.
+      var eSurf = eSlot.surface;
+      var eIsIce = (eSurf && eSurf.type === 'ice');
+      var eIsBlocker = (eSurf && eSurf.type === 'blocker');
+      stock.push({
+        ci: eSurf ? eSurf.ci : 0,
+        // A tile authored without a surface box counts as already cleared.
+        used: !eSurf, remaining: eSurf ? MRB_PER_BOX : 0,
+        spawning: false, spawnIdx: 0,
+        revealed: eIsIce ? true : false, empty: false,
+        boxType: eSurf ? (eSurf.type || 'default') : 'default',
+        isTunnel: false, isWall: false,
+        isElev: true, elev: null, elevPart: eSlot.part, riseT: 0,
+        elevDeep: eSlot.deep ? { ci: eSlot.deep.ci, type: eSlot.deep.type || 'default' } : null,
+        iceHP: eIsIce ? 2 : 0, iceCrackT: 0, iceShatterT: 0,
+        blockerCount: eIsBlocker ? BLOCKER_PER_BOX : 0,
+        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
+        idlePhase: Math.random() * Math.PI * 2
+      });
+    } else if (tSlot) {
       // Tunnel entry
       stock.push({
         isTunnel: true, isWall: false,
@@ -142,6 +187,9 @@ function initGame() {
     }
   }
 
+  // ── Link the elevator bars to their footprint cells ──
+  buildElevators(elevSlots);
+
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
 
@@ -182,6 +230,9 @@ function updateBoxReveals(animate) {
     if (!s) { passable[i] = false; continue; }
     if (s.isWall) { passable[i] = false; continue; }
     if (s.isTunnel) { passable[i] = false; continue; }
+    // Elevator tiles follow the ordinary rule: clearing a surface box
+    // frees the tile, and the floor that arrives later fills it back
+    // in — that is how a lift closes boxes that had just opened.
     passable[i] = !!(s.empty || s.used);
   }
 
@@ -317,6 +368,7 @@ function isBoxTappable(idx) {
   if (b.isWall) return false;      // walls are not tappable
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
+  if (b.riseT > 0) return false;   // still sliding up out of an elevator
   if (b.iceHP > 0) return false;
   return b.revealed;
 }
@@ -331,7 +383,7 @@ function handleTap(px, py) {
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
-    if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
+    if (b.empty || b.used || b.spawning || b.revealT > 0 || b.riseT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
       b.popT = 1;
@@ -353,7 +405,7 @@ canvas.addEventListener('mousemove', function (e) {
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;
-    if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
+    if (b.empty || b.used || b.spawning || b.revealT > 0 || b.riseT > 0) continue;
     if (!isBoxTappable(i)) continue;
     if (e.clientX >= b.x && e.clientX <= b.x + L.bw && e.clientY >= b.y && e.clientY <= b.y + L.bh) { hoverIdx = i; break; }
   }
@@ -373,6 +425,9 @@ function update() {
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
+
+  // ── Modular elevator lifts ──
+  updateElevators();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -524,6 +579,9 @@ function checkWin() {
       if (sortCols[c][r].vis) return;
   for (var i = 0; i < stock.length; i++) {
     if (stock[i].isTunnel && stock[i].tunnelContents && stock[i].tunnelContents.length > 0) return;
+  }
+  for (var e = 0; e < elevators.length; e++) {
+    if (elevators[e].state !== 'done') return;  // a floor is still to arrive
   }
   if (!won) {
     won = true; sfx.win();

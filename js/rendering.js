@@ -160,6 +160,9 @@ function drawFunnel() {
 // ── Stock grid — delegates to registered box types, handles tunnels + walls ──
 
 function drawStock() {
+  // Elevator bars sit underneath their boxes
+  drawElevators();
+
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
 
@@ -176,6 +179,12 @@ function drawStock() {
       drawWallOnGrid(ctx, b.x, b.y, L.bw, L.bh, S, tick);
       continue;
     }
+
+    // ── Cleared tile of an armed elevator ──
+    // The platform deck is drawn by drawElevators(), so skip the
+    // ordinary dashed empty slot here.
+    if (b.isElev && b.elev && (b.elev.state === 'armed' || b.elev.state === 'charging')
+        && (b.used || b.empty)) continue;
 
     var ox = 0;
     if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
@@ -203,8 +212,19 @@ function drawStock() {
     if (b.used) { drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
 
     var bt = getBoxType(b.boxType);
+
+    // A floor rising out of an elevator slides up inside its own tile
+    var rising = (b.riseT > 0);
+    var riseOff = 0;
+    if (rising) {
+      riseOff = b.riseT * (L.bh + L.bg);
+      ctx.save();
+      rRect(b.x, b.y, L.bw, L.bh, 6 * S);
+      ctx.clip();
+    }
+
     ctx.save();
-    ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2); ctx.scale(ts, ts);
+    ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2 + riseOff); ctx.scale(ts, ts);
 
     if (b.revealT > 0) {
       var phase = 1 - b.revealT;
@@ -255,6 +275,7 @@ function drawStock() {
     }
 
     ctx.restore();
+    if (rising) ctx.restore();
   }
 }
 

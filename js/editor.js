@@ -5,7 +5,8 @@
 // ============================================================
 
 var editor = {
-  grid: [],            // 7x7: null = empty, { ci, type } or { tunnel: true, ... } or { wall: true }
+  grid: [],            // 7x7: null = empty, { ci, type }, { tunnel: true, ... },
+                       //      { wall: true } or { elevator: true, ... }
   name: 'Custom Level',
   desc: 'My custom level',
   mrbPerBox: 9,
@@ -17,6 +18,10 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  elevMode: false,      // true when placing modular elevators
+  elevSizeIdx: 2,       // index into ELEV_SIZES — defaults to 1x4
+  selectedElev: -1,     // eid of the elevator whose floor is being authored
+  elevSlotSel: 0,       // which tile of that elevator the colour buttons fill
   visible: false
 };
 
@@ -34,6 +39,10 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.elevMode = false;
+  editor.elevSizeIdx = 2;
+  editor.selectedElev = -1;
+  editor.elevSlotSel = 0;
 }
 
 function showEditor(fresh) {
@@ -60,6 +69,107 @@ function editorBuildUI() {
   editorRenderSettings();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderElevPanel();
+}
+
+// Redraw everything that a grid change can affect.
+function editorRefresh() {
+  editorRenderGrid();
+  editorUpdateStats();
+  editorRenderTunnelPanel();
+  editorRenderElevPanel();
+}
+
+// ── Modular elevator helpers ──
+
+// Footprint cells of an elevator, ordered from its anchor outward.
+function editorElevCells(eid) {
+  var cells = [];
+  for (var i = 0; i < 49; i++) {
+    var v = editor.grid[i];
+    if (v && v.elevator && v.eid === eid) cells.push(i);
+  }
+  cells.sort(function (a, b) { return editor.grid[a].part - editor.grid[b].part; });
+  return cells;
+}
+
+function editorNextElevId() {
+  var maxId = 0;
+  for (var i = 0; i < 49; i++) {
+    var v = editor.grid[i];
+    if (v && v.elevator && v.eid >= maxId) maxId = v.eid + 1;
+  }
+  return maxId;
+}
+
+// Can a bar of this size sit here? Plain boxes are absorbed as its
+// surface boxes; walls, tunnels and other elevators are not.
+function editorElevFits(anchor, dir, len, ignoreEid) {
+  var cells = elevFootprint(anchor, dir, len, 7, 7);
+  if (!cells) return null;
+  for (var k = 0; k < cells.length; k++) {
+    var v = editor.grid[cells[k]];
+    if (!v) continue;
+    if (v.elevator && v.eid === ignoreEid) continue;
+    if (v.elevator || v.tunnel || v.wall) return null;
+  }
+  return cells;
+}
+
+function editorPlaceElev(anchor) {
+  var size = ELEV_SIZES[editor.elevSizeIdx];
+  var cells = editorElevFits(anchor, size.dir, size.len, -1);
+  if (!cells) {
+    editorShowToast('No room for a ' + size.label + ' elevator here');
+    return;
+  }
+  var eid = editorNextElevId();
+  for (var k = 0; k < cells.length; k++) {
+    var old = editor.grid[cells[k]];
+    // A plain box already painted here becomes the tile's top box.
+    var surface = (old && !old.elevator && !old.tunnel && !old.wall && old.ci >= 0)
+      ? { ci: old.ci, type: old.type || 'default' } : null;
+    editor.grid[cells[k]] = {
+      elevator: true, eid: eid, dir: size.dir, len: size.len, part: k,
+      surface: surface, deep: null
+    };
+  }
+  editor.selectedElev = eid;
+  editor.elevSlotSel = 0;
+}
+
+function editorRemoveElev(eid) {
+  var cells = editorElevCells(eid);
+  for (var k = 0; k < cells.length; k++) editor.grid[cells[k]] = null;
+  if (editor.selectedElev === eid) { editor.selectedElev = -1; editor.elevSlotSel = 0; }
+}
+
+// Change an existing bar's footprint, keeping the boxes already
+// authored on the tiles that survive the resize.
+function editorResizeElev(eid, sizeIdx) {
+  var cells = editorElevCells(eid);
+  if (!cells.length) return;
+  var anchor = cells[0];
+  var size = ELEV_SIZES[sizeIdx];
+  var fit = editorElevFits(anchor, size.dir, size.len, eid);
+  if (!fit) { editorShowToast('A ' + size.label + ' elevator does not fit there'); return; }
+  var kept = [];
+  for (var k = 0; k < cells.length; k++) {
+    kept.push({ surface: editor.grid[cells[k]].surface, deep: editor.grid[cells[k]].deep });
+    editor.grid[cells[k]] = null;
+  }
+  for (var n = 0; n < fit.length; n++) {
+    var carry = kept[n] || { surface: null, deep: null };
+    var old = editor.grid[fit[n]];
+    if (!carry.surface && old && old.ci >= 0 && !old.tunnel && !old.wall && !old.elevator) {
+      carry.surface = { ci: old.ci, type: old.type || 'default' };
+    }
+    editor.grid[fit[n]] = {
+      elevator: true, eid: eid, dir: size.dir, len: size.len, part: n,
+      surface: carry.surface, deep: carry.deep
+    };
+  }
+  if (editor.elevSlotSel >= fit.length) editor.elevSlotSel = fit.length - 1;
 }
 
 // ── Grid ──
@@ -75,6 +185,23 @@ function editorRenderGrid() {
       cell.style.background = 'linear-gradient(135deg,#9A8D7B,#6F6355)';
       cell.style.borderColor = '#8A7D6B';
       cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,255,255,0.5);font-size:14px">&#9632;</span>';
+    } else if (v && v.elevator) {
+      // Modular elevator tile — shows its top box over the platform,
+      // plus a dot when the lifted floor for this tile is authored.
+      var eSel = (editor.selectedElev === v.eid);
+      if (v.surface) {
+        var sbt = getBoxType(v.surface.type);
+        var sst = sbt.editorCellStyle(v.surface.ci);
+        cell.style.background = sst.background;
+      } else {
+        cell.style.background = 'linear-gradient(135deg,#4B5866,#2B3340)';
+      }
+      cell.style.borderColor = eSel ? '#5FD4E8' : '#3E8A99';
+      if (eSel) cell.style.boxShadow = '0 0 0 2px rgba(95,212,232,0.45)';
+      var deepDot = v.deep
+        ? '<span class="ed-elev-deep" style="background:' + COLORS[v.deep.ci].fill + '"></span>'
+        : '<span class="ed-elev-deep ed-elev-deep-empty"></span>';
+      cell.innerHTML = '<span class="ed-cell-dot" style="font-size:12px">⬆</span>' + deepDot;
     } else if (v && v.tunnel) {
       // Tunnel cell
       var isSelected = (editor.selectedTunnel === i);
@@ -104,6 +231,39 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.elevMode) {
+    // Elevator placement mode
+    var existingE = editor.grid[idx];
+    if (existingE && existingE.elevator) {
+      if (editor.activeColor === -1) editorRemoveElev(existingE.eid);
+      else { editor.selectedElev = existingE.eid; editor.elevSlotSel = 0; }
+    } else if (editor.activeColor !== -1) {
+      editorPlaceElev(idx);
+    }
+    editorRefresh();
+    return;
+  }
+
+  // Painting onto an elevator tile sets that tile's top box
+  var onElev = editor.grid[idx];
+  if (onElev && onElev.elevator) {
+    if (editor.wallMode || editor.tunnelMode) {
+      editorShowToast('That tile belongs to an elevator');
+      return;
+    }
+    if (editor.activeColor === -1) {
+      onElev.surface = null;
+    } else if (onElev.surface && onElev.surface.ci === editor.activeColor
+               && onElev.surface.type === editor.activeType) {
+      onElev.surface = null;
+    } else {
+      onElev.surface = { ci: editor.activeColor, type: editor.activeType };
+    }
+    editor.selectedElev = onElev.eid;
+    editorRefresh();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -157,11 +317,16 @@ function editorCellClick(e) {
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+  var v = editor.grid[idx];
+  if (v && v.elevator) {
+    // Right-click takes the whole bar out, not just this tile
+    editorRemoveElev(v.eid);
+    editorRefresh();
+    return;
+  }
   editor.grid[idx] = null;
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
-  editorRenderGrid();
-  editorUpdateStats();
-  editorRenderTunnelPanel();
+  editorRefresh();
 }
 
 // ── Toolbar: mode toggle + type selector + color/direction palette ──
@@ -178,13 +343,14 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.elevMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.elevMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -200,10 +366,27 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.elevMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(wallBtn);
+
+  // Modular elevator mode button
+  var elevBtn = document.createElement('button');
+  elevBtn.className = 'ed-type-btn' + (editor.elevMode ? ' active' : '');
+  elevBtn.textContent = '⬆ Elevator';
+  elevBtn.style.borderColor = editor.elevMode ? 'rgba(95,212,232,0.7)' : '';
+  elevBtn.style.color = editor.elevMode ? '#2E8FA3' : '';
+  elevBtn.addEventListener('click', function () {
+    editor.elevMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    if (editor.activeColor === -1) editor.activeColor = 0;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(elevBtn);
 
   // Tunnel mode button
   var tunnelBtn = document.createElement('button');
@@ -214,6 +397,7 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.elevMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -221,7 +405,39 @@ function editorRenderToolbar() {
 
   el.appendChild(typeRow);
 
-  if (editor.tunnelMode) {
+  if (editor.elevMode) {
+    // Size selector row — pick the bar, then click a cell to drop it
+    var sizeRow = document.createElement('div');
+    sizeRow.className = 'ed-color-row';
+
+    var eEraser = document.createElement('button');
+    eEraser.className = 'ed-tool' + (editor.activeColor === -1 ? ' active' : '');
+    eEraser.style.background = 'rgba(180,165,145,0.5)';
+    eEraser.innerHTML = '✖';
+    eEraser.title = 'Remove elevator';
+    eEraser.addEventListener('click', function () { editor.activeColor = -1; editorRenderToolbar(); });
+    sizeRow.appendChild(eEraser);
+
+    for (var z = 0; z < ELEV_SIZES.length; z++) {
+      var zb = document.createElement('button');
+      zb.className = 'ed-tool ed-elev-size' + (editor.elevSizeIdx === z && editor.activeColor !== -1 ? ' active' : '');
+      zb.innerHTML = ELEV_SIZES[z].label;
+      zb.title = ELEV_SIZES[z].label + ' elevator';
+      zb.setAttribute('data-size', z);
+      zb.addEventListener('click', function () {
+        editor.elevSizeIdx = parseInt(this.getAttribute('data-size'));
+        editor.activeColor = 0;
+        editorRenderToolbar();
+      });
+      sizeRow.appendChild(zb);
+    }
+    el.appendChild(sizeRow);
+
+    var elevInfo = document.createElement('div');
+    elevInfo.className = 'ed-color-row';
+    elevInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click a cell to drop the bar &middot; click it again to edit its floor</span>';
+    el.appendChild(elevInfo);
+  } else if (editor.tunnelMode) {
     // Direction selector row
     var dirRow = document.createElement('div');
     dirRow.className = 'ed-color-row';
@@ -426,23 +642,177 @@ function editorRenderTunnelPanel() {
   }
 }
 
+// ── Modular elevator panel: author the floor that gets lifted ──
+function editorRenderElevPanel() {
+  var container = document.getElementById('ed-elev-panel');
+  if (!container) return;
+
+  var cells = (editor.selectedElev >= 0) ? editorElevCells(editor.selectedElev) : [];
+  if (!cells.length) {
+    container.style.display = 'none';
+    editor.selectedElev = -1;
+    return;
+  }
+  container.style.display = 'block';
+
+  var first = editor.grid[cells[0]];
+  var sizeIdx = elevSizeIndex(first.dir, first.len);
+  if (editor.elevSlotSel >= cells.length) editor.elevSlotSel = 0;
+
+  var html = '';
+  html += '<div class="ed-section-title"><span class="icon">⬆</span> Modular Elevator #'
+        + (editor.selectedElev + 1) + ' — ' + ELEV_SIZES[sizeIdx].label + '</div>';
+
+  // Footprint
+  html += '<div class="ed-elev-row"><span class="ed-elev-label">Size</span>';
+  html += '<select id="ed-elev-size" class="ed-tunnel-select">';
+  for (var z = 0; z < ELEV_SIZES.length; z++) {
+    html += '<option value="' + z + '"' + (z === sizeIdx ? ' selected' : '') + '>' + ELEV_SIZES[z].label + '</option>';
+  }
+  html += '</select></div>';
+
+  // Top boxes, one per tile
+  var missingTop = 0;
+  html += '<div class="ed-section-title" style="margin-top:8px"><span class="icon">📦</span> Top boxes (paint these on the grid)</div>';
+  html += '<div class="ed-elev-slots">';
+  for (var t = 0; t < cells.length; t++) {
+    var surf = editor.grid[cells[t]].surface;
+    if (!surf) missingTop++;
+    var bg = surf ? COLORS[surf.ci].fill : 'rgba(120,110,100,0.25)';
+    var lbl = surf ? (BoxTypes[surf.type] || BoxTypes[BoxTypeOrder[0]]).label[0] : '–';
+    html += '<span class="ed-elev-slot" style="background:' + bg + '">' + lbl + '</span>';
+  }
+  html += '</div>';
+
+  // Lifted floor, one per tile
+  var missingDeep = 0;
+  html += '<div class="ed-section-title" style="margin-top:8px"><span class="icon">⬆</span> Lifted floor (arrives when the top is cleared)</div>';
+  html += '<div class="ed-elev-slots">';
+  for (var d = 0; d < cells.length; d++) {
+    var deep = editor.grid[cells[d]].deep;
+    if (!deep) missingDeep++;
+    var dbg = deep ? COLORS[deep.ci].fill : 'rgba(120,110,100,0.25)';
+    var dlbl = deep ? (BoxTypes[deep.type] || BoxTypes[BoxTypeOrder[0]]).label[0] : '?';
+    var sel = (editor.elevSlotSel === d) ? ' selected' : '';
+    html += '<span class="ed-elev-slot pick' + sel + '" data-slot="' + d + '" style="background:' + dbg + '" title="Tile ' + (d + 1) + '">' + dlbl + '</span>';
+  }
+  html += '</div>';
+
+  // Fill the selected tile
+  html += '<div class="ed-elev-row" style="margin-top:6px"><span class="ed-elev-label">Tile ' + (editor.elevSlotSel + 1) + '</span>';
+  html += '<select id="ed-elev-deep-type" class="ed-tunnel-select">';
+  for (var dt = 0; dt < ELEV_DEEP_TYPES.length; dt++) {
+    var tid = ELEV_DEEP_TYPES[dt];
+    html += '<option value="' + tid + '">' + (BoxTypes[tid] ? BoxTypes[tid].label : tid) + '</option>';
+  }
+  html += '</select></div>';
+  html += '<div class="ed-tunnel-add-colors">';
+  for (var c2 = 0; c2 < NUM_COLORS; c2++) {
+    html += '<button class="ed-elev-clr" data-ci="' + c2 + '" style="background:' + COLORS[c2].fill + '" title="' + CLR_NAMES[c2] + '">' + CLR_NAMES[c2][0].toUpperCase() + '</button>';
+  }
+  html += '</div>';
+
+  if (missingTop > 0) {
+    html += '<div class="ed-stat-warn" style="margin-top:6px">' + missingTop + ' tile' + (missingTop > 1 ? 's have' : ' has') + ' no top box — it counts as already cleared</div>';
+  }
+  if (missingDeep > 0) {
+    html += '<div class="ed-stat-warn" style="margin-top:4px">' + missingDeep + ' tile' + (missingDeep > 1 ? 's have' : ' has') + ' no floor box — it will lift an empty slot</div>';
+  }
+
+  html += '<div style="text-align:center;margin-top:8px">';
+  html += '<button class="ed-qbtn" id="ed-elev-fill">Fill floor with tile ' + (editor.elevSlotSel + 1) + '</button> ';
+  html += '<button class="ed-qbtn" id="ed-elev-clear">Clear floor</button> ';
+  html += '<button class="ed-qbtn" id="ed-elev-remove">Remove elevator</button>';
+  html += '</div>';
+
+  container.innerHTML = html;
+
+  // ── Bind ──
+  var sizeSel = document.getElementById('ed-elev-size');
+  if (sizeSel) {
+    sizeSel.addEventListener('change', function () {
+      editorResizeElev(editor.selectedElev, parseInt(this.value));
+      editorRefresh();
+    });
+  }
+
+  var picks = container.querySelectorAll('.ed-elev-slot.pick');
+  for (var p = 0; p < picks.length; p++) {
+    picks[p].addEventListener('click', function () {
+      editor.elevSlotSel = parseInt(this.getAttribute('data-slot'));
+      editorRenderElevPanel();
+    });
+  }
+
+  var clrs = container.querySelectorAll('.ed-elev-clr');
+  for (var q = 0; q < clrs.length; q++) {
+    clrs[q].addEventListener('click', function () {
+      var ci5 = parseInt(this.getAttribute('data-ci'));
+      var typeEl = document.getElementById('ed-elev-deep-type');
+      var type = typeEl ? typeEl.value : 'default';
+      var list = editorElevCells(editor.selectedElev);
+      if (!list.length) return;
+      editor.grid[list[editor.elevSlotSel]].deep = { ci: ci5, type: type };
+      // Jump to the next tile still waiting for a floor box
+      for (var n = 1; n <= list.length; n++) {
+        var nx = (editor.elevSlotSel + n) % list.length;
+        if (!editor.grid[list[nx]].deep) { editor.elevSlotSel = nx; break; }
+      }
+      editorRefresh();
+    });
+  }
+
+  var fillBtn = document.getElementById('ed-elev-fill');
+  if (fillBtn) {
+    fillBtn.addEventListener('click', function () {
+      var list = editorElevCells(editor.selectedElev);
+      var src = list.length ? editor.grid[list[editor.elevSlotSel]].deep : null;
+      if (!src) { editorShowToast('Pick a colour for that tile first'); return; }
+      for (var n = 0; n < list.length; n++) {
+        editor.grid[list[n]].deep = { ci: src.ci, type: src.type };
+      }
+      editorRefresh();
+    });
+  }
+
+  var clearBtn2 = document.getElementById('ed-elev-clear');
+  if (clearBtn2) {
+    clearBtn2.addEventListener('click', function () {
+      var list = editorElevCells(editor.selectedElev);
+      for (var n = 0; n < list.length; n++) editor.grid[list[n]].deep = null;
+      editor.elevSlotSel = 0;
+      editorRefresh();
+    });
+  }
+
+  var removeBtn = document.getElementById('ed-elev-remove');
+  if (removeBtn) {
+    removeBtn.addEventListener('click', function () {
+      editorRemoveElev(editor.selectedElev);
+      editorRefresh();
+    });
+  }
+}
+
 // ── Quick actions ──
 function editorFillRandom() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
+  editor.selectedElev = -1;
   var cl = [];
   for (var c = 0; c < 4; c++) for (var n = 0; n < 6; n++) cl.push(c);
   shuffle(cl);
   var indices = []; for (var i = 0; i < 49; i++) indices.push(i);
   shuffle(indices);
   for (var i = 0; i < cl.length; i++) editor.grid[indices[i]] = { ci: cl[i], type: 'default' };
-  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+  editorRefresh();
 }
 
 function editorClearAll() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
-  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+  editor.selectedElev = -1;
+  editorRefresh();
 }
 
 // ── Stats ──
@@ -453,11 +823,32 @@ function editorUpdateStats() {
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
   var wallCount = 0;
+  var elevCount = 0, elevMissingTop = 0, elevMissingDeep = 0;
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
     if (v.wall) {
       wallCount++;
+      continue;
+    }
+    if (v.elevator) {
+      if (v.part === 0) elevCount++;
+      if (!v.surface) elevMissingTop++;
+      if (!v.deep) elevMissingDeep++;
+      var eBoxes = [v.surface, v.deep];
+      for (var eb = 0; eb < eBoxes.length; eb++) {
+        var eBox = eBoxes[eb];
+        if (!eBox) continue;
+        counts[eBox.ci]++;
+        total++;
+        typeCounts[eBox.type] = (typeCounts[eBox.type] || 0) + 1;
+        if (eBox.type === 'blocker') {
+          regularMrb[eBox.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
+          totalBlockers += BLOCKER_PER_BOX;
+        } else {
+          regularMrb[eBox.ci] += editor.mrbPerBox;
+        }
+      }
       continue;
     }
     if (v.tunnel) {
@@ -503,6 +894,9 @@ function editorUpdateStats() {
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
   }
+  if (elevCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#2B3340;border:1px solid #5FD4E8">' + elevCount + ' elevator' + (elevCount > 1 ? 's' : '') + '</span>';
+  }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
   }
@@ -524,6 +918,12 @@ function editorUpdateStats() {
     }
     if (!warn && totalBlockers > 0 && totalBlockers % 3 !== 0) {
       warn = 'Total blocker marbles (' + totalBlockers + ') must be a multiple of 3';
+    }
+    if (!warn && elevMissingTop > 0) {
+      warn = elevMissingTop + ' elevator tile' + (elevMissingTop > 1 ? 's have' : ' has') + ' no top box';
+    }
+    if (!warn && elevMissingDeep > 0) {
+      warn = elevMissingDeep + ' elevator tile' + (elevMissingDeep > 1 ? 's have' : ' has') + ' no lifted floor box';
     }
   }
   if (warn) html += '<span class="ed-stat-warn">' + warn + '</span>';
@@ -618,6 +1018,11 @@ function editorImportJSON() {
           if (cell === null || cell === undefined || cell === -1) editor.grid[i] = null;
           else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
           else if (cell.wall) editor.grid[i] = { wall: true };
+          else if (cell.elevator) editor.grid[i] = {
+            elevator: true, eid: cell.eid || 0, dir: cell.dir || 'h',
+            len: cell.len || 2, part: cell.part || 0,
+            surface: cell.surface || null, deep: cell.deep || null
+          };
           else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
           else editor.grid[i] = cell;
         }
@@ -632,6 +1037,7 @@ function editorImportJSON() {
       if (nameEl) nameEl.value = editor.name;
       if (descEl) descEl.value = editor.desc;
       editor.selectedTunnel = -1;
+      editor.selectedElev = -1;
       ta.style.display = 'none';
       editorBuildUI();
       editorShowToast('Imported!');
