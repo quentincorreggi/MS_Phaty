@@ -62,24 +62,6 @@ function initGame() {
   if (lvl.mrbPerBox) MRB_PER_BOX = lvl.mrbPerBox;
   if (lvl.sortCap) SORT_CAP = lvl.sortCap;
 
-  // ── Reserve the lower cell of every tall box ──
-  // A tall box needs the cell directly below it. If that cell is taken
-  // (or the box sits in the bottom row) it falls back to a normal box
-  // so an imported level can never produce a half-drawn box.
-  var tallSlaves = {};
-  for (var k in boxSlots) {
-    if (boxSlots[k].boxType !== 'tall') continue;
-    var anchorIdx = parseInt(k, 10);
-    var belowIdx = anchorIdx + L.cols;
-    var anchorRow = Math.floor(anchorIdx / L.cols);
-    if (anchorRow >= L.rows - 1 || boxSlots[belowIdx] || tunnelSlots[belowIdx] ||
-        wallSlots[belowIdx] || tallSlaves[belowIdx]) {
-      boxSlots[k].boxType = 'default';
-    } else {
-      tallSlaves[belowIdx] = anchorIdx;
-    }
-  }
-
   // ── Count regular marbles per color for sort columns ──
   var colorMarblesTotal = [];
   for (var c = 0; c < NUM_COLORS; c++) colorMarblesTotal.push(0);
@@ -98,6 +80,7 @@ function initGame() {
       var tItem = ts.contents[tc];
       var isBlockerBox = (tItem.type === 'blocker');
       var regularPerBox = isBlockerBox ? (MRB_PER_BOX - BLOCKER_PER_BOX) : MRB_PER_BOX;
+      if (tItem.type === 'tall') regularPerBox = MRB_PER_BOX * TALL_CELLS;
       colorMarblesTotal[tItem.ci] += regularPerBox;
       if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
     }
@@ -114,21 +97,8 @@ function initGame() {
     var slot = boxSlots[idx];
     var tSlot = tunnelSlots[idx];
     var wSlot = wallSlots[idx];
-    var tallAnchorIdx = tallSlaves[idx];
 
-    if (tallAnchorIdx !== undefined) {
-      // Lower half of a tall box — blocks the cell, never drawn or
-      // tapped itself, and opens up when its anchor is emptied.
-      stock.push({
-        isTallSlave: true, tallAnchor: tallAnchorIdx,
-        isTall: false, isTunnel: false, isWall: false,
-        ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
-        revealed: false, empty: false, boxType: 'default',
-        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
-        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
-        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
-      });
-    } else if (tSlot) {
+    if (tSlot) {
       // Tunnel entry
       stock.push({
         isTunnel: true, isWall: false,
@@ -167,7 +137,7 @@ function initGame() {
         remaining: isTall ? MRB_PER_BOX * TALL_CELLS : MRB_PER_BOX, spawning: false, spawnIdx: 0,
         revealed: isIce ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
-        isTall: isTall, isTallSlave: false, tallSlave: isTall ? idx + L.cols : -1,
+        isTall: isTall,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
@@ -217,7 +187,6 @@ function updateBoxReveals(animate) {
     if (!s) { passable[i] = false; continue; }
     if (s.isWall) { passable[i] = false; continue; }
     if (s.isTunnel) { passable[i] = false; continue; }
-    // A tall box's lower cell only becomes passable once the box is emptied
     passable[i] = !!(s.empty || s.used);
   }
 
@@ -257,16 +226,13 @@ function updateBoxReveals(animate) {
     var b = stock[k];
     if (!b) continue;
     if (b.isWall || b.isTunnel || b.empty || b.used) continue;
-    if (b.isTallSlave) continue;   // the anchor decides for the whole box
     if (b.spawning) continue;
 
-    // A tall box checks from both of the cells it occupies — it is open
-    // if either half can see a way down.
-    var cells = getBoxCells(k);
+    var br = Math.floor(k / L.cols), bcol = k % L.cols;
     var hasPath = false;
-    for (var ci2 = 0; ci2 < cells.length && !hasPath; ci2++) {
-      var br = Math.floor(cells[ci2] / L.cols), bcol = cells[ci2] % L.cols;
-      if (br === L.rows - 1) { hasPath = true; break; }
+    if (br === L.rows - 1) {
+      hasPath = true;
+    } else {
       var bnbrs = [];
       if (br > 0)          bnbrs.push((br - 1) * L.cols + bcol);
       if (br < L.rows - 1) bnbrs.push((br + 1) * L.cols + bcol);
@@ -281,7 +247,7 @@ function updateBoxReveals(animate) {
       b.revealed = true;
       if (animate) {
         b.revealT = 1.0;
-        var bx = b.x + L.bw / 2, by = b.y + boxDrawH(b) / 2;
+        var bx = b.x + L.bw / 2, by = boxDrawY(b) + boxDrawH(b) / 2;
         var burstColor = (b.boxType === 'hidden') ? '#FFD700' : COLORS[b.ci].fill;
         for (var p = 0; p < 12; p++) {
           var ang = Math.PI * 2 * p / 12 + Math.random() * 0.3;
@@ -302,50 +268,14 @@ function updateBoxReveals(animate) {
   }
 }
 
-// === GRID FOOTPRINT HELPERS ===
-// Every cell a box occupies — one for a normal box, two for a tall one.
-function getBoxCells(idx) {
-  var b = stock[idx];
-  var cells = [idx];
-  if (b && b.isTall && b.tallSlave >= 0 && b.tallSlave < stock.length) cells.push(b.tallSlave);
-  return cells;
-}
-
-// Index of the stock entry that owns a cell — the lower half of a tall
-// box answers with its anchor, so callers never act on a slave entry.
-function getBoxOwner(idx) {
-  var b = stock[idx];
-  if (b && b.isTallSlave) return b.tallAnchor;
-  return idx;
-}
-
-// Every box touching the footprint of the box at idx, each listed once.
-function getNeighborBoxes(idx) {
-  var cells = getBoxCells(idx);
-  var seen = {}, out = [];
-  for (var ci = 0; ci < cells.length; ci++) seen[cells[ci]] = true;
-  for (var ci = 0; ci < cells.length; ci++) {
-    var row = Math.floor(cells[ci] / L.cols), col = cells[ci] % L.cols;
-    var nbrs = [];
-    if (row > 0)          nbrs.push((row - 1) * L.cols + col);
-    if (row < L.rows - 1) nbrs.push((row + 1) * L.cols + col);
-    if (col > 0)          nbrs.push(row * L.cols + (col - 1));
-    if (col < L.cols - 1) nbrs.push(row * L.cols + (col + 1));
-    for (var n = 0; n < nbrs.length; n++) {
-      var owner = getBoxOwner(nbrs[n]);
-      if (seen[owner]) continue;
-      seen[owner] = true;
-      out.push(owner);
-    }
-  }
-  return out;
-}
-
 // === ICE DAMAGE ===
-// A tall box reaches every box touching either of its halves — it is
-// heavier, so it shakes more ice loose.
 function damageAdjacentIce(idx) {
-  var neighbors = getNeighborBoxes(idx);
+  var row = Math.floor(idx / L.cols), col = idx % L.cols;
+  var neighbors = [];
+  if (row > 0)          neighbors.push((row - 1) * L.cols + col);
+  if (row < L.rows - 1) neighbors.push((row + 1) * L.cols + col);
+  if (col > 0)          neighbors.push(row * L.cols + (col - 1));
+  if (col < L.cols - 1) neighbors.push(row * L.cols + (col + 1));
   for (var ni = 0; ni < neighbors.length; ni++) {
     var nb = stock[neighbors[ni]];
     if (!nb) continue;
@@ -353,7 +283,7 @@ function damageAdjacentIce(idx) {
     if (nb.empty || nb.used || nb.iceHP <= 0) continue;
 
     nb.iceHP--;
-    var bx = nb.x + L.bw / 2, by = nb.y + boxDrawH(nb) / 2;
+    var bx = nb.x + L.bw / 2, by = boxDrawY(nb) + boxDrawH(nb) / 2;
 
     if (nb.iceHP === 1) {
       nb.iceCrackT = 1.0;
@@ -391,7 +321,6 @@ function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
   if (b.isWall) return false;      // walls are not tappable
-  if (b.isTallSlave) return false; // taps land on the tall box's anchor
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
@@ -401,26 +330,34 @@ function isBoxTappable(idx) {
 function getSortBoxY(ci, vi) { return L.sTop + vi * (L.sBh + L.sGap); }
 
 // === INPUT ===
+// Hit-test against what is actually drawn: a tall box stands twice as
+// high as its cell, so it also takes taps landing on the overhang above
+// it — unless a real box sits there, which is drawn in front and so is
+// checked first (this loop runs top row down, drawStock draws bottom up).
+function findTappedBox(px, py) {
+  for (var i = 0; i < stock.length; i++) {
+    var b = stock[i];
+    if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
+    if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
+    var by = boxDrawY(b), bh = boxDrawH(b);
+    if (px >= b.x && px <= b.x + L.bw && py >= by && py <= by + bh) return i;
+  }
+  return -1;
+}
+
 function handleTap(px, py) {
   if (won || !gameActive) return;
   ensureAudio();
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
-  for (var i = 0; i < stock.length; i++) {
-    var b = stock[i];
-    if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
-    if (b.isTallSlave) continue;           // covered by its anchor's hit area
-    if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
-    var bh = boxDrawH(b);
-    if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + bh) {
-      if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
-      b.popT = 1;
-      sfx.pop();
-      spawnBurst(b.x + L.bw / 2, b.y + bh / 2, COLORS[b.ci].fill, b.isTall ? 28 : 18);
-      spawnPhysMarbles(b);
-      damageAdjacentIce(i);
-      return;
-    }
-  }
+  var i = findTappedBox(px, py);
+  if (i < 0) return;
+  var b = stock[i];
+  if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
+  b.popT = 1;
+  sfx.pop();
+  spawnBurst(b.x + L.bw / 2, boxDrawY(b) + boxDrawH(b) / 2, COLORS[b.ci].fill, b.isTall ? 28 : 18);
+  spawnPhysMarbles(b);
+  damageAdjacentIce(i);
 }
 canvas.addEventListener('click', function (e) { handleTap(e.clientX, e.clientY); });
 canvas.addEventListener('touchstart', function (e) { e.preventDefault(); handleTap(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
@@ -429,13 +366,8 @@ canvas.addEventListener('mousemove', function (e) {
   hoverIdx = -1;
   if (!gameActive) return;
   if (e.clientX >= L.bkX && e.clientX <= L.bkX + L.bkSize && e.clientY >= L.bkY && e.clientY <= L.bkY + L.bkSize) { canvas.style.cursor = 'pointer'; return; }
-  for (var i = 0; i < stock.length; i++) {
-    var b = stock[i];
-    if (b.isTunnel || b.isWall || b.isTallSlave) continue;
-    if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
-    if (!isBoxTappable(i)) continue;
-    if (e.clientX >= b.x && e.clientX <= b.x + L.bw && e.clientY >= b.y && e.clientY <= b.y + boxDrawH(b)) { hoverIdx = i; break; }
-  }
+  var hit = findTappedBox(e.clientX, e.clientY);
+  if (hit >= 0 && isBoxTappable(hit)) hoverIdx = hit;
   canvas.style.cursor = hoverIdx >= 0 ? 'pointer' : 'default';
 });
 

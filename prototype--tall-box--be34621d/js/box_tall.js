@@ -1,13 +1,26 @@
 // ============================================================
 // box_tall.js — Tall box type
-// A double-height box. Occupies its own grid cell plus the cell
-// directly below it, and holds twice the normal marble load
-// (18 marbles at the default 9 per box).
+// Takes up ONE grid cell like every other box — the maze treats it
+// no differently — but is drawn twice as high and holds twice the
+// marble load (18 at the default 9 per box).
 //
-// The engine reads the `isTall` flag on this definition to know
-// the type needs a two-cell footprint. The lower cell becomes a
-// "slave" entry in stock[] (isTallSlave) that points back here.
+// It stands on its own cell, where its lip is and where the marbles
+// pour from, so the extra height rises into the row above. Tall
+// boxes are drawn last (see drawStock) and carry a heavier shadow,
+// so they read as standing in front of whatever they overlap.
 // ============================================================
+
+// Soft shadow cast on the neighbours a tall box overlaps
+function drawTallShadow(ctx, x, y, w, h, S) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(90,74,56,0.22)';
+  ctx.shadowColor = 'rgba(60,45,30,0.4)';
+  ctx.shadowBlur = 9 * S;
+  ctx.shadowOffsetY = 3 * S;
+  rRect(x + 1.5 * S, y + 2 * S, w - 3 * S, h, 6 * S);
+  ctx.fill();
+  ctx.restore();
+}
 
 // ── Seam + side ribs, drawn on top of the box body so a tall box
 //    reads as one reinforced crate instead of two stacked boxes ──
@@ -56,6 +69,7 @@ registerBoxType('tall', {
 
   drawClosed: function (ctx, x, y, w, h, ci, S, tick, idlePhase) {
     var c = COLORS[ci];
+    drawTallShadow(ctx, x, y, w, h, S);
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,0.16)'; ctx.shadowBlur = 4 * S; ctx.shadowOffsetY = 2 * S;
     ctx.globalAlpha = 0.45;
@@ -90,6 +104,7 @@ registerBoxType('tall', {
       this.drawClosed(ctx, x, y, w, h, ci, S, tick, 0);
       ctx.globalAlpha = phase * 2;
     }
+    drawTallShadow(ctx, x, y, w, h, S);
     drawBox(x, y, w, h, ci);
     drawTallSeam(ctx, x, y, w, h, ci, S);
     ctx.globalAlpha = 1;

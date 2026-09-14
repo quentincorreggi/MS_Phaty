@@ -64,10 +64,10 @@ var SNAKE_ORDER = [
 ];
 
 // === TALL BOX ===
-// A tall box occupies TALL_CELLS grid cells stacked vertically (its own
-// anchor cell plus the cell(s) below it) and holds that many times the
-// normal marble load. The lower cell is a "slave" entry in stock[] that
-// points back at the anchor.
+// A tall box takes up a single grid cell like every other box — the maze
+// (paths, walls, tunnels, ice) treats it no differently. It is only
+// DRAWN TALL_CELLS cells high, standing on its own cell and overhanging
+// the row above, and it holds that many times the normal marble load.
 var TALL_CELLS = 2;
 
 // Snake order for the 3x6 marble stack inside a tall box (18 marbles)
@@ -85,6 +85,11 @@ function tallBoxH() { return L.bh * TALL_CELLS + L.bg * (TALL_CELLS - 1); }
 
 // Drawn height of any stock entry (tall boxes only while they still hold marbles)
 function boxDrawH(b) { return (b && b.isTall && !b.used) ? tallBoxH() : L.bh; }
+
+// Top edge of the drawn box. A tall box is anchored to the BOTTOM of its
+// own cell — where its lip is and where the marbles pour from — so the
+// extra height rises into the row above.
+function boxDrawY(b) { return b.y + L.bh - boxDrawH(b); }
 
 // How many marbles this box holds when full
 function boxCapacity(b) { return (b && b.isTall) ? MRB_PER_BOX * TALL_CELLS : MRB_PER_BOX; }

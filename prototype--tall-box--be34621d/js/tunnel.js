@@ -175,16 +175,15 @@ function trySpawnFromTunnels() {
 
     var exitRow = Math.floor(exitIdx / L.cols);
     var exitCol = exitIdx % L.cols;
-    // A tunnel has a single exit cell, so it cannot deliver a tall box —
-    // one stored by an imported level arrives as a normal box instead.
-    var nextType = (nextBox.type === 'tall') ? 'default' : (nextBox.type || 'default');
+    var nextType = nextBox.type || 'default';
     var isIce = (nextType === 'ice');
     var isBlocker = (nextType === 'blocker');
+    var isTallBox = (nextType === 'tall');
 
     stock[exitIdx] = {
       ci: nextBox.ci,
       used: false,
-      remaining: MRB_PER_BOX,
+      remaining: isTallBox ? MRB_PER_BOX * TALL_CELLS : MRB_PER_BOX,
       spawning: false,
       spawnIdx: 0,
       // Start closed; updateBoxReveals will open it if the exit cell
@@ -198,9 +197,7 @@ function trySpawnFromTunnels() {
       blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
       isTunnel: false,
       isWall: false,
-      isTall: false,
-      isTallSlave: false,
-      tallSlave: -1,
+      isTall: isTallBox,
       x: L.sx + exitCol * (L.bw + L.bg),
       y: L.sy + exitRow * (L.bh + L.bg),
       shakeT: 0,
