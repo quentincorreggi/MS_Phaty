@@ -1,0 +1,22 @@
+{
+  "name": "Tall Box",
+  "description": "A double-height box that holds 18 marbles and blocks two grid cells until it is emptied.",
+  "howToPlay": "The sealed column in the middle can only be opened from the bottom. Tap the yellow box at its base, and the green Tall Box above it opens up — one tap pours all 18 marbles and frees BOTH of its cells at once, unlocking the two boxes stacked above. There is also a pink Tall Box on the left you can tap straight away.",
+  "author": "",
+  "showcaseLevel": {
+    "name": "Tall Box Demo",
+    "desc": "One tap, 18 marbles, two cells freed",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, null, null, { "wall": true }, null, null, null,
+      null, null, { "wall": true }, { "ci": 0, "type": "default" }, { "wall": true }, null, null,
+      null, null, { "wall": true }, { "ci": 1, "type": "default" }, { "wall": true }, null, null,
+      null, null, { "wall": true }, { "ci": 2, "type": "tall" }, { "wall": true }, null, null,
+      { "ci": 0, "type": "tall" }, null, { "wall": true }, null, { "wall": true }, null, null,
+      null, null, { "wall": true }, { "ci": 3, "type": "default" }, { "wall": true }, null, null
+    ]
+  }
+}
