@@ -97,21 +97,28 @@ function physicsStep() {
 function spawnPhysMarbles(box) {
   box.spawning = true; box.spawnIdx = 0;
   var count = box.remaining;
+  var capacity = boxCapacity(box);
+  var order = boxSnakeOrder(box);
+  var rowCenter = (boxMarbleRows(box) - 1) / 2;
+  var boxH = boxDrawH(box);
+  // Tall boxes carry twice the load, so they pour a little faster to
+  // keep the whole emptying animation to a comfortable length.
+  var delay = box.isTall ? 100 : 120;
   var blockerCount = box.blockerCount || 0;
-  var blockerStart = MRB_PER_BOX - blockerCount;
+  var blockerStart = capacity - blockerCount;
   for (var idx = 0; idx < count; idx++) {
     (function (i, b, bStart) {
       setTimeout(function () {
         if (b.remaining <= 0) return;
-        var spawnIdx = MRB_PER_BOX - b.remaining;
-        var si = SNAKE_ORDER[spawnIdx];
+        var spawnIdx = capacity - b.remaining;
+        var si = order[Math.min(spawnIdx, order.length - 1)];
         b.remaining--;
-        b.spawnIdx = MRB_PER_BOX - b.remaining;
+        b.spawnIdx = capacity - b.remaining;
         var MR = getMR();
         var mg = Math.min(14 * S, L.bw / 4.2);
         var mgY = mg * MRB_GAP_FACTOR;
         var mx = b.x + L.bw / 2 + (si.c - 1) * mg;
-        var my = b.y + L.bh / 2 + (si.r - 1) * mgY - 2 * S;
+        var my = b.y + boxH / 2 + (si.r - rowCenter) * mgY - 2 * S;
         var vx = (Math.random() - 0.5) * 2 * S;
         var vy = -(2 + Math.random() * 2) * S;
         var marbleCi = (blockerCount > 0 && spawnIdx >= bStart) ? BLOCKER_CI : b.ci;
@@ -123,12 +130,17 @@ function spawnPhysMarbles(box) {
           setTimeout(function () {
             b.used = true;
             b.spawning = false;
+            // A tall box frees both of its cells at once
+            if (b.isTall && stock[b.tallSlave]) {
+              stock[b.tallSlave].used = true;
+              stock[b.tallSlave].emptyT = 1.0;
+            }
             // Re-evaluate which boxes have an open path to the bottom
             // now that this cell is passable.
             updateBoxReveals(true);
           }, 300);
         }
-      }, i * 120);
+      }, i * delay);
     })(idx, box, blockerStart);
   }
 }

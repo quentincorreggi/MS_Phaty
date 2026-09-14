@@ -5,7 +5,10 @@
 // ============================================================
 
 var editor = {
-  grid: [],            // 7x7: null = empty, { ci, type } or { tunnel: true, ... } or { wall: true }
+  grid: [],            // 7x7: null = empty, { ci, type }, { tunnel: true, ... }, { wall: true }
+                       // or { tallSlave: true, anchor } — the reserved lower half of a
+                       // tall box. Slave markers are editor-only: editorBuildLevel()
+                       // strips them out and the engine re-derives them from the anchor.
   name: 'Custom Level',
   desc: 'My custom level',
   mrbPerBox: 9,
@@ -54,6 +57,90 @@ function hideEditor() {
 
 function editorBack() { hideEditor(); showLevelSelect(); }
 
+// ── Tall box helpers ──
+// Tall boxes cover two cells: the painted cell plus the one below it.
+function editorIsTallType(typeId) {
+  var bt = BoxTypes[typeId];
+  return !!(bt && bt.isTall);
+}
+
+// If idx is either half of a tall box, return the anchor index, else -1.
+function editorTallAnchorAt(idx) {
+  var v = editor.grid[idx];
+  if (!v) return -1;
+  if (v.tallSlave) return v.anchor;
+  if (v.type && editorIsTallType(v.type)) return idx;
+  return -1;
+}
+
+// Can a tall box take over this cell? Plain boxes get painted over,
+// but walls, tunnels and other tall boxes are left alone.
+function editorCellBlocksTall(idx) {
+  var v = editor.grid[idx];
+  if (!v) return false;
+  if (v.wall || v.tunnel || v.tallSlave) return true;
+  return !!(v.type && editorIsTallType(v.type));
+}
+
+// Erase a cell — clears both halves when it is part of a tall box.
+function editorEraseCellAt(idx) {
+  var anchor = editorTallAnchorAt(idx);
+  if (anchor >= 0) {
+    editor.grid[anchor] = null;
+    var slaveIdx = anchor + 7;
+    if (slaveIdx < 49 && editor.grid[slaveIdx] && editor.grid[slaveIdx].tallSlave) {
+      editor.grid[slaveIdx] = null;
+    }
+    if (editor.selectedTunnel === anchor) editor.selectedTunnel = -1;
+    return;
+  }
+  editor.grid[idx] = null;
+}
+
+// Rebuild every tall box's reserved lower cell (used after an import).
+// A tall box with no room below falls back to a normal box.
+function editorSyncTallSlaves() {
+  for (var i = 0; i < 49; i++) {
+    if (editor.grid[i] && editor.grid[i].tallSlave) editor.grid[i] = null;
+  }
+  for (var i = 0; i < 49; i++) {
+    var v = editor.grid[i];
+    if (!v || !v.type || !editorIsTallType(v.type)) continue;
+    var below = i + 7;
+    if (Math.floor(i / 7) >= 6 || editor.grid[below]) {
+      editor.grid[i] = { ci: v.ci, type: BoxTypeOrder[0] };
+    } else {
+      editor.grid[below] = { tallSlave: true, anchor: i };
+    }
+  }
+}
+
+// Place a tall box at idx, reporting why if it doesn't fit.
+function editorPlaceTall(idx) {
+  var anchor = editorTallAnchorAt(idx);
+  if (anchor >= 0) {
+    var existingTall = editor.grid[anchor];
+    // Painting the same colour over an existing tall box removes it,
+    // matching how the normal box types toggle off.
+    var sameColor = (existingTall.ci === editor.activeColor);
+    editorEraseCellAt(anchor);
+    if (sameColor) return true;
+  }
+  if (Math.floor(idx / 7) >= 6) {
+    editorShowToast('Tall boxes need a free cell below — try one row higher');
+    return false;
+  }
+  var below = idx + 7;
+  if (editorCellBlocksTall(idx) || editorCellBlocksTall(below)) {
+    editorShowToast('Not enough room — clear the two cells first');
+    return false;
+  }
+  editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
+  editor.grid[below] = { tallSlave: true, anchor: idx };
+  if (editor.selectedTunnel === idx || editor.selectedTunnel === below) editor.selectedTunnel = -1;
+  return true;
+}
+
 function editorBuildUI() {
   editorRenderGrid();
   editorRenderToolbar();
@@ -85,12 +172,24 @@ function editorRenderGrid() {
       var count = v.contents ? v.contents.length : 0;
       cell.innerHTML = '<span class="ed-cell-dot" style="color:#FFD080;font-size:13px">' + arrow +
         '</span><span class="ed-tunnel-badge">' + count + '</span>';
+    } else if (v && v.tallSlave) {
+      // Lower half of a tall box — same colour, dimmed, linked upward
+      var anchorCell = editor.grid[v.anchor];
+      if (anchorCell && anchorCell.ci >= 0) {
+        var ast = getBoxType(anchorCell.type).editorCellStyle(anchorCell.ci);
+        cell.style.background = ast.background;
+        cell.style.borderColor = ast.borderColor;
+      }
+      cell.style.opacity = '0.62';
+      cell.style.borderTopStyle = 'dashed';
+      cell.innerHTML = '<span class="ed-cell-dot" style="font-size:13px">&#8593;</span>';
     } else if (v && v.ci >= 0) {
       var bt = getBoxType(v.type);
       var st = bt.editorCellStyle(v.ci);
       cell.style.background = st.background;
       cell.style.borderColor = st.borderColor;
       cell.innerHTML = bt.editorCellHTML(v.ci);
+      if (bt.isTall) cell.style.borderBottomStyle = 'dashed';
     } else {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
@@ -112,7 +211,8 @@ function editorCellClick(e) {
       // Toggle off: clicking existing wall removes it
       editor.grid[idx] = null;
     } else {
-      // Place wall
+      // Place wall — clears both halves if a tall box was here
+      editorEraseCellAt(idx);
       editor.grid[idx] = { wall: true };
     }
     if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
@@ -128,19 +228,27 @@ function editorCellClick(e) {
     if (existing && existing.tunnel) {
       editor.selectedTunnel = idx;
     } else if (editor.activeColor === -1) {
-      editor.grid[idx] = null;
+      editorEraseCellAt(idx);
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     } else {
+      editorEraseCellAt(idx);
       editor.grid[idx] = { tunnel: true, dir: editor.tunnelDir, contents: [] };
       editor.selectedTunnel = idx;
     }
   } else {
     // Normal box painting mode
     if (editor.activeColor === -1) {
-      editor.grid[idx] = null;
+      editorEraseCellAt(idx);
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+    } else if (editorIsTallType(editor.activeType)) {
+      editorPlaceTall(idx);
     } else {
       var existing = editor.grid[idx];
+      if (existing && (existing.tallSlave || (existing.type && editorIsTallType(existing.type)))) {
+        // Painting over either half of a tall box clears the whole thing first
+        editorEraseCellAt(idx);
+        existing = null;
+      }
       if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
         editor.grid[idx] = null;
       } else {
@@ -157,7 +265,7 @@ function editorCellClick(e) {
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
-  editor.grid[idx] = null;
+  editorEraseCellAt(idx);
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
   editorRenderGrid();
   editorUpdateStats();
@@ -356,6 +464,8 @@ function editorRenderTunnelPanel() {
   html += '<div class="ed-tunnel-add-row">';
   html += '<select id="ed-tunnel-add-type" class="ed-tunnel-select">';
   for (var t = 0; t < BoxTypeOrder.length; t++) {
+    // A tunnel has one exit cell, so it can't deliver a two-cell tall box
+    if (editorIsTallType(BoxTypeOrder[t])) continue;
     html += '<option value="' + BoxTypeOrder[t] + '">' + BoxTypes[BoxTypeOrder[t]].label + '</option>';
   }
   html += '</select>';
@@ -456,6 +566,7 @@ function editorUpdateStats() {
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
+    if (v.tallSlave) continue;  // counted with its anchor
     if (v.wall) {
       wallCount++;
       continue;
@@ -484,6 +595,8 @@ function editorUpdateStats() {
       if (v.type === 'blocker') {
         regularMrb[v.ci] += Math.max(0, editor.mrbPerBox - BLOCKER_PER_BOX);
         totalBlockers += BLOCKER_PER_BOX;
+      } else if (editorIsTallType(v.type)) {
+        regularMrb[v.ci] += editor.mrbPerBox * TALL_CELLS;
       } else {
         regularMrb[v.ci] += editor.mrbPerBox;
       }
@@ -562,12 +675,19 @@ function editorRenderSettings() {
 }
 
 // ── Build level definition ──
+// Tall boxes are exported as a single cell — the engine reserves the
+// cell below on its own, so slave markers never reach the level data.
 function editorBuildLevel() {
+  var grid = [];
+  for (var i = 0; i < 49; i++) {
+    var v = editor.grid[i];
+    grid.push(v && v.tallSlave ? null : v);
+  }
   return {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
-    grid: editor.grid.slice()
+    grid: grid
   };
 }
 
@@ -619,8 +739,10 @@ function editorImportJSON() {
           else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
           else if (cell.wall) editor.grid[i] = { wall: true };
           else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
+          else if (cell.tallSlave) editor.grid[i] = null;  // re-derived below
           else editor.grid[i] = cell;
         }
+        editorSyncTallSlaves();
       }
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;

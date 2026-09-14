@@ -175,8 +175,11 @@ function trySpawnFromTunnels() {
 
     var exitRow = Math.floor(exitIdx / L.cols);
     var exitCol = exitIdx % L.cols;
-    var isIce = (nextBox.type === 'ice');
-    var isBlocker = (nextBox.type === 'blocker');
+    // A tunnel has a single exit cell, so it cannot deliver a tall box —
+    // one stored by an imported level arrives as a normal box instead.
+    var nextType = (nextBox.type === 'tall') ? 'default' : (nextBox.type || 'default');
+    var isIce = (nextType === 'ice');
+    var isBlocker = (nextType === 'blocker');
 
     stock[exitIdx] = {
       ci: nextBox.ci,
@@ -188,13 +191,16 @@ function trySpawnFromTunnels() {
       // still has a passable path to the bottom of the grid.
       revealed: false,
       empty: false,
-      boxType: nextBox.type || 'default',
+      boxType: nextType,
       iceHP: isIce ? 2 : 0,
       iceCrackT: 0,
       iceShatterT: 0,
       blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
       isTunnel: false,
       isWall: false,
+      isTall: false,
+      isTallSlave: false,
+      tallSlave: -1,
       x: L.sx + exitCol * (L.bw + L.bg),
       y: L.sy + exitRow * (L.bh + L.bg),
       shakeT: 0,

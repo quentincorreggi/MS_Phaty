@@ -65,19 +65,27 @@ function drawEmptySlot(x, y, w, h) {
   ctx.restore();
 }
 
-function drawBoxMarbles(ci, remaining) {
+// Generic marble stack — `order` is a list of {r,c} slots, `rowCount`
+// how many rows tall the stack is (3 for a normal box, 6 for a tall one).
+// Drawn around the origin, so callers translate to the box centre first.
+function drawBoxMarblesStack(ci, remaining, capacity, order, rowCount) {
   if (remaining <= 0) return;
   var mr = Math.min(7 * S, L.bw / 8.5);
   var mg = Math.min(14 * S, L.bw / 4.2);
   var mgY = mg * MRB_GAP_FACTOR;
-  var gone = MRB_PER_BOX - remaining;
+  var rowCenter = (rowCount - 1) / 2;
+  var gone = capacity - remaining;
   var mrbsToDraw = [];
-  for (var si = gone; si < MRB_PER_BOX; si++) mrbsToDraw.push(SNAKE_ORDER[si]);
+  for (var si = gone; si < capacity; si++) if (order[si]) mrbsToDraw.push(order[si]);
   mrbsToDraw.sort(function (a, b) { return a.r - b.r; });
   for (var si = 0; si < mrbsToDraw.length; si++) {
     var sp = mrbsToDraw[si];
-    drawMarble((sp.c - 1) * mg, (sp.r - 1) * mgY - 2 * S, mr, ci);
+    drawMarble((sp.c - 1) * mg, (sp.r - rowCenter) * mgY - 2 * S, mr, ci);
   }
+}
+
+function drawBoxMarbles(ci, remaining) {
+  drawBoxMarblesStack(ci, remaining, MRB_PER_BOX, SNAKE_ORDER, 3);
 }
 
 function drawBoxMarblesWithBlockers(ci, remaining, blockerCount) {
@@ -100,10 +108,17 @@ function drawBoxMarblesWithBlockers(ci, remaining, blockerCount) {
 }
 
 function drawBoxLip(ci) {
+  drawBoxLipTall(ci, L.bh);
+}
+
+// Lip across the bottom of a box of height h — the lip itself keeps the
+// same thickness whatever the box height, so tall boxes don't get a
+// double-thick front panel.
+function drawBoxLipTall(ci, h) {
   ctx.save();
   var lipH = L.bh * LIP_PCT;
-  ctx.beginPath(); ctx.rect(-L.bw / 2, L.bh / 2 - lipH, L.bw, lipH); ctx.clip();
-  drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, ci);
+  ctx.beginPath(); ctx.rect(-L.bw / 2, h / 2 - lipH, L.bw, lipH); ctx.clip();
+  drawBox(-L.bw / 2, -h / 2, L.bw, h, ci);
   ctx.restore();
 }
 
@@ -177,8 +192,19 @@ function drawStock() {
       continue;
     }
 
+    // ── Lower half of a tall box ──
+    // The anchor draws across both cells, so the slave draws nothing
+    // until the box is emptied and it becomes a plain empty slot.
+    if (b.isTallSlave) {
+      var anchorBox = stock[b.tallAnchor];
+      if (anchorBox && !anchorBox.used) continue;
+    }
+
+    var bh = boxDrawH(b);
     var ox = 0;
     if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
+    // Heavy rumble while a tall box pours its load out
+    if (b.isTall && b.spawning) ox += Math.sin(tick * 0.9) * 1.3 * S;
     var breathe = 0;
     if (!b.used && !b.spawning && b.revealT <= 0 && b.revealed && isBoxTappable(i)) {
       breathe = Math.sin(tick * 0.04 + b.idlePhase) * 0.02;
@@ -194,30 +220,31 @@ function drawStock() {
     if (b.used && b.emptyT > 0) {
       ts *= 0.7 + 0.3 * (1 - b.emptyT);
       ctx.save(); ctx.globalAlpha = 1 - b.emptyT * 0.3;
-      ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2); ctx.scale(ts, ts);
-      drawEmptySlot(-L.bw / 2, -L.bh / 2, L.bw, L.bh);
+      ctx.translate(b.x + L.bw / 2 + ox, b.y + bh / 2); ctx.scale(ts, ts);
+      drawEmptySlot(-L.bw / 2, -bh / 2, L.bw, bh);
       ctx.restore(); continue;
     }
 
     // Used box (fully empty)
-    if (b.used) { drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
+    if (b.used) { drawEmptySlot(b.x, b.y, L.bw, bh); continue; }
 
     var bt = getBoxType(b.boxType);
     ctx.save();
-    ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2); ctx.scale(ts, ts);
+    ctx.translate(b.x + L.bw / 2 + ox, b.y + bh / 2); ctx.scale(ts, ts);
 
     if (b.revealT > 0) {
       var phase = 1 - b.revealT;
-      bt.drawReveal(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, phase, b.remaining, tick);
+      bt.drawReveal(ctx, -L.bw / 2, -bh / 2, L.bw, bh, b.ci, S, phase, b.remaining, tick);
     } else if (!b.revealed) {
       var idleWobble = Math.sin(tick * 0.02 + b.idlePhase) * 0.006;
       ctx.rotate(idleWobble);
-      bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase);
+      bt.drawClosed(ctx, -L.bw / 2, -bh / 2, L.bw, bh, b.ci, S, tick, b.idlePhase);
     } else {
       var c = COLORS[b.ci];
       if (isBoxTappable(i) && b.hoverT > 0.01) { ctx.shadowColor = c.glow; ctx.shadowBlur = 20 * S * b.hoverT; }
-      drawBox(-L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci);
+      drawBox(-L.bw / 2, -bh / 2, L.bw, bh, b.ci);
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+      if (b.isTall) drawTallSeam(ctx, -L.bw / 2, -bh / 2, L.bw, bh, b.ci, S);
       if (b.boxType === 'blocker' && b.blockerCount > 0) {
         ctx.save();
         ctx.globalAlpha = 0.06;
@@ -230,19 +257,21 @@ function drawStock() {
         ctx.restore();
       }
       if (b.remaining > 0) {
-        if (b.boxType === 'blocker' && b.blockerCount > 0) {
+        if (b.isTall) {
+          drawBoxMarblesStack(b.ci, b.remaining, boxCapacity(b), boxSnakeOrder(b), boxMarbleRows(b));
+        } else if (b.boxType === 'blocker' && b.blockerCount > 0) {
           drawBoxMarblesWithBlockers(b.ci, b.remaining, b.blockerCount);
         } else {
           drawBoxMarbles(b.ci, b.remaining);
         }
-        drawBoxLip(b.ci);
+        drawBoxLipTall(b.ci, bh);
       }
     }
 
     if (b.iceHP > 0) {
       var iceType = getBoxType('ice');
       if (iceType && iceType.drawIceOverlay) {
-        iceType.drawIceOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, b.iceHP, tick);
+        iceType.drawIceOverlay(ctx, -L.bw / 2, -bh / 2, L.bw, bh, S, b.iceHP, tick);
       }
     }
 
@@ -250,7 +279,7 @@ function drawStock() {
       ctx.save();
       ctx.globalAlpha = b.iceShatterT * 0.4;
       ctx.fillStyle = 'rgba(200,235,255,1)';
-      rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.fill();
+      rRect(-L.bw / 2, -bh / 2, L.bw, bh, 6 * S); ctx.fill();
       ctx.restore();
     }
 

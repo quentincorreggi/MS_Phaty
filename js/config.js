@@ -63,6 +63,36 @@ var SNAKE_ORDER = [
   { r: 2, c: 0 }, { r: 2, c: 1 }, { r: 2, c: 2 }
 ];
 
+// === TALL BOX ===
+// A tall box occupies TALL_CELLS grid cells stacked vertically (its own
+// anchor cell plus the cell(s) below it) and holds that many times the
+// normal marble load. The lower cell is a "slave" entry in stock[] that
+// points back at the anchor.
+var TALL_CELLS = 2;
+
+// Snake order for the 3x6 marble stack inside a tall box (18 marbles)
+var TALL_SNAKE_ORDER = [
+  { r: 0, c: 0 }, { r: 0, c: 1 }, { r: 0, c: 2 },
+  { r: 1, c: 2 }, { r: 1, c: 1 }, { r: 1, c: 0 },
+  { r: 2, c: 0 }, { r: 2, c: 1 }, { r: 2, c: 2 },
+  { r: 3, c: 2 }, { r: 3, c: 1 }, { r: 3, c: 0 },
+  { r: 4, c: 0 }, { r: 4, c: 1 }, { r: 4, c: 2 },
+  { r: 5, c: 2 }, { r: 5, c: 1 }, { r: 5, c: 0 }
+];
+
+// Pixel height of a tall box: TALL_CELLS cells plus the gaps between them
+function tallBoxH() { return L.bh * TALL_CELLS + L.bg * (TALL_CELLS - 1); }
+
+// Drawn height of any stock entry (tall boxes only while they still hold marbles)
+function boxDrawH(b) { return (b && b.isTall && !b.used) ? tallBoxH() : L.bh; }
+
+// How many marbles this box holds when full
+function boxCapacity(b) { return (b && b.isTall) ? MRB_PER_BOX * TALL_CELLS : MRB_PER_BOX; }
+
+// Which marble stack layout this box uses
+function boxSnakeOrder(b) { return (b && b.isTall) ? TALL_SNAKE_ORDER : SNAKE_ORDER; }
+function boxMarbleRows(b) { return (b && b.isTall) ? 3 * TALL_CELLS : 3; }
+
 // === CALIBRATION ===
 var cal = {
   stock:  { dx: -1, dy: 93, s: 0.89 },
