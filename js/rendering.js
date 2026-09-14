@@ -174,33 +174,45 @@ function drawFunnel() {
 
 // ── Stock grid — delegates to registered box types, handles tunnels + walls ──
 
-function drawStock() {
-  for (var i = 0; i < stock.length; i++) {
-    var b = stock[i];
+// Is this cell hidden behind the overhang of a tall box standing in the
+// cell directly below it?
+function isBehindTallBox(idx) {
+  var below = stock[idx + L.cols];
+  return !!(below && below.isTall && !below.used);
+}
 
+function drawStock() {
+  // Drawn bottom row first. A tall box is the only thing that overlaps
+  // its neighbour — it stands twice its cell height — so drawing upwards
+  // keeps any real box above it in front of that overhang instead of
+  // being swallowed by it.
+  for (var i = stock.length - 1; i >= 0; i--) {
+    var b = stock[i];
+    // Skip the empty slot behind a tall box's overhang — it would only
+    // paint a grey panel across the box standing in front of it.
+    if ((b.empty || b.used) && isBehindTallBox(i)) continue;
+    drawStockCell(i, b);
+  }
+}
+
+function drawStockCell(i, b) {
+  {
     // ── Tunnel ──
     if (b.isTunnel) {
       var tRemain = b.tunnelContents ? b.tunnelContents.length : 0;
       drawTunnelOnGrid(ctx, b.x, b.y, L.bw, L.bh, S,
         b.tunnelDir, tRemain, b.tunnelTotal, tick, b.tunnelSpawning);
-      continue;
+      return;
     }
 
     // ── Wall ──
     if (b.isWall) {
       drawWallOnGrid(ctx, b.x, b.y, L.bw, L.bh, S, tick);
-      continue;
-    }
-
-    // ── Lower half of a tall box ──
-    // The anchor draws across both cells, so the slave draws nothing
-    // until the box is emptied and it becomes a plain empty slot.
-    if (b.isTallSlave) {
-      var anchorBox = stock[b.tallAnchor];
-      if (anchorBox && !anchorBox.used) continue;
+      return;
     }
 
     var bh = boxDrawH(b);
+    var by = boxDrawY(b);
     var ox = 0;
     if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
     // Heavy rumble while a tall box pours its load out
@@ -214,23 +226,23 @@ function drawStock() {
     var ts = ps * hs;
 
     // Empty slot
-    if (b.empty) { drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
+    if (b.empty) { drawEmptySlot(b.x, b.y, L.bw, L.bh); return; }
 
     // Used box fading out
     if (b.used && b.emptyT > 0) {
       ts *= 0.7 + 0.3 * (1 - b.emptyT);
       ctx.save(); ctx.globalAlpha = 1 - b.emptyT * 0.3;
-      ctx.translate(b.x + L.bw / 2 + ox, b.y + bh / 2); ctx.scale(ts, ts);
+      ctx.translate(b.x + L.bw / 2 + ox, by + bh / 2); ctx.scale(ts, ts);
       drawEmptySlot(-L.bw / 2, -bh / 2, L.bw, bh);
-      ctx.restore(); continue;
+      ctx.restore(); return;
     }
 
     // Used box (fully empty)
-    if (b.used) { drawEmptySlot(b.x, b.y, L.bw, bh); continue; }
+    if (b.used) { drawEmptySlot(b.x, b.y, L.bw, bh); return; }
 
     var bt = getBoxType(b.boxType);
     ctx.save();
-    ctx.translate(b.x + L.bw / 2 + ox, b.y + bh / 2); ctx.scale(ts, ts);
+    ctx.translate(b.x + L.bw / 2 + ox, by + bh / 2); ctx.scale(ts, ts);
 
     if (b.revealT > 0) {
       var phase = 1 - b.revealT;
@@ -241,6 +253,9 @@ function drawStock() {
       bt.drawClosed(ctx, -L.bw / 2, -bh / 2, L.bw, bh, b.ci, S, tick, b.idlePhase);
     } else {
       var c = COLORS[b.ci];
+      // A tall box stands in front of the row above it, so it casts a
+      // stronger shadow to sell the overlap.
+      if (b.isTall) drawTallShadow(ctx, -L.bw / 2, -bh / 2, L.bw, bh, S);
       if (isBoxTappable(i) && b.hoverT > 0.01) { ctx.shadowColor = c.glow; ctx.shadowBlur = 20 * S * b.hoverT; }
       drawBox(-L.bw / 2, -bh / 2, L.bw, bh, b.ci);
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
