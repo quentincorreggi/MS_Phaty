@@ -1,0 +1,169 @@
+{
+  "name": "Modular Elevator \u2014 free-form",
+  "description": "Paint an elevator as any edge-connected shape \u2014 line, L, T, U, cross, comb, blob. Clear every box on it and the whole shape lifts one hidden floor at once, then leaves the board.",
+  "howToPlay": "The cool-coloured T and the amber 2x2 are the same machine in different liveries. Watch the pink box walled in at the top: it opens when the tile under it is freed and the arriving floor shuts it again. Use the Stats panel for cell counts, taps and belt peak, and Reach to see what can still be opened. Test layouts A-F are on the menu.",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Free-form Modular Elevator",
+    "desc": "A T-shape and a classic 2x2, side by side",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null,
+      null,
+      {
+        "wall": true
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "wall": true
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "wall": true
+      },
+      null,
+      null,
+      null,
+      null,
+      {
+        "elevator": true,
+        "eid": 0,
+        "classic": false,
+        "surface": {
+          "ci": 1,
+          "type": "default"
+        },
+        "deep": {
+          "ci": 5,
+          "type": "default"
+        }
+      },
+      {
+        "elevator": true,
+        "eid": 0,
+        "classic": false,
+        "surface": {
+          "ci": 2,
+          "type": "default"
+        },
+        "deep": {
+          "ci": 6,
+          "type": "default"
+        }
+      },
+      {
+        "elevator": true,
+        "eid": 0,
+        "classic": false,
+        "surface": {
+          "ci": 3,
+          "type": "default"
+        },
+        "deep": {
+          "ci": 7,
+          "type": "default"
+        }
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "elevator": true,
+        "eid": 0,
+        "classic": false,
+        "surface": {
+          "ci": 4,
+          "type": "default"
+        },
+        "deep": {
+          "ci": 0,
+          "type": "default"
+        }
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "elevator": true,
+        "eid": 1,
+        "classic": true,
+        "surface": {
+          "ci": 2,
+          "type": "default"
+        },
+        "deep": {
+          "ci": 6,
+          "type": "default"
+        }
+      },
+      {
+        "elevator": true,
+        "eid": 1,
+        "classic": true,
+        "surface": {
+          "ci": 3,
+          "type": "default"
+        },
+        "deep": {
+          "ci": 7,
+          "type": "default"
+        }
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "elevator": true,
+        "eid": 1,
+        "classic": true,
+        "surface": {
+          "ci": 4,
+          "type": "default"
+        },
+        "deep": {
+          "ci": 0,
+          "type": "default"
+        }
+      },
+      {
+        "elevator": true,
+        "eid": 1,
+        "classic": true,
+        "surface": {
+          "ci": 5,
+          "type": "default"
+        },
+        "deep": {
+          "ci": 1,
+          "type": "default"
+        }
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  }
+}

@@ -9,6 +9,9 @@ function showLevelSelect() {
   gameActive = false;
   document.getElementById('win-screen').classList.remove('show');
   document.getElementById('cal-toggle').style.display = 'none';
+  document.getElementById('play-tools').style.display = 'none';
+  document.getElementById('play-hud').style.display = 'none';
+  if (typeof cleanupPresetLevel === 'function') cleanupPresetLevel();
   if (typeof editor !== 'undefined' && editor._testIdx !== undefined) {
     editorCleanupTest();
     showEditor(false);
@@ -23,13 +26,91 @@ function startLevel(idx) {
   gameActive = true;
   document.getElementById('level-screen').classList.add('hidden');
   document.getElementById('cal-toggle').style.display = '';
+  document.getElementById('play-tools').style.display = 'flex';
   ensureAudio();
   initGame();
+  updatePlayHud(true);
+}
+
+function resetLevel() {
+  if (!gameActive) return;
+  initGame();
+  updatePlayHud(true);
+}
+
+// === PLAY-MODE INSTRUMENTATION PANEL ===
+var playHudOpen = true;
+
+function togglePlayHud() {
+  playHudOpen = !playHudOpen;
+  updatePlayHud(true);
+}
+
+function toggleReachOverlay() {
+  showReachOverlay = !showReachOverlay;
+  var b = document.getElementById('pt-reach');
+  if (b) b.classList.toggle('on', showReachOverlay);
+}
+
+function toggleElevChips() {
+  showElevChips = !showElevChips;
+  var b = document.getElementById('pt-chips');
+  if (b) b.classList.toggle('on', showElevChips);
+}
+
+function updatePlayHud(force) {
+  var el = document.getElementById('play-hud');
+  if (!el) return;
+  if (!gameActive) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  var btn = document.getElementById('pt-stats');
+  if (btn) btn.classList.toggle('on', playHudOpen);
+  if (!playHudOpen) { el.innerHTML = ''; el.style.display = 'none'; return; }
+
+  var onBelt = 0;
+  for (var bi = 0; bi < BELT_SLOTS; bi++) if (beltSlots[bi].marble >= 0) onBelt++;
+
+  var h = '';
+  h += '<div class="hud-row hud-top"><b>' + tapCount + '</b> taps'
+     + ' &middot; belt <b>' + onBelt + '</b>/' + BELT_SLOTS
+     + ' (peak <b>' + beltPeak + '</b>)</div>';
+
+  var live = 0;
+  for (var e = 0; e < elevators.length; e++) {
+    var s = elevators[e];
+    if (s.state === 'done') continue;
+    live++;
+    var remain = elevRemainingBoxes(s);
+    h += '<div class="hud-row"><span class="hud-dot" style="background:' + s.colorway.trim + '"></span>'
+       + (s.classic ? 'Classic 2x2' : 'Shape ' + s.label)
+       + ' &middot; <b>' + s.idxs.length + '</b> cells'
+       + ' &middot; <b>' + remain + '</b> box' + (remain === 1 ? '' : 'es') + ' left'
+       + (s.state !== 'armed' ? ' <i>' + s.state + '</i>' : '')
+       + '</div>';
+  }
+  if (!live && !elevFireLog.length) h += '<div class="hud-row hud-dim">No elevators on this board</div>';
+
+  for (var f = 0; f < elevFireLog.length; f++) {
+    var r = elevFireLog[f];
+    h += '<div class="hud-row hud-fire"><b>' + (r.classic ? 'Classic 2x2' : 'Shape ' + r.label) + ' fired</b>'
+       + ' &middot; ' + r.cells + ' cells'
+       + ' &middot; ' + r.taps + ' taps to get here'
+       + ' &middot; belt peak ' + r.beltPeak
+       + (r.beltJam > 30 ? ' &middot; <b>jammed ' + (r.beltJam / 60).toFixed(1) + 's</b>' : '')
+       + '<br><span class="hud-sub">closed ' + r.closed + ' box' + (r.closed === 1 ? '' : 'es')
+       + ' &middot; permanently enclosed ' + r.enclosed + '</span></div>';
+  }
+
+  if (noReachWarnT > 0) {
+    h += '<div class="hud-row hud-warn">No reachable boxes left — the board is stuck</div>';
+  }
+  el.innerHTML = h;
 }
 
 // === GAME INIT ===
 function initGame() {
   won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
+  tapCount = 0; beltPeak = 0; beltFullFrames = 0; elevFireLog = []; noReachWarnT = 0;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
   document.getElementById('win-screen').classList.remove('show');
@@ -53,7 +134,7 @@ function initGame() {
       }
       if (cell.elevator) {
         elevSlots[i] = {
-          eid: cell.eid, dir: cell.dir || 'h', len: cell.len || 2, part: cell.part || 0,
+          eid: cell.eid || 0, classic: !!cell.classic,
           surface: cell.surface ? { ci: cell.surface.ci, type: cell.surface.type || 'default' } : null,
           deep: cell.deep ? { ci: cell.deep.ci, type: cell.deep.type || 'default' } : null
         };
@@ -133,7 +214,7 @@ function initGame() {
         revealed: eIsIce ? true : false, empty: false,
         boxType: eSurf ? (eSurf.type || 'default') : 'default',
         isTunnel: false, isWall: false,
-        isElev: true, elev: null, elevPart: eSlot.part, riseT: 0,
+        isElev: true, elev: null, riseT: 0,
         elevDeep: eSlot.deep ? { ci: eSlot.deep.ci, type: eSlot.deep.type || 'default' } : null,
         iceHP: eIsIce ? 2 : 0, iceCrackT: 0, iceShatterT: 0,
         blockerCount: eIsBlocker ? BLOCKER_PER_BOX : 0,
@@ -218,6 +299,101 @@ function initGame() {
 //   • used-up boxes
 // Walls, active (non-used) boxes, and tunnels (even depleted ones)
 // all block the path. If the path closes, the box closes itself.
+// Which passable cells connect to below the bottom edge of the grid?
+function floodFromBottom(passable) {
+  var total = passable.length;
+  var reachable = new Array(total);
+  for (var j = 0; j < total; j++) reachable[j] = false;
+  var queue = [];
+  var bottomRow = L.rows - 1;
+  for (var bc = 0; bc < L.cols; bc++) {
+    var bIdx = bottomRow * L.cols + bc;
+    if (passable[bIdx]) { reachable[bIdx] = true; queue.push(bIdx); }
+  }
+  var head = 0;
+  while (head < queue.length) {
+    var cur = queue[head++];
+    var cr = Math.floor(cur / L.cols), cc = cur % L.cols;
+    var nbrs = [];
+    if (cr > 0)          nbrs.push((cr - 1) * L.cols + cc);
+    if (cr < L.rows - 1) nbrs.push((cr + 1) * L.cols + cc);
+    if (cc > 0)          nbrs.push(cr * L.cols + (cc - 1));
+    if (cc < L.cols - 1) nbrs.push(cr * L.cols + (cc + 1));
+    for (var n = 0; n < nbrs.length; n++) {
+      var ni = nbrs[n];
+      if (!reachable[ni] && passable[ni]) { reachable[ni] = true; queue.push(ni); }
+    }
+  }
+  return reachable;
+}
+
+// Does this cell touch the reachable region, or sit on the lower edge?
+function cellHasPath(idx, reachable) {
+  var r = Math.floor(idx / L.cols), c = idx % L.cols;
+  if (r === L.rows - 1) return true;
+  if (r > 0          && reachable[(r - 1) * L.cols + c]) return true;
+  if (r < L.rows - 1 && reachable[(r + 1) * L.cols + c]) return true;
+  if (c > 0          && reachable[r * L.cols + (c - 1)]) return true;
+  if (c < L.cols - 1 && reachable[r * L.cols + (c + 1)]) return true;
+  return false;
+}
+
+// Boxes that can NEVER be opened, however well the player plays.
+//
+// Run the optimist's simulation: any box that can be reached becomes
+// a passable cell, which may reach more boxes. Iterate to a fixpoint.
+// Whatever is still shut at the end is enclosed for good — only walls
+// (and the grid's own top/left/right edges) can do that, since a box
+// dropped by a lift is itself clearable once someone can reach it.
+function computeEnclosedBoxes() {
+  if (!stock || !stock.length || !L.rows) return [];
+  var total = stock.length;
+  var everPassable = new Array(total);
+  var isBox = new Array(total);
+  for (var i = 0; i < total; i++) {
+    var s = stock[i];
+    isBox[i] = !!(s && !s.isWall && !s.isTunnel && !s.empty && !s.used);
+    everPassable[i] = !!(s && !s.isWall && !s.isTunnel && (s.empty || s.used));
+  }
+  var changed = true;
+  while (changed) {
+    changed = false;
+    var reach = floodFromBottom(everPassable);
+    for (var k = 0; k < total; k++) {
+      if (!isBox[k] || everPassable[k]) continue;
+      if (cellHasPath(k, reach)) { everPassable[k] = true; changed = true; }
+    }
+  }
+  var enclosed = [];
+  for (var m = 0; m < total; m++) if (isBox[m] && !everPassable[m]) enclosed.push(m);
+  return enclosed;
+}
+
+// Did a lift leave the player with nothing to tap?
+function checkNoReachableBoxes(bar) {
+  for (var i = 0; i < stock.length; i++) if (isBoxTappable(i)) return false;
+  for (var e = 0; e < elevators.length; e++) if (elevators[e].state !== 'done') return false;
+  noReachWarnT = 1;
+  if (typeof updatePlayHud === 'function') updatePlayHud(true);
+  return true;
+}
+
+// One line per firing, for the size question.
+function elevLogFiring(bar) {
+  var st = bar.stats || {};
+  elevFireLog.push({
+    label: bar.label,
+    classic: bar.classic,
+    cells: st.cells || bar.idxs.length,
+    taps: st.taps || 0,
+    beltPeak: st.beltPeak || 0,
+    beltJam: st.beltJam || 0,
+    closed: st.closed || 0,
+    enclosed: st.enclosed || 0
+  });
+  if (typeof updatePlayHud === 'function') updatePlayHud(true);
+}
+
 function updateBoxReveals(animate) {
   if (!stock || stock.length === 0) return;
   if (!L || !L.rows || !L.cols) return;
@@ -239,31 +415,7 @@ function updateBoxReveals(animate) {
   // 2. Flood-fill from the bottom row. Passable cells in the bottom
   //    row sit directly on the grid's lower edge, so they connect to
   //    "below the grid" which is the path's destination.
-  var reachable = new Array(total);
-  for (var j = 0; j < total; j++) reachable[j] = false;
-  var queue = [];
-  var bottomRow = L.rows - 1;
-  for (var bc = 0; bc < L.cols; bc++) {
-    var bIdx = bottomRow * L.cols + bc;
-    if (passable[bIdx]) { reachable[bIdx] = true; queue.push(bIdx); }
-  }
-  var head = 0;
-  while (head < queue.length) {
-    var cur = queue[head++];
-    var cr = Math.floor(cur / L.cols), cc = cur % L.cols;
-    var nbrs = [];
-    if (cr > 0)            nbrs.push((cr - 1) * L.cols + cc);
-    if (cr < L.rows - 1)   nbrs.push((cr + 1) * L.cols + cc);
-    if (cc > 0)            nbrs.push(cr * L.cols + (cc - 1));
-    if (cc < L.cols - 1)   nbrs.push(cr * L.cols + (cc + 1));
-    for (var n = 0; n < nbrs.length; n++) {
-      var ni = nbrs[n];
-      if (!reachable[ni] && passable[ni]) {
-        reachable[ni] = true;
-        queue.push(ni);
-      }
-    }
-  }
+  var reachable = floodFromBottom(passable);
 
   // 3. For each active box, open it iff a passable neighbor reaches
   //    the bottom (or the box is itself in the bottom row, sitting
@@ -274,20 +426,7 @@ function updateBoxReveals(animate) {
     if (b.isWall || b.isTunnel || b.empty || b.used) continue;
     if (b.spawning) continue;
 
-    var br = Math.floor(k / L.cols), bcol = k % L.cols;
-    var hasPath = false;
-    if (br === L.rows - 1) {
-      hasPath = true;
-    } else {
-      var bnbrs = [];
-      if (br > 0)          bnbrs.push((br - 1) * L.cols + bcol);
-      if (br < L.rows - 1) bnbrs.push((br + 1) * L.cols + bcol);
-      if (bcol > 0)        bnbrs.push(br * L.cols + (bcol - 1));
-      if (bcol < L.cols - 1) bnbrs.push(br * L.cols + (bcol + 1));
-      for (var m = 0; m < bnbrs.length; m++) {
-        if (reachable[bnbrs[m]]) { hasPath = true; break; }
-      }
-    }
+    var hasPath = cellHasPath(k, reachable);
 
     if (hasPath && !b.revealed) {
       b.revealed = true;
@@ -387,6 +526,7 @@ function handleTap(px, py) {
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
       b.popT = 1;
+      tapCount++;
       sfx.pop();
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
@@ -426,8 +566,16 @@ function update() {
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
 
-  // ── Modular elevator lifts ──
+  // ── Elevator lifts ──
   updateElevators();
+
+  // ── Instrumentation ──
+  var onBelt = 0;
+  for (var bi = 0; bi < BELT_SLOTS; bi++) if (beltSlots[bi].marble >= 0) onBelt++;
+  if (onBelt > beltPeak) beltPeak = onBelt;
+  if (onBelt >= BELT_SLOTS) beltFullFrames++;
+  if (noReachWarnT > 0) noReachWarnT = Math.max(0, noReachWarnT - 0.0025);
+  if (tick % 12 === 0 && typeof updatePlayHud === 'function') updatePlayHud(false);
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -664,6 +812,7 @@ function updateShowcaseUI() {
 resize();
 loadPrototypeJSON(function() {
   updateShowcaseUI();
+  buildPresetButtons('ls-preset-row', playPreset);
   showLevelSelect();
 });
 frame();

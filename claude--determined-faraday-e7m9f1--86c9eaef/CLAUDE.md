@@ -53,7 +53,9 @@ You can also use these commands:
 | `js/belt.js` | Belt slot init, position helpers (`getSlotPos`, `getSlotT`) | 37 |
 | `js/tunnel.js` | Tunnel mechanic — hidden box queue, spawns into adjacent cell | 219 |
 | `js/wall.js` | Wall cell — inert structural blocker | 96 |
-| `js/editor.js` | Level editor UI — grid painting, toolbar, import/export JSON | 653 |
+| `js/elevator.js` | Modular Elevator (free-form shapes) + classic 2x2 Elevator | 611 |
+| `js/presets.js` | Test layouts A-F and their launchers | 161 |
+| `js/editor.js` | Level editor UI — grid painting, toolbar, import/export JSON | 1325 |
 | `js/particles.js` | Particle effects (bursts, confetti) | 42 |
 | `js/audio.js` | Sound effects via Web Audio API | 62 |
 | `js/calibration.js` | Dev calibration panel (slider offsets) | 47 |
@@ -72,9 +74,11 @@ correct position:
 7. `physics.js` — marble physics
 8. `tunnel.js` — tunnel mechanic
 9. `wall.js` — wall mechanic
-10. `rendering.js` — all drawing code
-11. `editor.js` — level editor
-12. `game.js` — game loop, init, boot (must be last)
+10. `elevator.js` — elevator mechanic
+11. `presets.js` — test layouts (needs the elevator constants)
+12. `rendering.js` — all drawing code
+13. `editor.js` — level editor
+14. `game.js` — game loop, init, boot (must be last)
 
 **Rule: New box type files go AFTER `registry.js` and BEFORE `calibration.js`.**
 **Rule: New mechanic files go AFTER `belt.js` and BEFORE `rendering.js`.**
@@ -84,6 +88,8 @@ correct position:
 #### Global State
 
 All game state lives in global variables declared in `config.js`:
+- `elevators[]` — elevator shapes; each has `idxs`, `cellSet`, `state`, `colorway`
+- `tapCount`, `beltPeak`, `beltFullFrames`, `elevFireLog` — play-mode instrumentation
 - `stock[]` — the 7x7 grid of box objects
 - `physMarbles[]` — active physics marbles in the funnel
 - `beltSlots[]` — marbles on the conveyor belt (30 slots)
@@ -153,6 +159,10 @@ level's `grid` array (49 = 7x7) is:
 - `{ ci: 0-7, type: 'default'|'hidden'|'ice'|'blocker' }` — box
 - `{ tunnel: true, dir: 'top'|'bottom'|'left'|'right', contents: [{ci, type}...] }` — tunnel
 - `{ wall: true }` — wall
+- `{ elevator: true, eid: n, classic: false, surface: {ci, type}, deep: {ci, type} }` —
+  one cell of an elevator. Cells sharing an `eid` are one shape and must be
+  edge-connected; `classic: true` marks the fixed 2x2 Elevator. `surface` is the
+  box the player sees, `deep` the box the lift brings up.
 
 ## How to Add a New Box Type
 
