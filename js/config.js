@@ -8,7 +8,16 @@ var W = 0, H = 0, S = 1;
 var L = {};
 var beltPath = [];
 var stock = [], sortCols = [], particles = [], physMarbles = [], jumpers = [];
-var elevators = [];   // modular elevator bars, built in initGame
+var elevators = [];   // elevator shapes (free-form modular + classic 2x2)
+
+// === INSTRUMENTATION (how big can a shape get before it stops being fun?) ===
+var tapCount = 0;          // box releases since level start
+var beltPeak = 0;          // peak marbles on the conveyor since level start
+var beltFullFrames = 0;    // frames the conveyor spent at capacity
+var elevFireLog = [];      // one entry per shape that fired
+var showElevChips = true;  // per-shape readout drawn on the machine
+var showReachOverlay = false;
+var noReachWarnT = 0;      // banner timer for "no reachable boxes"
 var score = 0, won = false, tick = 0, hoverIdx = -1;
 var audioCtx = null;
 

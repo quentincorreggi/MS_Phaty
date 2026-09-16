@@ -277,6 +277,49 @@ function drawStock() {
     ctx.restore();
     if (rising) ctx.restore();
   }
+
+  if (showReachOverlay) drawReachOverlay();
+}
+
+// ── Reachability overlay ──
+// Green tint: a box the player can tap right now.
+// Amber: a box that is shut but could open later.
+// Red hatch: a box that can never be opened, whatever they do.
+function drawReachOverlay() {
+  var enclosed = {};
+  var list = computeEnclosedBoxes();
+  for (var e = 0; e < list.length; e++) enclosed[list[e]] = true;
+
+  ctx.save();
+  for (var i = 0; i < stock.length; i++) {
+    var b = stock[i];
+    if (!b || b.isWall || b.isTunnel) continue;
+    if (b.empty || b.used) {
+      // passable floor
+      ctx.globalAlpha = 0.16;
+      ctx.fillStyle = '#4A9FFF';
+      rRect(b.x, b.y, L.bw, L.bh, 6 * S); ctx.fill();
+      continue;
+    }
+    var color, alpha = 0.3;
+    if (enclosed[i]) { color = '#FF2D2D'; alpha = 0.45; }
+    else if (b.revealed) color = '#4EE68C';
+    else color = '#FFB545';
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    rRect(b.x, b.y, L.bw, L.bh, 6 * S); ctx.fill();
+    ctx.globalAlpha = 0.9;
+    ctx.strokeStyle = color; ctx.lineWidth = 2 * S;
+    rRect(b.x + 2 * S, b.y + 2 * S, L.bw - 4 * S, L.bh - 4 * S, 5 * S); ctx.stroke();
+    if (enclosed[i]) {
+      ctx.globalAlpha = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(b.x + 5 * S, b.y + 5 * S); ctx.lineTo(b.x + L.bw - 5 * S, b.y + L.bh - 5 * S);
+      ctx.moveTo(b.x + L.bw - 5 * S, b.y + 5 * S); ctx.lineTo(b.x + 5 * S, b.y + L.bh - 5 * S);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
 }
 
 // ── Physics marbles ──

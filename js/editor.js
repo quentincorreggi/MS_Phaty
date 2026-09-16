@@ -18,10 +18,12 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
-  elevMode: false,      // true when placing modular elevators
-  elevSizeIdx: 2,       // index into ELEV_SIZES — defaults to 1x4
-  selectedElev: -1,     // eid of the elevator whose floor is being authored
-  elevSlotSel: 0,       // which tile of that elevator the colour buttons fill
+  elevMode: false,      // true when authoring elevators
+  elevTool: 'paint',    // paint | erase | move | tag | split | merge | classic
+  activeElev: -1,       // shape id the paint/re-tag tools grow
+  pendingCell: -1,      // first click of a two-click tool
+  layer: 'surface',     // which floor the colour buttons paint: surface | deep
+  undoStack: [],
   visible: false
 };
 
@@ -40,9 +42,11 @@ function editorInit() {
   editor.selectedTunnel = -1;
   editor.wallMode = false;
   editor.elevMode = false;
-  editor.elevSizeIdx = 2;
-  editor.selectedElev = -1;
-  editor.elevSlotSel = 0;
+  editor.elevTool = 'paint';
+  editor.activeElev = -1;
+  editor.pendingCell = -1;
+  editor.layer = 'surface';
+  editor.undoStack = [];
 }
 
 function showEditor(fresh) {
@@ -70,6 +74,29 @@ function editorBuildUI() {
   editorUpdateStats();
   editorRenderTunnelPanel();
   editorRenderElevPanel();
+  buildPresetButtons('ed-presets', loadPresetIntoEditor);
+}
+
+// Load one of the test layouts straight onto the editor grid.
+function loadPresetIntoEditor(n) {
+  var p = ELEV_PRESETS[n];
+  if (!p) return;
+  edPushUndo();
+  var lvl = p.build();
+  editor.grid = lvl.grid;
+  editor.name = lvl.name;
+  editor.desc = lvl.desc;
+  editor.mrbPerBox = lvl.mrbPerBox;
+  editor.sortCap = lvl.sortCap;
+  editor.activeElev = -1;
+  editor.selectedTunnel = -1;
+  editor.pendingCell = -1;
+  var nameEl = document.getElementById('ed-name');
+  var descEl = document.getElementById('ed-desc');
+  if (nameEl) nameEl.value = editor.name;
+  if (descEl) descEl.value = editor.desc;
+  editorBuildUI();
+  editorShowToast('Loaded ' + p.name);
 }
 
 // Redraw everything that a grid change can affect.
@@ -80,135 +107,343 @@ function editorRefresh() {
   editorRenderElevPanel();
 }
 
-// ── Modular elevator helpers ──
+// ── Undo ──
 
-// Footprint cells of an elevator, ordered from its anchor outward.
-function editorElevCells(eid) {
+function edPushUndo() {
+  editor.undoStack.push(JSON.stringify(editor.grid));
+  if (editor.undoStack.length > 60) editor.undoStack.shift();
+}
+
+function editorUndo() {
+  if (!editor.undoStack.length) { editorShowToast('Nothing to undo'); return; }
+  editor.grid = JSON.parse(editor.undoStack.pop());
+  editor.pendingCell = -1;
+  if (editor.activeElev >= 0 && !edElevCells(editor.activeElev).length) editor.activeElev = -1;
+  editorRefresh();
+  editorShowToast('Undone');
+}
+
+// ── Modular elevator helpers ──
+//
+// Shape membership is explicit: every elevator cell stores the id of
+// the shape it belongs to. Two shapes that happen to touch are never
+// merged behind the designer's back — only the Merge tool does that.
+
+function edElevCells(eid) {
   var cells = [];
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (v && v.elevator && v.eid === eid) cells.push(i);
   }
-  cells.sort(function (a, b) { return editor.grid[a].part - editor.grid[b].part; });
   return cells;
 }
 
-function editorNextElevId() {
-  var maxId = 0;
+function edElevIds() {
+  var seen = {}, ids = [];
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
-    if (v && v.elevator && v.eid >= maxId) maxId = v.eid + 1;
+    if (v && v.elevator && !seen[v.eid]) { seen[v.eid] = true; ids.push(v.eid); }
   }
-  return maxId;
+  ids.sort(function (a, b) { return a - b; });
+  return ids;
 }
 
-// Can a bar of this size sit here? Plain boxes are absorbed as its
-// surface boxes; walls, tunnels and other elevators are not.
-function editorElevFits(anchor, dir, len, ignoreEid) {
-  var cells = elevFootprint(anchor, dir, len, 7, 7);
-  if (!cells) return null;
+function edNewElevId() {
+  var max = -1;
+  for (var i = 0; i < 49; i++) {
+    var v = editor.grid[i];
+    if (v && v.elevator && v.eid > max) max = v.eid;
+  }
+  return max + 1;
+}
+
+function edElevIsClassic(eid) {
+  var cells = edElevCells(eid);
+  return cells.length > 0 && !!editor.grid[cells[0]].classic;
+}
+
+function edAreNeighbours(a, b) {
+  var ar = Math.floor(a / 7), ac = a % 7, br = Math.floor(b / 7), bc = b % 7;
+  return Math.abs(ar - br) + Math.abs(ac - bc) === 1;
+}
+
+// Edge-adjacent only. A cell touching a shape at a corner is NOT
+// connected to it, and starts a shape of its own instead.
+function edElevAdjacent(idx, cells) {
+  for (var i = 0; i < cells.length; i++) if (edAreNeighbours(idx, cells[i])) return true;
+  return false;
+}
+
+function edElevFree(idx) {
+  var v = editor.grid[idx];
+  return !v || (!v.elevator && !v.wall && !v.tunnel);
+}
+
+// After an edit, a shape may no longer be in one piece. Split it.
+function edElevRegroup(eid) {
+  var cells = edElevCells(eid);
+  if (cells.length <= 1) return 1;
+  var comps = elevComponents(cells, 7, 7);
+  if (comps.length <= 1) return 1;
+  for (var i = 1; i < comps.length; i++) {
+    var nid = edNewElevId();
+    for (var k = 0; k < comps[i].length; k++) editor.grid[comps[i][k]].eid = nid;
+  }
+  return comps.length;
+}
+
+function edElevMakeCell(eid, classic, surface, deep) {
+  return { elevator: true, eid: eid, classic: !!classic, surface: surface || null, deep: deep || null };
+}
+
+// Paint: extend the active shape, or start a new one.
+function edElevPaint(idx) {
+  var v = editor.grid[idx];
+  if (v && v.elevator) { editor.activeElev = v.eid; return; }
+  if (v && (v.wall || v.tunnel)) { editorShowToast('That cell is a wall or a tunnel'); return; }
+
+  edPushUndo();
+  var active = editor.activeElev;
+  var cells = active >= 0 ? edElevCells(active) : [];
+  var startNew = false;
+  if (!cells.length) startNew = true;
+  else if (editor.grid[cells[0]].classic) startNew = true;
+  else if (!edElevAdjacent(idx, cells)) startNew = true;
+
+  if (startNew) {
+    active = edNewElevId();
+    editor.activeElev = active;
+    if (cells.length) editorShowToast('Not edge-connected — started shape ' + (active + 1));
+  }
+  // A box already painted here becomes this cell's surface box.
+  var surface = (v && v.ci >= 0) ? { ci: v.ci, type: v.type || 'default' } : null;
+  editor.grid[idx] = edElevMakeCell(active, false, surface, null);
+}
+
+function edElevErase(idx) {
+  var v = editor.grid[idx];
+  if (!v || !v.elevator) return;
+  edPushUndo();
+  var eid = v.eid;
+  if (v.classic) {
+    var all = edElevCells(eid);
+    for (var i = 0; i < all.length; i++) editor.grid[all[i]] = null;
+    editorShowToast('Classic elevator removed');
+  } else {
+    editor.grid[idx] = null;
+    var parts = edElevRegroup(eid);
+    if (parts > 1) editorShowToast('Shape fell apart into ' + parts + ' shapes');
+  }
+  if (!edElevCells(editor.activeElev).length) editor.activeElev = -1;
+}
+
+// Move a whole shape, boxes and all.
+function edElevMove(fromIdx, toIdx) {
+  var v = editor.grid[fromIdx];
+  if (!v || !v.elevator) return;
+  var eid = v.eid;
+  var cells = edElevCells(eid);
+  var dr = Math.floor(toIdx / 7) - Math.floor(fromIdx / 7);
+  var dc = (toIdx % 7) - (fromIdx % 7);
+  if (!dr && !dc) return;
+
+  var inShape = {}, targets = [];
+  for (var i = 0; i < cells.length; i++) inShape[cells[i]] = true;
   for (var k = 0; k < cells.length; k++) {
-    var v = editor.grid[cells[k]];
-    if (!v) continue;
-    if (v.elevator && v.eid === ignoreEid) continue;
-    if (v.elevator || v.tunnel || v.wall) return null;
+    var r = Math.floor(cells[k] / 7) + dr, c = (cells[k] % 7) + dc;
+    if (r < 0 || r > 6 || c < 0 || c > 6) { editorShowToast('That would run off the grid'); return; }
+    var t = r * 7 + c;
+    if (!inShape[t] && !edElevFree(t)) { editorShowToast('Something is already there'); return; }
+    targets.push(t);
   }
-  return cells;
+
+  edPushUndo();
+  var specs = [];
+  for (var s = 0; s < cells.length; s++) specs.push(editor.grid[cells[s]]);
+  for (var d = 0; d < cells.length; d++) editor.grid[cells[d]] = null;
+  for (var n = 0; n < targets.length; n++) editor.grid[targets[n]] = specs[n];
+  editor.activeElev = eid;
 }
 
-function editorPlaceElev(anchor) {
-  var size = ELEV_SIZES[editor.elevSizeIdx];
-  var cells = editorElevFits(anchor, size.dir, size.len, -1);
-  if (!cells) {
-    editorShowToast('No room for a ' + size.label + ' elevator here');
+// Re-tag one cell from its shape to the active shape.
+function edElevTag(idx) {
+  var v = editor.grid[idx];
+  if (!v || !v.elevator) { editorShowToast('Pick an elevator cell'); return; }
+  var target = editor.activeElev;
+  if (target < 0) { editorShowToast('Select a shape first'); return; }
+  if (target === v.eid) { editorShowToast('Already in shape ' + (target + 1)); return; }
+  if (v.classic || edElevIsClassic(target)) { editorShowToast("The classic 2x2 can't be re-tagged"); return; }
+  var tCells = edElevCells(target);
+  if (tCells.length && !edElevAdjacent(idx, tCells)) {
+    editorShowToast('That cell must touch shape ' + (target + 1));
     return;
   }
-  var eid = editorNextElevId();
+  edPushUndo();
+  var donor = v.eid;
+  v.eid = target;
+  edElevRegroup(donor);
+}
+
+// Cut the link between two side-by-side cells of one shape.
+function edElevSplit(a, b) {
+  var va = editor.grid[a], vb = editor.grid[b];
+  if (!va || !vb || !va.elevator || !vb.elevator) { editorShowToast('Pick two elevator cells'); return; }
+  if (va.eid !== vb.eid) { editorShowToast('Those are already separate shapes'); return; }
+  if (va.classic) { editorShowToast("The classic 2x2 can't be split"); return; }
+  if (!edAreNeighbours(a, b)) { editorShowToast('Pick two cells side by side'); return; }
+  var cells = edElevCells(va.eid);
+  var comps = elevComponents(cells, 7, 7, a, b);
+  if (comps.length < 2) {
+    editorShowToast("That cut doesn't separate the shape — there's a way round");
+    return;
+  }
+  edPushUndo();
+  for (var i = 1; i < comps.length; i++) {
+    var nid = edNewElevId();
+    for (var k = 0; k < comps[i].length; k++) editor.grid[comps[i][k]].eid = nid;
+  }
+  editorShowToast('Split into ' + comps.length + ' shapes');
+}
+
+// Fold shape B into shape A. They must be edge-connected.
+function edElevMerge(a, b) {
+  var va = editor.grid[a], vb = editor.grid[b];
+  if (!va || !vb || !va.elevator || !vb.elevator) { editorShowToast('Pick two elevator cells'); return; }
+  if (va.eid === vb.eid) { editorShowToast('Those are already one shape'); return; }
+  if (va.classic || vb.classic) { editorShowToast("The classic 2x2 can't be merged"); return; }
+  var cellsA = edElevCells(va.eid), cellsB = edElevCells(vb.eid);
+  var touch = false;
+  for (var i = 0; i < cellsB.length && !touch; i++) touch = edElevAdjacent(cellsB[i], cellsA);
+  if (!touch) { editorShowToast('Those shapes do not touch edge to edge'); return; }
+  edPushUndo();
+  for (var k = 0; k < cellsB.length; k++) editor.grid[cellsB[k]].eid = va.eid;
+  editor.activeElev = va.eid;
+  editorShowToast('Merged into shape ' + (va.eid + 1));
+}
+
+function edElevPlaceClassic(anchor) {
+  var r = Math.floor(anchor / 7), c = anchor % 7;
+  if (r > 5 || c > 5) { editorShowToast('A 2x2 does not fit there'); return; }
+  var cells = [anchor, anchor + 1, anchor + 7, anchor + 8];
+  for (var i = 0; i < cells.length; i++) {
+    if (!edElevFree(cells[i])) { editorShowToast('Something is already there'); return; }
+  }
+  edPushUndo();
+  var eid = edNewElevId();
   for (var k = 0; k < cells.length; k++) {
     var old = editor.grid[cells[k]];
-    // A plain box already painted here becomes the tile's top box.
-    var surface = (old && !old.elevator && !old.tunnel && !old.wall && old.ci >= 0)
-      ? { ci: old.ci, type: old.type || 'default' } : null;
-    editor.grid[cells[k]] = {
-      elevator: true, eid: eid, dir: size.dir, len: size.len, part: k,
-      surface: surface, deep: null
-    };
+    var surface = (old && old.ci >= 0) ? { ci: old.ci, type: old.type || 'default' } : null;
+    editor.grid[cells[k]] = edElevMakeCell(eid, true, surface, null);
   }
-  editor.selectedElev = eid;
-  editor.elevSlotSel = 0;
+  editor.activeElev = eid;
 }
 
-function editorRemoveElev(eid) {
-  var cells = editorElevCells(eid);
-  for (var k = 0; k < cells.length; k++) editor.grid[cells[k]] = null;
-  if (editor.selectedElev === eid) { editor.selectedElev = -1; editor.elevSlotSel = 0; }
+// Edit-mode overlay colour, so grouping is visible even where two
+// shapes touch. Play mode uses the runtime colourways.
+var ED_SHAPE_COLORS = ['#5FD4E8', '#B98CF5', '#9BE45E', '#FF8FB1', '#FFA24C', '#6FA8FF'];
+
+function edElevShapeColor(eid) {
+  if (edElevIsClassic(eid)) return '#FFC048';
+  var ids = edElevIds(), n = 0;
+  for (var i = 0; i < ids.length; i++) if (ids[i] === eid) { n = i; break; }
+  return ED_SHAPE_COLORS[n % ED_SHAPE_COLORS.length];
 }
 
-// Change an existing bar's footprint, keeping the boxes already
-// authored on the tiles that survive the resize.
-function editorResizeElev(eid, sizeIdx) {
-  var cells = editorElevCells(eid);
-  if (!cells.length) return;
-  var anchor = cells[0];
-  var size = ELEV_SIZES[sizeIdx];
-  var fit = editorElevFits(anchor, size.dir, size.len, eid);
-  if (!fit) { editorShowToast('A ' + size.label + ' elevator does not fit there'); return; }
-  var kept = [];
-  for (var k = 0; k < cells.length; k++) {
-    kept.push({ surface: editor.grid[cells[k]].surface, deep: editor.grid[cells[k]].deep });
-    editor.grid[cells[k]] = null;
+// How many boxes on this board can never be opened, however it is
+// played? Walls (and the grid's top/left/right edges) are the only
+// permanent blockers, so this catches authoring mistakes before the
+// level is ever played.
+function edCountEnclosed() {
+  var everPassable = [], isBox = [];
+  for (var i = 0; i < 49; i++) {
+    var v = editor.grid[i];
+    var box = !!(v && (v.elevator ? v.surface : (!v.wall && !v.tunnel && v.ci >= 0)));
+    var blocked = !!(v && (v.wall || v.tunnel));
+    isBox[i] = box;
+    everPassable[i] = !box && !blocked;
   }
-  for (var n = 0; n < fit.length; n++) {
-    var carry = kept[n] || { surface: null, deep: null };
-    var old = editor.grid[fit[n]];
-    if (!carry.surface && old && old.ci >= 0 && !old.tunnel && !old.wall && !old.elevator) {
-      carry.surface = { ci: old.ci, type: old.type || 'default' };
+  var changed = true;
+  while (changed) {
+    changed = false;
+    var reach = edFloodBottom(everPassable);
+    for (var k = 0; k < 49; k++) {
+      if (!isBox[k] || everPassable[k]) continue;
+      var r = Math.floor(k / 7), c = k % 7;
+      var ok = (r === 6);
+      if (!ok && r > 0 && reach[k - 7]) ok = true;
+      if (!ok && r < 6 && reach[k + 7]) ok = true;
+      if (!ok && c > 0 && reach[k - 1]) ok = true;
+      if (!ok && c < 6 && reach[k + 1]) ok = true;
+      if (ok) { everPassable[k] = true; changed = true; }
     }
-    editor.grid[fit[n]] = {
-      elevator: true, eid: eid, dir: size.dir, len: size.len, part: n,
-      surface: carry.surface, deep: carry.deep
-    };
   }
-  if (editor.elevSlotSel >= fit.length) editor.elevSlotSel = fit.length - 1;
+  var n = 0;
+  for (var m = 0; m < 49; m++) if (isBox[m] && !everPassable[m]) n++;
+  return n;
+}
+
+function edFloodBottom(passable) {
+  var reach = [], queue = [];
+  for (var i = 0; i < 49; i++) reach.push(false);
+  for (var c = 0; c < 7; c++) if (passable[42 + c]) { reach[42 + c] = true; queue.push(42 + c); }
+  var head = 0;
+  while (head < queue.length) {
+    var cur = queue[head++];
+    var r = Math.floor(cur / 7), cc = cur % 7;
+    var nb = [];
+    if (r > 0) nb.push(cur - 7);
+    if (r < 6) nb.push(cur + 7);
+    if (cc > 0) nb.push(cur - 1);
+    if (cc < 6) nb.push(cur + 1);
+    for (var n = 0; n < nb.length; n++) if (!reach[nb[n]] && passable[nb[n]]) { reach[nb[n]] = true; queue.push(nb[n]); }
+  }
+  return reach;
 }
 
 // ── Grid ──
 function editorRenderGrid() {
   var el = document.getElementById('ed-grid');
   el.innerHTML = '';
+  var deepLayer = (editor.layer === 'deep');
   for (var i = 0; i < 49; i++) {
     var cell = document.createElement('div');
     cell.className = 'ed-cell';
     var v = editor.grid[i];
-    if (v && v.wall) {
-      // Wall cell
-      cell.style.background = 'linear-gradient(135deg,#9A8D7B,#6F6355)';
-      cell.style.borderColor = '#8A7D6B';
-      cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,255,255,0.5);font-size:14px">&#9632;</span>';
-    } else if (v && v.elevator) {
-      // Modular elevator tile — shows its top box over the platform,
-      // plus a dot when the lifted floor for this tile is authored.
-      var eSel = (editor.selectedElev === v.eid);
-      if (v.surface) {
-        var sbt = getBoxType(v.surface.type);
-        var sst = sbt.editorCellStyle(v.surface.ci);
-        cell.style.background = sst.background;
+    if (v && v.elevator) {
+      // Elevator cell — the shape's colour and number make grouping
+      // explicit, even where two shapes are flush against each other.
+      var shapeCol = edElevShapeColor(v.eid);
+      var box = deepLayer ? v.deep : v.surface;
+      if (box) {
+        var bt2 = getBoxType(box.type);
+        cell.style.background = bt2.editorCellStyle(box.ci).background;
       } else {
         cell.style.background = 'linear-gradient(135deg,#4B5866,#2B3340)';
       }
-      cell.style.borderColor = eSel ? '#5FD4E8' : '#3E8A99';
-      if (eSel) cell.style.boxShadow = '0 0 0 2px rgba(95,212,232,0.45)';
-      var deepDot = v.deep
-        ? '<span class="ed-elev-deep" style="background:' + COLORS[v.deep.ci].fill + '"></span>'
+      cell.style.borderColor = shapeCol;
+      if (v.eid === editor.activeElev) cell.style.boxShadow = '0 0 0 2px ' + shapeCol;
+      var other = deepLayer ? v.surface : v.deep;
+      var otherDot = other
+        ? '<span class="ed-elev-deep" style="background:' + COLORS[other.ci].fill + '"></span>'
         : '<span class="ed-elev-deep ed-elev-deep-empty"></span>';
-      cell.innerHTML = '<span class="ed-cell-dot" style="font-size:12px">⬆</span>' + deepDot;
+      cell.innerHTML = '<span class="ed-elev-tag" style="color:' + shapeCol + '">'
+        + (v.classic ? 'C' : (v.eid + 1)) + '</span>' + otherDot;
+      if (editor.pendingCell === i) cell.classList.add('ed-cell-pending');
+    } else if (deepLayer) {
+      // Only elevator cells have a deep floor
+      cell.style.background = 'rgba(150,140,125,0.18)';
+      cell.style.borderColor = 'rgba(160,140,120,0.2)';
+      cell.style.opacity = '0.45';
+    } else if (v && v.wall) {
+      cell.style.background = 'linear-gradient(135deg,#9A8D7B,#6F6355)';
+      cell.style.borderColor = '#8A7D6B';
+      cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,255,255,0.5);font-size:14px">&#9632;</span>';
     } else if (v && v.tunnel) {
-      // Tunnel cell
       var isSelected = (editor.selectedTunnel === i);
       cell.style.background = 'linear-gradient(135deg,#3D3548,#252030)';
       cell.style.borderColor = isSelected ? '#FFD080' : '#6A6070';
       if (isSelected) cell.style.boxShadow = '0 0 0 2px rgba(255,208,128,0.5)';
-      var arrow = TUNNEL_DIR_ARROWS[v.dir] || '\u25BC';
+      var arrow = TUNNEL_DIR_ARROWS[v.dir] || '▼';
       var count = v.contents ? v.contents.length : 0;
       cell.innerHTML = '<span class="ed-cell-dot" style="color:#FFD080;font-size:13px">' + arrow +
         '</span><span class="ed-tunnel-badge">' + count + '</span>';
@@ -231,61 +466,73 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+  var v = editor.grid[idx];
 
+  // ── Elevator authoring ──
   if (editor.elevMode) {
-    // Elevator placement mode
-    var existingE = editor.grid[idx];
-    if (existingE && existingE.elevator) {
-      if (editor.activeColor === -1) editorRemoveElev(existingE.eid);
-      else { editor.selectedElev = existingE.eid; editor.elevSlotSel = 0; }
-    } else if (editor.activeColor !== -1) {
-      editorPlaceElev(idx);
+    var tool = editor.elevTool;
+    if (tool === 'paint')        edElevPaint(idx);
+    else if (tool === 'erase')   edElevErase(idx);
+    else if (tool === 'tag')     edElevTag(idx);
+    else if (tool === 'classic') edElevPlaceClassic(idx);
+    else if (tool === 'move' || tool === 'split' || tool === 'merge') {
+      if (editor.pendingCell < 0) {
+        if (!v || !v.elevator) { editorShowToast('Start on an elevator cell'); return; }
+        editor.pendingCell = idx;
+        editor.activeElev = v.eid;
+      } else {
+        var first = editor.pendingCell;
+        editor.pendingCell = -1;
+        if (tool === 'move')       edElevMove(first, idx);
+        else if (tool === 'split') edElevSplit(first, idx);
+        else                       edElevMerge(first, idx);
+      }
     }
     editorRefresh();
     return;
   }
 
-  // Painting onto an elevator tile sets that tile's top box
-  var onElev = editor.grid[idx];
-  if (onElev && onElev.elevator) {
+  // ── Painting boxes ──
+  // On an elevator cell the active layer decides which floor is set.
+  if (v && v.elevator) {
     if (editor.wallMode || editor.tunnelMode) {
-      editorShowToast('That tile belongs to an elevator');
+      editorShowToast('That cell belongs to an elevator');
       return;
     }
-    if (editor.activeColor === -1) {
-      onElev.surface = null;
-    } else if (onElev.surface && onElev.surface.ci === editor.activeColor
-               && onElev.surface.type === editor.activeType) {
-      onElev.surface = null;
-    } else {
-      onElev.surface = { ci: editor.activeColor, type: editor.activeType };
+    var deepLayer = (editor.layer === 'deep');
+    if (deepLayer && editor.activeColor >= 0 && ELEV_DEEP_TYPES.indexOf(editor.activeType) < 0) {
+      editorShowToast('The lifted floor takes normal or blocker boxes only');
+      return;
     }
-    editor.selectedElev = onElev.eid;
+    edPushUndo();
+    var cur = deepLayer ? v.deep : v.surface;
+    var next;
+    if (editor.activeColor === -1) next = null;
+    else if (cur && cur.ci === editor.activeColor && cur.type === editor.activeType) next = null;
+    else next = { ci: editor.activeColor, type: editor.activeType };
+    if (deepLayer) v.deep = next; else v.surface = next;
+    editor.activeElev = v.eid;
     editorRefresh();
+    return;
+  }
+
+  if (editor.layer === 'deep') {
+    editorShowToast('Only elevator cells have a lifted floor');
     return;
   }
 
   if (editor.wallMode) {
-    // Wall placement mode
-    var existing = editor.grid[idx];
-    if (existing && existing.wall) {
-      // Toggle off: clicking existing wall removes it
-      editor.grid[idx] = null;
-    } else {
-      // Place wall
-      editor.grid[idx] = { wall: true };
-    }
+    edPushUndo();
+    if (v && v.wall) editor.grid[idx] = null;
+    else editor.grid[idx] = { wall: true };
     if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
-    editorRenderGrid();
-    editorUpdateStats();
-    editorRenderTunnelPanel();
+    editorRefresh();
     return;
   }
 
   if (editor.tunnelMode) {
-    // In tunnel mode: place or select tunnel
-    var existing = editor.grid[idx];
-    if (existing && existing.tunnel) {
+    edPushUndo();
+    if (v && v.tunnel) {
       editor.selectedTunnel = idx;
     } else if (editor.activeColor === -1) {
       editor.grid[idx] = null;
@@ -294,165 +541,192 @@ function editorCellClick(e) {
       editor.grid[idx] = { tunnel: true, dir: editor.tunnelDir, contents: [] };
       editor.selectedTunnel = idx;
     }
-  } else {
-    // Normal box painting mode
-    if (editor.activeColor === -1) {
-      editor.grid[idx] = null;
-      if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
-    } else {
-      var existing = editor.grid[idx];
-      if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
-        editor.grid[idx] = null;
-      } else {
-        editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
-      }
-      if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
-    }
+    editorRefresh();
+    return;
   }
-  editorRenderGrid();
-  editorUpdateStats();
-  editorRenderTunnelPanel();
+
+  // Normal box painting
+  edPushUndo();
+  if (editor.activeColor === -1) {
+    editor.grid[idx] = null;
+    if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+  } else {
+    if (v && !v.tunnel && !v.wall && v.ci === editor.activeColor && v.type === editor.activeType) {
+      editor.grid[idx] = null;
+    } else {
+      editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
+    }
+    if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+  }
+  editorRefresh();
 }
 
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
   var v = editor.grid[idx];
-  if (v && v.elevator) {
-    // Right-click takes the whole bar out, not just this tile
-    editorRemoveElev(v.eid);
-    editorRefresh();
-    return;
-  }
+  if (v && v.elevator) { edElevErase(idx); editorRefresh(); return; }
+  edPushUndo();
   editor.grid[idx] = null;
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
   editorRefresh();
 }
-
-// ── Toolbar: mode toggle + type selector + color/direction palette ──
+// ── Toolbar: layer toggle + mode selector + per-mode second row ──
 function editorRenderToolbar() {
   var el = document.getElementById('ed-toolbar');
   el.innerHTML = '';
 
-  // Mode row: Box types + Wall + Tunnel toggle
+  // Layer toggle — which floor the colour buttons paint onto
+  var layerRow = document.createElement('div');
+  layerRow.className = 'ed-layer-row';
+  var layers = [
+    { id: 'surface', label: 'Surface' },
+    { id: 'deep', label: 'Lifted floor' }
+  ];
+  for (var li = 0; li < layers.length; li++) {
+    var lb = document.createElement('button');
+    lb.className = 'ed-layer-btn' + (editor.layer === layers[li].id ? ' active' : '');
+    lb.textContent = layers[li].label;
+    lb.setAttribute('data-layer', layers[li].id);
+    lb.addEventListener('click', function () {
+      editor.layer = this.getAttribute('data-layer');
+      if (editor.layer === 'deep' && ELEV_DEEP_TYPES.indexOf(editor.activeType) < 0) {
+        editor.activeType = ELEV_DEEP_TYPES[0];
+      }
+      editorRefresh();
+    });
+    layerRow.appendChild(lb);
+  }
+  el.appendChild(layerRow);
+
+  // Mode row: box types + Wall + Tunnel + Elevator
   var typeRow = document.createElement('div');
   typeRow.className = 'ed-type-row';
 
-  // Box type buttons
+  var plainMode = (!editor.tunnelMode && !editor.wallMode && !editor.elevMode);
   for (var t = 0; t < BoxTypeOrder.length; t++) {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
+    var deepOnly = (editor.layer === 'deep' && ELEV_DEEP_TYPES.indexOf(id) < 0);
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.elevMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (plainMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
+    tb.disabled = deepOnly;
+    if (deepOnly) tb.title = 'The lifted floor takes normal or blocker boxes only';
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
       editor.elevMode = false;
-      editorRenderToolbar();
-      editorRenderTunnelPanel();
+      editor.pendingCell = -1;
+      editorRefresh();
     });
     typeRow.appendChild(tb);
   }
 
-  // Wall mode button
   var wallBtn = document.createElement('button');
   wallBtn.className = 'ed-type-btn' + (editor.wallMode ? ' active' : '');
-  wallBtn.textContent = '\u25A0 Wall';
-  wallBtn.style.borderColor = editor.wallMode ? 'rgba(138,125,107,0.6)' : '';
-  wallBtn.style.color = editor.wallMode ? '#6F6355' : '';
+  wallBtn.textContent = '■ Wall';
   wallBtn.addEventListener('click', function () {
-    editor.wallMode = true;
-    editor.tunnelMode = false;
-    editor.elevMode = false;
-    editorRenderToolbar();
-    editorRenderTunnelPanel();
+    editor.wallMode = true; editor.tunnelMode = false; editor.elevMode = false;
+    editor.layer = 'surface'; editor.pendingCell = -1;
+    editorRefresh();
   });
   typeRow.appendChild(wallBtn);
 
-  // Modular elevator mode button
+  var tunnelBtn = document.createElement('button');
+  tunnelBtn.className = 'ed-type-btn' + (editor.tunnelMode ? ' active' : '');
+  tunnelBtn.textContent = '🕳 Tunnel';
+  tunnelBtn.addEventListener('click', function () {
+    editor.tunnelMode = true; editor.wallMode = false; editor.elevMode = false;
+    editor.layer = 'surface'; editor.pendingCell = -1;
+    editorRefresh();
+  });
+  typeRow.appendChild(tunnelBtn);
+
   var elevBtn = document.createElement('button');
   elevBtn.className = 'ed-type-btn' + (editor.elevMode ? ' active' : '');
   elevBtn.textContent = '⬆ Elevator';
   elevBtn.style.borderColor = editor.elevMode ? 'rgba(95,212,232,0.7)' : '';
   elevBtn.style.color = editor.elevMode ? '#2E8FA3' : '';
   elevBtn.addEventListener('click', function () {
-    editor.elevMode = true;
-    editor.tunnelMode = false;
-    editor.wallMode = false;
-    if (editor.activeColor === -1) editor.activeColor = 0;
-    editorRenderToolbar();
-    editorRenderTunnelPanel();
+    editor.elevMode = true; editor.tunnelMode = false; editor.wallMode = false;
+    editor.layer = 'surface'; editor.pendingCell = -1;
+    editorRefresh();
   });
   typeRow.appendChild(elevBtn);
-
-  // Tunnel mode button
-  var tunnelBtn = document.createElement('button');
-  tunnelBtn.className = 'ed-type-btn' + (editor.tunnelMode ? ' active' : '');
-  tunnelBtn.textContent = '\uD83D\uDD73 Tunnel';
-  tunnelBtn.style.borderColor = editor.tunnelMode ? 'rgba(255,190,80,0.6)' : '';
-  tunnelBtn.style.color = editor.tunnelMode ? '#E8A84C' : '';
-  tunnelBtn.addEventListener('click', function () {
-    editor.tunnelMode = true;
-    editor.wallMode = false;
-    editor.elevMode = false;
-    editorRenderToolbar();
-    editorRenderTunnelPanel();
-  });
-  typeRow.appendChild(tunnelBtn);
 
   el.appendChild(typeRow);
 
   if (editor.elevMode) {
-    // Size selector row — pick the bar, then click a cell to drop it
-    var sizeRow = document.createElement('div');
-    sizeRow.className = 'ed-color-row';
-
-    var eEraser = document.createElement('button');
-    eEraser.className = 'ed-tool' + (editor.activeColor === -1 ? ' active' : '');
-    eEraser.style.background = 'rgba(180,165,145,0.5)';
-    eEraser.innerHTML = '✖';
-    eEraser.title = 'Remove elevator';
-    eEraser.addEventListener('click', function () { editor.activeColor = -1; editorRenderToolbar(); });
-    sizeRow.appendChild(eEraser);
-
-    for (var z = 0; z < ELEV_SIZES.length; z++) {
-      var zb = document.createElement('button');
-      zb.className = 'ed-tool ed-elev-size' + (editor.elevSizeIdx === z && editor.activeColor !== -1 ? ' active' : '');
-      zb.innerHTML = ELEV_SIZES[z].label;
-      zb.title = ELEV_SIZES[z].label + ' elevator';
-      zb.setAttribute('data-size', z);
-      zb.addEventListener('click', function () {
-        editor.elevSizeIdx = parseInt(this.getAttribute('data-size'));
-        editor.activeColor = 0;
-        editorRenderToolbar();
+    // Elevator tools — free-form painting, no footprints
+    var toolRow = document.createElement('div');
+    toolRow.className = 'ed-type-row';
+    var tools = [
+      { id: 'paint',   label: '✎ Paint',  hint: 'Click cells to grow the active shape. A cell that does not touch it starts a new shape.' },
+      { id: 'erase',   label: '✖ Erase',  hint: 'Remove one cell. If the shape falls apart it becomes two shapes.' },
+      { id: 'move',    label: '✥ Move',   hint: 'Click a cell of a shape, then where it should land.' },
+      { id: 'tag',     label: '⚇ Re-tag', hint: 'Click a cell to move it into the active shape.' },
+      { id: 'split',   label: '✂ Split',  hint: 'Click two cells side by side to cut the link between them.' },
+      { id: 'merge',   label: '⧉ Merge',  hint: 'Click a cell of each shape to fold the second into the first.' },
+      { id: 'classic', label: '▣ Classic 2x2', hint: 'Stamp a classic 2x2 Elevator.' }
+    ];
+    for (var k = 0; k < tools.length; k++) {
+      var kb = document.createElement('button');
+      kb.className = 'ed-type-btn ed-elev-tool' + (editor.elevTool === tools[k].id ? ' active' : '');
+      kb.textContent = tools[k].label;
+      kb.title = tools[k].hint;
+      kb.setAttribute('data-tool', tools[k].id);
+      kb.addEventListener('click', function () {
+        editor.elevTool = this.getAttribute('data-tool');
+        editor.pendingCell = -1;
+        editorRefresh();
       });
-      sizeRow.appendChild(zb);
+      toolRow.appendChild(kb);
     }
-    el.appendChild(sizeRow);
+    el.appendChild(toolRow);
 
-    var elevInfo = document.createElement('div');
-    elevInfo.className = 'ed-color-row';
-    elevInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click a cell to drop the bar &middot; click it again to edit its floor</span>';
-    el.appendChild(elevInfo);
-  } else if (editor.tunnelMode) {
-    // Direction selector row
+    var infoRow = document.createElement('div');
+    infoRow.className = 'ed-color-row ed-elev-info';
+    var hint = '';
+    for (var h = 0; h < tools.length; h++) if (tools[h].id === editor.elevTool) hint = tools[h].hint;
+    var activeTxt = (editor.activeElev >= 0 && edElevCells(editor.activeElev).length)
+      ? 'Shape ' + (editor.activeElev + 1)
+      : 'none';
+    infoRow.innerHTML = '<span style="font-size:11px;color:#9C8A70">Active: <b style="color:'
+      + (editor.activeElev >= 0 ? edElevShapeColor(editor.activeElev) : '#9C8A70') + '">'
+      + activeTxt + '</b> &middot; ' + hint + '</span>';
+    el.appendChild(infoRow);
+
+    var newRow = document.createElement('div');
+    newRow.className = 'ed-quick';
+    var nb = document.createElement('button');
+    nb.className = 'ed-qbtn';
+    nb.textContent = '➕ New shape';
+    nb.title = 'The next cell you paint starts a shape of its own';
+    nb.addEventListener('click', function () {
+      editor.activeElev = -1;
+      editor.elevTool = 'paint';
+      editorRefresh();
+    });
+    newRow.appendChild(nb);
+    el.appendChild(newRow);
+    return;
+  }
+
+  if (editor.tunnelMode) {
     var dirRow = document.createElement('div');
     dirRow.className = 'ed-color-row';
-
-    // Eraser
-    var eraser = document.createElement('button');
-    eraser.className = 'ed-tool' + (editor.activeColor === -1 ? ' active' : '');
-    eraser.style.background = 'rgba(180,165,145,0.5)';
-    eraser.innerHTML = '\u2716';
-    eraser.title = 'Eraser';
-    eraser.addEventListener('click', function () { editor.activeColor = -1; editorRenderToolbar(); });
-    dirRow.appendChild(eraser);
-
+    var eraser0 = document.createElement('button');
+    eraser0.className = 'ed-tool' + (editor.activeColor === -1 ? ' active' : '');
+    eraser0.style.background = 'rgba(180,165,145,0.5)';
+    eraser0.innerHTML = '✖';
+    eraser0.title = 'Eraser';
+    eraser0.addEventListener('click', function () { editor.activeColor = -1; editorRenderToolbar(); });
+    dirRow.appendChild(eraser0);
     var dirs = ['top', 'left', 'bottom', 'right'];
-    var dirLabels = ['\u25B2', '\u25C0', '\u25BC', '\u25B6'];
+    var dirLabels = ['▲', '◀', '▼', '▶'];
     for (var d = 0; d < dirs.length; d++) {
       var db = document.createElement('button');
       db.className = 'ed-tool' + (editor.tunnelDir === dirs[d] && editor.activeColor !== -1 ? ' active' : '');
@@ -470,41 +744,49 @@ function editorRenderToolbar() {
       dirRow.appendChild(db);
     }
     el.appendChild(dirRow);
-  } else if (editor.wallMode) {
-    // Wall mode: just show info hint
+    return;
+  }
+
+  if (editor.wallMode) {
     var wallInfo = document.createElement('div');
     wallInfo.className = 'ed-color-row';
     wallInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click cells to place/remove walls</span>';
     el.appendChild(wallInfo);
-  } else {
-    // Color palette: eraser + 8 colors
-    var colorRow = document.createElement('div');
-    colorRow.className = 'ed-color-row';
-    var eraser = document.createElement('button');
-    eraser.className = 'ed-tool' + (editor.activeColor === -1 ? ' active' : '');
-    eraser.style.background = 'rgba(180,165,145,0.5)';
-    eraser.innerHTML = '\u2716';
-    eraser.title = 'Eraser';
-    eraser.addEventListener('click', function () { editor.activeColor = -1; editorRenderToolbar(); });
-    colorRow.appendChild(eraser);
-    for (var ci = 0; ci < NUM_COLORS; ci++) {
-      var cb = document.createElement('button');
-      cb.className = 'ed-tool' + (editor.activeColor === ci ? ' active' : '');
-      cb.style.background = COLORS[ci].fill;
-      cb.innerHTML = CLR_NAMES[ci][0].toUpperCase();
-      cb.title = CLR_NAMES[ci];
-      cb.setAttribute('data-ci', ci);
-      cb.addEventListener('click', function () {
-        editor.activeColor = parseInt(this.getAttribute('data-ci'));
-        editorRenderToolbar();
-      });
-      colorRow.appendChild(cb);
-    }
-    el.appendChild(colorRow);
+    return;
+  }
+
+  // Colour palette
+  var colorRow = document.createElement('div');
+  colorRow.className = 'ed-color-row';
+  var eraser = document.createElement('button');
+  eraser.className = 'ed-tool' + (editor.activeColor === -1 ? ' active' : '');
+  eraser.style.background = 'rgba(180,165,145,0.5)';
+  eraser.innerHTML = '✖';
+  eraser.title = 'Eraser';
+  eraser.addEventListener('click', function () { editor.activeColor = -1; editorRenderToolbar(); });
+  colorRow.appendChild(eraser);
+  for (var ci = 0; ci < NUM_COLORS; ci++) {
+    var cb = document.createElement('button');
+    cb.className = 'ed-tool' + (editor.activeColor === ci ? ' active' : '');
+    cb.style.background = COLORS[ci].fill;
+    cb.innerHTML = CLR_NAMES[ci][0].toUpperCase();
+    cb.title = CLR_NAMES[ci];
+    cb.setAttribute('data-ci', ci);
+    cb.addEventListener('click', function () {
+      editor.activeColor = parseInt(this.getAttribute('data-ci'));
+      editorRenderToolbar();
+    });
+    colorRow.appendChild(cb);
+  }
+  el.appendChild(colorRow);
+
+  if (editor.layer === 'deep') {
+    var dl = document.createElement('div');
+    dl.className = 'ed-color-row';
+    dl.innerHTML = '<span style="font-size:11px;color:#9C8A70">Painting the lifted floor — elevator cells only</span>';
+    el.appendChild(dl);
   }
 }
-
-// ── Tunnel contents editor panel ──
 function editorRenderTunnelPanel() {
   var container = document.getElementById('ed-tunnel-panel');
   if (!container) return;
@@ -643,162 +925,109 @@ function editorRenderTunnelPanel() {
 }
 
 // ── Modular elevator panel: author the floor that gets lifted ──
+// ── Elevator shape panel: what is on the board and what is missing ──
 function editorRenderElevPanel() {
   var container = document.getElementById('ed-elev-panel');
   if (!container) return;
 
-  var cells = (editor.selectedElev >= 0) ? editorElevCells(editor.selectedElev) : [];
-  if (!cells.length) {
-    container.style.display = 'none';
-    editor.selectedElev = -1;
-    return;
-  }
+  var ids = edElevIds();
+  if (!ids.length) { container.style.display = 'none'; return; }
   container.style.display = 'block';
 
-  var first = editor.grid[cells[0]];
-  var sizeIdx = elevSizeIndex(first.dir, first.len);
-  if (editor.elevSlotSel >= cells.length) editor.elevSlotSel = 0;
+  var html = '<div class="ed-section-title"><span class="icon">⬆</span> Elevators on this board</div>';
+  html += '<div class="ed-shape-list">';
 
-  var html = '';
-  html += '<div class="ed-section-title"><span class="icon">⬆</span> Modular Elevator #'
-        + (editor.selectedElev + 1) + ' — ' + ELEV_SIZES[sizeIdx].label + '</div>';
+  for (var i = 0; i < ids.length; i++) {
+    var eid = ids[i];
+    var cells = edElevCells(eid);
+    var classic = edElevIsClassic(eid);
+    var col = edElevShapeColor(eid);
+    var noTop = 0, noDeep = 0;
+    for (var k = 0; k < cells.length; k++) {
+      if (!editor.grid[cells[k]].surface) noTop++;
+      if (!editor.grid[cells[k]].deep) noDeep++;
+    }
+    var comps = elevComponents(cells, 7, 7).length;
+    var active = (editor.activeElev === eid);
 
-  // Footprint
-  html += '<div class="ed-elev-row"><span class="ed-elev-label">Size</span>';
-  html += '<select id="ed-elev-size" class="ed-tunnel-select">';
-  for (var z = 0; z < ELEV_SIZES.length; z++) {
-    html += '<option value="' + z + '"' + (z === sizeIdx ? ' selected' : '') + '>' + ELEV_SIZES[z].label + '</option>';
-  }
-  html += '</select></div>';
+    html += '<div class="ed-shape' + (active ? ' active' : '') + '" data-eid="' + eid + '" style="border-color:' + col + '">';
+    html += '<div class="ed-shape-head"><span class="ed-shape-swatch" style="background:' + col + '"></span>';
+    html += '<b>' + (classic ? 'Classic 2x2' : 'Shape ' + (eid + 1)) + '</b>';
+    html += '<span class="ed-shape-count">' + cells.length + ' cells</span>';
+    html += '<button class="ed-shape-del" data-del="' + eid + '" title="Remove this elevator">✖</button>';
+    html += '</div>';
 
-  // Top boxes, one per tile
-  var missingTop = 0;
-  html += '<div class="ed-section-title" style="margin-top:8px"><span class="icon">📦</span> Top boxes (paint these on the grid)</div>';
-  html += '<div class="ed-elev-slots">';
-  for (var t = 0; t < cells.length; t++) {
-    var surf = editor.grid[cells[t]].surface;
-    if (!surf) missingTop++;
-    var bg = surf ? COLORS[surf.ci].fill : 'rgba(120,110,100,0.25)';
-    var lbl = surf ? (BoxTypes[surf.type] || BoxTypes[BoxTypeOrder[0]]).label[0] : '–';
-    html += '<span class="ed-elev-slot" style="background:' + bg + '">' + lbl + '</span>';
-  }
-  html += '</div>';
-
-  // Lifted floor, one per tile
-  var missingDeep = 0;
-  html += '<div class="ed-section-title" style="margin-top:8px"><span class="icon">⬆</span> Lifted floor (arrives when the top is cleared)</div>';
-  html += '<div class="ed-elev-slots">';
-  for (var d = 0; d < cells.length; d++) {
-    var deep = editor.grid[cells[d]].deep;
-    if (!deep) missingDeep++;
-    var dbg = deep ? COLORS[deep.ci].fill : 'rgba(120,110,100,0.25)';
-    var dlbl = deep ? (BoxTypes[deep.type] || BoxTypes[BoxTypeOrder[0]]).label[0] : '?';
-    var sel = (editor.elevSlotSel === d) ? ' selected' : '';
-    html += '<span class="ed-elev-slot pick' + sel + '" data-slot="' + d + '" style="background:' + dbg + '" title="Tile ' + (d + 1) + '">' + dlbl + '</span>';
+    var notes = [];
+    if (comps > 1) notes.push('<span class="ed-shape-bad">not in one piece (' + comps + ' parts)</span>');
+    if (noTop) notes.push(noTop + ' cell' + (noTop > 1 ? 's' : '') + ' with no top box');
+    if (noDeep) notes.push(noDeep + ' cell' + (noDeep > 1 ? 's' : '') + ' with no lifted floor');
+    if (!notes.length) notes.push('<span class="ed-shape-ok">complete — ' + (cells.length * 2) + ' boxes</span>');
+    html += '<div class="ed-shape-notes">' + notes.join(' &middot; ') + '</div>';
+    html += '</div>';
   }
   html += '</div>';
 
-  // Fill the selected tile
-  html += '<div class="ed-elev-row" style="margin-top:6px"><span class="ed-elev-label">Tile ' + (editor.elevSlotSel + 1) + '</span>';
-  html += '<select id="ed-elev-deep-type" class="ed-tunnel-select">';
-  for (var dt = 0; dt < ELEV_DEEP_TYPES.length; dt++) {
-    var tid = ELEV_DEEP_TYPES[dt];
-    html += '<option value="' + tid + '">' + (BoxTypes[tid] ? BoxTypes[tid].label : tid) + '</option>';
-  }
-  html += '</select></div>';
-  html += '<div class="ed-tunnel-add-colors">';
-  for (var c2 = 0; c2 < NUM_COLORS; c2++) {
-    html += '<button class="ed-elev-clr" data-ci="' + c2 + '" style="background:' + COLORS[c2].fill + '" title="' + CLR_NAMES[c2] + '">' + CLR_NAMES[c2][0].toUpperCase() + '</button>';
-  }
+  // Bulk fill, because authoring 12 cells one at a time is tedious
+  html += '<div class="ed-quick" style="margin-top:6px">';
+  html += '<button class="ed-qbtn" id="ed-elev-fill-top">Fill missing top boxes</button>';
+  html += '<button class="ed-qbtn" id="ed-elev-fill-deep">Fill missing floor boxes</button>';
   html += '</div>';
 
-  if (missingTop > 0) {
-    html += '<div class="ed-stat-warn" style="margin-top:6px">' + missingTop + ' tile' + (missingTop > 1 ? 's have' : ' has') + ' no top box — it counts as already cleared</div>';
+  var enclosed = edCountEnclosed();
+  if (enclosed > 0) {
+    html += '<div class="ed-stat-warn" style="margin-top:6px">' + enclosed + ' box'
+      + (enclosed > 1 ? 'es are' : ' is') + ' walled in and can never be opened</div>';
   }
-  if (missingDeep > 0) {
-    html += '<div class="ed-stat-warn" style="margin-top:4px">' + missingDeep + ' tile' + (missingDeep > 1 ? 's have' : ' has') + ' no floor box — it will lift an empty slot</div>';
-  }
-
-  html += '<div style="text-align:center;margin-top:8px">';
-  html += '<button class="ed-qbtn" id="ed-elev-fill">Fill floor with tile ' + (editor.elevSlotSel + 1) + '</button> ';
-  html += '<button class="ed-qbtn" id="ed-elev-clear">Clear floor</button> ';
-  html += '<button class="ed-qbtn" id="ed-elev-remove">Remove elevator</button>';
-  html += '</div>';
 
   container.innerHTML = html;
 
-  // ── Bind ──
-  var sizeSel = document.getElementById('ed-elev-size');
-  if (sizeSel) {
-    sizeSel.addEventListener('change', function () {
-      editorResizeElev(editor.selectedElev, parseInt(this.value));
+  var rows = container.querySelectorAll('.ed-shape');
+  for (var r = 0; r < rows.length; r++) {
+    rows[r].addEventListener('click', function (ev) {
+      if (ev.target && ev.target.getAttribute('data-del') !== null) return;
+      editor.activeElev = parseInt(this.getAttribute('data-eid'));
+      editorRefresh();
+    });
+  }
+  var dels = container.querySelectorAll('.ed-shape-del');
+  for (var d = 0; d < dels.length; d++) {
+    dels[d].addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      var eid = parseInt(this.getAttribute('data-del'));
+      edPushUndo();
+      var cells = edElevCells(eid);
+      for (var n = 0; n < cells.length; n++) editor.grid[cells[n]] = null;
+      if (editor.activeElev === eid) editor.activeElev = -1;
       editorRefresh();
     });
   }
 
-  var picks = container.querySelectorAll('.ed-elev-slot.pick');
-  for (var p = 0; p < picks.length; p++) {
-    picks[p].addEventListener('click', function () {
-      editor.elevSlotSel = parseInt(this.getAttribute('data-slot'));
-      editorRenderElevPanel();
-    });
-  }
-
-  var clrs = container.querySelectorAll('.ed-elev-clr');
-  for (var q = 0; q < clrs.length; q++) {
-    clrs[q].addEventListener('click', function () {
-      var ci5 = parseInt(this.getAttribute('data-ci'));
-      var typeEl = document.getElementById('ed-elev-deep-type');
-      var type = typeEl ? typeEl.value : 'default';
-      var list = editorElevCells(editor.selectedElev);
-      if (!list.length) return;
-      editor.grid[list[editor.elevSlotSel]].deep = { ci: ci5, type: type };
-      // Jump to the next tile still waiting for a floor box
-      for (var n = 1; n <= list.length; n++) {
-        var nx = (editor.elevSlotSel + n) % list.length;
-        if (!editor.grid[list[nx]].deep) { editor.elevSlotSel = nx; break; }
-      }
-      editorRefresh();
-    });
-  }
-
-  var fillBtn = document.getElementById('ed-elev-fill');
-  if (fillBtn) {
-    fillBtn.addEventListener('click', function () {
-      var list = editorElevCells(editor.selectedElev);
-      var src = list.length ? editor.grid[list[editor.elevSlotSel]].deep : null;
-      if (!src) { editorShowToast('Pick a colour for that tile first'); return; }
-      for (var n = 0; n < list.length; n++) {
-        editor.grid[list[n]].deep = { ci: src.ci, type: src.type };
-      }
-      editorRefresh();
-    });
-  }
-
-  var clearBtn2 = document.getElementById('ed-elev-clear');
-  if (clearBtn2) {
-    clearBtn2.addEventListener('click', function () {
-      var list = editorElevCells(editor.selectedElev);
-      for (var n = 0; n < list.length; n++) editor.grid[list[n]].deep = null;
-      editor.elevSlotSel = 0;
-      editorRefresh();
-    });
-  }
-
-  var removeBtn = document.getElementById('ed-elev-remove');
-  if (removeBtn) {
-    removeBtn.addEventListener('click', function () {
-      editorRemoveElev(editor.selectedElev);
-      editorRefresh();
-    });
-  }
+  var fillTop = document.getElementById('ed-elev-fill-top');
+  if (fillTop) fillTop.addEventListener('click', function () { edElevFillLayer('surface'); });
+  var fillDeep = document.getElementById('ed-elev-fill-deep');
+  if (fillDeep) fillDeep.addEventListener('click', function () { edElevFillLayer('deep'); });
 }
 
+// Give every empty cell on every shape a box, cycling the palette so
+// a large shape does not become one slab of one colour.
+function edElevFillLayer(layer) {
+  edPushUndo();
+  var n = 0, filled = 0;
+  for (var i = 0; i < 49; i++) {
+    var v = editor.grid[i];
+    if (!v || !v.elevator) continue;
+    if (v[layer]) { n++; continue; }
+    v[layer] = { ci: n % NUM_COLORS, type: 'default' };
+    n++; filled++;
+  }
+  editorRefresh();
+  editorShowToast(filled ? ('Filled ' + filled + ' cells') : 'Nothing to fill');
+}
 // ── Quick actions ──
 function editorFillRandom() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
-  editor.selectedElev = -1;
+  editor.activeElev = -1;
   var cl = [];
   for (var c = 0; c < 4; c++) for (var n = 0; n < 6; n++) cl.push(c);
   shuffle(cl);
@@ -811,7 +1040,7 @@ function editorFillRandom() {
 function editorClearAll() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
-  editor.selectedElev = -1;
+  editor.activeElev = -1;
   editorRefresh();
 }
 
@@ -823,7 +1052,7 @@ function editorUpdateStats() {
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
   var wallCount = 0;
-  var elevCount = 0, elevMissingTop = 0, elevMissingDeep = 0;
+  var elevCount = 0, elevClassic = 0, elevMissingTop = 0, elevMissingDeep = 0, elevSeen = {};
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
@@ -832,7 +1061,7 @@ function editorUpdateStats() {
       continue;
     }
     if (v.elevator) {
-      if (v.part === 0) elevCount++;
+      if (!elevSeen[v.eid]) { elevSeen[v.eid] = true; elevCount++; if (v.classic) elevClassic++; }
       if (!v.surface) elevMissingTop++;
       if (!v.deep) elevMissingDeep++;
       var eBoxes = [v.surface, v.deep];
@@ -895,7 +1124,8 @@ function editorUpdateStats() {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
   }
   if (elevCount > 0) {
-    html += '<span class="ed-stat-chip" style="background:#2B3340;border:1px solid #5FD4E8">' + elevCount + ' elevator' + (elevCount > 1 ? 's' : '') + '</span>';
+    html += '<span class="ed-stat-chip" style="background:#2B3340;border:1px solid #5FD4E8">' + elevCount + ' elevator' + (elevCount > 1 ? 's' : '')
+      + (elevClassic ? ' (' + elevClassic + ' classic)' : '') + '</span>';
   }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
@@ -1019,8 +1249,7 @@ function editorImportJSON() {
           else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
           else if (cell.wall) editor.grid[i] = { wall: true };
           else if (cell.elevator) editor.grid[i] = {
-            elevator: true, eid: cell.eid || 0, dir: cell.dir || 'h',
-            len: cell.len || 2, part: cell.part || 0,
+            elevator: true, eid: cell.eid || 0, classic: !!cell.classic,
             surface: cell.surface || null, deep: cell.deep || null
           };
           else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
@@ -1037,7 +1266,7 @@ function editorImportJSON() {
       if (nameEl) nameEl.value = editor.name;
       if (descEl) descEl.value = editor.desc;
       editor.selectedTunnel = -1;
-      editor.selectedElev = -1;
+      editor.activeElev = -1;
       ta.style.display = 'none';
       editorBuildUI();
       editorShowToast('Imported!');
