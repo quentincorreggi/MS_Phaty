@@ -56,6 +56,21 @@ var blockerCollectCleared = false;
 var MRB_PER_BOX = 9, SORT_CAP = 3;
 var SORT_VISIBLE_ROWS = 4;
 
+// === COMBO FEEDBACK (customer fill completion) ===
+var COMBO_WINDOW = 120;                 // frames the chain stays alive (2s @ 60fps)
+var COMBO_TIER_COOL = 3;                // chain length that first shows a word
+var COMBO_TIER_VERY = 6;
+var COMBO_TIER_MEGA = 9;
+var comboCount = 0;                     // customers completed in the live chain
+var comboTimer = 0;                     // frames left in the current window
+var comboBest = 0;                      // longest chain this level
+var comboGlowOn = false;                // conveyor rainbow glow armed
+var comboFlareT = 0;                    // glow flare-up, one per completion
+var comboFadeT = 0;                     // glow fade-out after the chain breaks
+var comboPops = [];                     // floating "Cool" / "Very Cool" words
+var comboRings = [];                    // expanding shockwave rings
+var comboMega = null;                   // active MEGA COOL display
+
 // Snake order for 3x3 grid
 var SNAKE_ORDER = [
   { r: 0, c: 0 }, { r: 0, c: 1 }, { r: 0, c: 2 },

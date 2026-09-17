@@ -32,6 +32,7 @@ function initGame() {
   won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
+  comboReset();
   document.getElementById('win-screen').classList.remove('show');
   computeLayout(); initBeltSlots();
 
@@ -148,7 +149,7 @@ function initGame() {
   // ── Sort columns ──
   var allBoxes = [];
   for (var c = 0; c < NUM_COLORS; c++) for (var r = 0; r < sortPerColor[c]; r++)
-    allBoxes.push({ ci: c, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0 });
+    allBoxes.push({ ci: c, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0, megaT: 0 });
   shuffle(allBoxes);
   sortCols = [[], [], [], []];
   for (var i = 0; i < allBoxes.length; i++) sortCols[i % 4].push(allBoxes[i]);
@@ -158,7 +159,7 @@ function initGame() {
   for (var li2 = 0; li2 < numLocks; li2++) {
     var lockCol = Math.floor(Math.random() * 4);
     var lockRow = Math.min(2 + Math.floor(Math.random() * 4), sortCols[lockCol].length);
-    sortCols[lockCol].splice(lockRow, 0, { type: 'lock', ci: -1, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0, triggerT: 0, triggered: false });
+    sortCols[lockCol].splice(lockRow, 0, { type: 'lock', ci: -1, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0, megaT: 0, triggerT: 0, triggered: false });
   }
 }
 
@@ -414,6 +415,7 @@ function update() {
           var by2 = getSortBoxY(j.targetCol, 0) + L.sBh / 2;
           spawnBurst(bx2, by2, COLORS[j.ci].fill, 20);
           spawnConfetti(bx2, by2, 15);
+          comboRegisterCompletion(col[tv], j.targetCol, bx2, by2, j.ci);
           (function (box) { setTimeout(function () { box.vis = false; checkWin(); }, 600); })(col[tv]);
         }
       }
@@ -491,6 +493,7 @@ function update() {
       if (col[r].popT > 0) col[r].popT = Math.max(0, col[r].popT - 0.018);
       if (col[r].shineT > 0) col[r].shineT = Math.max(0, col[r].shineT - 0.025);
       if (col[r].squishT > 0) col[r].squishT = Math.max(0, col[r].squishT - 0.06);
+      if (col[r].megaT > 0) col[r].megaT = Math.max(0, col[r].megaT - 0.022);
     }
   }
 
@@ -514,6 +517,7 @@ function update() {
     if (box.type === 'lock' && box.triggerT > 0) box.triggerT = Math.max(0, box.triggerT - 0.03);
   }
 
+  comboUpdate();
   tickParticles();
   updateRollingSound();
 }
@@ -546,12 +550,14 @@ function frame() {
     drawFunnel();
     drawStock();
     drawPhysMarbles();
+    drawComboBeltGlow();
     drawBelt();
     drawBlockerProgress();
     drawJumpers();
     drawSortArea();
     drawBackButton();
     drawParticles();
+    drawComboFX();
     drawDebugWalls();
   }
   requestAnimationFrame(frame);

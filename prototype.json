@@ -1,0 +1,22 @@
+{
+  "name": "Customer Combo Feedback",
+  "description": "Fill customers back to back and the game celebrates the streak — rainbow conveyor glow, pop-up words, and a giant MEGA COOL.",
+  "howToPlay": "Tap boxes to pour marbles onto the belt. Every time a customer is completely filled you have 2 seconds to fill the next one. Keep the chain going: 3 in a row shows Cool, 6 shows Very Cool, 9 shows a huge rainbow MEGA COOL. The rainbow glow around the conveyor is your timer — it fades as your 2 seconds run out and flares back up on every fill.",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "Combo Rush",
+    "desc": "Eight open boxes, small customer orders — chain them fast",
+    "mrbPerBox": 6,
+    "sortCap": 2,
+    "lockButtons": 0,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      { "ci": 0, "type": "default" }, null, { "ci": 1, "type": "default" }, null, { "ci": 2, "type": "default" }, null, { "ci": 3, "type": "default" },
+      { "ci": 1, "type": "default" }, null, { "ci": 2, "type": "default" }, null, { "ci": 3, "type": "default" }, null, { "ci": 0, "type": "default" },
+      null, null, null, null, null, null, null
+    ]
+  }
+}
