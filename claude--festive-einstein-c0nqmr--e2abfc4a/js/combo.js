@@ -3,11 +3,14 @@
 // ============================================================
 // Filling a customer starts a 2-second window. Filling another
 // customer inside that window extends the chain and restarts
-// the window. Chain length drives escalating feedback:
-//   3+  → "Cool" pops above the customer that just filled
-//   6+  → "Very Cool" pops above the customer that just filled
-//   9+  → big rainbow "MEGA COOL" in the funnel zone, plus
-//         extra juice on that customer's completion
+// the window. Milestone counts in the chain fire a word:
+//   3   → "Cool" pops above the customer that just filled
+//   6   → "Very Cool" pops above the customer that just filled
+//   9   → big rainbow "MEGA COOL" in the funnel zone, plus
+//         extra juice on that customer's completion, and it
+//         repeats on a loop every 4 after that (13, 17, 21, …)
+// Every other count in the chain shows no word — just the
+// rising note, a small ring and the glow flaring back up.
 // The 2-second window is never shown as a timer. The player
 // reads it off the rainbow glow around the conveyor: it appears
 // with the first "Cool", dims as the window runs down, and
@@ -28,11 +31,14 @@ function comboReset() {
   comboMega = null;
 }
 
-// Chain length → feedback tier. 0 = no word yet.
+// Chain length → milestone, or 0 when this completion is not a
+// milestone. Words fire on the exact counts 3 and 6 only; from 9
+// MEGA COOL loops every 4 (9, 13, 17, 21, …). Nothing shows on the
+// counts in between.
 function comboTier(n) {
-  if (n >= COMBO_TIER_MEGA) return 3;
-  if (n >= COMBO_TIER_VERY) return 2;
-  if (n >= COMBO_TIER_COOL) return 1;
+  if (n === COMBO_TIER_COOL) return 1;
+  if (n === COMBO_TIER_VERY) return 2;
+  if (n >= COMBO_TIER_MEGA && (n - COMBO_TIER_MEGA) % COMBO_MEGA_LOOP === 0) return 3;
   return 0;
 }
 
@@ -45,7 +51,9 @@ function comboRegisterCompletion(box, colIdx, bx, by, ci) {
   if (comboCount > comboBest) comboBest = comboCount;
 
   var tier = comboTier(comboCount);
-  if (tier >= 1) comboGlowOn = true;
+  // The glow arms with the first "Cool" and then stays lit for the
+  // rest of the chain, including the counts that show no word.
+  if (comboCount >= COMBO_TIER_COOL) comboGlowOn = true;
 
   comboSfx(comboCount, tier);
   comboPushRing(bx, by, COLORS[ci].fill, L.sBw * (0.7 + tier * 0.18), 0.055);

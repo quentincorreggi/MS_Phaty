@@ -61,6 +61,7 @@ var COMBO_WINDOW = 120;                 // frames the chain stays alive (2s @ 60
 var COMBO_TIER_COOL = 3;                // chain length that first shows a word
 var COMBO_TIER_VERY = 6;
 var COMBO_TIER_MEGA = 9;
+var COMBO_MEGA_LOOP = 4;                // MEGA COOL repeats every N after 9
 var comboCount = 0;                     // customers completed in the live chain
 var comboTimer = 0;                     // frames left in the current window
 var comboBest = 0;                      // longest chain this level
