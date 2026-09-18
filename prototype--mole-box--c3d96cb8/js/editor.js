@@ -2,12 +2,12 @@
 // editor.js — Level Editor (reads box types from registry)
 //             + Tunnel placement, orientation, contents editing
 //             + Wall placement
-//             + Mole hole placement (holes + moles standing on them)
+//             + Mole hole placement (holes, moles, custom hop order)
 // ============================================================
 
 var editor = {
   grid: [],            // 7x7: null = empty, { ci, type } or { tunnel: true, ... } or { wall: true }
-                       //      or { hole: true } / { hole: true, mole: { ci, type } }
+                       //      or { hole: true, ord?, mole?: { ci, type } }
   name: 'Custom Level',
   desc: 'My custom level',
   mrbPerBox: 9,
@@ -20,7 +20,7 @@ var editor = {
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
   holeMode: false,      // true when placing mole holes
-  holeTool: -2,         // -2 = plain hole, -1 = eraser, 0-7 = mole of that color
+  holeTool: -2,         // -3 = set order, -2 = plain hole, -1 = eraser, 0-7 = mole of that color
   moleType: 'default',  // 'default' or 'hidden' — flavour of placed moles
   visible: false
 };
@@ -84,7 +84,12 @@ function editorRenderGrid() {
       cell.style.borderColor = '#8A7D6B';
       cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,255,255,0.5);font-size:14px">&#9632;</span>';
     } else if (v && v.hole) {
-      // Mole hole — optionally with a mole standing on it
+      // Mole hole — optionally with a mole standing on it. The badge is
+      // the hole's place in the hop route; a filled badge means the
+      // designer pinned it, a faded one means it fell in automatically.
+      var isPinned = (typeof v.ord === 'number');
+      var routePos = editorHoleOrdinal(i) + 1;
+      var badge = '<span class="ed-hole-badge' + (isPinned ? ' pinned' : '') + '">' + routePos + '</span>';
       if (v.mole) {
         var mc = COLORS[v.mole.ci];
         var isHiddenMole = (v.mole.type === 'hidden');
@@ -94,12 +99,14 @@ function editorRenderGrid() {
         cell.style.borderColor = '#6B4A2E';
         cell.style.boxShadow = 'inset 0 0 0 2px rgba(60,40,24,0.55)';
         cell.innerHTML = '<span class="ed-cell-dot" style="color:#fff;font-size:13px">' +
-          (isHiddenMole ? '?' : '\uD83D\uDC3E') + '</span>';
+          (isHiddenMole ? '?' : '\uD83D\uDC3E') + '</span>' + badge;
       } else {
         cell.style.background = 'radial-gradient(circle at 50% 50%,#1E1512 0%,#2C2018 45%,#7A5A3A 100%)';
         cell.style.borderColor = '#6B4A2E';
-        cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,235,210,0.35);font-size:11px">' +
-          (editorHoleOrdinal(i) + 1) + '</span>';
+        cell.innerHTML = badge;
+      }
+      if (editor.holeMode && editor.holeTool === -3) {
+        cell.style.borderColor = isPinned ? '#E8A84C' : '#C89A6A';
       }
     } else if (v && v.tunnel) {
       // Tunnel cell
@@ -128,14 +135,61 @@ function editorRenderGrid() {
   }
 }
 
-// Route position of the hole at grid index idx (0-based, reading order)
+// ── Hop route ──
+// Holes carry an optional `ord` (1-based) pinning their place in the
+// route. Unpinned holes fall in behind the pinned ones, in reading
+// order. This is the same rule initGame() uses to build holeCells.
+function editorHoleRoute() {
+  var route = [];
+  for (var i = 0; i < 49; i++) {
+    var v = editor.grid[i];
+    if (v && v.hole) route.push({ idx: i, ord: (typeof v.ord === 'number') ? v.ord : null });
+  }
+  route.sort(function (a, b) {
+    var ao = (a.ord === null) ? Infinity : a.ord;
+    var bo = (b.ord === null) ? Infinity : b.ord;
+    if (ao !== bo) return ao - bo;
+    return a.idx - b.idx;
+  });
+  return route;
+}
+
+// Route position of the hole at grid index idx (0-based), or -1
 function editorHoleOrdinal(idx) {
+  var route = editorHoleRoute();
+  for (var i = 0; i < route.length; i++) if (route[i].idx === idx) return i;
+  return -1;
+}
+
+// Keep pinned ords contiguous (1..n) after holes are added or removed,
+// preserving the order the designer clicked them in.
+function editorRenumberHoles() {
+  var pinned = [];
+  for (var i = 0; i < 49; i++) {
+    var v = editor.grid[i];
+    if (v && v.hole && typeof v.ord === 'number') pinned.push({ idx: i, ord: v.ord });
+  }
+  pinned.sort(function (a, b) { return a.ord - b.ord; });
+  for (var k = 0; k < pinned.length; k++) editor.grid[pinned[k].idx].ord = k + 1;
+}
+
+// How many holes are currently pinned
+function editorPinnedHoleCount() {
   var n = 0;
   for (var i = 0; i < 49; i++) {
-    if (i === idx) return n;
-    if (editor.grid[i] && editor.grid[i].hole) n++;
+    var v = editor.grid[i];
+    if (v && v.hole && typeof v.ord === 'number') n++;
   }
   return n;
+}
+
+// Drop every pin, so the whole route falls back to reading order
+function editorClearHoleOrder() {
+  for (var i = 0; i < 49; i++) {
+    var v = editor.grid[i];
+    if (v && v.hole && typeof v.ord === 'number') delete v.ord;
+  }
+  if (editor.visible) { editorRenderGrid(); editorRenderToolbar(); editorUpdateStats(); }
 }
 
 function editorCellClick(e) {
@@ -151,8 +205,10 @@ function editorCellClick(e) {
       // Place wall
       editor.grid[idx] = { wall: true };
     }
+    editorRenumberHoles();
     if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     editorRenderGrid();
+    editorRenderToolbar();
     editorUpdateStats();
     editorRenderTunnelPanel();
     return;
@@ -161,25 +217,53 @@ function editorCellClick(e) {
   if (editor.holeMode) {
     // Hole placement mode
     var existing = editor.grid[idx];
+    if (editor.holeTool === -3) {
+      // Set order: click holes in the order you want them visited.
+      // Clicking an already-numbered hole restarts the sequence there.
+      if (!existing || !existing.hole) {
+        editorShowToast('Set order only works on holes');
+        return;
+      }
+      if (typeof existing.ord === 'number') {
+        for (var ci5 = 0; ci5 < 49; ci5++) {
+          var cv = editor.grid[ci5];
+          if (cv && cv.hole && typeof cv.ord === 'number') delete cv.ord;
+        }
+        existing.ord = 1;
+      } else {
+        existing.ord = editorPinnedHoleCount() + 1;
+      }
+      editorRenumberHoles();
+      editorRenderGrid();
+      editorRenderToolbar();
+      editorUpdateStats();
+      return;
+    }
     if (editor.holeTool === -1) {
       editor.grid[idx] = null;
     } else if (editor.holeTool === -2) {
       // Plain hole — clicking an existing plain hole removes it,
       // clicking a hole with a mole takes the mole off it.
-      if (existing && existing.hole && existing.mole) editor.grid[idx] = { hole: true };
+      if (existing && existing.hole && existing.mole) delete existing.mole;
       else if (existing && existing.hole) editor.grid[idx] = null;
       else editor.grid[idx] = { hole: true };
     } else {
-      // Place a mole — the hole underneath is created automatically
-      if (existing && existing.hole && existing.mole &&
-          existing.mole.ci === editor.holeTool && existing.mole.type === editor.moleType) {
-        editor.grid[idx] = { hole: true };
+      // Place a mole — the hole underneath is created automatically,
+      // and an existing hole keeps its place in the route.
+      if (existing && existing.hole) {
+        if (existing.mole && existing.mole.ci === editor.holeTool && existing.mole.type === editor.moleType) {
+          delete existing.mole;
+        } else {
+          existing.mole = { ci: editor.holeTool, type: editor.moleType };
+        }
       } else {
         editor.grid[idx] = { hole: true, mole: { ci: editor.holeTool, type: editor.moleType } };
       }
     }
+    editorRenumberHoles();
     if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     editorRenderGrid();
+    editorRenderToolbar();
     editorUpdateStats();
     editorRenderTunnelPanel();
     return;
@@ -212,7 +296,9 @@ function editorCellClick(e) {
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     }
   }
+  editorRenumberHoles();
   editorRenderGrid();
+  editorRenderToolbar();
   editorUpdateStats();
   editorRenderTunnelPanel();
 }
@@ -221,8 +307,10 @@ function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
   editor.grid[idx] = null;
+  editorRenumberHoles();
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
   editorRenderGrid();
+  editorRenderToolbar();
   editorUpdateStats();
   editorRenderTunnelPanel();
 }
@@ -340,12 +428,22 @@ function editorRenderToolbar() {
     var holeRow = document.createElement('div');
     holeRow.className = 'ed-color-row';
 
+    var hOrder = document.createElement('button');
+    hOrder.className = 'ed-tool' + (editor.holeTool === -3 ? ' active' : '');
+    hOrder.style.background = 'linear-gradient(135deg,#E8A84C,#B5741F)';
+    hOrder.style.color = '#fff';
+    hOrder.style.fontSize = '10px';
+    hOrder.innerHTML = '1\u20092\u20093';
+    hOrder.title = 'Set order — click holes in the order you want them visited';
+    hOrder.addEventListener('click', function () { editor.holeTool = -3; editorRenderToolbar(); editorRenderGrid(); });
+    holeRow.appendChild(hOrder);
+
     var hEraser = document.createElement('button');
     hEraser.className = 'ed-tool' + (editor.holeTool === -1 ? ' active' : '');
     hEraser.style.background = 'rgba(180,165,145,0.5)';
     hEraser.innerHTML = '\u2716';
     hEraser.title = 'Eraser';
-    hEraser.addEventListener('click', function () { editor.holeTool = -1; editorRenderToolbar(); });
+    hEraser.addEventListener('click', function () { editor.holeTool = -1; editorRenderToolbar(); editorRenderGrid(); });
     holeRow.appendChild(hEraser);
 
     var hPlain = document.createElement('button');
@@ -354,7 +452,7 @@ function editorRenderToolbar() {
     hPlain.style.color = '#E8D8C0';
     hPlain.innerHTML = '\u25CF';
     hPlain.title = 'Empty hole';
-    hPlain.addEventListener('click', function () { editor.holeTool = -2; editorRenderToolbar(); });
+    hPlain.addEventListener('click', function () { editor.holeTool = -2; editorRenderToolbar(); editorRenderGrid(); });
     holeRow.appendChild(hPlain);
 
     for (var hc = 0; hc < NUM_COLORS; hc++) {
@@ -369,6 +467,7 @@ function editorRenderToolbar() {
       hb.addEventListener('click', function () {
         editor.holeTool = parseInt(this.getAttribute('data-ci'));
         editorRenderToolbar();
+        editorRenderGrid();
       });
       holeRow.appendChild(hb);
     }
@@ -391,10 +490,49 @@ function editorRenderToolbar() {
     }
     el.appendChild(moleRow);
 
+    // Live route readout
+    var route = editorHoleRoute();
+    var pinnedN = editorPinnedHoleCount();
     var holeInfo = document.createElement('div');
     holeInfo.className = 'ed-color-row';
-    holeInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Holes are numbered in reading order \u2014 each mole hops to the next number on every tap</span>';
+    var infoHtml = '';
+    if (editor.holeTool === -3) {
+      infoHtml += '<span style="font-size:11px;color:#B5741F;font-weight:600">Click holes in the order you want them visited. ' +
+        'Click a numbered hole to restart the sequence there.</span>';
+    } else {
+      infoHtml += '<span style="font-size:11px;color:#9C8A70">Each mole hops to the next number on every tap, ' +
+        'then wraps back to 1. Unpinned holes follow in reading order.</span>';
+    }
+    holeInfo.innerHTML = infoHtml;
     el.appendChild(holeInfo);
+
+    if (route.length > 0) {
+      var routeRow = document.createElement('div');
+      routeRow.className = 'ed-color-row';
+      var chips = [];
+      for (var rp = 0; rp < route.length; rp++) {
+        var rcell = editor.grid[route[rp].idx];
+        var rPinned = (typeof rcell.ord === 'number');
+        var rr = Math.floor(route[rp].idx / 7) + 1, rc = (route[rp].idx % 7) + 1;
+        chips.push('<span style="font-size:10px;padding:1px 5px;border-radius:6px;' +
+          (rPinned ? 'background:rgba(196,122,44,0.9);color:#fff' : 'background:rgba(120,100,80,0.28);color:#6A5A46') +
+          '">' + (rp + 1) + ': r' + rr + 'c' + rc + (rcell.mole ? ' \uD83D\uDC3E' : '') + '</span>');
+      }
+      routeRow.innerHTML = '<span style="font-size:11px;color:#9C8A70;margin-right:2px">Route:</span>' +
+        chips.join('<span style="font-size:10px;color:#A89880">\u2192</span>');
+      el.appendChild(routeRow);
+
+      if (pinnedN > 0) {
+        var resetRow = document.createElement('div');
+        resetRow.className = 'ed-color-row';
+        var resetBtn = document.createElement('button');
+        resetBtn.className = 'ed-type-btn';
+        resetBtn.textContent = 'Reset to reading order';
+        resetBtn.addEventListener('click', function () { editorClearHoleOrder(); });
+        resetRow.appendChild(resetBtn);
+        el.appendChild(resetRow);
+      }
+    }
   } else if (editor.wallMode) {
     // Wall mode: just show info hint
     var wallInfo = document.createElement('div');
@@ -775,9 +913,12 @@ function editorImportJSON() {
           if (cell === null || cell === undefined || cell === -1) editor.grid[i] = null;
           else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
           else if (cell.wall) editor.grid[i] = { wall: true };
-          else if (cell.hole) editor.grid[i] = cell.mole
-            ? { hole: true, mole: { ci: cell.mole.ci, type: cell.mole.type || 'default' } }
-            : { hole: true };
+          else if (cell.hole) {
+            var hc = { hole: true };
+            if (typeof cell.ord === 'number') hc.ord = cell.ord;
+            if (cell.mole) hc.mole = { ci: cell.mole.ci, type: cell.mole.type || 'default' };
+            editor.grid[i] = hc;
+          }
           else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
           else editor.grid[i] = cell;
         }

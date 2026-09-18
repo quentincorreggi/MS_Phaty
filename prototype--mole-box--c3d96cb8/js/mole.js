@@ -2,8 +2,10 @@
 // mole.js — Holes and Mole boxes
 // ============================================================
 // A "hole" is a grid cell that marbles can pass through, just like
-// an empty slot. Holes are numbered in reading order (left to right,
-// top to bottom) — that numbering is the hop route.
+// an empty slot. Every hole has a place in the hop route: cells with
+// an explicit `ord` come first in that order, and the rest fall in
+// behind them in reading order. initGame() builds holeCells in route
+// order, so everything here just walks that list.
 //
 // A "mole box" is a normal box (default or hidden flavour) that sits
 // on a hole. Every time the player successfully opens a box anywhere

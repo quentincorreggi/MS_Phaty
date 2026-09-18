@@ -52,8 +52,12 @@ function initGame() {
         continue;
       }
       if (cell.hole) {
-        // Mole hole. May start with a mole box standing on it.
-        holeSlots[i] = { mole: cell.mole ? { ci: cell.mole.ci, type: cell.mole.type || 'default' } : null };
+        // Mole hole. May start with a mole box standing on it, and may
+        // carry an explicit route position (`ord`, 1-based).
+        holeSlots[i] = {
+          mole: cell.mole ? { ci: cell.mole.ci, type: cell.mole.type || 'default' } : null,
+          ord: (typeof cell.ord === 'number') ? cell.ord : null
+        };
         continue;
       }
       if (cell.tunnel) {
@@ -103,6 +107,7 @@ function initGame() {
   // ── Build stock ──
   stock = [];
   holeCells = [];
+  var holeEntries = [];
   for (var r = 0; r < L.rows; r++) for (var c = 0; c < L.cols; c++) {
     var idx = r * L.cols + c;
     var slot = boxSlots[idx];
@@ -114,7 +119,7 @@ function initGame() {
       // Mole hole — passable like an empty slot. A mole standing on it
       // lives in this same cell and behaves like a normal box.
       var hMole = hSlot.mole;
-      holeCells.push(idx);
+      holeEntries.push({ idx: idx, ord: hSlot.ord });
       stock.push({
         isHole: true, isTunnel: false, isWall: false,
         moleHopT: 0, moleFromX: 0, moleFromY: 0,
@@ -176,6 +181,17 @@ function initGame() {
         idlePhase: Math.random() * Math.PI * 2 });
     }
   }
+
+  // ── Hop route ──
+  // Holes with an explicit `ord` come first in that order; the rest
+  // fall in behind them in reading order.
+  holeEntries.sort(function (a, b) {
+    var ao = (a.ord === null || a.ord === undefined) ? Infinity : a.ord;
+    var bo = (b.ord === null || b.ord === undefined) ? Infinity : b.ord;
+    if (ao !== bo) return ao - bo;
+    return a.idx - b.idx;
+  });
+  for (var he = 0; he < holeEntries.length; he++) holeCells.push(holeEntries[he].idx);
 
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
