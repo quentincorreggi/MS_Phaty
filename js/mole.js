@@ -60,25 +60,30 @@ function holeHasMole(cell) {
 }
 
 // === THE HOP ===
-// Called once per successful box opening.
-function moleHop() {
-  if (!holeCells || holeCells.length < 2) return;
 
+// Work out where every mole would land if a turn happened right now.
+// Pure — it reads the grid and changes nothing, so both moleHop() and
+// the arrival outlines can use it.
+// Returns [{ ord, from, to }], one entry per mole that can move.
+function moleComputeHops() {
   var movers = [];
-  var staying = {};   // holes held by a mole that cannot hop right now
+  if (!holeCells || holeCells.length < 2) return movers;
 
+  var staying = {};   // holes held by a mole that cannot hop right now
   for (var h = 0; h < holeCells.length; h++) {
     var idx = holeCells[h];
     var cell = stock[idx];
     if (!holeHasMole(cell)) continue;
-    // A mole that is pouring out its marbles (or still mid-hop) stays put.
-    if (cell.spawning || cell.moleHopT > 0) { staying[idx] = true; continue; }
-    movers.push({ ord: h, from: idx, state: moleCapture(cell) });
+    // A mole that is pouring out its marbles stays put. One still
+    // mid-hop does not: moleHop() snaps its animation to the end
+    // first, so every turn moves it exactly once however fast the
+    // player taps.
+    if (cell.spawning) { staying[idx] = true; continue; }
+    movers.push({ ord: h, from: idx });
   }
-  if (!movers.length) return;
 
-  // Pick each mole's destination: next hole in route order, skipping
-  // holes that are taken.
+  // Each mole takes the next hole in route order, skipping holes that
+  // are taken.
   var claimed = {};
   for (var m = 0; m < movers.length; m++) {
     var mv = movers[m];
@@ -91,6 +96,41 @@ function moleHop() {
     if (dest < 0) dest = mv.from;   // nowhere free — stay
     claimed[dest] = true;
     mv.to = dest;
+  }
+  return movers;
+}
+
+// Which hole is about to receive which mole, as { holeIdx: {ci, boxType} }.
+// Used to outline a hole in the colour of the mole arriving next turn.
+function moleNextDests() {
+  var out = {};
+  var movers = moleComputeHops();
+  for (var m = 0; m < movers.length; m++) {
+    var mv = movers[m];
+    if (mv.to === mv.from) continue;
+    var src = stock[mv.from];
+    if (!src) continue;
+    out[mv.to] = { ci: src.ci, boxType: src.boxType, revealed: !!src.revealed };
+  }
+  return out;
+}
+
+// Called once per successful box opening.
+function moleHop() {
+  if (!holeCells || holeCells.length < 2) return;
+
+  // Snap any hop still animating to its end. A mole is already in its
+  // destination cell by then, so this only cuts the animation short —
+  // it keeps one tap equal to one hop when taps come in quickly.
+  for (var hc = 0; hc < holeCells.length; hc++) {
+    var hcell = stock[holeCells[hc]];
+    if (hcell) hcell.moleHopT = 0;
+  }
+
+  var movers = moleComputeHops();
+  if (!movers.length) return;
+  for (var m = 0; m < movers.length; m++) {
+    movers[m].state = moleCapture(stock[movers[m].from]);
   }
 
   // Empty every source hole first, then drop the moles into their
@@ -187,6 +227,39 @@ function drawHoleOnGrid(ctx, x, y, w, h, S, tick) {
     ctx.arc(cx + Math.cos(a) * rx * 1.2, cy + Math.sin(a) * ry * 1.25, cr, 0, Math.PI * 2);
     ctx.fill();
   }
+
+  ctx.restore();
+}
+
+// Outline on a hole that is about to receive a mole next turn, in that
+// mole's colour. A Hidden mole gets the Hidden box's slate instead, so
+// the preview doesn't give away what is inside it. Drawn on top of the
+// grid so it reads over an occupied hole as well as an empty one.
+function drawMoleIncoming(ctx, x, y, w, h, S, ci, boxType, revealed, tick) {
+  // Only conceal a Hidden mole whose colour the player has not seen yet.
+  var isHiddenMole = (boxType === 'hidden' && !revealed);
+  var ring = isHiddenMole ? '#6A6272' : COLORS[ci].fill;
+  var glow = isHiddenMole ? 'rgba(106,98,114,0.55)' : COLORS[ci].glow;
+  var pulse = 0.62 + 0.3 * (0.5 + 0.5 * Math.sin(tick * 0.09));
+  var inset = 1.5 * S;
+
+  ctx.save();
+
+  // Soft halo so the ring separates from whatever is underneath
+  ctx.globalAlpha = pulse * 0.9;
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = 9 * S * pulse;
+  ctx.strokeStyle = ring;
+  ctx.lineWidth = 3 * S;
+  rRect(x + inset, y + inset, w - inset * 2, h - inset * 2, 7 * S); ctx.stroke();
+
+  // Crisp inner line
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+  ctx.globalAlpha = Math.min(1, pulse + 0.1);
+  ctx.strokeStyle = isHiddenMole ? 'rgba(220,214,230,0.75)' : 'rgba(255,255,255,0.6)';
+  ctx.lineWidth = 1 * S;
+  rRect(x + inset + 2.2 * S, y + inset + 2.2 * S, w - (inset + 2.2 * S) * 2, h - (inset + 2.2 * S) * 2, 5 * S);
+  ctx.stroke();
 
   ctx.restore();
 }

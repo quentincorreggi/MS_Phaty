@@ -6,7 +6,8 @@
 // Ice overlay is drawn on top of revealed boxes with iceHP > 0.
 // Tunnel entries are drawn via drawTunnelOnGrid.
 // Wall cells are drawn via drawWallOnGrid.
-// Mole holes are drawn via drawHoleOnGrid, with the mole box on top.
+// Mole holes are drawn via drawHoleOnGrid, with the mole box on top,
+// then a final pass outlines the holes a mole arrives at next turn.
 // ============================================================
 
 function rRect(x, y, w, h, r) {
@@ -294,6 +295,19 @@ function drawStock() {
 
     ctx.restore();
     if (hopClip) ctx.restore();
+  }
+
+  // ── Mole arrival outlines ──
+  // A second pass so the ring sits on top of an occupied hole's box as
+  // well as an empty pit.
+  if (typeof moleNextDests === 'function' && holeCells && holeCells.length > 1) {
+    var incoming = moleNextDests();
+    for (var hk in incoming) {
+      var hb = stock[hk];
+      if (!hb) continue;
+      drawMoleIncoming(ctx, hb.x, hb.y, L.bw, L.bh, S,
+        incoming[hk].ci, incoming[hk].boxType, incoming[hk].revealed, tick);
+    }
   }
 }
 
