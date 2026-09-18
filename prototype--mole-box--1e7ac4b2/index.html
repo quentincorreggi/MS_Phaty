@@ -38,6 +38,7 @@
     background:linear-gradient(135deg,#4EE68C,#36C76E);box-shadow:0 6px 22px rgba(78,230,140,0.35);
     transition:transform 0.18s;display:flex;align-items:center;gap:10px}
   .ls-showcase-btn:hover{transform:scale(1.06)}.ls-showcase-btn:active{transform:scale(0.94)}
+  .ls-showcase-btns{display:flex;flex-direction:column;gap:10px;align-items:center}
   .ls-editor-btn{padding:14px 32px;border:none;border-radius:16px;cursor:pointer;
     font-family:'Fredoka',sans-serif;font-weight:700;font-size:17px;color:white;
     background:linear-gradient(135deg,#C89CF2,#9060C4);box-shadow:0 6px 22px rgba(144,96,196,0.35);
@@ -207,7 +208,7 @@
   <div class="ls-header"><div class="ls-title">Marble Sorter</div><div class="ls-sub">Design and test your own levels</div></div>
   <div id="ls-showcase-info" class="ls-showcase-info"></div>
   <div class="ls-actions">
-    <button id="ls-showcase-btn" class="ls-showcase-btn" style="display:none" onclick="playShowcase()"><span style="font-size:22px">&#9654;</span> Play Showcase</button>
+    <div id="ls-showcase-btns" class="ls-showcase-btns" style="display:none"></div>
     <button class="ls-editor-btn" onclick="showEditor()"><span style="font-size:22px">&#9998;</span> Level Editor</button>
     <button class="ls-editor-btn ls-import-btn" onclick="showEditor(); setTimeout(editorImportJSON, 100)"><span style="font-size:22px">&#128229;</span> Import Level</button>
   </div>

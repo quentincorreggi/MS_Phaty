@@ -615,7 +615,24 @@ function frame() {
 }
 
 // === PROTOTYPE.JSON LOADER ===
-var prototypeInfo = null;  // loaded from prototype.json if present
+// A prototype may ship one showcase level (`showcaseLevel`) or several
+// (`showcaseLevels`, an array). Either way they land in LEVELS and get
+// one Play button each on the level select screen.
+var prototypeInfo = null;       // loaded from prototype.json if present
+var showcaseIdx = [];           // LEVELS indices of the showcase levels
+
+function getShowcaseLevels() {
+  if (!prototypeInfo) return [];
+  var list = [];
+  if (prototypeInfo.showcaseLevels && prototypeInfo.showcaseLevels.length) {
+    list = prototypeInfo.showcaseLevels;
+  } else if (prototypeInfo.showcaseLevel) {
+    list = [prototypeInfo.showcaseLevel];
+  }
+  var out = [];
+  for (var i = 0; i < list.length; i++) if (list[i] && list[i].grid) out.push(list[i]);
+  return out;
+}
 
 function loadPrototypeJSON(callback) {
   fetch('prototype.json').then(function(r) {
@@ -623,32 +640,45 @@ function loadPrototypeJSON(callback) {
     return r.json();
   }).then(function(data) {
     prototypeInfo = data;
-    if (data.showcaseLevel && data.showcaseLevel.grid) {
-      LEVELS.push(data.showcaseLevel);
+    var levels = getShowcaseLevels();
+    showcaseIdx = [];
+    for (var i = 0; i < levels.length; i++) {
+      showcaseIdx.push(LEVELS.length);
+      LEVELS.push(levels[i]);
       levelStars.push(0);
-      unlockedLevels = LEVELS.length;
     }
+    unlockedLevels = LEVELS.length;
     callback();
   }).catch(function() {
     callback();
   });
 }
 
-function playShowcase() {
-  if (!prototypeInfo || !prototypeInfo.showcaseLevel) return;
-  var idx = LEVELS.length - 1; // showcase level is always last added
-  startLevel(idx);
+function playShowcase(n) {
+  var which = n || 0;
+  if (which < 0 || which >= showcaseIdx.length) return;
+  startLevel(showcaseIdx[which]);
 }
 
 function updateShowcaseUI() {
-  var btn = document.getElementById('ls-showcase-btn');
+  var row = document.getElementById('ls-showcase-btns');
   var info = document.getElementById('ls-showcase-info');
-  if (!prototypeInfo || !prototypeInfo.showcaseLevel) {
-    if (btn) btn.style.display = 'none';
+  var levels = getShowcaseLevels();
+  if (!levels.length) {
+    if (row) row.style.display = 'none';
     if (info) info.style.display = 'none';
     return;
   }
-  if (btn) btn.style.display = '';
+  if (row) {
+    row.style.display = '';
+    var bhtml = '';
+    for (var i = 0; i < levels.length; i++) {
+      var label = (levels.length > 1 && levels[i].name) ? levels[i].name : 'Play Showcase';
+      bhtml += '<button class="ls-showcase-btn" onclick="playShowcase(' + i + ')">' +
+        '<span style="font-size:22px">&#9654;</span> ' + label + '</button>';
+    }
+    row.innerHTML = bhtml;
+  }
   if (info) {
     info.style.display = '';
     var html = '';
