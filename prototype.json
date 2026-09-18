@@ -1,11 +1,11 @@
 {
   "name": "Mole Box",
-  "description": "Holes are passable pits in the grid, numbered in reading order (left to right, top to bottom). A mole box sits on a hole and blocks it like any solid box. Every time you successfully open a box anywhere on the grid, every mole hops to the next-numbered hole and wraps from the last hole back to the first \u2014 so the route never changes and two moles can never share a hole. Moles come in Default and Hidden flavours and hold marbles like normal boxes; empty one and that mole is gone for good.",
-  "howToPlay": "Tap boxes to pour marbles onto the belt as usual. The dirt pits are mole holes. Each tap is one turn: the moles burrow down and pop up at the next hole along the route, which opens and closes the channels above them. A box only opens when there is a clear path from it down past the bottom of the grid, so watch which hole is free before you spend a tap. Moles are boxes too \u2014 tap one when it is reachable and it is out of the game. Clear every order to win.",
+  "description": "Holes are passable pits in the grid. Every hole has a place in a single hop route, which you either leave as reading order or pin yourself in the level editor. A mole box sits on a hole and blocks it like any solid box. Every time you successfully open a box anywhere on the grid, every mole hops to the next hole along the route and wraps from the last hole back to the first \u2014 so the route never changes and two moles can never share a hole. Moles come in Default and Hidden flavours and hold marbles like normal boxes; empty one and that mole is gone for good.",
+  "howToPlay": "Tap boxes to pour marbles onto the belt as usual. The dirt pits are mole holes. Each tap is one turn: the moles burrow down and pop up at the next hole along the route, which opens and closes the channels above them. A box only opens when there is a clear path from it down past the bottom of the grid, so watch which hole is free before you spend a tap. Moles are boxes too \u2014 tap one when it is reachable and it is out of the game. In the editor, Hole mode shows each hole's route number; use the 1 2 3 tool to click the holes into whatever order you want. Clear every order to win.",
   "author": "Claude",
   "showcaseLevel": {
     "name": "Mole Run",
-    "desc": "Three exit holes, two moles, one clear channel at a time",
+    "desc": "Bottom row left to right, then up to the high hole \u2014 two moles, one clear channel at a time",
     "mrbPerBox": 9,
     "sortCap": 3,
     "lockButtons": 0,
@@ -28,7 +28,8 @@
       null,
       null,
       {
-        "hole": true
+        "hole": true,
+        "ord": 4
       },
       null,
       null,
@@ -72,6 +73,7 @@
       },
       {
         "hole": true,
+        "ord": 1,
         "mole": {
           "ci": 0,
           "type": "default"
@@ -81,13 +83,15 @@
         "wall": true
       },
       {
-        "hole": true
+        "hole": true,
+        "ord": 2
       },
       {
         "wall": true
       },
       {
         "hole": true,
+        "ord": 3,
         "mole": {
           "ci": 2,
           "type": "hidden"
