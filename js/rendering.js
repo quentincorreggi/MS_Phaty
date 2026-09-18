@@ -6,6 +6,7 @@
 // Ice overlay is drawn on top of revealed boxes with iceHP > 0.
 // Tunnel entries are drawn via drawTunnelOnGrid.
 // Wall cells are drawn via drawWallOnGrid.
+// Mole holes are drawn via drawHoleOnGrid, with the mole box on top.
 // ============================================================
 
 function rRect(x, y, w, h, r) {
@@ -177,6 +178,14 @@ function drawStock() {
       continue;
     }
 
+    // ── Mole hole ──
+    // The pit is always drawn; a mole standing on it is drawn on top
+    // of the pit by the regular box path further down.
+    if (b.isHole) {
+      drawHoleOnGrid(ctx, b.x, b.y, L.bw, L.bh, S, tick);
+      if (b.empty || b.used) continue;
+    }
+
     var ox = 0;
     if (b.shakeT > 0) ox = Math.sin(b.shakeT * 28) * 5 * S * b.shakeT;
     var breathe = 0;
@@ -202,9 +211,35 @@ function drawStock() {
     // Used box (fully empty)
     if (b.used) { drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
 
+    // ── Mole hop ──
+    // First half of the hop: the box burrows down into the hole it is
+    // leaving. Second half: it rises out of the hole it arrives at.
+    // Clipped to the cell so the box disappears into the ground.
+    var hopOx = 0, hopOy = 0, hopClip = false;
+    if (b.moleHopT > 0) {
+      var hp = 1 - b.moleHopT;
+      var hcx = b.x, hcy = b.y;
+      if (hp < 0.5) {
+        var sink = hp / 0.5;
+        hcx = b.moleFromX; hcy = b.moleFromY;
+        hopOy = L.bh * 1.05 * sink * sink;
+      } else {
+        var rise = (hp - 0.5) / 0.5;
+        var ease = 1 - Math.pow(1 - rise, 3);
+        hopOy = L.bh * 1.05 * (1 - ease);
+        ts *= 1 + Math.sin(rise * Math.PI) * 0.06;
+      }
+      hopOx = hcx - b.x;
+      hopOy += hcy - b.y;
+      ctx.save();
+      rRect(hcx, hcy, L.bw, L.bh, 6 * S);
+      ctx.clip();
+      hopClip = true;
+    }
+
     var bt = getBoxType(b.boxType);
     ctx.save();
-    ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2); ctx.scale(ts, ts);
+    ctx.translate(b.x + L.bw / 2 + ox + hopOx, b.y + L.bh / 2 + hopOy); ctx.scale(ts, ts);
 
     if (b.revealT > 0) {
       var phase = 1 - b.revealT;
@@ -239,6 +274,9 @@ function drawStock() {
       }
     }
 
+    // Mole badge so a mole box reads differently from a normal box
+    if (b.isHole) drawMoleBadge(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, tick);
+
     if (b.iceHP > 0) {
       var iceType = getBoxType('ice');
       if (iceType && iceType.drawIceOverlay) {
@@ -255,6 +293,7 @@ function drawStock() {
     }
 
     ctx.restore();
+    if (hopClip) ctx.restore();
   }
 }
 

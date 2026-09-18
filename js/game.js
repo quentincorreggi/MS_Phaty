@@ -38,16 +38,22 @@ function initGame() {
   var totalSlots = L.rows * L.cols;
   var lvl = LEVELS[currentLevel];
 
-  // ── Build boxSlots, tunnelSlots, wallSlots from grid or legacy random ──
+  // ── Build boxSlots, tunnelSlots, wallSlots, holeSlots from grid ──
   var boxSlots = {};
   var tunnelSlots = {};
   var wallSlots = {};
+  var holeSlots = {};
   if (lvl.grid) {
     for (var i = 0; i < Math.min(lvl.grid.length, totalSlots); i++) {
       var cell = lvl.grid[i];
       if (cell === null || cell === undefined) continue;
       if (cell.wall) {
         wallSlots[i] = true;
+        continue;
+      }
+      if (cell.hole) {
+        // Mole hole. May start with a mole box standing on it.
+        holeSlots[i] = { mole: cell.mole ? { ci: cell.mole.ci, type: cell.mole.type || 'default' } : null };
         continue;
       }
       if (cell.tunnel) {
@@ -72,6 +78,12 @@ function initGame() {
     colorMarblesTotal[bs.ci] += regularPerBox;
     if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
   }
+  // Count marbles carried by moles standing on holes
+  for (var k in holeSlots) {
+    var hm = holeSlots[k].mole;
+    if (!hm) continue;
+    colorMarblesTotal[hm.ci] += MRB_PER_BOX;
+  }
   // Count marbles from tunnel contents
   for (var k in tunnelSlots) {
     var ts = tunnelSlots[k];
@@ -90,11 +102,34 @@ function initGame() {
 
   // ── Build stock ──
   stock = [];
+  holeCells = [];
   for (var r = 0; r < L.rows; r++) for (var c = 0; c < L.cols; c++) {
     var idx = r * L.cols + c;
     var slot = boxSlots[idx];
     var tSlot = tunnelSlots[idx];
     var wSlot = wallSlots[idx];
+    var hSlot = holeSlots[idx];
+
+    if (hSlot) {
+      // Mole hole — passable like an empty slot. A mole standing on it
+      // lives in this same cell and behaves like a normal box.
+      var hMole = hSlot.mole;
+      holeCells.push(idx);
+      stock.push({
+        isHole: true, isTunnel: false, isWall: false,
+        moleHopT: 0, moleFromX: 0, moleFromY: 0,
+        ci: hMole ? hMole.ci : 0,
+        used: false, remaining: hMole ? MRB_PER_BOX : 0,
+        spawning: false, spawnIdx: 0,
+        revealed: hMole ? false : true, empty: !hMole,
+        boxType: hMole ? (hMole.type || 'default') : 'default',
+        iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
+        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
+        idlePhase: Math.random() * Math.PI * 2
+      });
+      continue;
+    }
 
     if (tSlot) {
       // Tunnel entry
@@ -314,6 +349,7 @@ function damageAdjacentIce(idx) {
 function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
+  if (b.moleHopT > 0) return false;  // mole is mid-hop
   if (b.isWall) return false;      // walls are not tappable
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
@@ -332,6 +368,7 @@ function handleTap(px, py) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
+    if (b.moleHopT > 0) continue;          // mole in flight — not a target
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
       b.popT = 1;
@@ -339,6 +376,8 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      // One successful box opening = one turn: every mole hops.
+      moleHop();
       return;
     }
   }
@@ -354,6 +393,7 @@ canvas.addEventListener('mousemove', function (e) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
+    if (b.moleHopT > 0) continue;
     if (!isBoxTappable(i)) continue;
     if (e.clientX >= b.x && e.clientX <= b.x + L.bw && e.clientY >= b.y && e.clientY <= b.y + L.bh) { hoverIdx = i; break; }
   }
@@ -468,6 +508,7 @@ function update() {
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;  // tunnels and walls don't need stock animations
+    if (b.moleHopT > 0) b.moleHopT = Math.max(0, b.moleHopT - MOLE_HOP_SPEED);
     if (b.empty) continue;
     if (b.shakeT > 0) b.shakeT = Math.max(0, b.shakeT - 0.04);
     if (b.popT > 0) b.popT = Math.max(0, b.popT - 0.025);

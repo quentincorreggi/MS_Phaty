@@ -2,10 +2,12 @@
 // editor.js — Level Editor (reads box types from registry)
 //             + Tunnel placement, orientation, contents editing
 //             + Wall placement
+//             + Mole hole placement (holes + moles standing on them)
 // ============================================================
 
 var editor = {
   grid: [],            // 7x7: null = empty, { ci, type } or { tunnel: true, ... } or { wall: true }
+                       //      or { hole: true } / { hole: true, mole: { ci, type } }
   name: 'Custom Level',
   desc: 'My custom level',
   mrbPerBox: 9,
@@ -17,6 +19,9 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  holeMode: false,      // true when placing mole holes
+  holeTool: -2,         // -2 = plain hole, -1 = eraser, 0-7 = mole of that color
+  moleType: 'default',  // 'default' or 'hidden' — flavour of placed moles
   visible: false
 };
 
@@ -34,6 +39,9 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.holeMode = false;
+  editor.holeTool = -2;
+  editor.moleType = 'default';
 }
 
 function showEditor(fresh) {
@@ -75,6 +83,24 @@ function editorRenderGrid() {
       cell.style.background = 'linear-gradient(135deg,#9A8D7B,#6F6355)';
       cell.style.borderColor = '#8A7D6B';
       cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,255,255,0.5);font-size:14px">&#9632;</span>';
+    } else if (v && v.hole) {
+      // Mole hole — optionally with a mole standing on it
+      if (v.mole) {
+        var mc = COLORS[v.mole.ci];
+        var isHiddenMole = (v.mole.type === 'hidden');
+        cell.style.background = isHiddenMole
+          ? 'linear-gradient(135deg,#4A4450,#2A2530)'
+          : 'linear-gradient(135deg,' + mc.light + ',' + mc.dark + ')';
+        cell.style.borderColor = '#6B4A2E';
+        cell.style.boxShadow = 'inset 0 0 0 2px rgba(60,40,24,0.55)';
+        cell.innerHTML = '<span class="ed-cell-dot" style="color:#fff;font-size:13px">' +
+          (isHiddenMole ? '?' : '\uD83D\uDC3E') + '</span>';
+      } else {
+        cell.style.background = 'radial-gradient(circle at 50% 50%,#1E1512 0%,#2C2018 45%,#7A5A3A 100%)';
+        cell.style.borderColor = '#6B4A2E';
+        cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,235,210,0.35);font-size:11px">' +
+          (editorHoleOrdinal(i) + 1) + '</span>';
+      }
     } else if (v && v.tunnel) {
       // Tunnel cell
       var isSelected = (editor.selectedTunnel === i);
@@ -102,6 +128,16 @@ function editorRenderGrid() {
   }
 }
 
+// Route position of the hole at grid index idx (0-based, reading order)
+function editorHoleOrdinal(idx) {
+  var n = 0;
+  for (var i = 0; i < 49; i++) {
+    if (i === idx) return n;
+    if (editor.grid[i] && editor.grid[i].hole) n++;
+  }
+  return n;
+}
+
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
 
@@ -114,6 +150,33 @@ function editorCellClick(e) {
     } else {
       // Place wall
       editor.grid[idx] = { wall: true };
+    }
+    if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderTunnelPanel();
+    return;
+  }
+
+  if (editor.holeMode) {
+    // Hole placement mode
+    var existing = editor.grid[idx];
+    if (editor.holeTool === -1) {
+      editor.grid[idx] = null;
+    } else if (editor.holeTool === -2) {
+      // Plain hole — clicking an existing plain hole removes it,
+      // clicking a hole with a mole takes the mole off it.
+      if (existing && existing.hole && existing.mole) editor.grid[idx] = { hole: true };
+      else if (existing && existing.hole) editor.grid[idx] = null;
+      else editor.grid[idx] = { hole: true };
+    } else {
+      // Place a mole — the hole underneath is created automatically
+      if (existing && existing.hole && existing.mole &&
+          existing.mole.ci === editor.holeTool && existing.mole.type === editor.moleType) {
+        editor.grid[idx] = { hole: true };
+      } else {
+        editor.grid[idx] = { hole: true, mole: { ci: editor.holeTool, type: editor.moleType } };
+      }
     }
     if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     editorRenderGrid();
@@ -141,7 +204,7 @@ function editorCellClick(e) {
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     } else {
       var existing = editor.grid[idx];
-      if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
+      if (existing && !existing.tunnel && !existing.wall && !existing.hole && existing.ci === editor.activeColor && existing.type === editor.activeType) {
         editor.grid[idx] = null;
       } else {
         editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
@@ -178,13 +241,14 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.holeMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.holeMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -200,6 +264,7 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.holeMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -214,10 +279,26 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.holeMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(tunnelBtn);
+
+  // Mole hole mode button
+  var holeBtn = document.createElement('button');
+  holeBtn.className = 'ed-type-btn' + (editor.holeMode ? ' active' : '');
+  holeBtn.textContent = '\uD83D\uDC3E Hole';
+  holeBtn.style.borderColor = editor.holeMode ? 'rgba(160,110,60,0.6)' : '';
+  holeBtn.style.color = editor.holeMode ? '#8A5A2E' : '';
+  holeBtn.addEventListener('click', function () {
+    editor.holeMode = true;
+    editor.wallMode = false;
+    editor.tunnelMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(holeBtn);
 
   el.appendChild(typeRow);
 
@@ -254,6 +335,66 @@ function editorRenderToolbar() {
       dirRow.appendChild(db);
     }
     el.appendChild(dirRow);
+  } else if (editor.holeMode) {
+    // Hole tools: eraser, plain hole, then a mole in each color
+    var holeRow = document.createElement('div');
+    holeRow.className = 'ed-color-row';
+
+    var hEraser = document.createElement('button');
+    hEraser.className = 'ed-tool' + (editor.holeTool === -1 ? ' active' : '');
+    hEraser.style.background = 'rgba(180,165,145,0.5)';
+    hEraser.innerHTML = '\u2716';
+    hEraser.title = 'Eraser';
+    hEraser.addEventListener('click', function () { editor.holeTool = -1; editorRenderToolbar(); });
+    holeRow.appendChild(hEraser);
+
+    var hPlain = document.createElement('button');
+    hPlain.className = 'ed-tool' + (editor.holeTool === -2 ? ' active' : '');
+    hPlain.style.background = 'radial-gradient(circle at 50% 50%,#1E1512 0%,#2C2018 45%,#7A5A3A 100%)';
+    hPlain.style.color = '#E8D8C0';
+    hPlain.innerHTML = '\u25CF';
+    hPlain.title = 'Empty hole';
+    hPlain.addEventListener('click', function () { editor.holeTool = -2; editorRenderToolbar(); });
+    holeRow.appendChild(hPlain);
+
+    for (var hc = 0; hc < NUM_COLORS; hc++) {
+      var hb = document.createElement('button');
+      hb.className = 'ed-tool' + (editor.holeTool === hc ? ' active' : '');
+      hb.style.background = COLORS[hc].fill;
+      hb.style.boxShadow = 'inset 0 0 0 2px rgba(60,40,24,0.6)';
+      hb.innerHTML = '\uD83D\uDC3E';
+      hb.style.fontSize = '11px';
+      hb.title = 'Mole — ' + CLR_NAMES[hc];
+      hb.setAttribute('data-ci', hc);
+      hb.addEventListener('click', function () {
+        editor.holeTool = parseInt(this.getAttribute('data-ci'));
+        editorRenderToolbar();
+      });
+      holeRow.appendChild(hb);
+    }
+    el.appendChild(holeRow);
+
+    // Mole flavour toggle + hint
+    var moleRow = document.createElement('div');
+    moleRow.className = 'ed-color-row';
+    var flavours = [['default', 'Default'], ['hidden', 'Hidden']];
+    for (var mf = 0; mf < flavours.length; mf++) {
+      var mb = document.createElement('button');
+      mb.className = 'ed-type-btn' + (editor.moleType === flavours[mf][0] ? ' active' : '');
+      mb.textContent = 'Mole: ' + flavours[mf][1];
+      mb.setAttribute('data-mt', flavours[mf][0]);
+      mb.addEventListener('click', function () {
+        editor.moleType = this.getAttribute('data-mt');
+        editorRenderToolbar();
+      });
+      moleRow.appendChild(mb);
+    }
+    el.appendChild(moleRow);
+
+    var holeInfo = document.createElement('div');
+    holeInfo.className = 'ed-color-row';
+    holeInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">Holes are numbered in reading order \u2014 each mole hops to the next number on every tap</span>';
+    el.appendChild(holeInfo);
   } else if (editor.wallMode) {
     // Wall mode: just show info hint
     var wallInfo = document.createElement('div');
@@ -453,11 +594,21 @@ function editorUpdateStats() {
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
   var wallCount = 0;
+  var holeCount = 0, moleCount = 0;
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
     if (v.wall) {
       wallCount++;
+      continue;
+    }
+    if (v.hole) {
+      holeCount++;
+      if (v.mole) {
+        moleCount++;
+        counts[v.mole.ci]++;
+        regularMrb[v.mole.ci] += editor.mrbPerBox;
+      }
       continue;
     }
     if (v.tunnel) {
@@ -500,6 +651,10 @@ function editorUpdateStats() {
   if (wallCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#8A7D6B">' + wallCount + ' wall' + (wallCount > 1 ? 's' : '') + '</span>';
   }
+  if (holeCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#6B4A2E">' + holeCount + ' hole' + (holeCount > 1 ? 's' : '') +
+      (moleCount > 0 ? ' (' + moleCount + ' mole' + (moleCount > 1 ? 's' : '') + ')' : '') + '</span>';
+  }
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
   }
@@ -510,9 +665,11 @@ function editorUpdateStats() {
     if (counts[c] > 0) html += '<span class="ed-stat-chip" style="background:' + COLORS[c].fill + '">' + counts[c] + '</span>';
   }
   var warn = '';
-  var totalAll = total + tunnelBoxCount;
+  var totalAll = total + tunnelBoxCount + moleCount;
   if (totalAll === 0) {
     warn = 'Place some boxes to create a level';
+  } else if (moleCount > 0 && holeCount < 2) {
+    warn = 'A mole needs at least 2 holes to hop between';
   } else {
     for (var c = 0; c < NUM_COLORS; c++) {
       if (regularMrb[c] > 0) {
@@ -618,6 +775,9 @@ function editorImportJSON() {
           if (cell === null || cell === undefined || cell === -1) editor.grid[i] = null;
           else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
           else if (cell.wall) editor.grid[i] = { wall: true };
+          else if (cell.hole) editor.grid[i] = cell.mole
+            ? { hole: true, mole: { ci: cell.mole.ci, type: cell.mole.type || 'default' } }
+            : { hole: true };
           else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
           else editor.grid[i] = cell;
         }
