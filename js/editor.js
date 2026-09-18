@@ -962,21 +962,28 @@ function editorSaveShowcase() {
     description: '',
     howToPlay: '',
     author: '',
-    showcaseLevel: level
+    showcaseLevels: []
   };
 
-  // Pre-fill from existing prototype.json if loaded
+  // Pre-fill from existing prototype.json if loaded, and keep the
+  // showcase levels that are already there — this level is appended
+  // rather than replacing the set.
   if (typeof prototypeInfo !== 'undefined' && prototypeInfo) {
     if (prototypeInfo.name) proto.name = prototypeInfo.name;
     if (prototypeInfo.description) proto.description = prototypeInfo.description;
     if (prototypeInfo.howToPlay) proto.howToPlay = prototypeInfo.howToPlay;
     if (prototypeInfo.author) proto.author = prototypeInfo.author;
+    if (typeof getShowcaseLevels === 'function') {
+      var existing = getShowcaseLevels();
+      for (var ei = 0; ei < existing.length; ei++) proto.showcaseLevels.push(existing[ei]);
+    }
   }
+  proto.showcaseLevels.push(level);
 
   var json = JSON.stringify(proto, null, 2);
   if (navigator.clipboard) {
     navigator.clipboard.writeText(json).then(function() {
-      editorShowToast('prototype.json copied to clipboard!');
+      editorShowToast('prototype.json copied \u2014 ' + proto.showcaseLevels.length + ' showcase level(s)');
     }).catch(function() {
       editorShowExportFallback(json);
       editorShowToast('Select all and copy the prototype.json');
