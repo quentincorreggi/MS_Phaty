@@ -254,6 +254,23 @@ function drawStock() {
       ctx.restore();
     }
 
+    if (b.stoneHP > 0) {
+      var stoneType = getBoxType('stone');
+      if (stoneType && stoneType.drawStoneOverlay) {
+        stoneType.drawStoneOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S,
+          b.stoneHP, tick, b.ci, b.stoneCrackT);
+      }
+    }
+
+    // Colour flash as the crust gives way and the marbles pour out
+    if (b.stoneShatterT > 0) {
+      ctx.save();
+      ctx.globalAlpha = b.stoneShatterT * 0.45;
+      ctx.fillStyle = COLORS[b.ci].light;
+      rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.fill();
+      ctx.restore();
+    }
+
     ctx.restore();
   }
 }

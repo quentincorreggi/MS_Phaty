@@ -108,6 +108,7 @@ function initGame() {
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        stoneHP: 0, stoneCrackT: 0, stoneShatterT: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
@@ -118,6 +119,7 @@ function initGame() {
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: false, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        stoneHP: 0, stoneCrackT: 0, stoneShatterT: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
@@ -125,16 +127,19 @@ function initGame() {
       stock.push({ ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
+        stoneHP: 0, stoneCrackT: 0, stoneShatterT: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
+      var isStone = (slot.boxType === 'stone');
       stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
         revealed: isIce ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
+        stoneHP: isStone ? STONE_HP : 0, stoneCrackT: 0, stoneShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
@@ -311,6 +316,51 @@ function damageAdjacentIce(idx) {
   }
 }
 
+// === STONE CHIPPING ===
+// Called when the player taps a box that still has a granite crust.
+// Each tap knocks one HP off. The tap that brings it to 0 shatters
+// the crust; handleTap then falls through and releases the marbles in
+// that same tap, so no tap is ever wasted.
+function chipStone(idx) {
+  var b = stock[idx];
+  if (b.stoneHP <= 0) return;
+
+  b.stoneHP--;
+  b.stoneCrackT = 1.0;
+  b.shakeT = 0.6;
+  var bx = b.x + L.bw / 2, by = b.y + L.bh / 2;
+
+  if (b.stoneHP > 0) {
+    // ── Chip: dust puff + dull thud ──
+    sfx.stoneChip(b.stoneHP);
+    for (var p = 0; p < 12; p++) {
+      var a = Math.PI * 2 * p / 12 + Math.random() * 0.5, sp = 1.5 + Math.random() * 3;
+      particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
+        r: (1.5 + Math.random() * 3) * S,
+        color: Math.random() > 0.5 ? 'rgba(168,160,150,0.8)' : 'rgba(120,112,104,0.75)',
+        life: 0.85, decay: 0.03 + Math.random() * 0.02, grav: false });
+    }
+  } else {
+    // ── Shatter: stone chunks fly off, the colour underneath flashes ──
+    b.stoneShatterT = 1.0;
+    b.boxType = 'default';
+    sfx.stoneShatter();
+    for (var p = 0; p < 22; p++) {
+      var a = Math.PI * 2 * p / 22 + Math.random() * 0.35, sp = 3 + Math.random() * 5;
+      particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S - 2.5 * S,
+        r: (2 + Math.random() * 4) * S,
+        color: Math.random() > 0.5 ? 'rgba(138,133,128,0.95)' : 'rgba(100,93,86,0.95)',
+        life: 1, decay: 0.014 + Math.random() * 0.014, grav: true });
+    }
+    for (var p = 0; p < 8; p++) {
+      var a = Math.random() * Math.PI * 2, sp = 1 + Math.random() * 2;
+      particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
+        r: (3 + Math.random() * 3) * S, color: 'rgba(214,206,196,0.7)',
+        life: 0.6, decay: 0.04, grav: false });
+    }
+  }
+}
+
 function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
@@ -334,6 +384,12 @@ function handleTap(px, py) {
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
+      // Stone boxes must be chipped open first. The tap that breaks the
+      // last of the crust carries on and releases the marbles too.
+      if (b.stoneHP > 0) {
+        chipStone(i);
+        if (b.stoneHP > 0) return;
+      }
       b.popT = 1;
       sfx.pop();
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
@@ -475,6 +531,8 @@ function update() {
     if (b.emptyT > 0) b.emptyT = Math.max(0, b.emptyT - 0.025);
     if (b.iceCrackT > 0) b.iceCrackT = Math.max(0, b.iceCrackT - 0.03);
     if (b.iceShatterT > 0) b.iceShatterT = Math.max(0, b.iceShatterT - 0.025);
+    if (b.stoneCrackT > 0) b.stoneCrackT = Math.max(0, b.stoneCrackT - 0.06);
+    if (b.stoneShatterT > 0) b.stoneShatterT = Math.max(0, b.stoneShatterT - 0.025);
     var th = (i === hoverIdx && !b.used && isBoxTappable(i)) ? 1 : 0;
     b.hoverT += (th - b.hoverT) * 0.12;
   }

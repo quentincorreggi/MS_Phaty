@@ -19,8 +19,40 @@ function tone(freq, dur, type, vol, ramp) {
   o.start(t); o.stop(t + dur);
 }
 
+// Short filtered noise burst — used for gritty, non-tonal hits (stone).
+function noiseBurst(dur, vol, cutoff, cutoffEnd) {
+  ensureAudio();
+  var t = audioCtx.currentTime;
+  var len = Math.max(1, Math.floor(audioCtx.sampleRate * dur));
+  var buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+  var data = buf.getChannelData(0);
+  for (var i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  var src = audioCtx.createBufferSource(); src.buffer = buf;
+  var flt = audioCtx.createBiquadFilter(); flt.type = 'lowpass';
+  flt.frequency.setValueAtTime(cutoff, t);
+  if (cutoffEnd) flt.frequency.exponentialRampToValueAtTime(cutoffEnd, t + dur);
+  var g = audioCtx.createGain();
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(flt); flt.connect(g); g.connect(audioCtx.destination);
+  src.start(t); src.stop(t + dur);
+}
+
 var sfx = {
   pop: function () { tone(800, 0.12, 'sine', 0.13, 300); },
+  // Dull thud that rises in pitch as the stone weakens
+  stoneChip: function (hpLeft) {
+    var worn = STONE_HP - (hpLeft || 0);
+    var base = 90 + worn * 38;
+    tone(base, 0.16, 'triangle', 0.15, base * 0.5);
+    noiseBurst(0.13, 0.10, 1300 + worn * 750, 320);
+  },
+  // Crunchy shatter when the crust finally gives way
+  stoneShatter: function () {
+    tone(70, 0.28, 'triangle', 0.17, 42);
+    noiseBurst(0.34, 0.16, 5200, 420);
+    setTimeout(function () { noiseBurst(0.20, 0.08, 3000, 520); }, 70);
+  },
   drop: function () { tone(400, 0.08, 'sine', 0.04, 200); },
   sort: function () { tone(600, 0.1, 'triangle', 0.1); setTimeout(function () { tone(900, 0.1, 'triangle', 0.1); }, 80); },
   complete: function () { [523, 659, 784, 1047].forEach(function (f, i) { setTimeout(function () { tone(f, 0.2, 'sine', 0.1); }, i * 90); }); },

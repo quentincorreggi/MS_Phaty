@@ -1,0 +1,114 @@
+{
+  "name": "Stone Box",
+  "description": "Boxes encased in granite. Tap one three times to smash it open — the third tap breaks the stone and releases the marbles at once.",
+  "howToPlay": "Tap a grey stone box to chip it. Cracks spread and the colour underneath shows through more with every hit. On the third tap the stone shatters and the marbles pour out. Only that final tap chips neighbouring ice boxes.",
+  "author": "Marble Sorter prototyping",
+  "showcaseLevel": {
+    "name": "Stone Quarry",
+    "desc": "Smash through the granite",
+    "mrbPerBox": 6,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "ci": 2,
+        "type": "stone"
+      },
+      {
+        "wall": true
+      },
+      {
+        "ci": 1,
+        "type": "stone"
+      },
+      null,
+      null,
+      null,
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "ice"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      null,
+      null,
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "stone"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "stone"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      null,
+      null,
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "stone"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      null,
+      null
+    ]
+  }
+}
