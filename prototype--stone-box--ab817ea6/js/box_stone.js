@@ -1,11 +1,12 @@
 // ============================================================
 // box_stone.js — Stone box type
-// A box encased in a granite crust (STONE_HP taps). Unlike ice,
-// the player breaks stone by tapping the box ITSELF: each tap
-// chips the crust, and the final tap smashes it open and
-// releases the marbles in the same tap.
+// A box encased in a granite crust (STONE_HP hits). Like ice, the
+// crust can only be broken from the OUTSIDE: the box itself cannot be
+// tapped while any crust remains, and every pickup of an adjacent box
+// knocks one HP off. Stone takes 3 hits where ice takes 2.
 // HP 3 → fresh stone, HP 2 → chipped, HP 1 → badly cracked,
-// HP 0 → free (boxType flips to 'default').
+// HP 0 → free (boxType flips to 'default'), and the freed box still
+// needs a tap of its own to release its marbles.
 //
 // The crust is drawn by drawStoneOverlay(), called from drawStock
 // for any box with stoneHP > 0 — the same arrangement ice uses.
