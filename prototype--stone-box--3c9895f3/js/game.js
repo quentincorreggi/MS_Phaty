@@ -108,7 +108,7 @@ function initGame() {
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
-        stoneHP: 0, stoneCrackT: 0, stoneShatterT: 0,
+        candyHP: 0, candyHitT: 0, candyShatterT: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
@@ -119,7 +119,7 @@ function initGame() {
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: false, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
-        stoneHP: 0, stoneCrackT: 0, stoneShatterT: 0,
+        candyHP: 0, candyHitT: 0, candyShatterT: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
       });
@@ -127,19 +127,19 @@ function initGame() {
       stock.push({ ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: true, boxType: 'default', isTunnel: false, isWall: false,
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
-        stoneHP: 0, stoneCrackT: 0, stoneShatterT: 0,
+        candyHP: 0, candyHitT: 0, candyShatterT: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0 });
     } else {
       var isIce = (slot.boxType === 'ice');
       var isBlocker = (slot.boxType === 'blocker');
-      var isStone = (slot.boxType === 'stone');
+      var isCandy = (slot.boxType === 'candy');
       stock.push({ ci: slot.ci, used: false, remaining: MRB_PER_BOX, spawning: false, spawnIdx: 0,
         revealed: isIce ? true : false, empty: false,
         boxType: slot.boxType || 'default', isTunnel: false, isWall: false,
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
-        stoneHP: isStone ? STONE_HP : 0, stoneCrackT: 0, stoneShatterT: 0,
+        candyHP: isCandy ? CANDY_HP : 0, candyHitT: 0, candyShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
@@ -316,57 +316,86 @@ function damageAdjacentIce(idx) {
   }
 }
 
-// === STONE CHIPPING ===
-// A stone box cannot be tapped while its granite crust is intact —
-// tapping it just shakes it (see isBoxTappable). The crust is broken
-// from the outside: picking up any adjacent box knocks one HP off.
-// At HP 0 the crust shatters and the box becomes an ordinary box, so
-// its marbles still cost a tap of their own afterwards.
-function chipStone(idx) {
-  var b = stock[idx];
-  if (b.stoneHP <= 0) return;
+// === CANDY DAMAGE ===
+// A candy box cannot be tapped while any candy remains — tapping it
+// just shakes it (see isBoxTappable). The candy is broken from the
+// outside: picking up any adjacent box takes 1 HP off. Each hit is a
+// distinct beat, and none of them reveals the colour:
+//   HP 3 → 2  the wrapper tears open, exposing the candy
+//   HP 2 → 1  the exposed candy cracks
+//   HP 1 → 0  the candy shatters and the colour is revealed at last
+// At HP 0 the box becomes an ordinary box, so its marbles still cost a
+// tap of their own afterwards.
+var CANDY_CREAM_PT = 'rgba(247,235,216,0.92)';
+var CANDY_TOFFEE_PT = 'rgba(169,135,92,0.90)';
+var CANDY_SUGAR_PT = 'rgba(255,252,244,0.95)';
 
-  b.stoneHP--;
-  b.stoneCrackT = 1.0;
-  b.shakeT = 0.6;
+function damageCandy(idx) {
+  var b = stock[idx];
+  if (b.candyHP <= 0) return;
+
+  b.candyHP--;
+  b.candyHitT = 1.0;
+  b.shakeT = 0.5;
   var bx = b.x + L.bw / 2, by = b.y + L.bh / 2;
 
-  if (b.stoneHP > 0) {
-    // ── Chip: dust puff + dull thud ──
-    sfx.stoneChip(b.stoneHP);
+  if (b.candyHP === 2) {
+    // ── Hit 1: the wrapper tears open — fluttering foil + a sparkle ──
+    sfx.candyUnwrap();
     for (var p = 0; p < 12; p++) {
       var a = Math.PI * 2 * p / 12 + Math.random() * 0.5, sp = 1.5 + Math.random() * 3;
+      particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S - 1.2 * S,
+        r: (1.5 + Math.random() * 3.5) * S,
+        color: Math.random() > 0.45 ? CANDY_CREAM_PT : CANDY_TOFFEE_PT,
+        life: 0.9, decay: 0.025 + Math.random() * 0.02, grav: true });
+    }
+    for (var p = 0; p < 5; p++) {
+      var a = Math.random() * Math.PI * 2, sp = 0.8 + Math.random() * 1.6;
       particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
-        r: (1.5 + Math.random() * 3) * S,
-        color: Math.random() > 0.5 ? 'rgba(168,160,150,0.8)' : 'rgba(120,112,104,0.75)',
-        life: 0.85, decay: 0.03 + Math.random() * 0.02, grav: false });
+        r: (1 + Math.random() * 1.8) * S, color: CANDY_SUGAR_PT,
+        life: 0.7, decay: 0.035, grav: false });
+    }
+  } else if (b.candyHP === 1) {
+    // ── Hit 2: the candy cracks — sugar shards spray off ──
+    sfx.candyCrack();
+    b.shakeT = 0.6;
+    for (var p = 0; p < 16; p++) {
+      var a = Math.PI * 2 * p / 16 + Math.random() * 0.4, sp = 2 + Math.random() * 3.5;
+      particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S - 1.5 * S,
+        r: (1.2 + Math.random() * 2.6) * S,
+        color: Math.random() > 0.35 ? CANDY_SUGAR_PT : CANDY_CREAM_PT,
+        life: 0.9, decay: 0.022 + Math.random() * 0.02, grav: true });
     }
   } else {
-    // ── Shatter: stone chunks fly off, the colour underneath flashes ──
-    b.stoneShatterT = 1.0;
-    b.popT = 0.8;
+    // ── Hit 3: the candy shatters. This is the only moment the player
+    //    learns the colour, so it is the biggest beat of the three. ──
+    b.candyShatterT = 1.0;
+    b.popT = 1;
+    b.shakeT = 0.7;
     b.boxType = 'default';
-    sfx.stoneShatter();
-    for (var p = 0; p < 22; p++) {
-      var a = Math.PI * 2 * p / 22 + Math.random() * 0.35, sp = 3 + Math.random() * 5;
+    sfx.candyShatter();
+    for (var p = 0; p < 26; p++) {
+      var a = Math.PI * 2 * p / 26 + Math.random() * 0.35, sp = 3 + Math.random() * 5.5;
       particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S - 2.5 * S,
-        r: (2 + Math.random() * 4) * S,
-        color: Math.random() > 0.5 ? 'rgba(138,133,128,0.95)' : 'rgba(100,93,86,0.95)',
+        r: (1.5 + Math.random() * 3.5) * S,
+        color: Math.random() > 0.4 ? CANDY_SUGAR_PT : CANDY_CREAM_PT,
         life: 1, decay: 0.014 + Math.random() * 0.014, grav: true });
     }
+    // The colour bursts out as the payoff of the whole sequence
+    spawnBurst(bx, by, COLORS[b.ci].fill, 16);
     for (var p = 0; p < 8; p++) {
       var a = Math.random() * Math.PI * 2, sp = 1 + Math.random() * 2;
       particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
-        r: (3 + Math.random() * 3) * S, color: 'rgba(214,206,196,0.7)',
+        r: (3 + Math.random() * 3) * S, color: CANDY_SUGAR_PT,
         life: 0.6, decay: 0.04, grav: false });
     }
   }
 }
 
-// Knock one HP off every stone box orthogonally adjacent to idx.
+// Knock one HP off every candy box orthogonally adjacent to idx.
 // Called from handleTap when a box is actually picked up, so a single
-// pickup can crack several stone boxes at once.
-function damageAdjacentStone(idx) {
+// pickup can damage several candy boxes at once. Diagonals never count.
+function damageAdjacentCandy(idx) {
   var row = Math.floor(idx / L.cols), col = idx % L.cols;
   var neighbors = [];
   if (row > 0)          neighbors.push((row - 1) * L.cols + col);
@@ -376,9 +405,9 @@ function damageAdjacentStone(idx) {
   for (var ni = 0; ni < neighbors.length; ni++) {
     var nb = stock[neighbors[ni]];
     if (!nb) continue;
-    if (nb.isTunnel || nb.isWall) continue;  // tunnels and walls have no crust
-    if (nb.empty || nb.used || nb.stoneHP <= 0) continue;
-    chipStone(neighbors[ni]);
+    if (nb.isTunnel || nb.isWall) continue;  // tunnels and walls have no candy
+    if (nb.empty || nb.used || nb.candyHP <= 0) continue;
+    damageCandy(neighbors[ni]);
   }
 }
 
@@ -389,7 +418,7 @@ function isBoxTappable(idx) {
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
-  if (b.stoneHP > 0) return false;  // crust must be broken from the outside
+  if (b.candyHP > 0) return false;  // candy must be broken from the outside
   return b.revealed;
 }
 
@@ -411,7 +440,7 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
-      damageAdjacentStone(i);
+      damageAdjacentCandy(i);
       return;
     }
   }
@@ -548,8 +577,8 @@ function update() {
     if (b.emptyT > 0) b.emptyT = Math.max(0, b.emptyT - 0.025);
     if (b.iceCrackT > 0) b.iceCrackT = Math.max(0, b.iceCrackT - 0.03);
     if (b.iceShatterT > 0) b.iceShatterT = Math.max(0, b.iceShatterT - 0.025);
-    if (b.stoneCrackT > 0) b.stoneCrackT = Math.max(0, b.stoneCrackT - 0.06);
-    if (b.stoneShatterT > 0) b.stoneShatterT = Math.max(0, b.stoneShatterT - 0.025);
+    if (b.candyHitT > 0) b.candyHitT = Math.max(0, b.candyHitT - 0.06);
+    if (b.candyShatterT > 0) b.candyShatterT = Math.max(0, b.candyShatterT - 0.025);
     var th = (i === hoverIdx && !b.used && isBoxTappable(i)) ? 1 : 0;
     b.hoverT += (th - b.hoverT) * 0.12;
   }

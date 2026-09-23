@@ -53,9 +53,9 @@ var blockerCollectT = 0;
 var blockerCollectSlots = [];
 var blockerCollectCleared = false;
 
-// Stone box — taps needed to smash the granite crust open.
-// The last tap both shatters the stone and releases the marbles.
-var STONE_HP = 3;
+// Candy box — adjacent pickups needed to break the wrapped candy
+// open. Fixed at 3 per the GDD, not configurable per placement.
+var CANDY_HP = 3;
 
 var MRB_PER_BOX = 9, SORT_CAP = 3;
 var SORT_VISIBLE_ROWS = 4;

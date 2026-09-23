@@ -19,7 +19,7 @@ function tone(freq, dur, type, vol, ramp) {
   o.start(t); o.stop(t + dur);
 }
 
-// Short filtered noise burst — used for gritty, non-tonal hits (stone).
+// Short filtered noise burst — used for non-tonal hits (foil, sugar).
 function noiseBurst(dur, vol, cutoff, cutoffEnd) {
   ensureAudio();
   var t = audioCtx.currentTime;
@@ -40,18 +40,27 @@ function noiseBurst(dur, vol, cutoff, cutoffEnd) {
 
 var sfx = {
   pop: function () { tone(800, 0.12, 'sine', 0.13, 300); },
-  // Dull thud that rises in pitch as the stone weakens
-  stoneChip: function (hpLeft) {
-    var worn = STONE_HP - (hpLeft || 0);
-    var base = 90 + worn * 38;
-    tone(base, 0.16, 'triangle', 0.15, base * 0.5);
-    noiseBurst(0.13, 0.10, 1300 + worn * 750, 320);
+  // Hit 1 — the wrapper tears: light paper/foil crinkle + a small sparkle
+  candyUnwrap: function () {
+    noiseBurst(0.05, 0.05, 7000, 3000);
+    setTimeout(function () { noiseBurst(0.04, 0.045, 9000, 4000); }, 32);
+    setTimeout(function () { noiseBurst(0.05, 0.035, 6000, 2500); }, 68);
+    tone(1400, 0.07, 'triangle', 0.04, 2200);
   },
-  // Crunchy shatter when the crust finally gives way
-  stoneShatter: function () {
-    tone(70, 0.28, 'triangle', 0.17, 42);
-    noiseBurst(0.34, 0.16, 5200, 420);
-    setTimeout(function () { noiseBurst(0.20, 0.08, 3000, 520); }, 70);
+  // Hit 2 — the candy cracks: hard and glassy, a step up from the wrapper
+  candyCrack: function () {
+    tone(900, 0.10, 'square', 0.07, 420);
+    noiseBurst(0.12, 0.10, 8000, 1200);
+    setTimeout(function () { tone(1600, 0.08, 'triangle', 0.05, 900); }, 40);
+  },
+  // Hit 3 — the candy shatters and the colour is finally revealed.
+  // The loudest, most rewarding beat of the three.
+  candyShatter: function () {
+    noiseBurst(0.30, 0.16, 9000, 800);
+    tone(600, 0.12, 'square', 0.08, 200);
+    [1046, 1318, 1568].forEach(function (f, i) {
+      setTimeout(function () { tone(f, 0.16, 'sine', 0.09); }, 60 + i * 70);
+    });
   },
   drop: function () { tone(400, 0.08, 'sine', 0.04, 200); },
   sort: function () { tone(600, 0.1, 'triangle', 0.1); setTimeout(function () { tone(900, 0.1, 'triangle', 0.1); }, 80); },

@@ -1,11 +1,11 @@
 {
-  "name": "Stone Box",
-  "description": "Boxes sealed in granite. You cannot tap a stone box at all — you crack it from the outside by picking up the boxes next to it. Three hits and the crust shatters.",
-  "howToPlay": "Grey stone boxes cannot be tapped while the granite holds. Pick up any box next to one and the stone takes a hit — it jolts, throws dust, and the cracks spread as the colour underneath shows through. After three hits the crust shatters and the box becomes a normal box you can finally tap. One pickup can crack several stone boxes at once.",
+  "name": "Candy Box!",
+  "description": "A box sealed inside a wrapped candy with 3 HP. You cannot tap it at all — picking up the boxes next to it tears the wrapper, cracks the candy, then shatters it. The colour inside stays hidden until the very last hit.",
+  "howToPlay": "Candy boxes cannot be tapped. Pick up a box next to one and the candy takes a hit: first the wrapper tears open and exposes the candy, then the candy cracks, then it shatters. Only that third hit reveals the colour inside and makes the box tappable — so three plays go in completely blind. One pickup can hit several candy boxes at once.",
   "author": "Marble Sorter prototyping",
   "showcaseLevel": {
-    "name": "Stone Quarry",
-    "desc": "Crack the granite from the outside",
+    "name": "Candy Counter",
+    "desc": "Unwrap first, find out last",
     "mrbPerBox": 6,
     "sortCap": 3,
     "lockButtons": 0,
@@ -39,7 +39,7 @@
       },
       {
         "ci": 1,
-        "type": "stone"
+        "type": "candy"
       },
       {
         "ci": 2,
@@ -54,7 +54,7 @@
       },
       {
         "ci": 0,
-        "type": "stone"
+        "type": "candy"
       },
       {
         "ci": 3,
@@ -62,7 +62,7 @@
       },
       {
         "ci": 2,
-        "type": "stone"
+        "type": "candy"
       },
       {
         "ci": 0,
@@ -72,17 +72,17 @@
       null,
       {
         "ci": 1,
-        "type": "default"
-      },
-      {
-        "ci": 2,
-        "type": "default"
-      },
-      {
-        "ci": 3,
         "type": "ice"
       },
       {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
         "ci": 0,
         "type": "default"
       },
@@ -99,7 +99,7 @@
       },
       {
         "ci": 3,
-        "type": "stone"
+        "type": "candy"
       },
       {
         "ci": 0,
