@@ -445,6 +445,45 @@ function editorClearAll() {
   editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
 }
 
+// ── Candy Box validation (GDD) ──
+// Every candy box needs at least 3 non-covered adjacent normal boxes
+// at level start, or its candy can never be broken and the level is
+// unwinnable. Covers (ice, other candy), walls, tunnels and empty
+// cells do not count — nor do diagonals.
+var CANDY_MIN_NEIGHBORS = 3;
+
+function editorCountCandyNeighbors(idx) {
+  var row = Math.floor(idx / 7), col = idx % 7;
+  var nbrs = [];
+  if (row > 0) nbrs.push((row - 1) * 7 + col);
+  if (row < 6) nbrs.push((row + 1) * 7 + col);
+  if (col > 0) nbrs.push(row * 7 + (col - 1));
+  if (col < 6) nbrs.push(row * 7 + (col + 1));
+  var n = 0;
+  for (var i = 0; i < nbrs.length; i++) {
+    var v = editor.grid[nbrs[i]];
+    if (!v || v.wall || v.tunnel) continue;       // not a box at all
+    if (v.type === 'candy' || v.type === 'ice') continue;  // covered box
+    if (!(v.ci >= 0)) continue;
+    n++;
+  }
+  return n;
+}
+
+// Returns the cells (as "row,col" labels) whose candy can never break.
+function editorCandyIssues() {
+  var bad = [];
+  for (var i = 0; i < 49; i++) {
+    var v = editor.grid[i];
+    if (!v || v.wall || v.tunnel || v.type !== 'candy') continue;
+    if (editorCountCandyNeighbors(i) < CANDY_MIN_NEIGHBORS) {
+      bad.push({ idx: i, label: 'r' + (Math.floor(i / 7) + 1) + 'c' + (i % 7 + 1),
+                 count: editorCountCandyNeighbors(i) });
+    }
+  }
+  return bad;
+}
+
 // ── Stats ──
 function editorUpdateStats() {
   var counts = [];
@@ -525,6 +564,15 @@ function editorUpdateStats() {
     if (!warn && totalBlockers > 0 && totalBlockers % 3 !== 0) {
       warn = 'Total blocker marbles (' + totalBlockers + ') must be a multiple of 3';
     }
+    if (!warn) {
+      var candyBad = editorCandyIssues();
+      if (candyBad.length > 0) {
+        var where = [];
+        for (var cb = 0; cb < candyBad.length; cb++) where.push(candyBad[cb].label);
+        warn = 'Candy box at ' + where.join(', ') + ' needs ' + CANDY_MIN_NEIGHBORS +
+               ' plain boxes next to it to break (diagonals and covered boxes do not count)';
+      }
+    }
   }
   if (warn) html += '<span class="ed-stat-warn">' + warn + '</span>';
   el.innerHTML = html;
@@ -576,6 +624,15 @@ function editorTestPlay() {
   var total = 0;
   for (var i = 0; i < 49; i++) if (editor.grid[i]) total++;
   if (total === 0) { editorShowToast('Place some boxes first!'); return; }
+  // A candy box with too few plain neighbours can never open, which
+  // makes the level unwinnable — block play rather than let it through.
+  var candyBad = editorCandyIssues();
+  if (candyBad.length > 0) {
+    var lbl = [];
+    for (var cb = 0; cb < candyBad.length; cb++) lbl.push(candyBad[cb].label + ' (' + candyBad[cb].count + '/' + CANDY_MIN_NEIGHBORS + ')');
+    editorShowToast('Candy box ' + lbl.join(', ') + ' can never be broken open');
+    return;
+  }
   hideEditor();
   var lvl = editorBuildLevel();
   var testIdx = LEVELS.length;

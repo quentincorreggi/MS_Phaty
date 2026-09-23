@@ -4,6 +4,7 @@
 // drawStock delegates closed/reveal states to BoxTypes registry.
 // Open (tappable) state is the same for all box types.
 // Ice overlay is drawn on top of revealed boxes with iceHP > 0.
+// Candy cover is drawn the same way for boxes with candyHP > 0.
 // Tunnel entries are drawn via drawTunnelOnGrid.
 // Wall cells are drawn via drawWallOnGrid.
 // ============================================================
@@ -254,18 +255,19 @@ function drawStock() {
       ctx.restore();
     }
 
-    if (b.stoneHP > 0) {
-      var stoneType = getBoxType('stone');
-      if (stoneType && stoneType.drawStoneOverlay) {
-        stoneType.drawStoneOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S,
-          b.stoneHP, tick, b.ci, b.stoneCrackT);
+    if (b.candyHP > 0) {
+      var candyType = getBoxType('candy');
+      if (candyType && candyType.drawCandyOverlay) {
+        candyType.drawCandyOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S,
+          b.candyHP, tick, b.ci, b.candyHitT);
       }
     }
 
-    // Colour flash as the crust gives way and the marbles pour out
-    if (b.stoneShatterT > 0) {
+    // Colour flash at the moment the candy shatters — the only point
+    // in the whole sequence where the player learns the colour
+    if (b.candyShatterT > 0) {
       ctx.save();
-      ctx.globalAlpha = b.stoneShatterT * 0.45;
+      ctx.globalAlpha = b.candyShatterT * 0.45;
       ctx.fillStyle = COLORS[b.ci].light;
       rRect(-L.bw / 2, -L.bh / 2, L.bw, L.bh, 6 * S); ctx.fill();
       ctx.restore();
