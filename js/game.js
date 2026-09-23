@@ -317,10 +317,11 @@ function damageAdjacentIce(idx) {
 }
 
 // === STONE CHIPPING ===
-// Called when the player taps a box that still has a granite crust.
-// Each tap knocks one HP off. The tap that brings it to 0 shatters
-// the crust; handleTap then falls through and releases the marbles in
-// that same tap, so no tap is ever wasted.
+// A stone box cannot be tapped while its granite crust is intact —
+// tapping it just shakes it (see isBoxTappable). The crust is broken
+// from the outside: picking up any adjacent box knocks one HP off.
+// At HP 0 the crust shatters and the box becomes an ordinary box, so
+// its marbles still cost a tap of their own afterwards.
 function chipStone(idx) {
   var b = stock[idx];
   if (b.stoneHP <= 0) return;
@@ -343,6 +344,7 @@ function chipStone(idx) {
   } else {
     // ── Shatter: stone chunks fly off, the colour underneath flashes ──
     b.stoneShatterT = 1.0;
+    b.popT = 0.8;
     b.boxType = 'default';
     sfx.stoneShatter();
     for (var p = 0; p < 22; p++) {
@@ -361,6 +363,25 @@ function chipStone(idx) {
   }
 }
 
+// Knock one HP off every stone box orthogonally adjacent to idx.
+// Called from handleTap when a box is actually picked up, so a single
+// pickup can crack several stone boxes at once.
+function damageAdjacentStone(idx) {
+  var row = Math.floor(idx / L.cols), col = idx % L.cols;
+  var neighbors = [];
+  if (row > 0)          neighbors.push((row - 1) * L.cols + col);
+  if (row < L.rows - 1) neighbors.push((row + 1) * L.cols + col);
+  if (col > 0)          neighbors.push(row * L.cols + (col - 1));
+  if (col < L.cols - 1) neighbors.push(row * L.cols + (col + 1));
+  for (var ni = 0; ni < neighbors.length; ni++) {
+    var nb = stock[neighbors[ni]];
+    if (!nb) continue;
+    if (nb.isTunnel || nb.isWall) continue;  // tunnels and walls have no crust
+    if (nb.empty || nb.used || nb.stoneHP <= 0) continue;
+    chipStone(neighbors[ni]);
+  }
+}
+
 function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
@@ -368,6 +389,7 @@ function isBoxTappable(idx) {
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
+  if (b.stoneHP > 0) return false;  // crust must be broken from the outside
   return b.revealed;
 }
 
@@ -384,17 +406,12 @@ function handleTap(px, py) {
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
-      // Stone boxes must be chipped open first. The tap that breaks the
-      // last of the crust carries on and releases the marbles too.
-      if (b.stoneHP > 0) {
-        chipStone(i);
-        if (b.stoneHP > 0) return;
-      }
       b.popT = 1;
       sfx.pop();
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      damageAdjacentStone(i);
       return;
     }
   }

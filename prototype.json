@@ -1,11 +1,11 @@
 {
   "name": "Stone Box",
-  "description": "Boxes encased in granite. Tap one three times to smash it open — the third tap breaks the stone and releases the marbles at once.",
-  "howToPlay": "Tap a grey stone box to chip it. Cracks spread and the colour underneath shows through more with every hit. On the third tap the stone shatters and the marbles pour out. Only that final tap chips neighbouring ice boxes.",
+  "description": "Boxes sealed in granite. You cannot tap a stone box at all — you crack it from the outside by picking up the boxes next to it. Three hits and the crust shatters.",
+  "howToPlay": "Grey stone boxes cannot be tapped while the granite holds. Pick up any box next to one and the stone takes a hit — it jolts, throws dust, and the cracks spread as the colour underneath shows through. After three hits the crust shatters and the box becomes a normal box you can finally tap. One pickup can crack several stone boxes at once.",
   "author": "Marble Sorter prototyping",
   "showcaseLevel": {
     "name": "Stone Quarry",
-    "desc": "Smash through the granite",
+    "desc": "Crack the granite from the outside",
     "mrbPerBox": 6,
     "sortCap": 3,
     "lockButtons": 0,
@@ -34,17 +34,40 @@
       null,
       null,
       {
-        "ci": 2,
-        "type": "stone"
-      },
-      {
-        "wall": true
+        "ci": 0,
+        "type": "default"
       },
       {
         "ci": 1,
         "type": "stone"
       },
+      {
+        "ci": 2,
+        "type": "default"
+      },
       null,
+      null,
+      null,
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "stone"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "stone"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
       null,
       null,
       {
@@ -53,10 +76,21 @@
       },
       {
         "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
         "type": "ice"
       },
       {
-        "ci": 3,
+        "ci": 0,
+        "type": "default"
+      },
+      null,
+      null,
+      null,
+      {
+        "ci": 2,
         "type": "default"
       },
       {
@@ -64,47 +98,11 @@
         "type": "default"
       },
       {
-        "ci": 0,
-        "type": "default"
-      },
-      null,
-      null,
-      {
-        "ci": 0,
-        "type": "default"
-      },
-      {
         "ci": 3,
         "type": "stone"
       },
       {
-        "ci": 2,
-        "type": "default"
-      },
-      {
         "ci": 0,
-        "type": "stone"
-      },
-      {
-        "ci": 2,
-        "type": "default"
-      },
-      null,
-      null,
-      {
-        "ci": 1,
-        "type": "default"
-      },
-      {
-        "ci": 2,
-        "type": "stone"
-      },
-      {
-        "ci": 0,
-        "type": "default"
-      },
-      {
-        "ci": 3,
         "type": "default"
       },
       null,
