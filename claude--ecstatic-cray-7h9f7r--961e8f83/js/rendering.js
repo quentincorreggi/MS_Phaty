@@ -164,6 +164,10 @@ function drawStock() {
     var b = stock[i];
 
     // ── Tunnel ──
+    if (b.isTunnel && b.tunnelRemovable) {
+      drawMushroomOnGrid(ctx, b, b.x, b.y, L.bw, L.bh, S, tick);
+      continue;
+    }
     if (b.isTunnel) {
       var tRemain = b.tunnelContents ? b.tunnelContents.length : 0;
       drawTunnelOnGrid(ctx, b.x, b.y, L.bw, L.bh, S,
