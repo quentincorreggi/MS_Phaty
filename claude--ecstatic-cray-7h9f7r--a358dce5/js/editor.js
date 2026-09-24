@@ -80,13 +80,13 @@ function editorRenderGrid() {
     } else if (v && v.tunnel && v.removable) {
       // Mushroom (removable tunnel) cell
       var isSelMush = (editor.selectedTunnel === i);
-      cell.style.background = 'radial-gradient(circle at 35% 30%,#FF7A6B,#E8453C 55%,#A8231E)';
-      cell.style.borderColor = isSelMush ? '#FFD080' : '#7A1E18';
+      cell.style.background = 'radial-gradient(circle at 30% 30%,#D7332A 0 12%,transparent 13%),radial-gradient(circle at 72% 62%,#D7332A 0 10%,transparent 11%),linear-gradient(135deg,#FFFFFF,#E4DCD6)';
+      cell.style.borderColor = isSelMush ? '#FFD080' : '#2F8A86';
       if (isSelMush) cell.style.boxShadow = '0 0 0 2px rgba(255,208,128,0.5)';
       var mArrow = TUNNEL_DIR_ARROWS[v.dir] || '\u25BC';
       var mCount = v.contents ? v.contents.length : 0;
-      cell.innerHTML = '<span class="ed-cell-dot" style="font-size:12px;line-height:1">\uD83C\uDF44<br><span style="color:#fff;font-size:9px">' + mArrow +
-        '</span></span><span class="ed-tunnel-badge" style="background:#fff;color:#C0302A">' + mCount + '</span>';
+      cell.innerHTML = '<span class="ed-cell-dot" style="font-size:12px;line-height:1">\uD83C\uDF44<br><span style="color:#1D5E5C;font-size:9px">' + mArrow +
+        '</span></span><span class="ed-tunnel-badge" style="background:#2F8A86;color:#fff">' + mCount + '</span>';
     } else if (v && v.tunnel) {
       // Tunnel cell
       var isSelected = (editor.selectedTunnel === i);
@@ -240,8 +240,8 @@ function editorRenderToolbar() {
   mushBtn.className = 'ed-type-btn' + (mushOn ? ' active' : '');
   mushBtn.textContent = '\uD83C\uDF44 Mushroom';
   mushBtn.title = 'Removable tunnel — disappears once all its boxes are out';
-  mushBtn.style.borderColor = mushOn ? 'rgba(232,69,60,0.6)' : '';
-  mushBtn.style.color = mushOn ? '#C0302A' : '';
+  mushBtn.style.borderColor = mushOn ? 'rgba(47,138,134,0.7)' : '';
+  mushBtn.style.color = mushOn ? '#1D5E5C' : '';
   mushBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.tunnelRemovable = true;
@@ -542,7 +542,7 @@ function editorUpdateStats() {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + (tunnelBoxCount - mushroomBoxCount) + ' stored)</span>';
   }
   if (mushroomCount > 0) {
-    html += '<span class="ed-stat-chip" style="background:#E8453C;border:1px solid #A8231E">' + mushroomCount + ' mushroom' + (mushroomCount > 1 ? 's' : '') + ' (' + mushroomBoxCount + ' stored)</span>';
+    html += '<span class="ed-stat-chip" style="background:#2F8A86;border:1px solid #1D5E5C">' + mushroomCount + ' mushroom' + (mushroomCount > 1 ? 's' : '') + ' (' + mushroomBoxCount + ' stored)</span>';
   }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
