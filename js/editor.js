@@ -15,6 +15,7 @@ var editor = {
   activeType: BoxTypeOrder[0],
   tunnelMode: false,    // true when placing tunnels
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
+  tunnelRemovable: false, // true when placing mushrooms (removable tunnels)
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
   visible: false
@@ -32,6 +33,7 @@ function editorInit() {
   editor.activeType = BoxTypeOrder[0];
   editor.tunnelMode = false;
   editor.tunnelDir = 'bottom';
+  editor.tunnelRemovable = false;
   editor.selectedTunnel = -1;
   editor.wallMode = false;
 }
@@ -75,6 +77,16 @@ function editorRenderGrid() {
       cell.style.background = 'linear-gradient(135deg,#9A8D7B,#6F6355)';
       cell.style.borderColor = '#8A7D6B';
       cell.innerHTML = '<span class="ed-cell-dot" style="color:rgba(255,255,255,0.5);font-size:14px">&#9632;</span>';
+    } else if (v && v.tunnel && v.removable) {
+      // Mushroom (removable tunnel) cell
+      var isSelMush = (editor.selectedTunnel === i);
+      cell.style.background = 'radial-gradient(circle at 35% 30%,#FF7A6B,#E8453C 55%,#A8231E)';
+      cell.style.borderColor = isSelMush ? '#FFD080' : '#7A1E18';
+      if (isSelMush) cell.style.boxShadow = '0 0 0 2px rgba(255,208,128,0.5)';
+      var mArrow = TUNNEL_DIR_ARROWS[v.dir] || '\u25BC';
+      var mCount = v.contents ? v.contents.length : 0;
+      cell.innerHTML = '<span class="ed-cell-dot" style="font-size:12px;line-height:1">\uD83C\uDF44<br><span style="color:#fff;font-size:9px">' + mArrow +
+        '</span></span><span class="ed-tunnel-badge" style="background:#fff;color:#C0302A">' + mCount + '</span>';
     } else if (v && v.tunnel) {
       // Tunnel cell
       var isSelected = (editor.selectedTunnel === i);
@@ -132,6 +144,7 @@ function editorCellClick(e) {
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     } else {
       editor.grid[idx] = { tunnel: true, dir: editor.tunnelDir, contents: [] };
+      if (editor.tunnelRemovable) editor.grid[idx].removable = true;
       editor.selectedTunnel = idx;
     }
   } else {
@@ -207,17 +220,36 @@ function editorRenderToolbar() {
 
   // Tunnel mode button
   var tunnelBtn = document.createElement('button');
-  tunnelBtn.className = 'ed-type-btn' + (editor.tunnelMode ? ' active' : '');
+  var tunnelOn = editor.tunnelMode && !editor.tunnelRemovable;
+  tunnelBtn.className = 'ed-type-btn' + (tunnelOn ? ' active' : '');
   tunnelBtn.textContent = '\uD83D\uDD73 Tunnel';
-  tunnelBtn.style.borderColor = editor.tunnelMode ? 'rgba(255,190,80,0.6)' : '';
-  tunnelBtn.style.color = editor.tunnelMode ? '#E8A84C' : '';
+  tunnelBtn.style.borderColor = tunnelOn ? 'rgba(255,190,80,0.6)' : '';
+  tunnelBtn.style.color = tunnelOn ? '#E8A84C' : '';
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
+    editor.tunnelRemovable = false;
     editor.wallMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(tunnelBtn);
+
+  // Mushroom (removable tunnel) mode button
+  var mushBtn = document.createElement('button');
+  var mushOn = editor.tunnelMode && editor.tunnelRemovable;
+  mushBtn.className = 'ed-type-btn' + (mushOn ? ' active' : '');
+  mushBtn.textContent = '\uD83C\uDF44 Mushroom';
+  mushBtn.title = 'Removable tunnel — disappears once all its boxes are out';
+  mushBtn.style.borderColor = mushOn ? 'rgba(232,69,60,0.6)' : '';
+  mushBtn.style.color = mushOn ? '#C0302A' : '';
+  mushBtn.addEventListener('click', function () {
+    editor.tunnelMode = true;
+    editor.tunnelRemovable = true;
+    editor.wallMode = false;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(mushBtn);
 
   el.appendChild(typeRow);
 
@@ -301,9 +333,14 @@ function editorRenderTunnelPanel() {
   container.style.display = 'block';
   var tunnel = editor.grid[editor.selectedTunnel];
   var html = '';
+  var kindIcon = tunnel.removable ? '\uD83C\uDF44' : '\uD83D\uDD73';
+  var kindName = tunnel.removable ? 'Mushroom' : 'Tunnel';
 
   // Direction selector
-  html += '<div class="ed-section-title"><span class="icon">\uD83D\uDD73</span> Tunnel #' + (editor.selectedTunnel + 1) + ' — Direction</div>';
+  html += '<div class="ed-section-title"><span class="icon">' + kindIcon + '</span> ' + kindName + ' #' + (editor.selectedTunnel + 1) + ' — Direction</div>';
+  if (tunnel.removable) {
+    html += '<div style="font-size:11px;color:#9C8A70;text-align:center;margin-bottom:6px">Disappears once all its boxes are out</div>';
+  }
   html += '<div class="ed-tunnel-dir-row">';
   var dirs = ['top', 'left', 'bottom', 'right'];
   var dirLabels = ['\u25B2 Up', '\u25C0 Left', '\u25BC Down', '\u25B6 Right'];
@@ -352,7 +389,7 @@ function editorRenderTunnelPanel() {
   html += '</div>';
 
   // Add box controls
-  html += '<div class="ed-section-title" style="margin-top:8px"><span class="icon">&#10133;</span> Add Box to Tunnel</div>';
+  html += '<div class="ed-section-title" style="margin-top:8px"><span class="icon">&#10133;</span> Add Box to ' + kindName + '</div>';
   html += '<div class="ed-tunnel-add-row">';
   html += '<select id="ed-tunnel-add-type" class="ed-tunnel-select">';
   for (var t = 0; t < BoxTypeOrder.length; t++) {
@@ -451,7 +488,7 @@ function editorUpdateStats() {
   var regularMrb = [];
   for (var c = 0; c < NUM_COLORS; c++) { counts.push(0); regularMrb.push(0); }
   var total = 0, typeCounts = {}, totalBlockers = 0;
-  var tunnelCount = 0, tunnelBoxCount = 0;
+  var tunnelCount = 0, tunnelBoxCount = 0, mushroomCount = 0, mushroomBoxCount = 0;
   var wallCount = 0;
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
@@ -461,7 +498,8 @@ function editorUpdateStats() {
       continue;
     }
     if (v.tunnel) {
-      tunnelCount++;
+      if (v.removable) { mushroomCount++; mushroomBoxCount += v.contents ? v.contents.length : 0; }
+      else { tunnelCount++; }
       if (v.contents) {
         tunnelBoxCount += v.contents.length;
         for (var tc = 0; tc < v.contents.length; tc++) {
@@ -501,7 +539,10 @@ function editorUpdateStats() {
     html += '<span class="ed-stat-chip" style="background:#8A7D6B">' + wallCount + ' wall' + (wallCount > 1 ? 's' : '') + '</span>';
   }
   if (tunnelCount > 0) {
-    html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
+    html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + (tunnelBoxCount - mushroomBoxCount) + ' stored)</span>';
+  }
+  if (mushroomCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#E8453C;border:1px solid #A8231E">' + mushroomCount + ' mushroom' + (mushroomCount > 1 ? 's' : '') + ' (' + mushroomBoxCount + ' stored)</span>';
   }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
@@ -618,7 +659,10 @@ function editorImportJSON() {
           if (cell === null || cell === undefined || cell === -1) editor.grid[i] = null;
           else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
           else if (cell.wall) editor.grid[i] = { wall: true };
-          else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
+          else if (cell.tunnel) {
+            editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
+            if (cell.removable) editor.grid[i].removable = true;
+          }
           else editor.grid[i] = cell;
         }
       }

@@ -51,7 +51,7 @@ function initGame() {
         continue;
       }
       if (cell.tunnel) {
-        tunnelSlots[i] = { dir: cell.dir || 'bottom', contents: cell.contents ? cell.contents.slice() : [] };
+        tunnelSlots[i] = { dir: cell.dir || 'bottom', contents: cell.contents ? cell.contents.slice() : [], removable: !!cell.removable };
       } else if (typeof cell === 'number') {
         if (cell >= 0) boxSlots[i] = { ci: cell, boxType: 'default' };
       } else if (typeof cell === 'object' && cell.ci >= 0) {
@@ -103,13 +103,16 @@ function initGame() {
         tunnelDir: tSlot.dir,
         tunnelContents: tSlot.contents.map(function (item) { return { ci: item.ci, type: item.type || 'default' }; }),
         tunnelTotal: tSlot.contents.length,
+        tunnelRemovable: tSlot.removable,
+        mushroomSquashT: 0, mushroomVanishing: false, mushroomVanishT: 0,
         tunnelSpawning: false,
         tunnelCooldown: 60,
         ci: 0, used: false, remaining: 0, spawning: false, spawnIdx: 0,
         revealed: true, empty: false, boxType: 'default',
         iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
-        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0, idlePhase: 0
+        shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
+        idlePhase: Math.random() * Math.PI * 2
       });
     } else if (wSlot) {
       // Wall cell — inert structural element
@@ -373,6 +376,7 @@ function update() {
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
+  updateMushrooms();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
