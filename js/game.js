@@ -326,9 +326,9 @@ function damageAdjacentIce(idx) {
 //   HP 1 → 0  the candy shatters and the colour is revealed at last
 // At HP 0 the box becomes an ordinary box, so its marbles still cost a
 // tap of their own afterwards.
-var CANDY_CREAM_PT = 'rgba(247,235,216,0.92)';
-var CANDY_TOFFEE_PT = 'rgba(169,135,92,0.90)';
-var CANDY_SUGAR_PT = 'rgba(255,252,244,0.95)';
+var CANDY_CREAM_PT = 'rgba(253,244,228,0.94)';
+var CANDY_PINK_PT = 'rgba(241,99,196,0.92)';
+var CANDY_SUGAR_PT = 'rgba(255,251,240,0.95)';
 
 function damageCandy(idx) {
   var b = stock[idx];
@@ -346,7 +346,7 @@ function damageCandy(idx) {
       var a = Math.PI * 2 * p / 12 + Math.random() * 0.5, sp = 1.5 + Math.random() * 3;
       particles.push({ x: bx, y: by, vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S - 1.2 * S,
         r: (1.5 + Math.random() * 3.5) * S,
-        color: Math.random() > 0.45 ? CANDY_CREAM_PT : CANDY_TOFFEE_PT,
+        color: Math.random() > 0.45 ? CANDY_CREAM_PT : CANDY_PINK_PT,
         life: 0.9, decay: 0.025 + Math.random() * 0.02, grav: true });
     }
     for (var p = 0; p < 5; p++) {
