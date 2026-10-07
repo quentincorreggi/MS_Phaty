@@ -1,0 +1,22 @@
+{
+  "name": "See-Saw Platform",
+  "description": "A tilting plank on a central pivot. Tap a box above an arm to pour marbles onto it — the loaded side tips down and the marbles roll off into the funnel. But a side can only drop if the opposite arm is free to rise: a live box above that arm jams the plank until you open it.",
+  "howToPlay": "Left see-saw (Scenario A): tap the box above it — the arm tips and dumps freely. Right see-saw (Scenario B): tap either box and the marbles pile up because the box above the other arm blocks the tilt (it flashes red). Open that box too, and the plank is free to dump. Clear every sort column to win.",
+  "author": "Claude",
+  "showcaseLevel": {
+    "name": "See-Saw Platform",
+    "desc": "Scenario A tips freely; Scenario B is blocked until you open the opposite box.",
+    "mrbPerBox": 3,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, { "ci": 0, "type": "default" }, null, null, { "ci": 1, "type": "default" }, { "ci": 1, "type": "default" }, null,
+      null, { "seesaw": true, "arm": "left" }, { "seesaw": true, "arm": "right" }, null, { "seesaw": true, "arm": "left" }, { "seesaw": true, "arm": "right" }, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null,
+      null, null, null, null, null, null, null
+    ]
+  }
+}
