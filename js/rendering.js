@@ -417,6 +417,8 @@ function drawSortArea() {
           ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 3 * S; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
           ctx.beginPath(); ctx.moveTo(-iconS * 0.5, 0); ctx.lineTo(-iconS * 0.1, iconS * 0.4); ctx.lineTo(iconS * 0.5, -iconS * 0.3); ctx.stroke();
         }
+      } else if (isChocoLocked(b)) {
+        drawChocoCustomer(b, L.sBw, L.sBh);
       } else {
         ctx.shadowColor = 'rgba(0,0,0,0.22)'; ctx.shadowBlur = 5 * S; ctx.shadowOffsetY = 3 * S;
         var sc = COLORS[b.ci];
@@ -431,6 +433,7 @@ function drawSortArea() {
         var sp = L.sBw / 4, mrr = 6 * S * cal.sort.s * cal.marble.s;
         for (var j2 = 0; j2 < b.filled; j2++) drawMarble((j2 - 1) * sp, 0, mrr, b.ci);
         for (var j2 = b.filled; j2 < SORT_CAP; j2++) { ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.beginPath(); ctx.arc((j2 - 1) * sp, 0, mrr * 0.55, 0, Math.PI * 2); ctx.fill(); }
+        if (b.chocoRevealT > 0) drawChocoReveal(b, L.sBw, L.sBh);
       }
       ctx.restore();
     }

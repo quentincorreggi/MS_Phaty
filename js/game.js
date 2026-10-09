@@ -160,6 +160,9 @@ function initGame() {
     var lockRow = Math.min(2 + Math.floor(Math.random() * 4), sortCols[lockCol].length);
     sortCols[lockCol].splice(lockRow, 0, { type: 'lock', ci: -1, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0, triggerT: 0, triggered: false });
   }
+
+  // Chocolate customers
+  placeChocolateCustomers(lvl.chocoCustomers || 0);
 }
 
 // === REVEAL — PATH TO BOTTOM ===
@@ -381,7 +384,7 @@ function update() {
     for (var c = 0; c < 4; c++) {
       var col = sortCols[c]; var tv = -1;
       for (var r = 0; r < col.length; r++) { if (col[r].vis) { tv = r; break; } }
-      if (tv < 0 || col[tv].ci !== slot.marble) continue;
+      if (tv < 0 || col[tv].ci !== slot.marble || isChocoLocked(col[tv])) continue;
       var inFlight = 0;
       for (var j = 0; j < jumpers.length; j++) if (jumpers[j].targetCol === c) inFlight++;
       if (col[tv].filled + inFlight >= SORT_CAP) continue;
@@ -403,13 +406,14 @@ function update() {
     if (j.t >= 1) {
       var col = sortCols[j.targetCol]; var tv = -1;
       for (var r = 0; r < col.length; r++) { if (col[r].vis) { tv = r; break; } }
-      if (tv >= 0 && col[tv].ci === j.ci) {
+      if (tv >= 0 && col[tv].ci === j.ci && !isChocoLocked(col[tv])) {
         col[tv].filled++;
         col[tv].squishT = 1;
         sfx.sort();
         if (col[tv].filled >= SORT_CAP) {
           col[tv].popT = 1; col[tv].shineT = 1;
           sfx.complete();
+          chocoOnCustomerFilled(j.targetCol);
           var bx2 = L.sSx + j.targetCol * (L.sBw + L.sColGap) + L.sBw / 2;
           var by2 = getSortBoxY(j.targetCol, 0) + L.sBh / 2;
           spawnBurst(bx2, by2, COLORS[j.ci].fill, 20);
@@ -514,6 +518,7 @@ function update() {
     if (box.type === 'lock' && box.triggerT > 0) box.triggerT = Math.max(0, box.triggerT - 0.03);
   }
 
+  updateChocolate();
   tickParticles();
   updateRollingSound();
 }
