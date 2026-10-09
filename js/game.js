@@ -146,18 +146,20 @@ function initGame() {
   updateBoxReveals(false);
 
   // ── Sort columns ──
+  var triPieces = buildTriPieces(sortPerColor, lvl.triColor || 0);
   var allBoxes = [];
   for (var c = 0; c < NUM_COLORS; c++) for (var r = 0; r < sortPerColor[c]; r++)
     allBoxes.push({ ci: c, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0 });
   shuffle(allBoxes);
   sortCols = [[], [], [], []];
   for (var i = 0; i < allBoxes.length; i++) sortCols[i % 4].push(allBoxes[i]);
+  var triDepth = insertTriPieces(triPieces);
 
   // Lock buttons
   var numLocks = lvl.lockButtons || 0;
   for (var li2 = 0; li2 < numLocks; li2++) {
     var lockCol = Math.floor(Math.random() * 4);
-    var lockRow = Math.min(2 + Math.floor(Math.random() * 4), sortCols[lockCol].length);
+    var lockRow = Math.min(triDepth[lockCol] + 2 + Math.floor(Math.random() * 4), sortCols[lockCol].length);
     sortCols[lockCol].splice(lockRow, 0, { type: 'lock', ci: -1, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0, triggerT: 0, triggered: false });
   }
 }
@@ -382,6 +384,7 @@ function update() {
       var col = sortCols[c]; var tv = -1;
       for (var r = 0; r < col.length; r++) { if (col[r].vis) { tv = r; break; } }
       if (tv < 0 || col[tv].ci !== slot.marble) continue;
+      if (col[tv].tri && !isTriCellActive(col[tv])) continue;
       var inFlight = 0;
       for (var j = 0; j < jumpers.length; j++) if (jumpers[j].targetCol === c) inFlight++;
       if (col[tv].filled + inFlight >= SORT_CAP) continue;
@@ -407,7 +410,9 @@ function update() {
         col[tv].filled++;
         col[tv].squishT = 1;
         sfx.sort();
-        if (col[tv].filled >= SORT_CAP) {
+        if (col[tv].filled >= SORT_CAP && col[tv].tri) {
+          onTriCellFilled(col[tv]);
+        } else if (col[tv].filled >= SORT_CAP) {
           col[tv].popT = 1; col[tv].shineT = 1;
           sfx.complete();
           var bx2 = L.sSx + j.targetCol * (L.sBw + L.sColGap) + L.sBw / 2;
@@ -491,6 +496,7 @@ function update() {
       if (col[r].popT > 0) col[r].popT = Math.max(0, col[r].popT - 0.018);
       if (col[r].shineT > 0) col[r].shineT = Math.max(0, col[r].shineT - 0.025);
       if (col[r].squishT > 0) col[r].squishT = Math.max(0, col[r].squishT - 0.06);
+      if (col[r].tri) updateTriAnims(col[r]);
     }
   }
 

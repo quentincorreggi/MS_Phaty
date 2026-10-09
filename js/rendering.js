@@ -387,14 +387,21 @@ function drawSortArea() {
     var showCount = Math.min(visibleBoxes.length, SORT_VISIBLE_ROWS);
     var hiddenCount = visibleBoxes.length - showCount;
     for (var vi = 0; vi < showCount; vi++) {
-      var b = visibleBoxes[vi]; var byy = getSortBoxY(c, vi);
+      var b = visibleBoxes[vi];
+      // Slide smoothly toward the new slot when boxes in front leave
+      if (b.dispVi === undefined) b.dispVi = vi;
+      b.dispVi += (vi - b.dispVi) * 0.15;
+      if (Math.abs(b.dispVi - vi) < 0.01) b.dispVi = vi;
+      var byy = getSortBoxY(c, b.dispVi);
       var ps = 1 + b.popT * 0.25; var al = b.popT > 0.6 ? (1 - b.popT) * 2.5 : 1;
       var sqX = 1, sqY = 1;
       if (b.squishT > 0) { var sq = Math.sin(b.squishT * Math.PI); sqX = 1 + sq * 0.12; sqY = 1 - sq * 0.08; }
       ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, al));
       ctx.translate(x + L.sBw / 2, byy + L.sBh / 2); ctx.scale(ps * sqX, ps * sqY);
 
-      if (b.type === 'lock') {
+      if (b.tri) {
+        drawTriCell(b, vi);
+      } else if (b.type === 'lock') {
         var isTop = (vi === 0);
         var pulse = isTop ? 1 + Math.sin(tick * 0.08) * 0.03 : 1;
         ctx.scale(pulse, pulse);
