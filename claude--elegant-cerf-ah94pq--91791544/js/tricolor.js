@@ -1,8 +1,8 @@
 // ============================================================
 // tricolor.js — Tri-Color Customer
-//   A 9-marble customer that sits in one sort lane, split into
-//   3 vertical color strips (one color per strip) and TRI_ROWS
-//   rows of single-marble holes. Only the front row accepts
+//   A 9-marble customer that sits in one sort lane: TRI_ROWS rows
+//   of 3 single-marble holes, 3 colors per row, with the color
+//   order shifted one step on each row. Only the front row accepts
 //   marbles (one of each color). When the row is full it unclips
 //   like a Lego brick and the next row slides forward.
 // ============================================================
@@ -36,7 +36,11 @@ function insertTriPieces(pieces) {
     var lane = lanes[0];
     for (var i = 1; i < lanes.length; i++) if (depth[lanes[i]] < depth[lane]) lane = lanes[i];
     for (var r = 0; r < TRI_ROWS; r++) {
-      var row = { tri: piece, triRow: r, colors: piece.colors, holes: [false, false, false],
+      // Each row shifts the colors one step right, e.g.
+      //   Blue / Green / Red  →  Red / Blue / Green  →  Green / Red / Blue
+      var rowColors = [];
+      for (var k = 0; k < 3; k++) rowColors.push(piece.colors[(k - r % 3 + 3) % 3]);
+      var row = { tri: piece, triRow: r, colors: rowColors, holes: [false, false, false],
         ci: -2, filled: 0, popT: 0, vis: true, shineT: 0, squishT: 0, snapT: 0, triDone: false };
       piece.rows.push(row);
       sortCols[lane].splice(depth[lane] + r, 0, row);
