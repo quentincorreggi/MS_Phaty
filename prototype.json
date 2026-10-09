@@ -1,6 +1,6 @@
 {
   "name": "Tri-Color Customer",
-  "description": "A 9-marble customer split into 3 vertical color strips with 3 rows of single-marble holes. Only the front row takes marbles (one of each color); when it is full, the row unclips like a Lego brick and the next row moves up.",
+  "description": "A 9-marble customer with 3 rows of single-marble holes. Each row has the same 3 colors in a shifted order (e.g. Blue/Green/Red, Red/Blue/Green, Green/Red/Blue). Only the front row takes marbles; when it is full, the row unclips like a Lego brick and the next row moves up.",
   "howToPlay": "Tap boxes to send marbles down. The striped Tri-Color customers at the bottom need one marble of each of their 3 colors in the front row. When the row is full it snaps off and the next row becomes active. Clear every customer to win.",
   "author": "Seckin Ege Aydemir",
   "showcaseLevel": {
