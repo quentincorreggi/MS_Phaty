@@ -383,18 +383,25 @@ function update() {
     for (var c = 0; c < 4; c++) {
       var col = sortCols[c]; var tv = -1;
       for (var r = 0; r < col.length; r++) { if (col[r].vis) { tv = r; break; } }
-      if (tv < 0 || col[tv].ci !== slot.marble) continue;
-      if (col[tv].tri && !isTriCellActive(col[tv])) continue;
-      var inFlight = 0;
-      for (var j = 0; j < jumpers.length; j++) if (jumpers[j].targetCol === c) inFlight++;
-      if (col[tv].filled + inFlight >= SORT_CAP) continue;
+      if (tv < 0) continue;
+      var tSlot;
+      if (col[tv].tri) {
+        tSlot = triFreeHole(col[tv], slot.marble, c);
+        if (tSlot < 0) continue;
+      } else {
+        if (col[tv].ci !== slot.marble) continue;
+        var inFlight = 0;
+        for (var j = 0; j < jumpers.length; j++) if (jumpers[j].targetCol === c) inFlight++;
+        if (col[tv].filled + inFlight >= SORT_CAP) continue;
+        tSlot = col[tv].filled + inFlight;
+      }
       var bt = L.sortBeltT[c]; var diff = Math.abs(slotT - bt); var wdiff = Math.min(diff, 1 - diff);
       if (wdiff < 0.015) {
         var aj = false;
         for (var j = 0; j < jumpers.length; j++) if (jumpers[j].slotIdx === si) { aj = true; break; }
         if (aj) continue;
         var pos = getSlotPos(si);
-        jumpers.push({ ci: slot.marble, slotIdx: si, startX: pos.x, startY: pos.y, targetCol: c, targetSlot: col[tv].filled + inFlight, t: 0 });
+        jumpers.push({ ci: slot.marble, slotIdx: si, startX: pos.x, startY: pos.y, targetCol: c, targetSlot: tSlot, slotSp: col[tv].tri ? 1 / 3 : 1 / 4, t: 0 });
         slot.marble = -1; break;
       }
     }
@@ -406,13 +413,13 @@ function update() {
     if (j.t >= 1) {
       var col = sortCols[j.targetCol]; var tv = -1;
       for (var r = 0; r < col.length; r++) { if (col[r].vis) { tv = r; break; } }
-      if (tv >= 0 && col[tv].ci === j.ci) {
+      if (tv >= 0 && col[tv].tri) {
+        onTriMarbleLanded(col[tv], j, j.targetCol);
+      } else if (tv >= 0 && col[tv].ci === j.ci) {
         col[tv].filled++;
         col[tv].squishT = 1;
         sfx.sort();
-        if (col[tv].filled >= SORT_CAP && col[tv].tri) {
-          onTriCellFilled(col[tv]);
-        } else if (col[tv].filled >= SORT_CAP) {
+        if (col[tv].filled >= SORT_CAP) {
           col[tv].popT = 1; col[tv].shineT = 1;
           sfx.complete();
           var bx2 = L.sSx + j.targetCol * (L.sBw + L.sColGap) + L.sBw / 2;
