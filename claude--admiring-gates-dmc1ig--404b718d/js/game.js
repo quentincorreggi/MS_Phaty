@@ -598,7 +598,7 @@ function updateShowcaseUI() {
   }
   if (btn) btn.style.display = '';
   if (info) {
-    info.style.display = '';
+    info.style.display = 'block';
     var html = '';
     if (prototypeInfo.name) html += '<div class="ls-showcase-name">' + prototypeInfo.name + '</div>';
     if (prototypeInfo.description) html += '<div class="ls-showcase-desc">' + prototypeInfo.description + '</div>';
