@@ -525,9 +525,9 @@ function editorUpdateStats() {
       }
     }
     if (!warn && editor.triColor > 0) {
-      // Each Tri-Color piece needs 3 colors with TRI_ROWS sort boxes' worth of marbles each
+      // Each Tri-Color customer takes TRI_ROWS marbles of 3 different colors
       var avail = [];
-      for (var c = 0; c < NUM_COLORS; c++) avail.push(Math.floor(regularMrb[c] / editor.sortCap));
+      for (var c = 0; c < NUM_COLORS; c++) avail.push(regularMrb[c]);
       var built = 0;
       for (var p = 0; p < editor.triColor; p++) {
         avail.sort(function (a, b) { return b - a; });
@@ -535,7 +535,7 @@ function editorUpdateStats() {
         avail[0] -= TRI_ROWS; avail[1] -= TRI_ROWS; avail[2] -= TRI_ROWS; built++;
       }
       if (built < editor.triColor) {
-        warn = 'Tri-Color needs 3 colors with ' + (TRI_ROWS * editor.sortCap) + '+ marbles each per piece (only ' + built + ' fit)';
+        warn = 'Each Tri-Color customer needs 3 different colors (only ' + built + ' fit)';
       }
     }
     if (!warn && totalBlockers > 0 && totalBlockers % 3 !== 0) {
@@ -554,7 +554,7 @@ function editorRenderSettings() {
     { label: 'Marbles/Box', key: 'mrbPerBox', min: 1, max: 25, step: 1 },
     { label: 'Sort Cap', key: 'sortCap', min: 1, max: 9, step: 1 },
     { label: 'Lock Btns', key: 'lockButtons', min: 0, max: 5, step: 1 },
-    { label: 'Tri-Color', key: 'triColor', min: 0, max: 2, step: 1 }
+    { label: 'Tri-Color', key: 'triColor', min: 0, max: 4, step: 1 }
   ];
   for (var i = 0; i < fields.length; i++) {
     var f = fields[i];

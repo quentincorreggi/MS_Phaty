@@ -1,15 +1,15 @@
 {
   "name": "Tri-Color Customer",
-  "description": "A big Lego-like customer spanning 3 lanes with 3 rows of colored cups. Only the front row takes marbles; when all 3 cups in it are full, the row unclips and the next row slides forward.",
-  "howToPlay": "Tap boxes to send marbles down. Watch the big joined customer at the bottom: fill all three cups in its front row (a full cup waits and blocks its lane until its row-mates are full). The row then snaps off and the next one becomes active. Clear everything to win.",
+  "description": "A 9-marble customer split into 3 vertical color strips with 3 rows of single-marble holes. Only the front row takes marbles (one of each color); when it is full, the row unclips like a Lego brick and the next row moves up.",
+  "howToPlay": "Tap boxes to send marbles down. The striped Tri-Color customers at the bottom need one marble of each of their 3 colors in the front row. When the row is full it snaps off and the next row becomes active. Clear every customer to win.",
   "author": "Seckin Ege Aydemir",
   "showcaseLevel": {
     "name": "Tri-Color Customer",
-    "desc": "One big 3-lane customer: fill a whole row to unclip it",
+    "desc": "Two Tri-Color customers: fill each row with one marble of each color",
     "mrbPerBox": 9,
     "sortCap": 3,
     "lockButtons": 0,
-    "triColor": 1,
+    "triColor": 2,
     "grid": [
       null,
       null,

@@ -364,7 +364,7 @@ function drawJumpers() {
   for (var i = 0; i < jumpers.length; i++) {
     var j = jumpers[i]; var t = j.t;
     var e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-    var tx = L.sSx + j.targetCol * (L.sBw + L.sColGap) + L.sBw / 2 + (j.targetSlot - 1) * (L.sBw / 4);
+    var tx = L.sSx + j.targetCol * (L.sBw + L.sColGap) + L.sBw / 2 + (j.targetSlot - 1) * (L.sBw * (j.slotSp || 0.25));
     var ty = getSortBoxY(j.targetCol, 0) + L.sBh / 2;
     var x = j.startX + (tx - j.startX) * e;
     var y = j.startY + (ty - j.startY) * e - Math.sin(t * Math.PI) * 50 * S;
