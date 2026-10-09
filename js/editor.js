@@ -540,7 +540,7 @@ function editorRenderSettings() {
     { label: 'Marbles/Box', key: 'mrbPerBox', min: 1, max: 25, step: 1 },
     { label: 'Sort Cap', key: 'sortCap', min: 1, max: 9, step: 1 },
     { label: 'Lock Btns', key: 'lockButtons', min: 0, max: 5, step: 1 },
-    { label: 'Choco Cust', key: 'chocoCustomers', min: 0, max: 4, step: 1 }
+    { label: 'Choco Cust', key: 'chocoCustomers', min: 0, max: 20, step: 1 }
   ];
   for (var i = 0; i < fields.length; i++) {
     var f = fields[i];

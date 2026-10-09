@@ -1,0 +1,113 @@
+{
+  "name": "Chocolate Customer",
+  "description": "Some customers start wrapped in chocolate. You can't see their color, they take no marbles, and they hold up their column until the chocolate breaks.",
+  "howToPlay": "Fill the customers in the columns right next to a chocolate one while it's at the front. Hit 1 takes the wrapper off, hit 2 cracks it, hit 3 shatters it and shows its color.",
+  "author": "",
+  "showcaseLevel": {
+    "name": "Chocolate Factory",
+    "desc": "8 chocolate customers hidden in the queues",
+    "mrbPerBox": 6,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "chocoCustomers": 8,
+    "grid": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      null,
+      null,
+      null,
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      }
+    ]
+  }
+}
