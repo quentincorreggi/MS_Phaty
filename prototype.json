@@ -1,43 +1,65 @@
 {
   "name": "Mushroom (Removable Tunnel)",
-  "description": "A tunnel shaped like a mushroom. It pushes out its boxes like a normal tunnel, then shrinks into the ground and disappears once it is empty \u2014 opening a path to whatever was hidden behind it.",
+  "description": "A tunnel shaped like a mushroom. It pushes out its boxes like a normal tunnel, then shrinks into the ground and disappears once it is empty — opening a path to whatever was hidden behind it.",
   "howToPlay": "Clear the bottom boxes so the mushroom can push out its 2 boxes. Once it is empty it vanishes, and the boxes trapped behind the wall become reachable.",
   "author": "",
   "showcaseLevel": {
-    "name": "Mushroom Gate",
-    "desc": "Empty the mushroom to open the wall",
+    "name": "Custom Level",
+    "desc": "My custom level",
     "mrbPerBox": 9,
     "sortCap": 3,
     "lockButtons": 0,
     "grid": [
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
       {
-        "ci": 0,
-        "type": "default"
+        "wall": true
       },
       {
-        "ci": 1,
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "ci": 2,
         "type": "default"
       },
       {
@@ -45,14 +67,39 @@
         "type": "default"
       },
       {
-        "ci": 3,
+        "ci": 2,
         "type": "default"
       },
       {
-        "ci": 1,
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "ci": 2,
         "type": "default"
       },
-      null,
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
       {
         "wall": true
       },
@@ -64,18 +111,22 @@
       },
       {
         "tunnel": true,
-        "removable": true,
         "dir": "bottom",
         "contents": [
+          {
+            "ci": 2,
+            "type": "default"
+          },
           {
             "ci": 3,
             "type": "default"
           },
           {
-            "ci": 2,
+            "ci": 4,
             "type": "default"
           }
-        ]
+        ],
+        "removable": true
       },
       {
         "wall": true
@@ -85,20 +136,29 @@
       },
       {
         "wall": true
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
       },
       {
         "ci": 2,
         "type": "default"
       },
       {
-        "ci": 3,
+        "ci": 0,
         "type": "default"
       },
-      null,
-      null,
-      null,
       {
-        "ci": 1,
+        "ci": 0,
         "type": "default"
       },
       {
@@ -110,16 +170,19 @@
         "type": "default"
       },
       {
-        "ci": 1,
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 0,
         "type": "default"
       },
       {
         "ci": 2,
         "type": "default"
       },
-      null,
       {
-        "ci": 3,
+        "ci": 0,
         "type": "default"
       },
       {
@@ -127,7 +190,7 @@
         "type": "default"
       },
       {
-        "ci": 1,
+        "ci": 0,
         "type": "default"
       }
     ]
