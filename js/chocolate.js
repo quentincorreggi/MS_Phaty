@@ -65,8 +65,9 @@ function chocoHit(box, c) {
     chocoSpawnPieces(p.x, p.y, ['#F02D3A', '#FF5A63', '#F3E6C4'], 16, 1);
     chocoSfx.unwrap();
   } else if (box.choco === 1) {
-    // Chocolate chips flick off
-    chocoSpawnPieces(p.x, p.y, ['#7A4022', '#5A2C14', '#9B5A34'], 12, 1);
+    // Caramel + chocolate chips flick off
+    chocoSpawnPieces(p.x, p.y, ['#F2A23A', '#E58A1F', '#FFC266'], 14, 1.1);
+    chocoSpawnPieces(p.x, p.y, ['#7A4022', '#5A2C14', '#9B5A34'], 8, 1);
     chocoSfx.crack();
   } else if (box.choco <= 0) {
     chocoShatter(box, c);
@@ -155,7 +156,11 @@ function drawChocoCustomer(b, w, h) {
     ctx.scale(ps, ps);
   }
   if (b.choco >= 3) drawChocoWrapped(w, h);
-  else { drawChocoBar(w, h); if (b.choco === 1) drawChocoCracks(w, h); }
+  else {
+    drawChocoBar(w, h);
+    if (b.choco === 2) drawChocoCaramel(w, h);
+    else drawChocoCracks(w, h);
+  }
 }
 
 function drawChocoWrapped(w, h) {
@@ -250,6 +255,71 @@ function drawChocoBar(w, h) {
   }
   ctx.strokeStyle = '#3E1A08'; ctx.lineWidth = 1 * S;
   rRect(bx, by, bw, bh - 1 * S, 7 * S); ctx.stroke();
+}
+
+// Caramel drizzle + caramel cubes (2 HP state)
+function drawChocoCaramel(w, h) {
+  var bw = w * 0.94, bh = h - 3 * S;
+  var x0 = -bw / 2, y0 = -h / 2;
+  function P(u, v) { return [x0 + u * bw, y0 + v * bh]; }
+  // Each ribbon: list of points in 0..1 bar space, drawn as a smooth curve
+  var ribbons = [
+    [[0.04, 0.10], [0.20, 0.18], [0.30, 0.45], [0.42, 0.62], [0.50, 0.80], [0.56, 0.98]],
+    [[0.62, 0.04], [0.66, 0.22], [0.56, 0.42], [0.52, 0.65], [0.53, 0.92]],
+    [[0.97, 0.12], [0.94, 0.42], [0.84, 0.62], [0.74, 0.80], [0.68, 0.98]]
+  ];
+  function curve(pts) {
+    var a = P(pts[0][0], pts[0][1]);
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]);
+    for (var i = 1; i < pts.length - 1; i++) {
+      var c = P(pts[i][0], pts[i][1]), n = P(pts[i + 1][0], pts[i + 1][1]);
+      ctx.quadraticCurveTo(c[0], c[1], (c[0] + n[0]) / 2, (c[1] + n[1]) / 2);
+    }
+    var l = P(pts[pts.length - 1][0], pts[pts.length - 1][1]);
+    ctx.lineTo(l[0], l[1]);
+    ctx.stroke();
+  }
+  ctx.save();
+  rRect(x0, y0, bw, h - 1 * S, 7 * S); ctx.clip();
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  var rw = bh * 0.26;
+  for (var r = 0; r < ribbons.length; r++) {
+    ctx.save(); ctx.translate(0, 1 * S);
+    ctx.strokeStyle = 'rgba(90,40,10,0.45)'; ctx.lineWidth = rw; curve(ribbons[r]);
+    ctx.restore();
+    ctx.strokeStyle = '#E08A22'; ctx.lineWidth = rw; curve(ribbons[r]);
+    ctx.strokeStyle = '#F2A63E'; ctx.lineWidth = rw * 0.6; curve(ribbons[r]);
+    ctx.save(); ctx.translate(-rw * 0.15, -rw * 0.18);
+    ctx.strokeStyle = 'rgba(255,230,170,0.75)'; ctx.lineWidth = rw * 0.18; curve(ribbons[r]);
+    ctx.restore();
+  }
+  // Drip blobs where ribbons run off the bottom edge
+  var drips = [[0.56, 0.93], [0.68, 0.93]];
+  for (var d = 0; d < drips.length; d++) {
+    var dp = P(drips[d][0], drips[d][1]);
+    ctx.fillStyle = '#E8942C';
+    ctx.beginPath(); ctx.ellipse(dp[0], dp[1], rw * 0.75, rw * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+
+  // Caramel cubes
+  var cubes = [[0.12, 0.30, -0.35], [0.36, 0.26, 0.3], [0.10, 0.74, 0.25], [0.64, 0.72, -0.3], [0.86, 0.28, 0.35], [0.88, 0.76, -0.2]];
+  var cs = bh * 0.31;
+  for (var i = 0; i < cubes.length; i++) {
+    var cp = P(cubes[i][0], cubes[i][1]);
+    ctx.save(); ctx.translate(cp[0], cp[1]); ctx.rotate(cubes[i][2]);
+    ctx.fillStyle = 'rgba(70,30,8,0.45)';
+    rRect(-cs / 2 + 0.6 * S, -cs / 2 + 1.4 * S, cs, cs, cs * 0.28); ctx.fill();
+    ctx.fillStyle = '#C8701A';
+    rRect(-cs / 2, -cs / 2 + 0.8 * S, cs, cs, cs * 0.28); ctx.fill();
+    var cg = ctx.createLinearGradient(0, -cs / 2, 0, cs / 2);
+    cg.addColorStop(0, '#FFC25A'); cg.addColorStop(1, '#EE9428');
+    ctx.fillStyle = cg;
+    rRect(-cs / 2, -cs / 2, cs, cs - 0.6 * S, cs * 0.28); ctx.fill();
+    ctx.fillStyle = 'rgba(255,245,215,0.8)';
+    rRect(-cs * 0.32, -cs * 0.36, cs * 0.34, cs * 0.14, cs * 0.07); ctx.fill();
+    ctx.restore();
+  }
 }
 
 function drawChocoCracks(w, h) {
