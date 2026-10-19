@@ -17,6 +17,10 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  modPins: [],          // [{ cells: [idx...], head: idx, key: idx }] — drawn above the grid
+  pinMode: false,       // true when drawing Modular Pins
+  pinTool: 'draw',      // 'draw' = paint pin cells, 'head' = pick head tip + key box
+  currentPin: -1,       // pin being drawn / selected
   visible: false
 };
 
@@ -34,6 +38,10 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.modPins = [];
+  editor.pinMode = false;
+  editor.pinTool = 'draw';
+  editor.currentPin = -1;
 }
 
 function showEditor(fresh) {
@@ -60,6 +68,14 @@ function editorBuildUI() {
   editorRenderSettings();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderPinPanel();
+}
+
+function editorRefreshAll() {
+  editorRenderGrid();
+  editorUpdateStats();
+  editorRenderTunnelPanel();
+  editorRenderPinPanel();
 }
 
 // ── Grid ──
@@ -95,6 +111,7 @@ function editorRenderGrid() {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
     }
+    editorDecorateCellForPins(cell, i);
     cell.setAttribute('data-idx', i);
     cell.addEventListener('click', editorCellClick);
     cell.addEventListener('contextmenu', editorCellErase);
@@ -104,6 +121,11 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.pinMode) {
+    editorPinCellClick(idx);
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -116,9 +138,7 @@ function editorCellClick(e) {
       editor.grid[idx] = { wall: true };
     }
     if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
-    editorRenderGrid();
-    editorUpdateStats();
-    editorRenderTunnelPanel();
+    editorRefreshAll();
     return;
   }
 
@@ -149,19 +169,25 @@ function editorCellClick(e) {
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     }
   }
-  editorRenderGrid();
-  editorUpdateStats();
-  editorRenderTunnelPanel();
+  editorRefreshAll();
 }
 
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+  if (editor.pinMode) {
+    // Right-click in pin mode deletes the whole pin under the cursor
+    var rp = editorPinIndexAt(idx);
+    if (rp >= 0) {
+      editor.modPins.splice(rp, 1);
+      editor.currentPin = -1;
+      editorRefreshAll();
+    }
+    return;
+  }
   editor.grid[idx] = null;
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
-  editorRenderGrid();
-  editorUpdateStats();
-  editorRenderTunnelPanel();
+  editorRefreshAll();
 }
 
 // ── Toolbar: mode toggle + type selector + color/direction palette ──
@@ -178,28 +204,32 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.pinMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.pinMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
+      editorRenderPinPanel();
     });
     typeRow.appendChild(tb);
   }
 
   // Wall mode button
   var wallBtn = document.createElement('button');
-  wallBtn.className = 'ed-type-btn' + (editor.wallMode ? ' active' : '');
+  wallBtn.className = 'ed-type-btn' + (editor.wallMode && !editor.pinMode ? ' active' : '');
   wallBtn.textContent = '\u25A0 Wall';
   wallBtn.style.borderColor = editor.wallMode ? 'rgba(138,125,107,0.6)' : '';
   wallBtn.style.color = editor.wallMode ? '#6F6355' : '';
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.pinMode = false;
+    editorRenderPinPanel();
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -207,21 +237,71 @@ function editorRenderToolbar() {
 
   // Tunnel mode button
   var tunnelBtn = document.createElement('button');
-  tunnelBtn.className = 'ed-type-btn' + (editor.tunnelMode ? ' active' : '');
+  tunnelBtn.className = 'ed-type-btn' + (editor.tunnelMode && !editor.pinMode ? ' active' : '');
   tunnelBtn.textContent = '\uD83D\uDD73 Tunnel';
   tunnelBtn.style.borderColor = editor.tunnelMode ? 'rgba(255,190,80,0.6)' : '';
   tunnelBtn.style.color = editor.tunnelMode ? '#E8A84C' : '';
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.pinMode = false;
+    editorRenderPinPanel();
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(tunnelBtn);
 
+  // Modular Pin mode button
+  var pinBtn = document.createElement('button');
+  pinBtn.className = 'ed-type-btn' + (editor.pinMode ? ' active' : '');
+  pinBtn.textContent = '\uD83D\uDCCD Modular Pin';
+  pinBtn.style.borderColor = editor.pinMode ? 'rgba(229,57,53,0.6)' : '';
+  pinBtn.style.color = editor.pinMode ? '#B23A3A' : '';
+  pinBtn.addEventListener('click', function () {
+    editor.pinMode = true;
+    editor.wallMode = false;
+    editor.tunnelMode = false;
+    editorRenderToolbar();
+    editorRefreshAll();
+  });
+  typeRow.appendChild(pinBtn);
+
   el.appendChild(typeRow);
 
-  if (editor.tunnelMode) {
+  if (editor.pinMode) {
+    var pinRow = document.createElement('div');
+    pinRow.className = 'ed-color-row';
+    var tools = [['draw', '\u270F Draw'], ['head', '\u25C9 Head']];
+    for (var pt = 0; pt < tools.length; pt++) {
+      var tbtn = document.createElement('button');
+      tbtn.className = 'ed-qbtn';
+      tbtn.textContent = tools[pt][1];
+      if (editor.pinTool === tools[pt][0]) { tbtn.style.background = '#E53935'; tbtn.style.color = '#fff'; }
+      tbtn.setAttribute('data-tool', tools[pt][0]);
+      tbtn.addEventListener('click', function () {
+        editor.pinTool = this.getAttribute('data-tool');
+        editorRenderToolbar();
+      });
+      pinRow.appendChild(tbtn);
+    }
+    var newBtn = document.createElement('button');
+    newBtn.className = 'ed-qbtn';
+    newBtn.textContent = '\u2795 New pin';
+    newBtn.addEventListener('click', function () {
+      editor.currentPin = -1;
+      editor.pinTool = 'draw';
+      editorRenderToolbar();
+      editorRefreshAll();
+    });
+    pinRow.appendChild(newBtn);
+    var pinHint = document.createElement('div');
+    pinHint.style.cssText = 'width:100%;text-align:center;font-size:11px;color:#9C8A70;margin-top:4px';
+    pinHint.textContent = editor.pinTool === 'draw'
+      ? 'Click cells next to the selected pin to grow it; click its own cell to remove it. Right-click deletes a pin.'
+      : 'Click an end of a pin to make it the head. Click the head again to switch which box it points at.';
+    pinRow.appendChild(pinHint);
+    el.appendChild(pinRow);
+  } else if (editor.tunnelMode) {
     // Direction selector row
     var dirRow = document.createElement('div');
     dirRow.className = 'ed-color-row';
@@ -426,9 +506,107 @@ function editorRenderTunnelPanel() {
   }
 }
 
+// ── Modular Pin editing ──
+function editorPinIndexAt(idx) {
+  for (var i = 0; i < editor.modPins.length; i++) if (pinHasCell(editor.modPins[i], idx)) return i;
+  return -1;
+}
+
+// Keep head/key sane after the shape changes
+function editorFixPinHead(pin) {
+  if (pin.head >= 0 && pinTips(pin, 7, 7).indexOf(pin.head) < 0) { pin.head = -1; pin.key = -1; }
+  if (pin.head >= 0 && pin.key >= 0 && pinNeighbors(pin.head, 7, 7).indexOf(pin.key) < 0) pin.key = -1;
+}
+
+function editorPinCellClick(idx) {
+  var hit = editorPinIndexAt(idx);
+  if (editor.pinTool === 'head') {
+    if (hit < 0) { editorShowToast('Click an end of a pin'); return; }
+    editor.currentPin = hit;
+    var pin = editor.modPins[hit];
+    if (pinTips(pin, 7, 7).indexOf(idx) < 0) { editorShowToast('The head must be an end of the pin'); editorRefreshAll(); return; }
+    var cands = pinKeyCandidates(pin, idx, editor.grid, 7, 7);
+    if (pin.head === idx && cands.length > 0) {
+      var at = cands.indexOf(pin.key);
+      pin.key = cands[(at + 1) % cands.length];
+    } else {
+      pin.head = idx;
+      pin.key = cands.length > 0 ? cands[0] : -1;
+      if (cands.length === 0) editorShowToast('No box next to this end yet — add one');
+    }
+    editorRefreshAll();
+    return;
+  }
+  // Draw tool
+  if (hit >= 0) {
+    if (hit !== editor.currentPin) { editor.currentPin = hit; editorRefreshAll(); return; }
+    var cur = editor.modPins[hit];
+    cur.cells.splice(cur.cells.indexOf(idx), 1);
+    if (cur.cells.length === 0) { editor.modPins.splice(hit, 1); editor.currentPin = -1; }
+    else editorFixPinHead(cur);
+    editorRefreshAll();
+    return;
+  }
+  var sel = editor.modPins[editor.currentPin];
+  if (sel) {
+    var nb = pinNeighbors(idx, 7, 7), adj = false;
+    for (var i = 0; i < nb.length; i++) if (pinHasCell(sel, nb[i])) { adj = true; break; }
+    if (adj) {
+      sel.cells.push(idx);
+      if (sel.key === idx) sel.key = -1;
+      editorFixPinHead(sel);
+      editorRefreshAll();
+      return;
+    }
+  }
+  editor.modPins.push({ cells: [idx], head: -1, key: -1 });
+  editor.currentPin = editor.modPins.length - 1;
+  editorRefreshAll();
+}
+
+function editorFirstPinError() {
+  for (var i = 0; i < editor.modPins.length; i++) {
+    var errs = validateModPin(editor.modPins[i], editor.grid, 7, 7);
+    if (errs.length) { editor.currentPin = i; return 'Pin ' + (i + 1) + ': ' + errs[0]; }
+  }
+  return '';
+}
+
+function editorRenderPinPanel() {
+  var el = document.getElementById('ed-pin-panel');
+  if (!el) return;
+  if (!editor.pinMode && editor.modPins.length === 0) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  var html = '<div class="ed-section-title"><span class="icon">&#128205;</span> Modular Pins (' + editor.modPins.length + ')</div>';
+  if (editor.modPins.length === 0) {
+    html += '<span style="font-size:11px;color:#9C8A70;font-style:italic">Click a cell on the grid to start a pin</span>';
+  }
+  for (var i = 0; i < editor.modPins.length; i++) {
+    var p = editor.modPins[i];
+    var errs = validateModPin(p, editor.grid, 7, 7);
+    var sel = (i === editor.currentPin);
+    html += '<div class="ed-pin-row" data-pin="' + i + '"' + (sel ? ' style="font-weight:700"' : '') + '>' +
+      '<span class="ed-pin-swatch" style="background:' + editorPinColor(i) + '"></span>' +
+      'Pin ' + (i + 1) + ' &middot; ' + p.cells.length + ' cells ' +
+      (errs.length ? '' : '<span class="ed-pin-ok">&#10003; ready</span>') + '</div>';
+    for (var k = 0; k < errs.length; k++) html += '<div class="ed-pin-err">&#9888; ' + errs[k] + '</div>';
+  }
+  el.innerHTML = html;
+  var rows = el.querySelectorAll('.ed-pin-row');
+  for (var r = 0; r < rows.length; r++) {
+    rows[r].addEventListener('click', function () {
+      editor.currentPin = parseInt(this.getAttribute('data-pin'));
+      editor.pinMode = true;
+      editorRenderToolbar();
+      editorRefreshAll();
+    });
+  }
+}
+
 // ── Quick actions ──
 function editorFillRandom() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
+  editor.modPins = []; editor.currentPin = -1;
   editor.selectedTunnel = -1;
   var cl = [];
   for (var c = 0; c < 4; c++) for (var n = 0; n < 6; n++) cl.push(c);
@@ -436,13 +614,14 @@ function editorFillRandom() {
   var indices = []; for (var i = 0; i < 49; i++) indices.push(i);
   shuffle(indices);
   for (var i = 0; i < cl.length; i++) editor.grid[indices[i]] = { ci: cl[i], type: 'default' };
-  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+  editorRefreshAll();
 }
 
 function editorClearAll() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
+  editor.modPins = []; editor.currentPin = -1;
   editor.selectedTunnel = -1;
-  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+  editorRefreshAll();
 }
 
 // ── Stats ──
@@ -567,7 +746,8 @@ function editorBuildLevel() {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
-    grid: editor.grid.slice()
+    grid: editor.grid.slice(),
+    modPins: editor.modPins.map(function (p) { return { cells: p.cells.slice(), head: p.head, key: p.key }; })
   };
 }
 
@@ -576,6 +756,8 @@ function editorTestPlay() {
   var total = 0;
   for (var i = 0; i < 49; i++) if (editor.grid[i]) total++;
   if (total === 0) { editorShowToast('Place some boxes first!'); return; }
+  var pinErr = editorFirstPinError();
+  if (pinErr) { editorShowToast(pinErr); editor.pinMode = true; editorRenderToolbar(); editorRefreshAll(); return; }
   hideEditor();
   var lvl = editorBuildLevel();
   var testIdx = LEVELS.length;
@@ -622,6 +804,10 @@ function editorImportJSON() {
           else editor.grid[i] = cell;
         }
       }
+      editor.modPins = (lvl.modPins || []).map(function (p) {
+        return { cells: (p.cells || []).slice(), head: p.head >= 0 ? p.head : -1, key: p.key >= 0 ? p.key : -1 };
+      });
+      editor.currentPin = -1;
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;

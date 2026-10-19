@@ -1,0 +1,182 @@
+{
+  "name": "Modular Pin",
+  "description": "A steel pin drawn in any bending or branching shape. It locks every box under it until you play the one box its red head points at \u2014 then the whole pin slides away at once.",
+  "howToPlay": "Boxes under a pin can't be tapped. Find each pin's round red head and play the box it points at (it has a dashed red outline). The L-pin's key is free right away. The T-pin's key is boxed in \u2014 you'll need to release and clear the pin next to it first.",
+  "author": "Ilayda",
+  "showcaseLevel": {
+    "name": "Modular Pin Showcase",
+    "desc": "L, T, and two pins touching",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 4,
+        "type": "default"
+      },
+      {
+        "ci": 5,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 0,
+        "type": "hidden"
+      },
+      {
+        "wall": true
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 5,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 7,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 5,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 4,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 6,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 7,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 5,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 4,
+        "type": "default"
+      },
+      {
+        "ci": 6,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      }
+    ],
+    "modPins": [
+      {
+        "cells": [
+          14,
+          21,
+          28,
+          35,
+          36
+        ],
+        "head": 36,
+        "key": 43
+      },
+      {
+        "cells": [
+          16,
+          17,
+          18,
+          24,
+          31
+        ],
+        "head": 18,
+        "key": 19
+      },
+      {
+        "cells": [
+          25,
+          32,
+          39,
+          40,
+          41
+        ],
+        "head": 41,
+        "key": 48
+      }
+    ]
+  }
+}

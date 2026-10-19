@@ -142,6 +142,9 @@ function initGame() {
     }
   }
 
+  // ── Modular Pins (layer above the grid) ──
+  initModPins(lvl);
+
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
 
@@ -318,6 +321,7 @@ function isBoxTappable(idx) {
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
+  if (isPinCovered(idx)) return false;  // locked under a Modular Pin
   return b.revealed;
 }
 
@@ -328,6 +332,15 @@ function handleTap(px, py) {
   if (won || !gameActive) return;
   ensureAudio();
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
+  // Tapping a locked Modular Pin (or anything under it) only gives blocked feedback
+  for (var pi = 0; pi < stock.length; pi++) {
+    var pb = stock[pi];
+    if (px >= pb.x && px <= pb.x + L.bw && py >= pb.y && py <= pb.y + L.bh) {
+      var lockPin = pinAtCell(pi);
+      if (lockPin) { pinBlockedTap(lockPin, pb.isWall ? -1 : pi); return; }
+      break;
+    }
+  }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
@@ -338,6 +351,7 @@ function handleTap(px, py) {
       sfx.pop();
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
+      releasePinsForKey(i);
       damageAdjacentIce(i);
       return;
     }
@@ -514,6 +528,7 @@ function update() {
     if (box.type === 'lock' && box.triggerT > 0) box.triggerT = Math.max(0, box.triggerT - 0.03);
   }
 
+  updateModPins();
   tickParticles();
   updateRollingSound();
 }
@@ -545,6 +560,7 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    drawModPins();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();

@@ -24,6 +24,8 @@ var sfx = {
   drop: function () { tone(400, 0.08, 'sine', 0.04, 200); },
   sort: function () { tone(600, 0.1, 'triangle', 0.1); setTimeout(function () { tone(900, 0.1, 'triangle', 0.1); }, 80); },
   complete: function () { [523, 659, 784, 1047].forEach(function (f, i) { setTimeout(function () { tone(f, 0.2, 'sine', 0.1); }, i * 90); }); },
+  pinRelease: function () { tone(260, 0.28, 'triangle', 0.09, 880); setTimeout(function () { tone(1400, 0.18, 'sine', 0.05, 2200); }, 120); },
+  pinThunk: function () { tone(150, 0.1, 'square', 0.05, 80); },
   win: function () { [523, 659, 784, 1047, 1319, 1568].forEach(function (f, i) { setTimeout(function () { tone(f, 0.25, 'sine', 0.12); }, i * 100); }); }
 };
 
