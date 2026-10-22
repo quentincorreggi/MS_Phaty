@@ -55,7 +55,7 @@ function initGame() {
       } else if (typeof cell === 'number') {
         if (cell >= 0) boxSlots[i] = { ci: cell, boxType: 'default' };
       } else if (typeof cell === 'object' && cell.ci >= 0) {
-        boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default', cycle: cell.cycle };
+        boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default' };
       }
     }
   }
@@ -89,6 +89,7 @@ function initGame() {
   }
 
   // ── Build stock ──
+  chameleonInitLevel(lvl);
   stock = [];
   for (var r = 0; r < L.rows; r++) for (var c = 0; c < L.cols; c++) {
     var idx = r * L.cols + c;
@@ -101,7 +102,7 @@ function initGame() {
       stock.push({
         isTunnel: true, isWall: false,
         tunnelDir: tSlot.dir,
-        tunnelContents: tSlot.contents.map(function (item) { return { ci: item.ci, type: item.type || 'default', cycle: item.cycle }; }),
+        tunnelContents: tSlot.contents.map(function (item) { return { ci: item.ci, type: item.type || 'default' }; }),
         tunnelTotal: tSlot.contents.length,
         tunnelSpawning: false,
         tunnelCooldown: 60,
@@ -139,7 +140,7 @@ function initGame() {
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
-      if (slot.boxType === 'chameleon') chameleonInitBox(stock[stock.length - 1], slot.cycle);
+      if (slot.boxType === 'chameleon') chameleonInitBox(stock[stock.length - 1]);
     }
   }
 

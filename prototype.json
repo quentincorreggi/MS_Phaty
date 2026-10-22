@@ -1,7 +1,7 @@
 {
   "name": "Chameleon Box",
-  "description": "Chameleon boxes shift to the next color in their cycle every time you tap another box. The rainbow frame shows all the colors it can become.",
-  "howToPlay": "Watch the chameleon boxes (rainbow frame). Each tap on another box changes their color. Tap a chameleon when it shows the color you want to lock it in.",
+  "description": "All chameleon boxes share one color cycle (pink → blue → green → yellow) and step to the next color together every time you tap a box. Each starts on a different color, so they never match.",
+  "howToPlay": "Watch the chameleon boxes (rainbow frame). Every tap moves all of them one step along the cycle. Tap a chameleon when it shows the color you want to lock it in.",
   "author": "",
   "showcaseLevel": {
     "name": "Chameleon Showcase",
@@ -9,6 +9,12 @@
     "mrbPerBox": 9,
     "sortCap": 3,
     "lockButtons": 0,
+    "chamCycle": [
+      0,
+      1,
+      2,
+      3
+    ],
     "grid": [
       null,
       null,
@@ -54,13 +60,7 @@
       },
       {
         "ci": 2,
-        "type": "chameleon",
-        "cycle": [
-          2,
-          0,
-          1,
-          3
-        ]
+        "type": "chameleon"
       },
       {
         "ci": 0,
@@ -68,11 +68,7 @@
       },
       {
         "ci": 3,
-        "type": "chameleon",
-        "cycle": [
-          3,
-          1
-        ]
+        "type": "chameleon"
       },
       {
         "ci": 2,
@@ -90,13 +86,7 @@
       },
       {
         "ci": 1,
-        "type": "chameleon",
-        "cycle": [
-          1,
-          0,
-          2,
-          3
-        ]
+        "type": "chameleon"
       },
       {
         "ci": 3,
