@@ -89,7 +89,6 @@ function initGame() {
   }
 
   // ── Build stock ──
-  chameleonInitLevel(lvl);
   stock = [];
   for (var r = 0; r < L.rows; r++) for (var c = 0; c < L.cols; c++) {
     var idx = r * L.cols + c;
@@ -143,6 +142,8 @@ function initGame() {
       if (slot.boxType === 'chameleon') chameleonInitBox(stock[stock.length - 1]);
     }
   }
+
+  chameleonInitLevel();
 
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
