@@ -1,15 +1,18 @@
 // ============================================================
 // box_chameleon.js — Chameleon box type
-// A box that shifts to the next color in its cycle every time the
-// player taps ANY other box. Tapping the chameleon locks in its
-// current color and releases marbles of that color.
+// All chameleon boxes in a level share ONE color cycle and move
+// through it in lockstep: every time the player taps any box, every
+// active chameleon steps to the next color. Each chameleon starts at
+// a different point in the cycle (its painted color), so two
+// chameleons can never show the same color at the same time.
+// Tapping a chameleon locks in its current color.
 //
 // Visual: solid box in its current color, with a rainbow frame
-// inside the rim made of its cycle colors, slowly rotating.
+// inside the rim made of the cycle colors, slowly rotating.
 //
-// Level data: { ci, type: 'chameleon', cycle: [ci, ci2, ...] }
-//   ci     = starting color (sort columns are built for this color)
-//   cycle  = colors it rotates through (cycle[0] === ci)
+// Level data:
+//   level.chamCycle = [ci, ci, ...]        shared cycle (order matters)
+//   cell = { ci, type: 'chameleon' }       ci = starting color
 //
 // Solvability: when the chameleon locks in a color different from
 // its starting color, empty sort boxes reserved for the starting
@@ -18,25 +21,60 @@
 
 var CHAM_SPIN_SPEED = 0.012;      // idle frame rotation (rad/frame)
 var CHAM_SHIFT_SPIN = 0.22;       // extra spin during a color shift
+var CHAM_DEFAULT_CYCLE = [0, 1, 2, 3];
 
-// Build a valid cycle array for a box: starts with ci, no dupes, >= 2 colors
-function chameleonNormalizeCycle(ci, cycle) {
-  var out = [ci];
-  if (cycle) {
-    for (var i = 0; i < cycle.length; i++) {
-      var c = cycle[i];
-      if (c >= 0 && c < NUM_COLORS && out.indexOf(c) < 0) out.push(c);
+var chamLevelCycle = CHAM_DEFAULT_CYCLE.slice();  // shared cycle for the current level
+var chamGlobalStep = 0;                            // how many times the cycle has advanced
+
+// Build the level's shared cycle: the given cycle (deduped, valid colors)
+// plus any chameleon starting colors missing from it; at least 2 colors.
+function chameleonBuildCycle(cycle, startColors) {
+  var out = [];
+  var src = cycle && cycle.length ? cycle : CHAM_DEFAULT_CYCLE;
+  for (var i = 0; i < src.length; i++) {
+    var c = src[i];
+    if (c >= 0 && c < NUM_COLORS && out.indexOf(c) < 0) out.push(c);
+  }
+  if (startColors) {
+    for (var j = 0; j < startColors.length; j++) {
+      if (out.indexOf(startColors[j]) < 0) out.push(startColors[j]);
     }
   }
-  if (out.length < 2) out.push((ci + 1) % NUM_COLORS);
+  while (out.length < 2) {
+    for (var k = 0; k < NUM_COLORS; k++) if (out.indexOf(k) < 0) { out.push(k); break; }
+  }
   return out;
 }
 
-// Attach chameleon state to a freshly created stock object
-function chameleonInitBox(box, cycle) {
-  box.chamCycle = chameleonNormalizeCycle(box.ci, cycle);
+// Collect chameleon starting colors from a level grid (incl. tunnel contents)
+function chameleonStartColors(grid) {
+  var out = [];
+  for (var i = 0; i < grid.length; i++) {
+    var cell = grid[i];
+    if (!cell) continue;
+    if (cell.tunnel && cell.contents) {
+      for (var t = 0; t < cell.contents.length; t++) {
+        if (cell.contents[t].type === 'chameleon') out.push(cell.contents[t].ci);
+      }
+    } else if (cell.type === 'chameleon') out.push(cell.ci);
+  }
+  return out;
+}
+
+// Called from initGame before the stock is built
+function chameleonInitLevel(lvl) {
+  chamGlobalStep = 0;
+  chamLevelCycle = chameleonBuildCycle(lvl.chamCycle, lvl.grid ? chameleonStartColors(lvl.grid) : []);
+}
+
+// Attach chameleon state to a freshly created stock object.
+// box.ci is its starting color; if the cycle has already advanced
+// (e.g. it came out of a tunnel mid-level) it joins at the same offset.
+function chameleonInitBox(box) {
+  box.chamCycle = chamLevelCycle;
   box.chamBaseCi = box.ci;
-  box.chamStep = 0;
+  box.chamStartIdx = Math.max(0, chamLevelCycle.indexOf(box.ci));
+  box.ci = chamLevelCycle[(box.chamStartIdx + chamGlobalStep) % chamLevelCycle.length];
   box.chamPrevCi = box.ci;
   box.chamShiftT = 0;
   box.chamLockT = 0;
@@ -49,17 +87,18 @@ function isChameleonActive(b) {
     !b.empty && !b.used && !b.spawning && !b.chamLocked;
 }
 
-// Called from handleTap after a non-chameleon-or-other box is tapped.
-// Every other active chameleon on the grid shifts to its next color.
+// Called from handleTap after any box is tapped: the shared cycle
+// advances one step and every active chameleon follows it.
 function chameleonShiftAll(tappedIdx) {
+  chamGlobalStep++;
+  var n = chamLevelCycle.length;
   var shifted = false;
   for (var i = 0; i < stock.length; i++) {
     if (i === tappedIdx) continue;
     var b = stock[i];
     if (!isChameleonActive(b)) continue;
     b.chamPrevCi = b.ci;
-    b.chamStep = (b.chamStep + 1) % b.chamCycle.length;
-    b.ci = b.chamCycle[b.chamStep];
+    b.ci = chamLevelCycle[(b.chamStartIdx + chamGlobalStep) % n];
     b.chamShiftT = 1;
     shifted = true;
     var bx = b.x + L.bw / 2, by = b.y + L.bh / 2;
@@ -68,7 +107,7 @@ function chameleonShiftAll(tappedIdx) {
       particles.push({ x: bx + Math.cos(a) * L.bw * 0.4, y: by + Math.sin(a) * L.bh * 0.4,
         vx: Math.cos(a) * sp * S, vy: Math.sin(a) * sp * S,
         r: (1.5 + Math.random() * 2.5) * S,
-        color: COLORS[b.chamCycle[p % b.chamCycle.length]].fill,
+        color: COLORS[chamLevelCycle[p % n]].fill,
         life: 0.9, decay: 0.03 + Math.random() * 0.02, grav: false });
     }
   }
@@ -212,7 +251,7 @@ registerBoxType('chameleon', {
   },
 
   editorCellStyle: function (ci, cell) {
-    var cyc = chameleonNormalizeCycle(ci, cell && cell.cycle);
+    var cyc = (typeof editor !== 'undefined' && editor.chamCycle) ? editor.chamCycle : chamLevelCycle;
     var stops = [];
     for (var i = 0; i < cyc.length; i++) {
       stops.push(COLORS[cyc[i]].fill + ' ' + Math.round(i / cyc.length * 100) + '% ' + Math.round((i + 1) / cyc.length * 100) + '%');
@@ -224,7 +263,7 @@ registerBoxType('chameleon', {
   },
 
   editorCellHTML: function (ci, cell) {
-    var cyc = chameleonNormalizeCycle(ci, cell && cell.cycle);
-    return '<span class="ed-cell-dot" style="font-size:9px">🦎' + cyc.length + '</span>';
+    var cyc = (typeof editor !== 'undefined' && editor.chamCycle) ? editor.chamCycle : chamLevelCycle;
+    return '<span class="ed-cell-dot" style="font-size:9px">🦎' + (cyc.indexOf(ci) + 1) + '</span>';
   }
 });
