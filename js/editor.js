@@ -17,17 +17,8 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
-  chamCycle: CHAM_DEFAULT_CYCLE.slice(), // shared color cycle for ALL chameleon boxes in the level
   visible: false
 };
-
-// Make sure a chameleon starting color is part of the shared cycle
-function editorChamEnsureColor(ci) {
-  if (editor.chamCycle.indexOf(ci) < 0) {
-    editor.chamCycle.push(ci);
-    editor.chamCycle.sort(function (a, b) { return a - b; });
-  }
-}
 
 function editorInit() {
   editor.grid = [];
@@ -43,7 +34,6 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
-  editor.chamCycle = CHAM_DEFAULT_CYCLE.slice();
 }
 
 function showEditor(fresh) {
@@ -101,7 +91,7 @@ function editorRenderGrid() {
       cell.style.background = st.background;
       cell.style.borderColor = st.borderColor;
       cell.innerHTML = bt.editorCellHTML(v.ci, v);
-      if (v.type === 'chameleon') cell.title = 'Chameleon starting on ' + CLR_NAMES[v.ci] + ' (cycle: ' + editor.chamCycle.map(function (c) { return CLR_NAMES[c]; }).join(' \u2192 ') + ')';
+      if (v.type === 'chameleon') cell.title = 'Chameleon starting on ' + CLR_NAMES[v.ci];
     } else {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
@@ -154,9 +144,11 @@ function editorCellClick(e) {
       var existing = editor.grid[idx];
       if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
         editor.grid[idx] = null;
+      } else if (editor.activeType === 'chameleon' && !isChameleonColor(editor.activeColor)) {
+        editorShowToast('Chameleons use ' + chameleonOrderNames());
+        return;
       } else {
         editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
-        if (editor.activeType === 'chameleon') { editorChamEnsureColor(editor.activeColor); editorRenderToolbar(); }
       }
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     }
@@ -164,6 +156,7 @@ function editorCellClick(e) {
   editorRenderGrid();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  if (editor.activeType === 'chameleon' && !editor.tunnelMode && !editor.wallMode) editorRenderToolbar();
 }
 
 function editorCellErase(e) {
@@ -301,46 +294,24 @@ function editorRenderToolbar() {
   }
 }
 
-// Chameleon: the shared color cycle used by every chameleon box in the level
+// Chameleon: explain the fixed order and show this level's cycle
 function editorRenderChamCycleRow(el) {
-  var used = chameleonStartColors(editor.grid);
+  var cyc = chameleonSortColors(chameleonStartColors(editor.grid));
+  var html = '<span style="font-size:10px;color:#9C8A70;text-align:center;line-height:1.4">' +
+    '\uD83E\uDD8E Fixed order: <b>' + chameleonOrderNames() + '</b><br>';
+  if (cyc.length) {
+    html += 'This level cycles: ';
+    for (var i = 0; i < cyc.length; i++) {
+      html += '<span style="display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:middle;background:' + COLORS[cyc[i]].fill + '"></span>' +
+        (i < cyc.length - 1 ? ' \u2192 ' : '');
+    }
+    html += '<br>';
+  }
+  html += 'Place 2\u20135 chameleons, each with a different start color.</span>';
   var row = document.createElement('div');
   row.className = 'ed-color-row';
-  row.innerHTML = '<span style="font-size:11px;color:#9C8A70;margin-right:4px">\uD83E\uDD8E Level cycle:</span>';
-  for (var ci = 0; ci < NUM_COLORS; ci++) {
-    var on = editor.chamCycle.indexOf(ci) >= 0;
-    var cb = document.createElement('button');
-    cb.className = 'ed-tool' + (on ? ' active' : '');
-    cb.style.background = COLORS[ci].fill;
-    cb.style.opacity = on ? '1' : '0.3';
-    cb.style.width = '24px'; cb.style.height = '24px';
-    cb.innerHTML = on ? '\u2713' : '';
-    cb.title = used.indexOf(ci) >= 0 ? CLR_NAMES[ci] + ' (used by a chameleon)' : 'Toggle ' + CLR_NAMES[ci];
-    cb.setAttribute('data-ci', ci);
-    cb.addEventListener('click', function () {
-      var c = parseInt(this.getAttribute('data-ci'));
-      var k = editor.chamCycle.indexOf(c);
-      if (k >= 0) {
-        if (chameleonStartColors(editor.grid).indexOf(c) >= 0) { editorShowToast('A chameleon starts on ' + CLR_NAMES[c] + ' \u2014 remove it first'); return; }
-        if (editor.chamCycle.length <= 2) { editorShowToast('The cycle needs at least 2 colors'); return; }
-        editor.chamCycle.splice(k, 1);
-      } else {
-        editor.chamCycle.push(c);
-        editor.chamCycle.sort(function (a, b) { return a - b; });
-      }
-      editorRenderToolbar();
-      editorRenderGrid();
-      editorUpdateStats();
-    });
-    row.appendChild(cb);
-  }
+  row.innerHTML = html;
   el.appendChild(row);
-  var order = editor.chamCycle.map(function (c) { return CLR_NAMES[c]; }).join(' \u2192 ');
-  var hint = document.createElement('div');
-  hint.className = 'ed-color-row';
-  hint.innerHTML = '<span style="font-size:10px;color:#9C8A70;text-align:center">All chameleons share this cycle (' + order + ') and step together each tap. ' +
-    'Paint color = starting color \u2014 give each chameleon a different one so they never match.</span>';
-  el.appendChild(hint);
 }
 
 // ── Tunnel contents editor panel ──
@@ -411,6 +382,7 @@ function editorRenderTunnelPanel() {
   html += '<div class="ed-tunnel-add-row">';
   html += '<select id="ed-tunnel-add-type" class="ed-tunnel-select">';
   for (var t = 0; t < BoxTypeOrder.length; t++) {
+    if (BoxTypeOrder[t] === 'chameleon') continue;
     html += '<option value="' + BoxTypeOrder[t] + '">' + BoxTypes[BoxTypeOrder[t]].label + '</option>';
   }
   html += '</select>';
@@ -460,7 +432,7 @@ function editorRenderTunnelPanel() {
       var typeEl = document.getElementById('ed-tunnel-add-type');
       var type = typeEl ? typeEl.value : 'default';
       if (editor.selectedTunnel >= 0 && editor.grid[editor.selectedTunnel]) {
-        if (type === 'chameleon') editorChamEnsureColor(ci4);
+        if (type === 'chameleon') { editorShowToast('Chameleons can\'t go inside tunnels'); return; }
         editor.grid[editor.selectedTunnel].contents.push({ ci: ci4, type: type });
         editorRenderGrid();
         editorRenderTunnelPanel();
@@ -580,8 +552,8 @@ function editorUpdateStats() {
     }
     if (!warn) {
       var chamStarts = chameleonStartColors(editor.grid);
-      if (chamStarts.length > editor.chamCycle.length) {
-        warn = chamStarts.length + ' chameleons but only ' + editor.chamCycle.length + ' colors in the cycle';
+      if (chamStarts.length > 0 && (chamStarts.length < CHAM_MIN || chamStarts.length > CHAM_MAX)) {
+        warn = 'Use ' + CHAM_MIN + '\u2013' + CHAM_MAX + ' chameleons (now ' + chamStarts.length + ')';
       } else {
         for (var cs = 0; cs < chamStarts.length; cs++) {
           if (chamStarts.indexOf(chamStarts[cs]) !== cs) { warn = 'Two chameleons start on ' + CLR_NAMES[chamStarts[cs]] + ' \u2014 they will always match'; break; }
@@ -633,7 +605,6 @@ function editorBuildLevel() {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
-    chamCycle: editor.chamCycle.slice(),
     grid: editor.grid.slice()
   };
 }
@@ -692,7 +663,6 @@ function editorImportJSON() {
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
-      editor.chamCycle = chameleonBuildCycle(lvl.chamCycle, chameleonStartColors(editor.grid));
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
       var nameEl = document.getElementById('ed-name');
