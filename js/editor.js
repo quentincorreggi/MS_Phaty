@@ -17,8 +17,14 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  chamCycle: [0, 1, 2, 3], // extra colors a new chameleon box cycles through
   visible: false
 };
+
+// Build the cycle for a new chameleon box painted with color ci
+function editorChamCycleFor(ci) {
+  return chameleonNormalizeCycle(ci, editor.chamCycle);
+}
 
 function editorInit() {
   editor.grid = [];
@@ -87,10 +93,11 @@ function editorRenderGrid() {
         '</span><span class="ed-tunnel-badge">' + count + '</span>';
     } else if (v && v.ci >= 0) {
       var bt = getBoxType(v.type);
-      var st = bt.editorCellStyle(v.ci);
+      var st = bt.editorCellStyle(v.ci, v);
       cell.style.background = st.background;
       cell.style.borderColor = st.borderColor;
-      cell.innerHTML = bt.editorCellHTML(v.ci);
+      cell.innerHTML = bt.editorCellHTML(v.ci, v);
+      if (v.type === 'chameleon') cell.title = 'Chameleon: ' + chameleonNormalizeCycle(v.ci, v.cycle).map(function (c) { return CLR_NAMES[c]; }).join(' \u2192 ');
     } else {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
@@ -141,10 +148,13 @@ function editorCellClick(e) {
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     } else {
       var existing = editor.grid[idx];
-      if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
+      var newCycle = editor.activeType === 'chameleon' ? editorChamCycleFor(editor.activeColor) : null;
+      if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType &&
+          (!newCycle || JSON.stringify(existing.cycle) === JSON.stringify(newCycle))) {
         editor.grid[idx] = null;
       } else {
         editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
+        if (newCycle) editor.grid[idx].cycle = newCycle;
       }
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     }
@@ -285,7 +295,40 @@ function editorRenderToolbar() {
       colorRow.appendChild(cb);
     }
     el.appendChild(colorRow);
+    if (editor.activeType === 'chameleon') editorRenderChamCycleRow(el);
   }
+}
+
+// Chameleon: pick which colors the box cycles through (painted color is always first)
+function editorRenderChamCycleRow(el) {
+  var row = document.createElement('div');
+  row.className = 'ed-color-row';
+  row.innerHTML = '<span style="font-size:11px;color:#9C8A70;margin-right:4px">\uD83E\uDD8E Color cycle:</span>';
+  for (var ci = 0; ci < NUM_COLORS; ci++) {
+    var on = editor.chamCycle.indexOf(ci) >= 0 || ci === editor.activeColor;
+    var cb = document.createElement('button');
+    cb.className = 'ed-tool' + (on ? ' active' : '');
+    cb.style.background = COLORS[ci].fill;
+    cb.style.opacity = on ? '1' : '0.3';
+    cb.style.width = '24px'; cb.style.height = '24px';
+    cb.innerHTML = on ? '\u2713' : '';
+    cb.title = (ci === editor.activeColor ? 'Starting color (always in cycle)' : 'Toggle ' + CLR_NAMES[ci]);
+    cb.setAttribute('data-ci', ci);
+    cb.addEventListener('click', function () {
+      var c = parseInt(this.getAttribute('data-ci'));
+      if (c === editor.activeColor) return;
+      var k = editor.chamCycle.indexOf(c);
+      if (k >= 0) editor.chamCycle.splice(k, 1); else editor.chamCycle.push(c);
+      editor.chamCycle.sort(function (a, b) { return a - b; });
+      editorRenderToolbar();
+    });
+    row.appendChild(cb);
+  }
+  el.appendChild(row);
+  var hint = document.createElement('div');
+  hint.className = 'ed-color-row';
+  hint.innerHTML = '<span style="font-size:10px;color:#9C8A70">Paint color = starting color. Box shifts to the next color each time another box is tapped.</span>';
+  el.appendChild(hint);
 }
 
 // ── Tunnel contents editor panel ──
@@ -405,7 +448,9 @@ function editorRenderTunnelPanel() {
       var typeEl = document.getElementById('ed-tunnel-add-type');
       var type = typeEl ? typeEl.value : 'default';
       if (editor.selectedTunnel >= 0 && editor.grid[editor.selectedTunnel]) {
-        editor.grid[editor.selectedTunnel].contents.push({ ci: ci4, type: type });
+        var item = { ci: ci4, type: type };
+        if (type === 'chameleon') item.cycle = editorChamCycleFor(ci4);
+        editor.grid[editor.selectedTunnel].contents.push(item);
         editorRenderGrid();
         editorRenderTunnelPanel();
         editorUpdateStats();

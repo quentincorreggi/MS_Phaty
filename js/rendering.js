@@ -206,10 +206,13 @@ function drawStock() {
     ctx.save();
     ctx.translate(b.x + L.bw / 2 + ox, b.y + L.bh / 2); ctx.scale(ts, ts);
 
+    var drawState = 'open';
     if (b.revealT > 0) {
+      drawState = 'reveal';
       var phase = 1 - b.revealT;
       bt.drawReveal(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, phase, b.remaining, tick);
     } else if (!b.revealed) {
+      drawState = 'closed';
       var idleWobble = Math.sin(tick * 0.02 + b.idlePhase) * 0.006;
       ctx.rotate(idleWobble);
       bt.drawClosed(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b.ci, S, tick, b.idlePhase);
@@ -238,6 +241,8 @@ function drawStock() {
         drawBoxLip(b.ci);
       }
     }
+
+    if (bt.drawOverlay) bt.drawOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, b, S, tick, drawState);
 
     if (b.iceHP > 0) {
       var iceType = getBoxType('ice');

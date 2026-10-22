@@ -55,7 +55,7 @@ function initGame() {
       } else if (typeof cell === 'number') {
         if (cell >= 0) boxSlots[i] = { ci: cell, boxType: 'default' };
       } else if (typeof cell === 'object' && cell.ci >= 0) {
-        boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default' };
+        boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default', cycle: cell.cycle };
       }
     }
   }
@@ -101,7 +101,7 @@ function initGame() {
       stock.push({
         isTunnel: true, isWall: false,
         tunnelDir: tSlot.dir,
-        tunnelContents: tSlot.contents.map(function (item) { return { ci: item.ci, type: item.type || 'default' }; }),
+        tunnelContents: tSlot.contents.map(function (item) { return { ci: item.ci, type: item.type || 'default', cycle: item.cycle }; }),
         tunnelTotal: tSlot.contents.length,
         tunnelSpawning: false,
         tunnelCooldown: 60,
@@ -139,6 +139,7 @@ function initGame() {
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
+      if (slot.boxType === 'chameleon') chameleonInitBox(stock[stock.length - 1], slot.cycle);
     }
   }
 
@@ -336,9 +337,11 @@ function handleTap(px, py) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
       b.popT = 1;
       sfx.pop();
+      if (b.boxType === 'chameleon') chameleonLock(b);
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      chameleonShiftAll(i);
       return;
     }
   }
@@ -475,6 +478,7 @@ function update() {
     if (b.emptyT > 0) b.emptyT = Math.max(0, b.emptyT - 0.025);
     if (b.iceCrackT > 0) b.iceCrackT = Math.max(0, b.iceCrackT - 0.03);
     if (b.iceShatterT > 0) b.iceShatterT = Math.max(0, b.iceShatterT - 0.025);
+    chameleonTick(b);
     var th = (i === hoverIdx && !b.used && isBoxTappable(i)) ? 1 : 0;
     b.hoverT += (th - b.hoverT) * 0.12;
   }

@@ -204,6 +204,7 @@ function trySpawnFromTunnels() {
       emptyT: 0,
       idlePhase: Math.random() * Math.PI * 2
     };
+    if (nextBox.type === 'chameleon') chameleonInitBox(stock[exitIdx], nextBox.cycle);
 
     // Particles from tunnel toward exit tile
     var tx = s.x + L.bw / 2, ty = s.y + L.bh / 2;
