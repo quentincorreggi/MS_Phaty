@@ -24,6 +24,43 @@ var CHAM_SHIFT_SPIN = 0.22;       // extra spin during a color shift
 var CHAM_ORDER = [0, 3, 2, 1, 4]; // pink(Red) → yellow → green → blue → purple
 var CHAM_MIN = 2, CHAM_MAX = 5;
 
+// Look of a chameleon that can't be tapped yet (switchable in the ⚙ settings panel):
+//   'lid'  = closed box in full color with a lid, no lock icon (default)
+//   'fade' = v1 look: greyed-out box with lock icon, faded frame
+var CHAM_CLOSED_STYLE = 'lid';
+try { if (localStorage.getItem('chamClosedStyle') === 'fade') CHAM_CLOSED_STYLE = 'fade'; } catch (e) {}
+
+function setChameleonClosedStyle(style) {
+  CHAM_CLOSED_STYLE = style === 'fade' ? 'fade' : 'lid';
+  try { localStorage.setItem('chamClosedStyle', CHAM_CLOSED_STYLE); } catch (e) {}
+}
+
+// Closed lid in full color covering the box (box-local coords)
+function drawChameleonLid(ctx, x, y, w, h, ci, S, alpha, lift) {
+  var c = COLORS[ci];
+  var inset = w * 0.17;
+  var ly = y + inset - (lift || 0);
+  ctx.save();
+  if (alpha !== undefined) ctx.globalAlpha *= alpha;
+  ctx.shadowColor = 'rgba(0,0,0,0.25)'; ctx.shadowBlur = 3 * S; ctx.shadowOffsetY = 1.5 * S;
+  var grad = ctx.createLinearGradient(x, ly, x, ly + h - inset * 2);
+  grad.addColorStop(0, c.light); grad.addColorStop(0.55, c.fill); grad.addColorStop(1, c.dark);
+  ctx.fillStyle = grad;
+  rRect(x + inset, ly, w - inset * 2, h - inset * 2, 4 * S); ctx.fill();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  ctx.strokeStyle = c.dark; ctx.lineWidth = 1 * S;
+  rRect(x + inset, ly, w - inset * 2, h - inset * 2, 4 * S); ctx.stroke();
+  // gloss + handle
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  rRect(x + inset + 3 * S, ly + 2 * S, w - inset * 2 - 6 * S, (h - inset * 2) * 0.22, 3 * S); ctx.fill();
+  var hw = w * 0.26, hh = h * 0.07;
+  ctx.fillStyle = c.dark;
+  rRect(x + w / 2 - hw / 2, ly + (h - inset * 2) / 2 - hh / 2, hw, hh, hh / 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  rRect(x + w / 2 - hw / 2 + 1 * S, ly + (h - inset * 2) / 2 - hh / 2, hw - 2 * S, hh * 0.4, hh / 4); ctx.fill();
+  ctx.restore();
+}
+
 function isChameleonColor(ci) { return CHAM_ORDER.indexOf(ci) >= 0; }
 
 function chameleonOrderNames() {
@@ -196,30 +233,43 @@ registerBoxType('chameleon', {
   editorColor: '#7A5BD8',
 
   drawClosed: function (ctx, x, y, w, h, ci, S, tick, idlePhase) {
-    // Same greyed look as the default closed box (with lock icon)
-    getBoxType('default').drawClosed(ctx, x, y, w, h, ci, S, tick, idlePhase);
+    if (CHAM_CLOSED_STYLE === 'fade') {
+      // v1: same greyed look as the default closed box (with lock icon)
+      getBoxType('default').drawClosed(ctx, x, y, w, h, ci, S, tick, idlePhase);
+      return;
+    }
+    drawBox(x, y, w, h, ci);
+    drawChameleonLid(ctx, x, y, w, h, ci, S);
   },
 
   drawReveal: function (ctx, x, y, w, h, ci, S, phase, remaining, tick) {
-    getBoxType('default').drawReveal(ctx, x, y, w, h, ci, S, phase, remaining, tick);
+    if (CHAM_CLOSED_STYLE === 'fade') {
+      getBoxType('default').drawReveal(ctx, x, y, w, h, ci, S, phase, remaining, tick);
+      return;
+    }
+    // Lid pops up and fades away, revealing the marbles
+    drawBox(x, y, w, h, ci);
+    if (remaining > 0) { drawBoxMarbles(ci, remaining); drawBoxLip(ci); }
+    if (phase < 1) drawChameleonLid(ctx, x, y, w, h, ci, S, 1 - phase, phase * h * 0.5);
   },
 
   // Drawn by drawStock on top of the box, in box-local coords (centered).
   drawOverlay: function (ctx, x, y, w, h, b, S, tick, state) {
     if (!b.isCham) return;
     // Color wipe: old color shrinks away in a circle, revealing the new one
-    if (b.chamShiftT > 0 && state === 'open') {
+    if (b.chamShiftT > 0 && (state === 'open' || (state === 'closed' && CHAM_CLOSED_STYLE === 'lid'))) {
       var t = b.chamShiftT;
       ctx.save();
       ctx.beginPath();
       ctx.arc(x + w / 2, y + h / 2, Math.max(0.01, t * t * w * 0.75), 0, Math.PI * 2);
       ctx.clip();
       drawBox(x, y, w, h, b.chamPrevCi);
-      if (b.remaining > 0) { drawBoxMarbles(b.chamPrevCi, b.remaining); drawBoxLip(b.chamPrevCi); }
+      if (state === 'closed') drawChameleonLid(ctx, x, y, w, h, b.chamPrevCi, S);
+      else if (b.remaining > 0) { drawBoxMarbles(b.chamPrevCi, b.remaining); drawBoxLip(b.chamPrevCi); }
       ctx.restore();
     }
     // Ring shows the colors still in the cycle; fades out when the box settles
-    var ringAlpha = state === 'closed' ? 0.45 : 1;
+    var ringAlpha = (state === 'closed' && CHAM_CLOSED_STYLE === 'fade') ? 0.45 : 1;
     if (b.chamSettled) ringAlpha *= b.chamSettleT;
     if (ringAlpha > 0.01) drawChameleonRing(ctx, x, y, w, h, S, b.chamRing, b.chamAngle, ringAlpha);
     // Settle flash
