@@ -11,6 +11,12 @@ function toggleCal() {
 }
 document.getElementById('cal-toggle').addEventListener('click', toggleCal);
 
+var chamStyleEl = document.getElementById('cham-style');
+if (chamStyleEl && typeof setChameleonClosedStyle === 'function') {
+  chamStyleEl.value = CHAM_CLOSED_STYLE;
+  chamStyleEl.addEventListener('change', function () { setChameleonClosedStyle(this.value); });
+}
+
 document.getElementById('gravSlider').addEventListener('input', function () {
   PHYS_GRAVITY = parseInt(this.value) / 100;
   document.getElementById('gravVal').textContent = this.value;
