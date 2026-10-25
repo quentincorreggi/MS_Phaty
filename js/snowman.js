@@ -220,12 +220,8 @@ function finishSnowmanLeave(idx) {
 
 // ── Drawing ──
 
-function snowBlanketPath(x, y, w, h, r) {
-  rRect(x, y, w, h, r);
-}
-
-// Draws every zone: frost outlines on melted cells, the continuous
-// snow blanket over snowy cells (and under the snowman), melting
+// Draws every zone: frost outlines on melted cells, a snow block
+// over each snowy cell (each box keeps its own outline), melting
 // cells sliding off, then the snowmen on top.
 function drawSnowLayer() {
   var pad = L.bg / 2 + 1 * S;
@@ -236,10 +232,9 @@ function drawSnowLayer() {
     var sm = sb.sm;
     var fade = sm.leaving ? Math.max(0, 1 - sm.leaveT / SNOWMAN_POOF_AT) : 1;
 
-    // Cells in the blanket: intact snowy cells + the snowman cell
+    // Intact snowy cells
     var inSet = {};
-    var cells = [i];
-    inSet[i] = true;
+    var cells = [];
     for (var z = 0; z < sm.zone.length; z++) {
       if (stock[sm.zone[z]].snowOf === i) { cells.push(sm.zone[z]); inSet[sm.zone[z]] = true; }
     }
@@ -267,58 +262,45 @@ function drawSnowLayer() {
 
     if (fade <= 0) { drawSnowman(sb, i); continue; }
 
-    // Blanket: shadow pass, body pass, then bridges across gaps
+    // One snow block per snowy cell, each with its own outline
     ctx.save();
     ctx.globalAlpha = fade;
-    for (var pass = 0; pass < 2; pass++) {
-      ctx.fillStyle = pass === 0 ? 'rgba(90,120,160,0.22)' : '#F7FBFF';
-      var oy = pass === 0 ? 3 * S : 0;
-      for (var c1 = 0; c1 < cells.length; c1++) {
-        var cb = stock[cells[c1]];
-        var ox = cb.shakeT > 0 ? Math.sin(cb.shakeT * 28) * 5 * S * cb.shakeT : 0;
-        snowBlanketPath(cb.x - pad + ox, cb.y - pad + oy, L.bw + pad * 2, L.bh + pad * 2, rad);
-        ctx.fill();
-        var nb = snowNeighbors(cells[c1], L.cols, L.rows);
-        for (var n = 0; n < nb.length; n++) {
-          if (!inSet[nb[n]] || nb[n] < cells[c1]) continue;
-          var o = stock[nb[n]];
-          var x0 = Math.min(cb.x, o.x), y0 = Math.min(cb.y, o.y);
-          var x1 = Math.max(cb.x, o.x) + L.bw, y1 = Math.max(cb.y, o.y) + L.bh;
-          if (o.y === cb.y) ctx.fillRect(x0 + L.bw * 0.5, y0 - pad + oy + rad * 0.3, x1 - x0 - L.bw, y1 - y0 + pad * 2 - rad * 0.6);
-          else ctx.fillRect(x0 - pad + rad * 0.3, y0 + L.bh * 0.5 + oy, x1 - x0 + pad * 2 - rad * 0.6, y1 - y0 - L.bh);
-        }
-      }
-    }
-    // Soft blue shading on lower edges + bumpy highlights on top edges
-    for (var c2 = 0; c2 < cells.length; c2++) {
-      var cc = stock[cells[c2]];
-      var row = Math.floor(cells[c2] / L.cols);
-      var below = cells[c2] + L.cols, above = cells[c2] - L.cols;
-      var ox2 = cc.shakeT > 0 ? Math.sin(cc.shakeT * 28) * 5 * S * cc.shakeT : 0;
-      if (row === L.rows - 1 || !inSet[below]) {
-        ctx.fillStyle = 'rgba(170,205,240,0.45)';
+    for (var c1 = 0; c1 < cells.length; c1++) {
+      var cb = stock[cells[c1]];
+      var ox = cb.shakeT > 0 ? Math.sin(cb.shakeT * 28) * 5 * S * cb.shakeT : 0;
+      var bx = cb.x + ox, by = cb.y;
+      // drop shadow
+      ctx.fillStyle = 'rgba(90,120,160,0.25)';
+      rRect(bx, by + 2.5 * S, L.bw, L.bh, 6 * S); ctx.fill();
+      // body
+      var g = ctx.createLinearGradient(bx, by, bx, by + L.bh);
+      g.addColorStop(0, '#FFFFFF'); g.addColorStop(0.7, '#F1F7FD'); g.addColorStop(1, '#D8E8F6');
+      ctx.fillStyle = g;
+      rRect(bx, by, L.bw, L.bh, 6 * S); ctx.fill();
+      // snow cap bumps hanging over the top edge
+      ctx.fillStyle = '#FFFFFF';
+      for (var bmp = 0; bmp < 3; bmp++) {
         ctx.beginPath();
-        ctx.ellipse(cc.x + L.bw / 2 + ox2, cc.y + L.bh + pad - 4 * S, L.bw * 0.48, 4 * S, 0, 0, Math.PI * 2);
+        ctx.arc(bx + L.bw * (0.2 + bmp * 0.3), by + 2 * S, L.bw * 0.12, Math.PI, Math.PI * 2);
         ctx.fill();
       }
-      if (row === 0 || !inSet[above]) {
-        ctx.fillStyle = '#FFFFFF';
-        for (var bmp = 0; bmp < 3; bmp++) {
-          ctx.beginPath();
-          ctx.arc(cc.x + L.bw * (0.2 + bmp * 0.3) + ox2, cc.y - pad + 3 * S, L.bw * 0.13, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-      if (cells[c2] !== i) {
-        // sparkles + a faint snowflake so it reads as snow, never as a box
-        var tw = 0.5 + 0.5 * Math.sin(tick * 0.06 + cells[c2] * 1.7);
-        ctx.fillStyle = 'rgba(160,200,240,' + (0.35 + 0.25 * tw) + ')';
-        drawSnowflake(cc.x + L.bw / 2 + ox2, cc.y + L.bh / 2, L.bw * 0.16, 1.6 * S);
-        ctx.fillStyle = 'rgba(255,255,255,' + tw + ')';
-        ctx.beginPath(); ctx.arc(cc.x + L.bw * 0.25 + ox2, cc.y + L.bh * 0.3, 1.6 * S, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(cc.x + L.bw * 0.78 + ox2, cc.y + L.bh * 0.72, 1.3 * S, 0, Math.PI * 2); ctx.fill();
-      }
+      // outline so every box reads on its own
+      ctx.strokeStyle = 'rgba(120,160,205,0.9)';
+      ctx.lineWidth = 1.8 * S;
+      rRect(bx, by, L.bw, L.bh, 6 * S); ctx.stroke();
+      // faint snowflake + sparkles
+      var tw = 0.5 + 0.5 * Math.sin(tick * 0.06 + cells[c1] * 1.7);
+      ctx.fillStyle = 'rgba(160,200,240,' + (0.35 + 0.25 * tw) + ')';
+      drawSnowflake(bx + L.bw / 2, by + L.bh / 2, L.bw * 0.16, 1.6 * S);
+      ctx.fillStyle = 'rgba(255,255,255,' + tw + ')';
+      ctx.beginPath(); ctx.arc(bx + L.bw * 0.25, by + L.bh * 0.3, 1.6 * S, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(bx + L.bw * 0.78, by + L.bh * 0.72, 1.3 * S, 0, Math.PI * 2); ctx.fill();
     }
+    // small snow mound under the snowman
+    ctx.fillStyle = '#F4F9FF';
+    ctx.beginPath();
+    ctx.ellipse(sb.x + L.bw / 2, sb.y + L.bh * 0.9, L.bw * 0.42, L.bh * 0.12, 0, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
 
     // Melting cells: snow slides off and fades
@@ -331,7 +313,7 @@ function drawSnowLayer() {
       ctx.fillStyle = '#F7FBFF';
       var slide = (1 - t) * L.bh * 0.45;
       var sq = 0.6 + 0.4 * t;
-      snowBlanketPath(mc.x - pad * t, mc.y + slide + (1 - sq) * L.bh, L.bw + pad * 2 * t, L.bh * sq, rad);
+      rRect(mc.x, mc.y + slide + (1 - sq) * L.bh, L.bw, L.bh * sq, 6 * S);
       ctx.fill();
       ctx.restore();
     }
