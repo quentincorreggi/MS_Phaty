@@ -296,11 +296,18 @@ function drawSnowLayer() {
       ctx.beginPath(); ctx.arc(bx + L.bw * 0.25, by + L.bh * 0.3, 1.6 * S, 0, Math.PI * 2); ctx.fill();
       ctx.beginPath(); ctx.arc(bx + L.bw * 0.78, by + L.bh * 0.72, 1.3 * S, 0, Math.PI * 2); ctx.fill();
     }
-    // small snow mound under the snowman
-    ctx.fillStyle = '#F4F9FF';
-    ctx.beginPath();
-    ctx.ellipse(sb.x + L.bw / 2, sb.y + L.bh * 0.9, L.bw * 0.42, L.bh * 0.12, 0, 0, Math.PI * 2);
-    ctx.fill();
+    // square snow block filling the snowman's own cell (never spills over)
+    var sox = sb.shakeT > 0 ? Math.sin(sb.shakeT * 28) * 4 * S * sb.shakeT : 0;
+    var sx = sb.x + sox, sy = sb.y;
+    ctx.fillStyle = 'rgba(90,120,160,0.25)';
+    rRect(sx, sy + 2.5 * S, L.bw, L.bh, 6 * S); ctx.fill();
+    var sg = ctx.createLinearGradient(sx, sy, sx, sy + L.bh);
+    sg.addColorStop(0, '#FFFFFF'); sg.addColorStop(0.7, '#F1F7FD'); sg.addColorStop(1, '#D8E8F6');
+    ctx.fillStyle = sg;
+    rRect(sx, sy, L.bw, L.bh, 6 * S); ctx.fill();
+    ctx.strokeStyle = 'rgba(120,160,205,0.9)';
+    ctx.lineWidth = 1.8 * S;
+    rRect(sx, sy, L.bw, L.bh, 6 * S); ctx.stroke();
     ctx.restore();
 
     // Melting cells: snow slides off and fades
@@ -361,8 +368,8 @@ function drawSnowman(b, idx) {
   var bob = Math.sin(tick * 0.05 + b.idlePhase) * 0.8 * S;
 
   var cx = b.x + w / 2 + shake + shiver;
-  var base = b.y + h * 0.95 - hop;
-  var r1 = w * 0.23, r2 = w * 0.17, r3 = w * 0.135;
+  var base = b.y + h * 0.92 - hop;
+  var r1 = w * 0.2, r2 = w * 0.15, r3 = w * 0.12;
   var cy1 = base - r1;
   var cy2 = cy1 - r1 * 0.82 - r2 * 0.7 + bob * 0.4;
   var cy3 = cy2 - r2 * 0.8 - r3 * 0.75 + bob;
