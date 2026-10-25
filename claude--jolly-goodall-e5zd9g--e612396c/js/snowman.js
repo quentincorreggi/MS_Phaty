@@ -335,18 +335,18 @@ function drawSnowflake(x, y, r, lw) {
 function drawSnowman(b, idx) {
   var sm = b.sm;
   var w = L.bw, h = L.bh;
-  var scale = 1, alpha = 1, hop = 0, waveA = 0;
+  var scale = 1, alpha = 1, hop = 0, tilt = 0;
   if (sm.leaving) {
     var t = sm.leaveT;
     if (t < SNOWMAN_POOF_AT) {
+      // happy goodbye: little hops with a side-to-side wiggle
       var wt = t / SNOWMAN_POOF_AT;
       hop = Math.abs(Math.sin(wt * Math.PI * 3)) * 4 * S;
-      waveA = 1;
+      tilt = Math.sin(wt * Math.PI * 6) * 0.12;
     } else {
       var pt = (t - SNOWMAN_POOF_AT) / (1 - SNOWMAN_POOF_AT);
       scale = Math.max(0, 1 - pt * 1.6) * (1 + pt * 0.4);
       alpha = Math.max(0, 1 - pt * 1.8);
-      waveA = 1;
     }
   }
   if (alpha <= 0) return;
@@ -355,119 +355,101 @@ function drawSnowman(b, idx) {
   var shiver = sm.shiverT > 0 ? Math.sin(tick * 1.3) * 1.8 * S * sm.shiverT : 0;
   var bob = Math.sin(tick * 0.05 + b.idlePhase) * 0.8 * S;
 
+  // Two soft balls that stay inside the cell: big body, big head overlapping it
   var cx = b.x + w / 2 + shake + shiver;
-  var top = b.y - hop;
-  var base = top + h;
-  var r3 = w * 0.17;
-  var cy3 = top + h * 0.36 + bob;
+  var base = b.y + h * 0.98 - hop;
+  var rb = w * 0.37, rh = w * 0.3;
+  var cyB = base - rb;
+  var cyH = cyB - rb * 0.62 - rh * 0.55 + bob;
 
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.translate(cx, base); ctx.scale(scale, scale); ctx.translate(-cx, -base);
+  ctx.translate(cx, base); ctx.rotate(tilt); ctx.scale(scale, scale); ctx.translate(-cx, -base);
 
-  // body: a rounded square of packed snow that fills his whole cell
-  var bx = cx - w / 2, cr = w * 0.24;
-  ctx.fillStyle = 'rgba(90,120,160,0.25)';
-  rRect(bx, top + 2.5 * S, w, h, cr); ctx.fill();
-  var bg = ctx.createRadialGradient(bx + w * 0.32, top + h * 0.3, w * 0.08, cx, top + h * 0.55, w * 0.78);
-  bg.addColorStop(0, '#FFFFFF'); bg.addColorStop(0.6, '#F0F6FC'); bg.addColorStop(1, '#C9DCEE');
-  ctx.fillStyle = bg;
-  rRect(bx, top, w, h, cr); ctx.fill();
-  ctx.strokeStyle = 'rgba(120,150,190,0.55)'; ctx.lineWidth = 1.2 * S;
-  rRect(bx, top, w, h, cr); ctx.stroke();
+  // ground shadow
+  ctx.fillStyle = 'rgba(80,90,140,0.2)';
+  ctx.beginPath(); ctx.ellipse(cx, base - 1.5 * S, rb * 0.95, rb * 0.16, 0, 0, Math.PI * 2); ctx.fill();
 
-  // arms (twigs) poking out of the body
-  ctx.strokeStyle = '#7A5230'; ctx.lineWidth = 2.2 * S; ctx.lineCap = 'round';
-  var lA = Math.PI + 0.5 + Math.sin(tick * 0.04 + b.idlePhase) * 0.06;
-  var rA = waveA > 0 ? -1.1 + Math.sin(tick * 0.35) * 0.45 : -0.5 - Math.sin(tick * 0.04 + b.idlePhase) * 0.06;
-  drawTwigArm(cx - w * 0.3, top + h * 0.64, lA, w * 0.14);
-  drawTwigArm(cx + w * 0.3, top + h * 0.64, rA, w * 0.14);
+  drawSnowBall(cx, cyB, rb);
+  drawSnowBall(cx, cyH, rh);
 
-  // head
-  drawSnowBall(cx, cy3, r3);
-
-  // coal buttons
-  ctx.fillStyle = '#2E2A2A';
-  for (var k = 0; k < 2; k++) { ctx.beginPath(); ctx.arc(cx, top + h * (0.68 + k * 0.15), 1.8 * S, 0, Math.PI * 2); ctx.fill(); }
-
-  // scarf
-  ctx.fillStyle = '#E2453C';
-  ctx.beginPath(); ctx.ellipse(cx, cy3 + r3 * 0.88, r3 * 1.05, r3 * 0.3, 0, 0, Math.PI * 2); ctx.fill();
-  var tailSwing = Math.sin(tick * 0.08) * 0.08 + sm.shiverT * Math.sin(tick * 0.9) * 0.15;
+  // orange scarf around the neck + hanging tail on his left side (viewer's right)
+  var scarfY = cyH + rh * 0.78;
+  var tailSwing = Math.sin(tick * 0.08) * 0.06 + sm.shiverT * Math.sin(tick * 0.9) * 0.15;
   ctx.save();
-  ctx.translate(cx + r3 * 0.45, cy3 + r3 * 0.95); ctx.rotate(0.15 + tailSwing);
-  rRect(-r3 * 0.18, 0, r3 * 0.38, r3 * 0.95, 2 * S); ctx.fill();
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillRect(-r3 * 0.18, r3 * 0.3, r3 * 0.38, r3 * 0.12);
+  ctx.translate(cx + rh * 0.55, scarfY); ctx.rotate(-0.25 + tailSwing);
+  var tg = ctx.createLinearGradient(0, 0, rh * 0.5, 0);
+  tg.addColorStop(0, '#E8601C'); tg.addColorStop(1, '#FF8A3A');
+  ctx.fillStyle = tg;
+  rRect(-rh * 0.05, -rh * 0.1, rh * 0.5, rh * 1.05, rh * 0.14); ctx.fill();
   ctx.restore();
-
-  // face — eyes and nose follow lookX / lookY
-  var lx = sm.lookX * r3 * 0.25, ly = sm.lookY * r3 * 0.18;
-  var blink = ((tick + Math.floor(b.idlePhase * 50)) % 200) < 6;
-  ctx.fillStyle = '#2E2A2A';
-  for (var e = -1; e <= 1; e += 2) {
-    ctx.beginPath();
-    if (blink) ctx.ellipse(cx + e * r3 * 0.36 + lx, cy3 - r3 * 0.18 + ly, 2 * S, 0.6 * S, 0, 0, Math.PI * 2);
-    else ctx.arc(cx + e * r3 * 0.36 + lx, cy3 - r3 * 0.18 + ly, 1.9 * S, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  // carrot nose
-  var nx = cx + lx * 1.2, ny = cy3 + r3 * 0.08 + ly;
-  var dir = sm.lookX < -0.15 ? -1 : 1;
-  ctx.fillStyle = '#FF8A2A';
+  var sg = ctx.createLinearGradient(cx, scarfY - rh * 0.3, cx, scarfY + rh * 0.3);
+  sg.addColorStop(0, '#FF9A4A'); sg.addColorStop(0.55, '#FF7A22'); sg.addColorStop(1, '#D85A14');
+  ctx.fillStyle = sg;
   ctx.beginPath();
-  ctx.moveTo(nx, ny - 2.2 * S); ctx.lineTo(nx + dir * r3 * 0.8, ny + 0.6 * S); ctx.lineTo(nx, ny + 2.2 * S);
+  ctx.moveTo(cx - rh * 1.02, scarfY - rh * 0.16);
+  ctx.quadraticCurveTo(cx, scarfY + rh * 0.12, cx + rh * 1.02, scarfY - rh * 0.16);
+  ctx.quadraticCurveTo(cx + rh * 1.08, scarfY + rh * 0.12, cx + rh * 0.95, scarfY + rh * 0.24);
+  ctx.quadraticCurveTo(cx, scarfY + rh * 0.55, cx - rh * 0.95, scarfY + rh * 0.24);
+  ctx.quadraticCurveTo(cx - rh * 1.08, scarfY + rh * 0.12, cx - rh * 1.02, scarfY - rh * 0.16);
   ctx.closePath(); ctx.fill();
-  // smile: grows as his zone shrinks
-  var sml = 0.2 + sm.smile * 0.8;
-  ctx.strokeStyle = '#2E2A2A'; ctx.lineWidth = 1.5 * S; ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(cx - r3 * 0.42 + lx, cy3 + r3 * 0.42 + ly);
-  ctx.quadraticCurveTo(cx + lx, cy3 + r3 * (0.42 + 0.4 * sml) + ly, cx + r3 * 0.42 + lx, cy3 + r3 * 0.42 + ly);
-  ctx.stroke();
-  if (sm.smile > 0.5) {
-    ctx.fillStyle = 'rgba(255,140,160,' + ((sm.smile - 0.5) * 0.9) + ')';
-    for (var ch = -1; ch <= 1; ch += 2) {
-      ctx.beginPath(); ctx.arc(cx + ch * r3 * 0.62 + lx, cy3 + r3 * 0.22 + ly, r3 * 0.16, 0, Math.PI * 2); ctx.fill();
+
+  // face — eyes, nose and mouth follow lookX / lookY
+  var lx = sm.lookX * rh * 0.2, ly = sm.lookY * rh * 0.12;
+  var blink = ((tick + Math.floor(b.idlePhase * 50)) % 200) < 6;
+  for (var e = -1; e <= 1; e += 2) {
+    var ex = cx + e * rh * 0.36 + lx, ey = cyH - rh * 0.12 + ly;
+    ctx.fillStyle = '#23202A';
+    ctx.beginPath();
+    if (blink) ctx.ellipse(ex, ey, rh * 0.15, rh * 0.04, 0, 0, Math.PI * 2);
+    else ctx.ellipse(ex, ey, rh * 0.13, rh * 0.16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (!blink) {
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.beginPath(); ctx.arc(ex - rh * 0.04, ey - rh * 0.06, rh * 0.045, 0, Math.PI * 2); ctx.fill();
     }
   }
-
-  // knitted hat
-  var hy = cy3 - r3 * 0.55;
-  ctx.fillStyle = '#E2453C';
+  // carrot nose, pointing slightly down toward where he looks
+  var nx = cx + lx * 1.1, ny = cyH + rh * 0.14 + ly;
+  var dir = sm.lookX < -0.15 ? -1 : 1;
+  ctx.save();
+  ctx.translate(nx, ny); ctx.scale(dir, 1); ctx.rotate(0.35);
+  var ng = ctx.createLinearGradient(0, -rh * 0.1, 0, rh * 0.1);
+  ng.addColorStop(0, '#FF9A3C'); ng.addColorStop(1, '#E8641A');
+  ctx.fillStyle = ng;
   ctx.beginPath();
-  ctx.moveTo(cx - r3 * 0.95, hy);
-  ctx.quadraticCurveTo(cx - r3 * 0.9, hy - r3 * 1.15, cx, hy - r3 * 1.05);
-  ctx.quadraticCurveTo(cx + r3 * 0.9, hy - r3 * 1.15, cx + r3 * 0.95, hy);
+  ctx.moveTo(-rh * 0.1, -rh * 0.11);
+  ctx.quadraticCurveTo(rh * 0.25, -rh * 0.07, rh * 0.36, 0);
+  ctx.quadraticCurveTo(rh * 0.25, rh * 0.07, -rh * 0.1, rh * 0.11);
+  ctx.quadraticCurveTo(-rh * 0.16, 0, -rh * 0.1, -rh * 0.11);
   ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#FFFFFF';
-  rRect(cx - r3 * 1.0, hy - r3 * 0.22, r3 * 2.0, r3 * 0.34, 3 * S); ctx.fill();
-  ctx.strokeStyle = 'rgba(160,30,30,0.45)'; ctx.lineWidth = 1 * S;
-  for (var st = -2; st <= 2; st++) {
-    ctx.beginPath(); ctx.moveTo(cx + st * r3 * 0.32, hy - r3 * 0.3); ctx.lineTo(cx + st * r3 * 0.32, hy - r3 * 0.9); ctx.stroke();
+  ctx.restore();
+  // coal-dot smile: curves more as his zone shrinks
+  var sml = 0.6 + sm.smile * 0.6;
+  ctx.fillStyle = '#23202A';
+  for (var d = -2; d <= 2; d++) {
+    var f = d / 2;
+    var mx = cx + f * rh * 0.5 + lx;
+    var my = cyH + rh * 0.4 + (1 - f * f) * rh * 0.16 * sml + ly;
+    ctx.beginPath(); ctx.arc(mx, my, rh * 0.07, 0, Math.PI * 2); ctx.fill();
   }
-  ctx.fillStyle = '#FFFFFF';
-  ctx.beginPath(); ctx.arc(cx, hy - r3 * 1.1, r3 * 0.24, 0, Math.PI * 2); ctx.fill();
+  if (sm.smile > 0.5) {
+    ctx.fillStyle = 'rgba(255,140,160,' + ((sm.smile - 0.5) * 0.8) + ')';
+    for (var ch = -1; ch <= 1; ch += 2) {
+      ctx.beginPath(); ctx.ellipse(cx + ch * rh * 0.62 + lx, cyH + rh * 0.2 + ly, rh * 0.13, rh * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+    }
+  }
 
   ctx.restore();
 }
 
 function drawSnowBall(x, y, r) {
-  var g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r);
-  g.addColorStop(0, '#FFFFFF'); g.addColorStop(0.75, '#F0F6FC'); g.addColorStop(1, '#C9DCEE');
+  var g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.45, r * 0.05, x, y, r * 1.05);
+  g.addColorStop(0, '#FFFFFF'); g.addColorStop(0.55, '#EEF1FA'); g.addColorStop(0.85, '#CBD3EE'); g.addColorStop(1, '#AEB8E2');
   ctx.fillStyle = g;
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = 'rgba(120,150,190,0.45)'; ctx.lineWidth = 1 * S;
-  ctx.stroke();
 }
 
-function drawTwigArm(x, y, ang, len) {
-  var ex = x + Math.cos(ang) * len, ey = y + Math.sin(ang) * len;
-  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(ex, ey); ctx.stroke();
-  var mx = x + Math.cos(ang) * len * 0.65, my = y + Math.sin(ang) * len * 0.65;
-  ctx.beginPath(); ctx.moveTo(mx, my);
-  ctx.lineTo(mx + Math.cos(ang - 0.7) * len * 0.3, my + Math.sin(ang - 0.7) * len * 0.3); ctx.stroke();
-}
 
 // ── Editor validation (works on the raw 7x7 level grid) ──
 // Returns a list of plain-language problems.
