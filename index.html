@@ -136,6 +136,18 @@
     transition:transform 0.35s cubic-bezier(.34,1.56,.64,1),opacity 0.3s}
   #ed-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
+  /* ═══ SNOWMAN EDITOR ═══ */
+  #ed-snowman-panel{display:none;background:rgba(74,159,255,0.07);border-radius:12px;padding:10px 12px;
+    border:1.5px solid rgba(74,159,255,0.25)}
+  .ed-snow-cap{position:absolute;inset:0;border-radius:4px;background:rgba(255,255,255,0.72);
+    display:flex;align-items:center;justify-content:center;color:#5BA3D9;font-size:14px;pointer-events:none}
+  .ed-snowman-under{position:absolute;bottom:1px;right:1px;width:11px;height:11px;border-radius:3px;
+    border:1px solid rgba(0,0,0,0.2);font-size:8px;line-height:9px;text-align:center;pointer-events:none}
+  .ed-snowman-tabs{display:flex;gap:5px;justify-content:center;flex-wrap:wrap}
+  .ed-snowman-tab{padding:4px 12px;border:2px solid;border-radius:8px;font-family:'Fredoka',sans-serif;
+    font-size:12px;font-weight:600;cursor:pointer;color:#5A4A38;background:rgba(255,255,255,0.6)}
+  .ed-snowman-tab.active{background:rgba(74,159,255,0.22);color:#2B6FCC}
+
   /* ═══ TUNNEL EDITOR ═══ */
   #ed-tunnel-panel{display:none;background:rgba(61,53,72,0.08);border-radius:12px;padding:10px 12px;
     border:1.5px solid rgba(106,96,112,0.25)}
@@ -232,6 +244,9 @@
     <div class="ed-section" id="ed-tunnel-panel">
       <!-- Tunnel contents editor — populated dynamically -->
     </div>
+    <div class="ed-section" id="ed-snowman-panel">
+      <!-- Snowman editor — populated dynamically -->
+    </div>
     <div class="ed-section">
       <div class="ed-section-title"><span class="icon">&#9881;</span> Settings</div>
       <div id="ed-settings-body"></div>
@@ -267,6 +282,7 @@
 <script src="js/physics.js"></script>
 <script src="js/tunnel.js"></script>
 <script src="js/wall.js"></script>
+<script src="js/snowman.js"></script>
 <script src="js/rendering.js"></script>
 <script src="js/editor.js"></script>
 <script src="js/game.js"></script>

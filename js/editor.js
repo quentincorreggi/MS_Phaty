@@ -2,6 +2,7 @@
 // editor.js — Level Editor (reads box types from registry)
 //             + Tunnel placement, orientation, contents editing
 //             + Wall placement
+//             + Snowman placement + snow painting
 // ============================================================
 
 var editor = {
@@ -17,6 +18,9 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  snowMode: false,      // true when placing snowmen / painting snow
+  snowTool: 'snowman',  // 'snowman' = place snowman, 'snow' = paint snow
+  selectedSnowman: -1,  // grid index of the snowman whose snow is being painted
   visible: false
 };
 
@@ -34,6 +38,9 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.snowMode = false;
+  editor.snowTool = 'snowman';
+  editor.selectedSnowman = -1;
 }
 
 function showEditor(fresh) {
@@ -60,6 +67,16 @@ function editorBuildUI() {
   editorRenderSettings();
   editorUpdateStats();
   editorRenderTunnelPanel();
+  editorRenderSnowmanPanel();
+}
+
+// Refresh everything that depends on the grid
+function editorRefresh() {
+  editorCleanSnow();
+  editorRenderGrid();
+  editorUpdateStats();
+  editorRenderTunnelPanel();
+  editorRenderSnowmanPanel();
 }
 
 // ── Grid ──
@@ -85,12 +102,28 @@ function editorRenderGrid() {
       var count = v.contents ? v.contents.length : 0;
       cell.innerHTML = '<span class="ed-cell-dot" style="color:#FFD080;font-size:13px">' + arrow +
         '</span><span class="ed-tunnel-badge">' + count + '</span>';
+    } else if (v && v.snowman) {
+      // Snowman cell
+      var tint = editorSnowmanTint(i);
+      var isSel = (editor.selectedSnowman === i);
+      cell.style.background = 'linear-gradient(135deg,#FFFFFF,' + tint + ')';
+      cell.style.borderColor = isSel ? '#2B6FCC' : tint;
+      if (isSel) cell.style.boxShadow = '0 0 0 2px rgba(43,111,204,0.45)';
+      var underDot = v.under
+        ? '<span class="ed-snowman-under" style="background:' + COLORS[v.under.ci].fill + '"></span>'
+        : '<span class="ed-snowman-under" style="background:#fff;color:#9C8A70">&empty;</span>';
+      cell.innerHTML = '<span style="font-size:18px;line-height:1;pointer-events:none">&#9731;</span>' + underDot;
     } else if (v && v.ci >= 0) {
       var bt = getBoxType(v.type);
       var st = bt.editorCellStyle(v.ci);
       cell.style.background = st.background;
       cell.style.borderColor = st.borderColor;
       cell.innerHTML = bt.editorCellHTML(v.ci);
+      if (v.snow >= 0 && editor.grid[v.snow] && editor.grid[v.snow].snowman) {
+        var sTint = editorSnowmanTint(v.snow);
+        cell.style.borderColor = sTint;
+        cell.innerHTML += '<span class="ed-snow-cap" style="box-shadow:inset 0 0 0 2px ' + sTint + '">&#10052;</span>';
+      }
     } else {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
@@ -105,6 +138,11 @@ function editorRenderGrid() {
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
 
+  if (editor.snowMode) {
+    editorSnowClick(idx);
+    return;
+  }
+
   if (editor.wallMode) {
     // Wall placement mode
     var existing = editor.grid[idx];
@@ -116,9 +154,7 @@ function editorCellClick(e) {
       editor.grid[idx] = { wall: true };
     }
     if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
-    editorRenderGrid();
-    editorUpdateStats();
-    editorRenderTunnelPanel();
+    editorRefresh();
     return;
   }
 
@@ -145,13 +181,13 @@ function editorCellClick(e) {
         editor.grid[idx] = null;
       } else {
         editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
+        // Repainting a snowy box keeps its snow
+        if (existing && existing.snow >= 0) editor.grid[idx].snow = existing.snow;
       }
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     }
   }
-  editorRenderGrid();
-  editorUpdateStats();
-  editorRenderTunnelPanel();
+  editorRefresh();
 }
 
 function editorCellErase(e) {
@@ -159,9 +195,7 @@ function editorCellErase(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
   editor.grid[idx] = null;
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
-  editorRenderGrid();
-  editorUpdateStats();
-  editorRenderTunnelPanel();
+  editorRefresh();
 }
 
 // ── Toolbar: mode toggle + type selector + color/direction palette ──
@@ -178,15 +212,17 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.snowMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.snowMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
+      editorRenderSnowmanPanel();
     });
     typeRow.appendChild(tb);
   }
@@ -200,8 +236,10 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.snowMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
+    editorRenderSnowmanPanel();
   });
   typeRow.appendChild(wallBtn);
 
@@ -214,10 +252,29 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.snowMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
+    editorRenderSnowmanPanel();
   });
   typeRow.appendChild(tunnelBtn);
+
+  // Snowman mode button
+  var snowBtn = document.createElement('button');
+  snowBtn.className = 'ed-type-btn' + (editor.snowMode ? ' active' : '');
+  snowBtn.textContent = '\u2603 Snowman';
+  snowBtn.style.borderColor = editor.snowMode ? 'rgba(74,159,255,0.6)' : '';
+  snowBtn.style.color = editor.snowMode ? '#2B6FCC' : '';
+  snowBtn.addEventListener('click', function () {
+    editor.snowMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    if (editor.selectedSnowman < 0) editor.selectedSnowman = editorFirstSnowman();
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+    editorRenderSnowmanPanel();
+  });
+  typeRow.appendChild(snowBtn);
 
   el.appendChild(typeRow);
 
@@ -254,6 +311,29 @@ function editorRenderToolbar() {
       dirRow.appendChild(db);
     }
     el.appendChild(dirRow);
+  } else if (editor.snowMode) {
+    // Snowman mode: pick between placing a snowman and painting his snow
+    var snowRow = document.createElement('div');
+    snowRow.className = 'ed-color-row';
+    var tools = [['snowman', '\u2603 Place Snowman'], ['snow', '\u2744 Paint Snow']];
+    for (var st = 0; st < tools.length; st++) {
+      var sb = document.createElement('button');
+      sb.className = 'ed-type-btn' + (editor.snowTool === tools[st][0] ? ' active' : '');
+      sb.textContent = tools[st][1];
+      sb.setAttribute('data-tool', tools[st][0]);
+      sb.addEventListener('click', function () {
+        editor.snowTool = this.getAttribute('data-tool');
+        editorRenderToolbar();
+      });
+      snowRow.appendChild(sb);
+    }
+    el.appendChild(snowRow);
+    var snowInfo = document.createElement('div');
+    snowInfo.className = 'ed-color-row';
+    snowInfo.innerHTML = '<span style="font-size:11px;color:#9C8A70">' + (editor.snowTool === 'snowman'
+      ? 'Tap a box or empty cell to put a snowman there (max ' + SNOWMEN_MAX + '). Tap a snowman to select him.'
+      : 'Tap boxes to cover / uncover them with the selected snowman\u2019s snow. Tap a snowman to switch.') + '</span>';
+    el.appendChild(snowInfo);
   } else if (editor.wallMode) {
     // Wall mode: just show info hint
     var wallInfo = document.createElement('div');
@@ -378,9 +458,7 @@ function editorRenderTunnelPanel() {
     dirBtns[d2].addEventListener('click', function () {
       if (editor.selectedTunnel >= 0 && editor.grid[editor.selectedTunnel]) {
         editor.grid[editor.selectedTunnel].dir = this.getAttribute('data-dir');
-        editorRenderGrid();
-        editorRenderTunnelPanel();
-        editorUpdateStats();
+        editorRefresh();
       }
     });
   }
@@ -391,9 +469,7 @@ function editorRenderTunnelPanel() {
       var cidx = parseInt(this.getAttribute('data-cidx'));
       if (editor.selectedTunnel >= 0 && editor.grid[editor.selectedTunnel]) {
         editor.grid[editor.selectedTunnel].contents.splice(cidx, 1);
-        editorRenderGrid();
-        editorRenderTunnelPanel();
-        editorUpdateStats();
+        editorRefresh();
       }
     });
   }
@@ -406,9 +482,7 @@ function editorRenderTunnelPanel() {
       var type = typeEl ? typeEl.value : 'default';
       if (editor.selectedTunnel >= 0 && editor.grid[editor.selectedTunnel]) {
         editor.grid[editor.selectedTunnel].contents.push({ ci: ci4, type: type });
-        editorRenderGrid();
-        editorRenderTunnelPanel();
-        editorUpdateStats();
+        editorRefresh();
       }
     });
   }
@@ -418,9 +492,7 @@ function editorRenderTunnelPanel() {
     clearBtn.addEventListener('click', function () {
       if (editor.selectedTunnel >= 0 && editor.grid[editor.selectedTunnel]) {
         editor.grid[editor.selectedTunnel].contents = [];
-        editorRenderGrid();
-        editorRenderTunnelPanel();
-        editorUpdateStats();
+        editorRefresh();
       }
     });
   }
@@ -436,13 +508,15 @@ function editorFillRandom() {
   var indices = []; for (var i = 0; i < 49; i++) indices.push(i);
   shuffle(indices);
   for (var i = 0; i < cl.length; i++) editor.grid[indices[i]] = { ci: cl[i], type: 'default' };
-  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+  editor.selectedSnowman = -1;
+  editorRefresh();
 }
 
 function editorClearAll() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
-  editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
+  editor.selectedSnowman = -1;
+  editorRefresh();
 }
 
 // ── Stats ──
@@ -453,6 +527,7 @@ function editorUpdateStats() {
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
   var wallCount = 0;
+  var snowmanCount = 0, snowCount = 0;
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
@@ -460,6 +535,15 @@ function editorUpdateStats() {
       wallCount++;
       continue;
     }
+    if (v.snowman) {
+      snowmanCount++;
+      if (v.under) {
+        counts[v.under.ci]++;
+        regularMrb[v.under.ci] += editor.mrbPerBox;
+      }
+      continue;
+    }
+    if (v.snow >= 0) snowCount++;
     if (v.tunnel) {
       tunnelCount++;
       if (v.contents) {
@@ -503,6 +587,9 @@ function editorUpdateStats() {
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
   }
+  if (snowmanCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#5BA3D9">' + snowmanCount + ' snowm' + (snowmanCount > 1 ? 'en' : 'an') + ' (' + snowCount + ' snowy)</span>';
+  }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
   }
@@ -527,6 +614,8 @@ function editorUpdateStats() {
     }
   }
   if (warn) html += '<span class="ed-stat-warn">' + warn + '</span>';
+  var snowWarn = validateSnowmen(editor.grid, 7, 7);
+  for (var sw = 0; sw < snowWarn.length; sw++) html += '<span class="ed-stat-warn">\u2603 ' + snowWarn[sw] + '</span>';
   el.innerHTML = html;
 }
 
@@ -567,7 +656,7 @@ function editorBuildLevel() {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
-    grid: editor.grid.slice()
+    grid: JSON.parse(JSON.stringify(editor.grid))
   };
 }
 
@@ -632,6 +721,7 @@ function editorImportJSON() {
       if (nameEl) nameEl.value = editor.name;
       if (descEl) descEl.value = editor.desc;
       editor.selectedTunnel = -1;
+      editor.selectedSnowman = -1;
       ta.style.display = 'none';
       editorBuildUI();
       editorShowToast('Imported!');
@@ -684,6 +774,144 @@ function editorSaveShowcase() {
     editorShowExportFallback(json);
     editorShowToast('Select all and copy the prototype.json');
   }
+}
+
+// ── Snowman editing ──
+function editorSnowmanList() {
+  var list = [];
+  for (var i = 0; i < 49; i++) if (editor.grid[i] && editor.grid[i].snowman) list.push(i);
+  return list;
+}
+
+function editorFirstSnowman() {
+  var list = editorSnowmanList();
+  return list.length ? list[0] : -1;
+}
+
+function editorSnowmanTint(idx) {
+  var list = editorSnowmanList();
+  var n = list.indexOf(idx);
+  return SNOW_ZONE_TINTS[(n < 0 ? 0 : n) % SNOW_ZONE_TINTS.length];
+}
+
+// Drop snow that belongs to a snowman who no longer exists
+function editorCleanSnow() {
+  for (var i = 0; i < 49; i++) {
+    var v = editor.grid[i];
+    if (v && v.snow !== undefined && !(editor.grid[v.snow] && editor.grid[v.snow].snowman)) {
+      editor.grid[i] = { ci: v.ci, type: v.type };
+    }
+  }
+  if (editor.selectedSnowman >= 0 && !(editor.grid[editor.selectedSnowman] && editor.grid[editor.selectedSnowman].snowman)) {
+    editor.selectedSnowman = editorFirstSnowman();
+  }
+}
+
+function editorSnowClick(idx) {
+  var cell = editor.grid[idx];
+  if (cell && cell.snowman) {
+    editor.selectedSnowman = idx;
+    editorRefresh();
+    return;
+  }
+  if (editor.snowTool === 'snowman') {
+    if (editorSnowmanList().length >= SNOWMEN_MAX) { editorShowToast('Max ' + SNOWMEN_MAX + ' snowmen per level'); return; }
+    if (cell && (cell.wall || cell.tunnel)) { editorShowToast('Snowmen go on a box or an empty cell'); return; }
+    // What's on the cell now is what he leaves behind
+    editor.grid[idx] = { snowman: true, under: (cell && cell.ci >= 0) ? { ci: cell.ci } : null };
+    if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
+    editor.selectedSnowman = idx;
+    editor.snowTool = 'snow';
+    editorRenderToolbar();
+    editorRefresh();
+    editorShowToast('Now tap boxes around him to cover them in snow');
+    return;
+  }
+  // Paint snow
+  if (editor.selectedSnowman < 0) { editorShowToast('Place a snowman first'); return; }
+  if (!cell || !(cell.ci >= 0)) { editorShowToast('Snow only goes on boxes \u2014 paint a box here first'); return; }
+  if (cell.snow === editor.selectedSnowman) {
+    editor.grid[idx] = { ci: cell.ci, type: cell.type };
+  } else {
+    editor.grid[idx] = { ci: cell.ci, type: cell.type, snow: editor.selectedSnowman };
+  }
+  editorRefresh();
+}
+
+function editorRenderSnowmanPanel() {
+  var container = document.getElementById('ed-snowman-panel');
+  if (!container) return;
+  var list = editorSnowmanList();
+  if (!editor.snowMode && list.length === 0) { container.style.display = 'none'; return; }
+  container.style.display = 'block';
+
+  var html = '<div class="ed-section-title"><span class="icon">&#9731;</span> Snowmen (' + list.length + '/' + SNOWMEN_MAX + ')</div>';
+  if (list.length === 0) {
+    html += '<span style="font-size:11px;color:#9C8A70;font-style:italic">No snowman yet \u2014 choose \u201cPlace Snowman\u201d and tap a cell</span>';
+    container.innerHTML = html;
+    return;
+  }
+  html += '<div class="ed-snowman-tabs">';
+  for (var n = 0; n < list.length; n++) {
+    var zc = 0;
+    for (var j = 0; j < 49; j++) if (editor.grid[j] && editor.grid[j].snow === list[n]) zc++;
+    var act = list[n] === editor.selectedSnowman ? ' active' : '';
+    html += '<button class="ed-snowman-tab' + act + '" data-sm="' + list[n] + '" style="border-color:' + SNOW_ZONE_TINTS[n % SNOW_ZONE_TINTS.length] + '">' +
+      '&#9731; ' + (n + 1) + ' <span style="opacity:0.7">(' + zc + ' snow)</span></button>';
+  }
+  html += '</div>';
+
+  var sel = editor.selectedSnowman;
+  var sm = sel >= 0 ? editor.grid[sel] : null;
+  if (sm && sm.snowman) {
+    html += '<div class="ed-section-title" style="margin-top:8px">When he leaves, his cell becomes\u2026</div>';
+    html += '<div class="ed-tunnel-dir-row">';
+    html += '<button class="ed-tunnel-dir-btn' + (sm.under ? ' active' : '') + '" data-under="box">&#128230; A box</button>';
+    html += '<button class="ed-tunnel-dir-btn' + (!sm.under ? ' active' : '') + '" data-under="empty">&empty; Empty</button>';
+    html += '</div>';
+    if (sm.under) {
+      html += '<div class="ed-tunnel-add-colors">';
+      for (var ci = 0; ci < NUM_COLORS; ci++) {
+        var on = sm.under.ci === ci;
+        html += '<button class="ed-tunnel-add-clr" data-uci="' + ci + '" style="background:' + COLORS[ci].fill +
+          (on ? ';border-color:#2B6FCC;box-shadow:0 0 0 2px rgba(43,111,204,0.4)' : '') + '" title="' + CLR_NAMES[ci] + '">' +
+          CLR_NAMES[ci][0].toUpperCase() + '</button>';
+      }
+      html += '</div>';
+    }
+    html += '<div style="text-align:center;margin-top:8px"><button class="ed-qbtn" id="ed-snowman-remove">Remove this snowman + his snow</button></div>';
+  }
+  container.innerHTML = html;
+
+  var tabs = container.querySelectorAll('.ed-snowman-tab');
+  for (var t = 0; t < tabs.length; t++) {
+    tabs[t].addEventListener('click', function () {
+      editor.selectedSnowman = parseInt(this.getAttribute('data-sm'));
+      editorRefresh();
+    });
+  }
+  var ub = container.querySelectorAll('[data-under]');
+  for (var u = 0; u < ub.length; u++) {
+    ub[u].addEventListener('click', function () {
+      var g = editor.grid[editor.selectedSnowman];
+      if (!g) return;
+      editor.grid[editor.selectedSnowman] = { snowman: true,
+        under: this.getAttribute('data-under') === 'box' ? { ci: g.under ? g.under.ci : 0 } : null };
+      editorRefresh();
+    });
+  }
+  var uc = container.querySelectorAll('[data-uci]');
+  for (var k = 0; k < uc.length; k++) {
+    uc[k].addEventListener('click', function () {
+      editor.grid[editor.selectedSnowman] = { snowman: true, under: { ci: parseInt(this.getAttribute('data-uci')) } };
+      editorRefresh();
+    });
+  }
+  var rm = document.getElementById('ed-snowman-remove');
+  if (rm) rm.addEventListener('click', function () {
+    editor.grid[editor.selectedSnowman] = null;
+    editorRefresh();
+  });
 }
 
 function editorSetName(val) { editor.name = val; }

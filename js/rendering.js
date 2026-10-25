@@ -171,6 +171,9 @@ function drawStock() {
       continue;
     }
 
+    // ── Snowman — drawn on top of the stock by drawSnowLayer ──
+    if (b.isSnowman) continue;
+
     // ── Wall ──
     if (b.isWall) {
       drawWallOnGrid(ctx, b.x, b.y, L.bw, L.bh, S, tick);
