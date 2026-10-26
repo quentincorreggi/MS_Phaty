@@ -1,0 +1,111 @@
+{
+  "name": "Snowman",
+  "description": "A snowman sits in the grid, surrounded by snowy cells that hide boxes. Playing a box melts every snowy cell next to it, so you choose which hidden boxes to uncover and when. When all his snow is gone, the snowman waves goodbye and leaves a box behind.",
+  "howToPlay": "Tap boxes as usual. Each box you play melts the snow on the cells right next to it (up, down, left, right). Uncover boxes in whatever order you like. Tapping snow or the snowman does nothing. Hit the middle column to melt both zones at once!",
+  "author": "Louis Reyniers",
+  "showcaseLevel": {
+    "name": "Custom Level",
+    "desc": "My custom level",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "ci": 0,
+        "type": "default",
+        "snow": 31
+      },
+      {
+        "ci": 0,
+        "type": "default",
+        "snow": 31
+      },
+      {
+        "ci": 0,
+        "type": "default",
+        "snow": 31
+      },
+      null,
+      null,
+      null,
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default",
+        "snow": 31
+      },
+      {
+        "snowman": true,
+        "under": null
+      },
+      {
+        "ci": 0,
+        "type": "default",
+        "snow": 31
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      null,
+      null,
+      null,
+      {
+        "ci": 0,
+        "type": "default",
+        "snow": 31
+      },
+      {
+        "ci": 0,
+        "type": "default",
+        "snow": 31
+      },
+      {
+        "ci": 0,
+        "type": "default",
+        "snow": 31
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      null,
+      null,
+      null
+    ]
+  }
+}
