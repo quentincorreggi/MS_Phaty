@@ -4,9 +4,9 @@
   "howToPlay": "Tap boxes as usual. Each box you play melts the snow on the cells right next to it (up, down, left, right). Uncover boxes in whatever order you like. Tapping snow or the snowman does nothing. Hit the middle column to melt both zones at once!",
   "author": "Louis Reyniers",
   "showcaseLevel": {
-    "name": "Snowman Showcase",
-    "desc": "Two snowmen, two snowy zones",
-    "mrbPerBox": 6,
+    "name": "Custom Level",
+    "desc": "My custom level",
+    "mrbPerBox": 9,
     "sortCap": 3,
     "lockButtons": 0,
     "grid": [
@@ -18,123 +18,59 @@
       null,
       null,
       null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
       {
-        "ci": 4,
+        "ci": 0,
+        "type": "default"
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "ci": 0,
         "type": "default",
-        "snow": 15
+        "snow": 31
       },
       {
-        "ci": 1,
+        "ci": 0,
         "type": "default",
-        "snow": 15
+        "snow": 31
       },
       {
-        "ci": 3,
+        "ci": 0,
+        "type": "default",
+        "snow": 31
+      },
+      null,
+      null,
+      null,
+      {
+        "ci": 0,
         "type": "default"
       },
       {
-        "ci": 5,
+        "ci": 0,
         "type": "default",
-        "snow": 19
+        "snow": 31
       },
-      {
-        "ci": 1,
-        "type": "default",
-        "snow": 19
-      },
-      null,
-      null,
       {
         "snowman": true,
-        "under": {
-          "ci": 0
-        }
-      },
-      {
-        "ci": 5,
-        "type": "default",
-        "snow": 15
-      },
-      {
-        "ci": 1,
-        "type": "default"
+        "under": null
       },
       {
         "ci": 0,
         "type": "default",
-        "snow": 19
-      },
-      {
-        "snowman": true,
-        "under": {
-          "ci": 2
-        }
-      },
-      null,
-      null,
-      {
-        "ci": 2,
-        "type": "default",
-        "snow": 15
-      },
-      {
-        "ci": 1,
-        "type": "default",
-        "snow": 15
-      },
-      {
-        "ci": 5,
-        "type": "default"
-      },
-      {
-        "ci": 4,
-        "type": "default",
-        "snow": 19
-      },
-      {
-        "ci": 5,
-        "type": "default",
-        "snow": 19
-      },
-      null,
-      null,
-      {
-        "ci": 2,
-        "type": "default"
-      },
-      {
-        "ci": 4,
-        "type": "default"
-      },
-      {
-        "ci": 4,
-        "type": "default"
-      },
-      {
-        "ci": 3,
-        "type": "default"
-      },
-      {
-        "ci": 1,
-        "type": "default"
-      },
-      null,
-      null,
-      {
-        "ci": 3,
-        "type": "default"
-      },
-      {
-        "ci": 5,
-        "type": "default"
-      },
-      {
-        "ci": 3,
-        "type": "default"
-      },
-      {
-        "ci": 2,
-        "type": "default"
+        "snow": 31
       },
       {
         "ci": 0,
@@ -142,26 +78,33 @@
       },
       null,
       null,
+      null,
       {
-        "ci": 3,
-        "type": "default"
+        "ci": 0,
+        "type": "default",
+        "snow": 31
       },
+      {
+        "ci": 0,
+        "type": "default",
+        "snow": 31
+      },
+      {
+        "ci": 0,
+        "type": "default",
+        "snow": 31
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
       {
         "ci": 0,
         "type": "default"
       },
-      {
-        "ci": 0,
-        "type": "default"
-      },
-      {
-        "ci": 4,
-        "type": "default"
-      },
-      {
-        "ci": 2,
-        "type": "default"
-      },
+      null,
+      null,
       null
     ]
   }
