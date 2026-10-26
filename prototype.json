@@ -65,7 +65,9 @@
       },
       {
         "snowman": true,
-        "under": null
+        "under": {
+          "ci": 0
+        }
       },
       {
         "ci": 0,

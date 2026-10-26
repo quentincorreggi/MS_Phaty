@@ -817,8 +817,10 @@ function editorSnowClick(idx) {
   if (editor.snowTool === 'snowman') {
     if (editorSnowmanList().length >= SNOWMEN_MAX) { editorShowToast('Max ' + SNOWMEN_MAX + ' snowmen per level'); return; }
     if (cell && (cell.wall || cell.tunnel)) { editorShowToast('Snowmen go on a box or an empty cell'); return; }
-    // What's on the cell now is what he leaves behind
-    editor.grid[idx] = { snowman: true, under: (cell && cell.ci >= 0) ? { ci: cell.ci } : null };
+    // He always hides a box (the box already on the cell, else the active colour);
+    // the panel can switch it to "Empty"
+    var underCi = (cell && cell.ci >= 0) ? cell.ci : (editor.activeColor >= 0 ? editor.activeColor : 0);
+    editor.grid[idx] = { snowman: true, under: { ci: underCi } };
     if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     editor.selectedSnowman = idx;
     editor.snowTool = 'snow';
