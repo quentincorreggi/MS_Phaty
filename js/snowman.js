@@ -111,26 +111,70 @@ function onSnowyRevealed(b, animate) {
   snowFlyers.push({ x0: bx, y0: by, t: -0.4 * snowman.flyStack, seed: Math.random() * 10 });
 }
 
-// ── Layout of the figure (full-size positions) ──
+// ── Shape of the snow mass ──
+// The figure is ONE silhouette: a lumpy pile that grows and, at the
+// last state, takes the shape of a snowman (3 merged rounds).
+// Keyframes per state 0..3: height, half-width, "snowman-ness" m.
+var SM_KEY_H = [0.30, 0.44, 0.66, 0.885];  // × w
+var SM_KEY_W = [0.34, 0.39, 0.37, 0.23];   // × w (pile half-width / base radius)
+var SM_KEY_M = [0.0, 0.0, 0.5, 1.0];
+// Final snowman rounds (height of centre, radius) in × w, from the ground
+var SM_ROUNDS = [[0.215, 0.23], [0.52, 0.165], [0.76, 0.125]];
+
 function snowmanGeom() {
-  var sm = snowman;
-  var w = sm.w;
+  var sm = snowman, w = sm.w;
   var cx = sm.x + sm.w / 2;
-  var ground = sm.y + sm.h * 0.9;
-  var rb = w * 0.22, rm = w * 0.165, rh = w * 0.13;
-  var by = ground - rb;
-  var my = by - (rb + rm) * 0.8;
-  var hy = my - (rm + rh) * 0.8;
-  return { cx: cx, ground: ground, rb: rb, by: by, rm: rm, my: my, rh: rh, hy: hy };
+  var ground = sm.y + sm.h * 0.93;
+  return {
+    cx: cx, ground: ground, w: w,
+    by: ground - SM_ROUNDS[0][0] * w, my: ground - SM_ROUNDS[1][0] * w,
+    hy: ground - SM_ROUNDS[2][0] * w, rh: SM_ROUNDS[2][1] * w, rm: SM_ROUNDS[1][1] * w
+  };
 }
 
-// Where flying snow lands: the spot of the next ball
+function smLerpKey(arr, d) {
+  if (d <= 0) return arr[0] + (arr[1] - arr[0]) * d; // allow overshoot below 0
+  if (d >= 3) return arr[3] + (arr[3] - arr[2]) * (d - 3);
+  var i = Math.floor(d), f = d - i;
+  return arr[i] + (arr[i + 1] - arr[i]) * f;
+}
+
+// Shape params at display state d (continuous, may overshoot)
+function snowShape(d) {
+  return { H: smLerpKey(SM_KEY_H, d), W: smLerpKey(SM_KEY_W, d), m: Math.max(0, Math.min(1, smLerpKey(SM_KEY_M, d))) };
+}
+
+// Half-width (× w) at absolute height y (× w) for the final snowman
+function snowmanProfile(y) {
+  var r = 0;
+  // base round: settled on the ground (rounded, slightly squashed bottom)
+  var c1 = SM_ROUNDS[0][0], R1 = SM_ROUNDS[0][1];
+  if (y < c1) { var q = (c1 - y) / c1; r = R1 * Math.sqrt(Math.max(0, 1 - q * q * 0.72)); }
+  for (var i = 0; i < SM_ROUNDS.length; i++) {
+    if (i === 0 && y < c1) continue;
+    var dy = y - SM_ROUNDS[i][0], R = SM_ROUNDS[i][1];
+    if (Math.abs(dy) < R) r = Math.max(r, Math.sqrt(R * R - dy * dy));
+  }
+  return r;
+}
+
+// Half-width (× w) at normalised height t (0 ground .. 1 top), side = ±1
+function snowHalfWidth(shape, t, side, wob) {
+  // pile: a soft dome with a wide, settled footing
+  var pile = shape.W * Math.pow(Math.max(0, 1 - Math.pow(t, 2.1)), 0.55) * (1 + 0.12 * Math.pow(1 - t, 6));
+  // lumps (asymmetric, fade out as he takes shape)
+  var lump = 1 + (1 - shape.m) * (0.07 * Math.sin(t * 11 + (side > 0 ? 0.6 : 2.4)) + 0.04 * Math.sin(t * 23 + (side > 0 ? 1.3 : 0.2)));
+  pile *= lump;
+  var snow = snowmanProfile(t * SM_KEY_H[3]) * (shape.H / SM_KEY_H[3]);
+  var r = pile + (snow - pile) * shape.m;
+  return Math.max(0, r * (1 + wob));
+}
+
+// Where flying snow lands: the top of the pile
 function snowmanLandPoint() {
   var g = snowmanGeom();
-  var next = Math.min(snowman.pending, SNOW_STATES - 1);
-  if (next <= 0) return { x: g.cx, y: g.by };
-  if (next === 1) return { x: g.cx, y: g.my };
-  return { x: g.cx, y: g.hy };
+  var sh = snowShape(Math.min(snowman.pending, SNOW_STATES));
+  return { x: g.cx, y: g.ground - sh.H * g.w * 0.6 };
 }
 
 function easeOutBack(t) { var c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); }
@@ -217,18 +261,6 @@ function updateSnowman() {
 }
 
 // ── Drawing helpers ──
-function drawSnowBall(cx, cy, r) {
-  if (r <= 0.5) return;
-  var grad = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.4, r * 0.1, cx, cy, r);
-  grad.addColorStop(0, '#FFFFFF');
-  grad.addColorStop(0.6, '#F2F7FC');
-  grad.addColorStop(1, '#C6DAEB');
-  ctx.fillStyle = grad;
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = 'rgba(120,165,205,0.5)'; ctx.lineWidth = 1.1 * S;
-  ctx.stroke();
-}
-
 // Orange knitted bobble hat. (cx, cy) = centre of the cuff, s = width.
 function drawBeanie(cx, cy, s, rot) {
   ctx.save();
@@ -297,46 +329,91 @@ function drawCarrotWithLeaves(x, y, len, ang) {
 }
 
 function drawSnowPatch(sm) {
-  // Lumpy snow ground covering all 4 cells
+  // Soft snowy ground covering all 4 cells (no hard frame)
   ctx.save();
-  ctx.shadowColor = 'rgba(60,90,130,0.25)'; ctx.shadowBlur = 6 * S; ctx.shadowOffsetY = 2 * S;
+  ctx.shadowColor = 'rgba(70,110,150,0.22)'; ctx.shadowBlur = 8 * S; ctx.shadowOffsetY = 2 * S;
   var gg = ctx.createLinearGradient(sm.x, sm.y, sm.x, sm.y + sm.h);
-  gg.addColorStop(0, '#FBFDFF'); gg.addColorStop(1, '#DCE9F4');
+  gg.addColorStop(0, '#F3F9FE'); gg.addColorStop(1, '#DDEBF6');
   ctx.fillStyle = gg;
-  rRect(sm.x, sm.y, sm.w, sm.h, 10 * S); ctx.fill();
+  rRect(sm.x + 1 * S, sm.y + 1 * S, sm.w - 2 * S, sm.h - 2 * S, 12 * S); ctx.fill();
   ctx.restore();
   ctx.save();
-  ctx.beginPath(); rRect(sm.x, sm.y, sm.w, sm.h, 10 * S); ctx.clip();
-  // soft drifts
-  ctx.fillStyle = 'rgba(170,205,235,0.28)';
-  var drifts = [[0.2, 0.25, 0.22], [0.78, 0.2, 0.18], [0.15, 0.78, 0.2], [0.85, 0.8, 0.22], [0.5, 0.95, 0.3]];
-  for (var i = 0; i < drifts.length; i++) {
-    ctx.beginPath(); ctx.ellipse(sm.x + sm.w * drifts[i][0], sm.y + sm.h * drifts[i][1], sm.w * drifts[i][2], sm.h * drifts[i][2] * 0.45, 0, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.fillStyle = 'rgba(255,255,255,0.9)';
-  var lumps = [[0.1, 0.06], [0.35, 0.03], [0.65, 0.05], [0.9, 0.04], [0.04, 0.45], [0.96, 0.5]];
-  for (var j = 0; j < lumps.length; j++) {
-    ctx.beginPath(); ctx.arc(sm.x + sm.w * lumps[j][0], sm.y + sm.h * lumps[j][1], sm.w * 0.08, 0, Math.PI * 2); ctx.fill();
-  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2 * S;
+  rRect(sm.x + 2 * S, sm.y + 2 * S, sm.w - 4 * S, sm.h - 4 * S, 11 * S); ctx.stroke();
   ctx.restore();
-  ctx.strokeStyle = 'rgba(150,190,225,0.85)'; ctx.lineWidth = 1.5 * S;
-  rRect(sm.x, sm.y, sm.w, sm.h, 10 * S); ctx.stroke();
 }
 
-function drawSnowPile(g, sm, k) {
-  // k = 1 full pile, 0 gone
-  if (k <= 0.01) return;
+// Build the silhouette path of the snow mass
+function snowMassPath(g, shape, wobT) {
+  var N = 44, w = g.w, Hpx = shape.H * w;
+  var pts = [];
+  for (var i = 0; i <= N; i++) {
+    var t = i / N;
+    var wob = wobT * 0.05 * Math.sin(t * 6 + tick * 0.3);
+    pts.push([g.cx + snowHalfWidth(shape, t, 1, wob) * w, g.ground - t * Hpx]);
+  }
+  for (var j = N; j >= 0; j--) {
+    var t2 = j / N;
+    var wob2 = wobT * 0.05 * Math.sin(t2 * 6 + tick * 0.3 + 1);
+    pts.push([g.cx - snowHalfWidth(shape, t2, -1, wob2) * w, g.ground - t2 * Hpx]);
+  }
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for (var k = 1; k < pts.length - 1; k++) {
+    var mx = (pts[k][0] + pts[k + 1][0]) / 2, my = (pts[k][1] + pts[k + 1][1]) / 2;
+    ctx.quadraticCurveTo(pts[k][0], pts[k][1], mx, my);
+  }
+  ctx.closePath();
+}
+
+function drawSnowMass(g, shape, wobT) {
+  var w = g.w, Hpx = shape.H * w;
+  var top = g.ground - Hpx;
+  // ground contact shadow
+  ctx.fillStyle = 'rgba(80,125,170,0.2)';
+  ctx.beginPath(); ctx.ellipse(g.cx, g.ground, (snowHalfWidth(shape, 0, 1, 0) + 0.03) * w, w * 0.045, 0, 0, Math.PI * 2); ctx.fill();
+
+  snowMassPath(g, shape, wobT);
+  var grad = ctx.createLinearGradient(g.cx - w * 0.3, top, g.cx + w * 0.3, g.ground);
+  grad.addColorStop(0, '#FFFFFF');
+  grad.addColorStop(0.55, '#F4F8FC');
+  grad.addColorStop(1, '#D5E5F2');
+  ctx.fillStyle = grad;
+  ctx.fill();
+
   ctx.save();
-  ctx.beginPath(); rRect(sm.x, sm.y - sm.h, sm.w, sm.h * 2, 10 * S); ctx.clip();
-  var lumps = [
-    [-0.24, -0.1, 0.17], [0.24, -0.09, 0.17], [0, -0.17, 0.22],
-    [-0.1, -0.3, 0.15], [0.13, -0.31, 0.14], [-0.33, -0.02, 0.11], [0.34, -0.02, 0.11]
-  ];
-  for (var i = 0; i < lumps.length; i++) {
-    var L0 = lumps[i];
-    drawSnowBall(g.cx + sm.w * L0[0] * k, g.ground + sm.h * L0[1] * k, sm.w * L0[2] * (0.4 + 0.6 * k));
+  snowMassPath(g, shape, wobT);
+  ctx.clip();
+  // core shade on the right/bottom
+  var sg = ctx.createRadialGradient(g.cx + w * 0.22, g.ground - Hpx * 0.3, 0, g.cx + w * 0.22, g.ground - Hpx * 0.3, w * 0.38);
+  sg.addColorStop(0, 'rgba(150,190,225,0.38)'); sg.addColorStop(1, 'rgba(150,190,225,0)');
+  ctx.fillStyle = sg; ctx.fillRect(g.cx - w * 0.5, top - w * 0.1, w, Hpx + w * 0.2);
+  // soft highlight top-left
+  var hg = ctx.createRadialGradient(g.cx - w * 0.1, top + Hpx * 0.28, 0, g.cx - w * 0.1, top + Hpx * 0.28, w * 0.25);
+  hg.addColorStop(0, 'rgba(255,255,255,0.95)'); hg.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = hg; ctx.fillRect(g.cx - w * 0.5, top - w * 0.1, w, Hpx + w * 0.2);
+  // creases where the rounds meet, as he takes shape
+  if (shape.m > 0.25) {
+    var ca = (shape.m - 0.25) / 0.75;
+    ctx.strokeStyle = 'rgba(120,165,205,' + (0.45 * ca) + ')';
+    ctx.lineWidth = 1.6 * S; ctx.lineCap = 'round';
+    var sc = shape.H / SM_KEY_H[3];
+    for (var i = 1; i < SM_ROUNDS.length; i++) {
+      var cy = g.ground - SM_ROUNDS[i][0] * w * sc, R = SM_ROUNDS[i][1] * w * sc;
+      ctx.beginPath(); ctx.arc(g.cx, cy, R, Math.PI * 0.18, Math.PI * 0.82); ctx.stroke();
+    }
+  }
+  // powder speckles
+  ctx.fillStyle = 'rgba(160,200,230,0.35)';
+  for (var p = 0; p < 10; p++) {
+    var px = g.cx + Math.sin(p * 2.39) * w * 0.25, py = g.ground - ((p * 0.37) % 1) * Hpx;
+    ctx.beginPath(); ctx.arc(px, py, 1.1 * S, 0, Math.PI * 2); ctx.fill();
   }
   ctx.restore();
+
+  snowMassPath(g, shape, wobT);
+  ctx.strokeStyle = 'rgba(130,175,215,0.75)'; ctx.lineWidth = 1.4 * S;
+  ctx.stroke();
 }
 
 // ── Main draw ──
@@ -354,16 +431,17 @@ function drawSnowman() {
   drawSnowPatch(sm);
 
   var fin = sm.phase === 'finale' ? sm.finT : -1;
-  var k = 1 - sm.animT; // progress of the current state anim
+  var k = 1 - sm.animT;
+  // Display state: grows from the previous state with a soft overshoot
+  var d = sm.animT > 0 ? (sm.state - 1) + easeOutBack(k) : sm.state;
+  var shape = snowShape(d);
+  var wobT = sm.animT > 0 ? Math.sin(k * Math.PI) : 0;
 
-  // Exit swirl: whole figure spins & shrinks into its centre
-  var fcy = (g.hy + g.by) / 2;
+  var fcy = g.ground - shape.H * g.w * 0.5;
   var exitK = fin > SM_EXIT_START ? smClamp01((fin - SM_EXIT_START) / (SM_EXIT_END - SM_EXIT_START)) : 0;
-  // Happy jump
   var jumpY = 0;
   if (fin >= SM_JUMP_START && fin <= SM_JUMP_END) {
-    var jk = (fin - SM_JUMP_START) / (SM_JUMP_END - SM_JUMP_START);
-    jumpY = -Math.sin(jk * Math.PI) * sm.h * 0.1;
+    jumpY = -Math.sin((fin - SM_JUMP_START) / (SM_JUMP_END - SM_JUMP_START) * Math.PI) * sm.h * 0.1;
   }
 
   ctx.save();
@@ -375,84 +453,48 @@ function drawSnowman() {
     ctx.translate(-g.cx, -fcy);
     ctx.globalAlpha = 1 - exitK * 0.5;
   }
+  // squash & stretch while growing, anchored on the ground
+  var sq = wobT * 0.06;
+  ctx.translate(g.cx, g.ground + jumpY);
+  ctx.scale(1 + sq, 1 - sq);
+  ctx.translate(-g.cx, -g.ground);
 
-  // Waiting hat + carrot lying in the snow (until the finale picks them up)
+  drawSnowMass(g, shape, wobT);
+
+  var Hpx = shape.H * g.w;
+  var topY = g.ground - Hpx;
   var accK = fin >= 0 ? smClamp01(fin / SM_ACC_END) : 0;
-  // on the snow beside him: hat bottom-left, carrot bottom-right
-  var hatRestX = sm.x + sm.w * 0.17, hatRestY = g.ground - sm.h * 0.02;
-  var carRestX = sm.x + sm.w * 0.92, carRestY = g.ground - sm.h * 0.04;
-  if (sm.state === 0 || (sm.state === 1 && sm.animT > 0)) {
-    // pile state: hat & carrot sit on top of the pile
-    hatRestX = g.cx - sm.w * 0.13; hatRestY = g.ground - sm.h * 0.33;
-    carRestX = g.cx + sm.w * 0.26; carRestY = g.ground - sm.h * 0.12;
-  }
 
-  // Ground shadow
-  if (sm.state >= 1) {
-    ctx.fillStyle = 'rgba(90,130,170,0.2)';
-    ctx.beginPath(); ctx.ellipse(g.cx, g.ground, g.rb * 1.05 * (sm.state === 1 ? k : 1), g.rb * 0.22, 0, 0, Math.PI * 2); ctx.fill();
-  }
-
-  // Pile → base ball
-  if (sm.state === 0) drawSnowPile(g, sm, 1);
-  if (sm.state === 1 && sm.animT > 0) drawSnowPile(g, sm, 1 - smClamp01(k * 1.6));
-
-  // Balls: base, middle, head
-  var balls = [[g.by, g.rb], [g.my, g.rm], [g.hy, g.rh]];
-  for (var i = 0; i < 3; i++) {
-    if (sm.state <= i) break;
-    var bx = g.cx, byy = balls[i][0], br = balls[i][1];
-    if (i === sm.state - 1 && sm.animT > 0) {
-      if (i === 0) {
-        // base forms out of the pile, packing up with a bounce
-        br = br * easeOutBack(smClamp01(k * 1.3));
-        byy = g.ground - br;
-      } else {
-        // next ball drops in from above and bounces into place
-        var dk = easeOutBounce(smClamp01(k * 1.25));
-        byy = byy - (1 - dk) * sm.h * 0.7;
-        ctx.save(); ctx.globalAlpha *= smClamp01(k * 4);
-        drawSnowBall(bx, byy, br);
-        ctx.restore();
-        continue;
-      }
-    }
-    if (i === 2 && fin >= 0) byy += jumpY;
-    else if (fin >= 0) byy += jumpY * (i === 1 ? 0.95 : 0.9);
-    drawSnowBall(bx, byy, br);
-  }
-
-  // Coal buttons + face once complete
+  // Face + coal buttons once he's a snowman
   if (fin >= 0) {
-    var faceA = smClamp01((fin - SM_ACC_END + 8) / (SM_FACE_END - SM_ACC_END));
+    var faceA = smClamp01((fin - SM_ACC_END + 10) / (SM_FACE_END - SM_ACC_END));
     ctx.save(); ctx.globalAlpha *= faceA;
     ctx.fillStyle = '#2A2A33';
-    for (var bt = 0; bt < 3; bt++) {
-      ctx.beginPath(); ctx.arc(g.cx, g.my + jumpY * 0.95 - g.rm * 0.45 + bt * g.rm * 0.45, g.rm * 0.09, 0, Math.PI * 2); ctx.fill();
+    for (var bt = 0; bt < 2; bt++) {
+      ctx.beginPath(); ctx.arc(g.cx, g.my - g.rm * 0.25 + bt * g.rm * 0.5, g.rm * 0.09, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
-    drawSnowmanFace(g.cx, g.hy + jumpY, g.rh, fin, faceA);
+    drawSnowmanFace(g.cx, g.hy, g.rh, fin, faceA);
   }
 
-  // Hat & carrot: resting, then jumping onto him
-  var restRot = (sm.state === 0 || (sm.state === 1 && sm.animT > 0)) ? -0.5 : -0.15;
-  var hatX = hatRestX, hatY = hatRestY, hatRot = restRot, hatS = sm.w * 0.22;
-  var carX = carRestX, carY = carRestY, carAng = 0.5, carLen = sm.w * 0.16;
+  // Carrot: sticks out of the side of the pile, then becomes the nose
+  var cT = 0.38;
+  var restX = g.cx + snowHalfWidth(shape, cT, 1, 0) * g.w * 0.72;
+  var restY = g.ground - cT * Hpx;
+  var carX = restX + g.w * 0.14, carY = restY - g.w * 0.05, carAng = -0.4, carLen = g.w * 0.2;
   if (fin >= 0) {
-    var e = easeOutBack(accK);
-    var arc = Math.sin(accK * Math.PI) * sm.h * 0.25;
-    var hatTX = g.cx, hatTY = g.hy + jumpY - g.rh * 0.62;
-    hatX = hatRestX + (hatTX - hatRestX) * e; hatY = hatRestY + (hatTY - hatRestY) * e - arc;
-    hatRot = restRot * (1 - accK) - 0.12 * accK;
-    hatS = sm.w * (0.22 + (0.2 - 0.22) * accK);
-    var carTX = g.cx + g.rh * 0.62, carTY = g.hy + jumpY + g.rh * 0.08;
-    carX = carRestX + (carTX - carRestX) * e; carY = carRestY + (carTY - carRestY) * e - arc;
-    carAng = 0.5 * (1 - accK) + 0.08 * accK;
-    carLen = sm.w * (0.16 + (0.13 - 0.16) * accK);
+    var e = easeOutBack(accK), arc = Math.sin(accK * Math.PI) * g.w * 0.15;
+    var noseX = g.cx + g.rh * 0.68, noseY = g.hy + g.rh * 0.1;
+    carX = carX + (noseX - carX) * e; carY = carY + (noseY - carY) * e - arc;
+    carAng = -0.4 * (1 - accK) + 0.06 * accK;
+    carLen = g.w * (0.2 - 0.08 * accK);
   }
-  if (fin < 0 || accK < 1) drawCarrotWithLeaves(carX, carY, carLen, carAng);
-  else drawCarrot(carX, carY, carLen, carAng);
-  drawBeanie(hatX, hatY, hatS, hatRot);
+  drawCarrot(carX, carY, carLen, carAng);
+
+  // Hat: always crowns the top of the snow
+  var hatTilt = -0.28 * (1 - shape.m) - 0.1 * shape.m;
+  var hatPop = fin >= 0 ? Math.sin(Math.min(1, fin / 16) * Math.PI) * 0.18 : 0;
+  drawBeanie(g.cx - g.w * 0.01, topY + g.w * 0.05, g.w * 0.21 * (1 + hatPop), hatTilt);
 
   ctx.restore();
   ctx.restore();
