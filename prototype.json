@@ -1,0 +1,161 @@
+{
+  "name": "Snowman",
+  "description": "Snowy boxes hide their colour. When one opens, its snow flies to the big 2x2 snowman and builds him up (base, middle, head). After the last snowy box he gets his face, winks, and leaves, freeing the 4 boxes under him.",
+  "howToPlay": "Pick boxes next to the snowy ones to open them. Each opened snowy box builds the snowman. Open all 6 to free the boxes he is sitting on.",
+  "author": "Louis",
+  "showcaseLevel": {
+    "name": "Snowman",
+    "desc": "Build the snowman",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "snowman": 16,
+    "grid": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "ci": 2,
+        "type": "snowy"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 0,
+        "type": "snowy"
+      },
+      null,
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "snowy"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "snowy"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "snowy"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "snowy"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      }
+    ]
+  }
+}

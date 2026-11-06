@@ -187,8 +187,8 @@ function drawStock() {
     var hs = 1 + b.hoverT * 0.05;
     var ts = ps * hs;
 
-    // Empty slot
-    if (b.empty) { drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
+    // Empty slot, or a cell hidden under the snowman (he draws over it)
+    if (b.empty || b.underSnowman) { drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
 
     // Used box fading out
     if (b.used && b.emptyT > 0) {
@@ -244,6 +244,17 @@ function drawStock() {
       if (iceType && iceType.drawIceOverlay) {
         iceType.drawIceOverlay(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, b.iceHP, tick);
       }
+    }
+
+    // Snow lifting off a freshly revealed snowy box
+    if (b.snowPuffT > 0 && typeof drawSnowCover === 'function') {
+      ctx.save();
+      var sp = 1 - b.snowPuffT;
+      ctx.globalAlpha = b.snowPuffT;
+      ctx.translate(0, -sp * L.bh * 0.5);
+      ctx.scale(1 + sp * 0.2, 1 - sp * 0.3);
+      drawSnowCover(ctx, -L.bw / 2, -L.bh / 2, L.bw, L.bh, S, tick, b.idlePhase || 0);
+      ctx.restore();
     }
 
     if (b.iceShatterT > 0) {

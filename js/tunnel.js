@@ -151,6 +151,7 @@ function isTileAvailableForTunnel(idx) {
   // Must be an empty slot or a fully-used box (not a tunnel, not an active box, not a wall)
   if (s.isTunnel) return false;
   if (s.isWall) return false;  // walls block tunnel spawning
+  if (s.underSnowman) return false;  // nothing spawns under the snowman
   return s.empty || s.used;
 }
 
@@ -188,7 +189,8 @@ function trySpawnFromTunnels() {
       // still has a passable path to the bottom of the grid.
       revealed: false,
       empty: false,
-      boxType: nextBox.type || 'default',
+      // Snow never lives inside a spawner — a snowy box comes out plain
+      boxType: (nextBox.type === 'snowy') ? 'default' : (nextBox.type || 'default'),
       iceHP: isIce ? 2 : 0,
       iceCrackT: 0,
       iceShatterT: 0,

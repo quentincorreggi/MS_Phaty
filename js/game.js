@@ -142,6 +142,9 @@ function initGame() {
     }
   }
 
+  // ── Snowman (2x2, sits over cells) — must be set up before reveals ──
+  initSnowman(lvl);
+
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
 
@@ -182,6 +185,7 @@ function updateBoxReveals(animate) {
     if (!s) { passable[i] = false; continue; }
     if (s.isWall) { passable[i] = false; continue; }
     if (s.isTunnel) { passable[i] = false; continue; }
+    if (s.underSnowman) { passable[i] = false; continue; }  // snowman blocks like a wall
     passable[i] = !!(s.empty || s.used);
   }
 
@@ -222,6 +226,7 @@ function updateBoxReveals(animate) {
     if (!b) continue;
     if (b.isWall || b.isTunnel || b.empty || b.used) continue;
     if (b.spawning) continue;
+    if (b.underSnowman) continue;  // hidden under the snowman until he leaves
 
     var br = Math.floor(k / L.cols), bcol = k % L.cols;
     var hasPath = false;
@@ -240,10 +245,12 @@ function updateBoxReveals(animate) {
 
     if (hasPath && !b.revealed) {
       b.revealed = true;
+      var wasSnowy = (b.boxType === 'snowy');
+      if (wasSnowy) onSnowyRevealed(b, animate);
       if (animate) {
         b.revealT = 1.0;
         var bx = b.x + L.bw / 2, by = b.y + L.bh / 2;
-        var burstColor = (b.boxType === 'hidden') ? '#FFD700' : COLORS[b.ci].fill;
+        var burstColor = (b.boxType === 'hidden') ? '#FFD700' : (wasSnowy ? '#FFFFFF' : COLORS[b.ci].fill);
         for (var p = 0; p < 12; p++) {
           var ang = Math.PI * 2 * p / 12 + Math.random() * 0.3;
           var sp = 3 + Math.random() * 4;
@@ -254,7 +261,7 @@ function updateBoxReveals(animate) {
             life: 1, decay: 0.02 + Math.random() * 0.015, grav: false
           });
         }
-        if (typeof sfx !== 'undefined' && sfx.pop) sfx.pop();
+        if (!wasSnowy && typeof sfx !== 'undefined' && sfx.pop) sfx.pop();
       }
     } else if (!hasPath && b.revealed) {
       b.revealed = false;
@@ -315,6 +322,7 @@ function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
   if (b.isWall) return false;      // walls are not tappable
+  if (b.underSnowman) return false; // hidden under the snowman
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
@@ -328,9 +336,12 @@ function handleTap(px, py) {
   if (won || !gameActive) return;
   ensureAudio();
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
+  // Snowman blocks the tap — standard negative feedback
+  if (snowmanHitTest(px, py)) { snowman.shakeT = 0.5; return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
+    if (b.underSnowman) continue;
     if (b.empty || b.used || b.spawning || b.revealT > 0) continue;
     if (px >= b.x && px <= b.x + L.bw && py >= b.y && py <= b.y + L.bh) {
       if (!isBoxTappable(i)) { b.shakeT = 0.5; return; }
@@ -373,6 +384,9 @@ function update() {
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
+
+  // ── Snowman build / finale ──
+  updateSnowman();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -475,6 +489,7 @@ function update() {
     if (b.emptyT > 0) b.emptyT = Math.max(0, b.emptyT - 0.025);
     if (b.iceCrackT > 0) b.iceCrackT = Math.max(0, b.iceCrackT - 0.03);
     if (b.iceShatterT > 0) b.iceShatterT = Math.max(0, b.iceShatterT - 0.025);
+    if (b.snowPuffT > 0) b.snowPuffT = Math.max(0, b.snowPuffT - 0.035);
     var th = (i === hoverIdx && !b.used && isBoxTappable(i)) ? 1 : 0;
     b.hoverT += (th - b.hoverT) * 0.12;
   }
@@ -545,6 +560,8 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    drawSnowman();
+    drawSnowFlyers();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();
