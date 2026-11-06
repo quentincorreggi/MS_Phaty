@@ -289,6 +289,9 @@ function drawSnowman() {
     var pipR = 2.6 * S, gap = 8 * S;
     var startX = sm.x + sm.w / 2 - (sm.total - 1) * gap / 2;
     var py = sm.y + sm.h - 6 * S;
+    // Soft pill behind the pips so they read over the snow
+    ctx.fillStyle = 'rgba(90,140,190,0.18)';
+    rRect(startX - gap * 0.75, py - pipR * 1.9, (sm.total - 1) * gap + gap * 1.5, pipR * 3.8, pipR * 1.9); ctx.fill();
     for (var k = 0; k < sm.total; k++) {
       ctx.fillStyle = k < sm.arrived ? '#FFFFFF' : 'rgba(120,160,200,0.45)';
       ctx.beginPath(); ctx.arc(startX + k * gap, py, pipR, 0, Math.PI * 2); ctx.fill();
