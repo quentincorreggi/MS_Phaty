@@ -1,7 +1,7 @@
 {
   "name": "Snowman",
-  "description": "Snowy boxes hide their colour. When one opens, its snow flies to the big 2x2 snowman and builds him up (base, middle, head). After the last snowy box he gets his face, winks, and leaves, freeing the 4 boxes under him.",
-  "howToPlay": "Pick boxes next to the snowy ones to open them. Each opened snowy box builds the snowman. Open all 6 to free the boxes he is sitting on.",
+  "description": "3 boxes are covered in snow, hiding their colour. When one becomes tappable, its snow flies to the 2x2 snow pile: base ball, middle ball, head. On the 3rd, the hat and carrot jump on, he winks, then swirls away and frees the 4 boxes under him.",
+  "howToPlay": "Pick the boxes next to the 3 snowy boxes to reveal them. Each one builds the snowman. Reveal all 3 to free the boxes he is hiding.",
   "author": "Louis",
   "showcaseLevel": {
     "name": "Snowman",
@@ -9,26 +9,127 @@
     "mrbPerBox": 9,
     "sortCap": 3,
     "lockButtons": 0,
-    "snowman": 16,
+    "snowman": 9,
     "grid": [
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
       {
         "ci": 2,
-        "type": "snowy"
+        "type": "default"
+      },
+      {
+        "ci": 4,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 4,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 4,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 4,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 4,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 4,
+        "type": "default"
       },
       {
         "ci": 1,
@@ -38,14 +139,20 @@
         "ci": 2,
         "type": "default"
       },
-      null,
       {
         "ci": 0,
-        "type": "snowy"
+        "type": "default"
       },
-      null,
       {
-        "ci": 0,
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 4,
+        "type": "default"
+      },
+      {
+        "ci": 4,
         "type": "default"
       },
       {
@@ -53,27 +160,7 @@
         "type": "snowy"
       },
       {
-        "ci": 1,
-        "type": "default"
-      },
-      {
         "ci": 0,
-        "type": "default"
-      },
-      {
-        "ci": 3,
-        "type": "default"
-      },
-      {
-        "ci": 3,
-        "type": "snowy"
-      },
-      {
-        "ci": 1,
-        "type": "default"
-      },
-      {
-        "ci": 3,
         "type": "default"
       },
       {
@@ -81,38 +168,14 @@
         "type": "snowy"
       },
       {
-        "ci": 0,
-        "type": "default"
-      },
-      {
-        "ci": 1,
+        "ci": 4,
         "type": "default"
       },
       {
         "ci": 2,
-        "type": "default"
-      },
-      {
-        "ci": 3,
         "type": "snowy"
       },
       {
-        "ci": 2,
-        "type": "default"
-      },
-      {
-        "ci": 0,
-        "type": "default"
-      },
-      {
-        "ci": 1,
-        "type": "default"
-      },
-      {
-        "ci": 2,
-        "type": "default"
-      },
-      {
         "ci": 3,
         "type": "default"
       },
@@ -121,7 +184,7 @@
         "type": "default"
       },
       {
-        "ci": 0,
+        "ci": 1,
         "type": "default"
       },
       {
@@ -129,19 +192,7 @@
         "type": "default"
       },
       {
-        "ci": 1,
-        "type": "default"
-      },
-      {
-        "ci": 0,
-        "type": "default"
-      },
-      {
-        "ci": 1,
-        "type": "default"
-      },
-      {
-        "ci": 2,
+        "ci": 4,
         "type": "default"
       },
       {
@@ -149,11 +200,11 @@
         "type": "default"
       },
       {
-        "ci": 2,
+        "ci": 0,
         "type": "default"
       },
       {
-        "ci": 0,
+        "ci": 1,
         "type": "default"
       }
     ]

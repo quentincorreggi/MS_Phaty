@@ -626,11 +626,11 @@ function editorUpdateStats() {
     if (sv && sv.type === 'snowy' && smCells.indexOf(si) < 0) snowyCount++;
   }
   if (editor.snowman >= 0 || snowyCount > 0) {
-    var okCount = (snowyCount === 3 || snowyCount === 6 || snowyCount === 9);
-    html += '<span class="ed-stat-chip" style="background:' + (okCount ? '#7FB6E0' : '#D9534F') + '">\u2744 ' + snowyCount + ' snowy (3/6/9)</span>';
+    var okCount = (snowyCount === 3);
+    html += '<span class="ed-stat-chip" style="background:' + (okCount ? '#7FB6E0' : '#D9534F') + '">\u2744 ' + snowyCount + ' / 3 snowy</span>';
     var smWarns = [];
     if (editor.snowman < 0) smWarns.push('Snowy boxes but no snowman');
-    if (editor.snowman >= 0 && !okCount) smWarns.push('Snowy box count must be 3, 6 or 9');
+    if (editor.snowman >= 0 && !okCount) smWarns.push('A snowman level needs exactly 3 snowy boxes');
     if (editor.snowman >= 0 && Math.floor(editor.snowman / 7) >= 5) smWarns.push('Snowman sits on the bottom row');
     for (var sc = 0; sc < smCells.length; sc++) {
       var cv = editor.grid[smCells[sc]];
