@@ -1,29 +1,42 @@
 // ============================================================
-// picture.js — Picture mechanic (4-piece jigsaw)
-// A 2x2 frame sits over 4 grid cells and hides them. 4 boxes on
-// the board carry a picture piece (box.piece = 1..4). Picking a
+// picture.js — Picture mechanic (5-piece jigsaw: 4 corners + round center)
+// A 2x2 frame sits over 4 grid cells and hides them. 5 boxes on
+// the board carry a picture piece (box.piece = 1..5). Picking a
 // piece box sends its piece flying into its slot in the frame.
-// When all 4 pieces are in, the picture shines and disappears,
+// When all pieces are in, the picture shines and disappears,
 // freeing the boxes underneath.
 //
 // Level data:
 //   lvl.picture = { idx: <top-left cell index> }
-//   grid cell   = { ci, type, piece: 1..4 }
+//   grid cell   = { ci, type, piece: 1..5 }
 // ============================================================
 
-var PICTURE_PIECES = 4;
+var PICTURE_PIECES = 5;
 var PIC_U = 400;          // local picture size (units) — 2x2 cells of 200
 var PIC_CELL = 200;
+var PIC_HOLE_R = 64;      // radius of the round center piece
 
-// Jigsaw edges per piece: [top, right, bottom, left]
-//  +1 = tab sticks out, -1 = tab goes in, 0 = flat border
-var PIECE_EDGES = {
-  1: [0, 1, 1, 0],      // top-left:     two tabs out
-  2: [0, 0, -1, -1],    // top-right:    two holes
-  3: [-1, 1, 0, 0],     // bottom-left:  hole on top, tab right
-  4: [1, 0, 0, -1]      // bottom-right: tab up, hole left
+// 5-piece cut: 4 corner pieces (jigsaw tabs between them, center cut
+// out) + 1 round piece in the middle.
+// Edges: [top, right, bottom, left]  +1 tab out, -1 tab in, 0 flat
+var PIECE_DEFS = {
+  1: { type: 'quad', c: 0, r: 0, e: [0, 1, 1, 0] },     // top-left
+  2: { type: 'quad', c: 1, r: 0, e: [0, 0, -1, -1] },   // top-right
+  3: { type: 'quad', c: 0, r: 1, e: [-1, 1, 0, 0] },    // bottom-left
+  4: { type: 'quad', c: 1, r: 1, e: [1, 0, 0, -1] },    // bottom-right
+  5: { type: 'circle' }                                 // center
 };
-var PIECE_CELL = { 1: { c: 0, r: 0 }, 2: { c: 1, r: 0 }, 3: { c: 0, r: 1 }, 4: { c: 1, r: 1 } };
+
+function pieceAnchor(n) {
+  var d = PIECE_DEFS[n];
+  if (d.type === 'circle') return { x: PIC_U / 2, y: PIC_U / 2 };
+  // visual center of a corner piece, pushed outward because the middle is cut out
+  return { x: d.c * PIC_CELL + PIC_CELL / 2 + (d.c ? 8 : -8), y: d.r * PIC_CELL + PIC_CELL / 2 + (d.r ? 8 : -8) };
+}
+
+function pieceSize(n) {
+  return PIECE_DEFS[n].type === 'circle' ? PIC_HOLE_R * 2.3 : PIC_CELL;
+}
 
 // ── Image (procedural winter scene, drawn once offscreen) ──
 var pictureImg = null;
@@ -32,101 +45,59 @@ function buildPictureImage() {
   var cv = document.createElement('canvas');
   cv.width = PIC_U; cv.height = PIC_U;
   var g = cv.getContext('2d');
+  function circ(x, y, r) { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); }
 
-  // Sky
+  // Background: soft sky + snowy ground
   var sky = g.createLinearGradient(0, 0, 0, PIC_U);
-  sky.addColorStop(0, '#5DB8F5'); sky.addColorStop(0.55, '#BFE6FF'); sky.addColorStop(1, '#E8F6FF');
+  sky.addColorStop(0, '#4FA8EE'); sky.addColorStop(1, '#BFE4FF');
   g.fillStyle = sky; g.fillRect(0, 0, PIC_U, PIC_U);
-
-  // Sun (top-right)
-  g.save();
-  g.translate(300, 95);
-  g.fillStyle = 'rgba(255,214,90,0.35)';
-  g.beginPath(); g.arc(0, 0, 78, 0, Math.PI * 2); g.fill();
-  g.strokeStyle = '#FFC63A'; g.lineWidth = 9; g.lineCap = 'round';
-  for (var i = 0; i < 10; i++) {
-    var a = i * Math.PI / 5;
-    g.beginPath(); g.moveTo(Math.cos(a) * 60, Math.sin(a) * 60); g.lineTo(Math.cos(a) * 82, Math.sin(a) * 82); g.stroke();
-  }
-  var sg = g.createRadialGradient(-12, -12, 5, 0, 0, 50);
-  sg.addColorStop(0, '#FFF3A8'); sg.addColorStop(1, '#FFB81F');
-  g.fillStyle = sg; g.beginPath(); g.arc(0, 0, 48, 0, Math.PI * 2); g.fill();
-  // smile
-  g.fillStyle = '#B86A00';
-  g.beginPath(); g.arc(-15, -8, 5, 0, Math.PI * 2); g.fill();
-  g.beginPath(); g.arc(15, -8, 5, 0, Math.PI * 2); g.fill();
-  g.strokeStyle = '#B86A00'; g.lineWidth = 5;
-  g.beginPath(); g.arc(0, 4, 18, 0.2 * Math.PI, 0.8 * Math.PI); g.stroke();
-  g.restore();
-
-  // Cloud (top-left)
-  g.fillStyle = '#FFFFFF';
-  function puff(x, y, r) { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); }
-  puff(70, 100, 32); puff(110, 80, 42); puff(155, 100, 32); puff(110, 115, 30);
-  g.fillRect(70, 100, 85, 30);
-  g.fillStyle = 'rgba(160,200,235,0.45)';
-  g.fillRect(55, 128, 115, 6);
-
-  // Birds
-  g.strokeStyle = '#2D4F7A'; g.lineWidth = 5; g.lineCap = 'round';
-  function bird(x, y) { g.beginPath(); g.moveTo(x - 14, y - 6); g.quadraticCurveTo(x - 6, y - 10, x, y); g.quadraticCurveTo(x + 6, y - 10, x + 14, y - 6); g.stroke(); }
-  bird(195, 60); bird(225, 82);
-
-  // Back hill (blue-white)
-  g.fillStyle = '#CFE3F5';
-  g.beginPath(); g.moveTo(0, 250);
-  g.quadraticCurveTo(110, 170, 220, 235); g.quadraticCurveTo(320, 190, 400, 225);
-  g.lineTo(400, 400); g.lineTo(0, 400); g.closePath(); g.fill();
-
-  // Front hill (snow)
-  g.fillStyle = '#FFFFFF';
-  g.beginPath(); g.moveTo(0, 300);
-  g.quadraticCurveTo(150, 240, 270, 300); g.quadraticCurveTo(340, 330, 400, 300);
-  g.lineTo(400, 400); g.lineTo(0, 400); g.closePath(); g.fill();
-  g.strokeStyle = 'rgba(140,180,220,0.5)'; g.lineWidth = 4;
-  g.beginPath(); g.moveTo(20, 360); g.quadraticCurveTo(120, 335, 210, 365); g.stroke();
-
-  // Pine tree (bottom-left)
-  g.fillStyle = '#7A4A22'; g.fillRect(100, 320, 26, 45);
-  var tiers = [[113, 175, 50], [113, 215, 70], [113, 258, 90]];
-  for (var t = 0; t < tiers.length; t++) {
-    var tx = tiers[t][0], ty = tiers[t][1], tw = tiers[t][2];
-    g.fillStyle = '#1F8A4C';
-    g.beginPath(); g.moveTo(tx, ty); g.lineTo(tx + tw, ty + 75); g.lineTo(tx - tw, ty + 75); g.closePath(); g.fill();
-    g.fillStyle = '#FFFFFF';
-    g.beginPath(); g.moveTo(tx, ty); g.lineTo(tx + tw * 0.45, ty + 34); g.lineTo(tx, ty + 26); g.lineTo(tx - tw * 0.45, ty + 34); g.closePath(); g.fill();
-  }
-  // star
-  g.fillStyle = '#FFD23F';
-  g.beginPath();
-  for (var s = 0; s < 10; s++) {
-    var ra = s % 2 === 0 ? 18 : 8, aa = -Math.PI / 2 + s * Math.PI / 5;
-    var px = 113 + Math.cos(aa) * ra, py = 172 + Math.sin(aa) * ra;
-    if (s === 0) g.moveTo(px, py); else g.lineTo(px, py);
-  }
-  g.closePath(); g.fill();
-
-  // House (bottom-right)
-  g.fillStyle = '#E2463F'; g.fillRect(250, 270, 110, 80);
-  g.fillStyle = '#FFFFFF';
-  g.beginPath(); g.moveTo(236, 275); g.lineTo(305, 215); g.lineTo(374, 275); g.closePath(); g.fill();
-  g.fillStyle = '#8C2B27';
-  g.beginPath(); g.moveTo(244, 275); g.lineTo(305, 226); g.lineTo(366, 275); g.closePath(); g.fill();
-  g.fillStyle = '#FFFFFF'; g.fillRect(236, 268, 138, 10);
-  g.fillStyle = '#6B3A1C'; g.fillRect(320, 300, 26, 50);
-  g.fillStyle = '#FFD86B'; g.fillRect(265, 292, 34, 30);
-  g.strokeStyle = '#8C2B27'; g.lineWidth = 4;
-  g.strokeRect(265, 292, 34, 30);
-  g.beginPath(); g.moveTo(282, 292); g.lineTo(282, 322); g.moveTo(265, 307); g.lineTo(299, 307); g.stroke();
-  // chimney + smoke
-  g.fillStyle = '#8C2B27'; g.fillRect(335, 222, 18, 34);
+  g.fillStyle = '#EAF5FF';
+  g.beginPath(); g.moveTo(0, 330); g.quadraticCurveTo(200, 290, 400, 330); g.lineTo(400, 400); g.lineTo(0, 400); g.closePath(); g.fill();
   g.fillStyle = 'rgba(255,255,255,0.85)';
-  puff(346, 205, 10); puff(356, 188, 13); puff(350, 168, 9);
+  var flakes = [[40, 60], [350, 50], [70, 200], [340, 230], [30, 300], [375, 140], [110, 30], [300, 20]];
+  for (var f = 0; f < flakes.length; f++) circ(flakes[f][0], flakes[f][1], 6);
 
-  // Snowflakes
+  // Stick arms
+  g.strokeStyle = '#6B4320'; g.lineWidth = 10; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(150, 205); g.lineTo(45, 150); g.moveTo(85, 172); g.lineTo(60, 120); g.stroke();
+  g.beginPath(); g.moveTo(250, 205); g.lineTo(355, 150); g.moveTo(315, 172); g.lineTo(345, 115); g.stroke();
+
+  // Snow balls (shaded)
+  function ball(x, y, r) {
+    var gr = g.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r);
+    gr.addColorStop(0, '#FFFFFF'); gr.addColorStop(0.75, '#F2F8FF'); gr.addColorStop(1, '#BCD6EE');
+    g.fillStyle = gr; circ(x, y, r);
+  }
+  ball(200, 318, 92);
+  ball(200, 200, 70);
+  ball(200, 98, 54);
+
+  // Buttons
+  g.fillStyle = '#2B2B3A';
+  circ(200, 185, 9); circ(200, 215, 9); circ(200, 290, 10); circ(200, 325, 10);
+
+  // Scarf
+  g.fillStyle = '#E5383B';
+  g.beginPath(); g.ellipse(200, 145, 58, 15, 0, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.moveTo(222, 145); g.lineTo(258, 145); g.lineTo(266, 215); g.lineTo(236, 210); g.closePath(); g.fill();
   g.fillStyle = '#FFFFFF';
-  var flakes = [[40, 180, 5], [190, 150, 4], [250, 160, 5], [370, 170, 4], [30, 250, 4], [215, 205, 5], [180, 270, 4], [60, 40, 4], [380, 30, 4]];
-  for (var f = 0; f < flakes.length; f++) puff(flakes[f][0], flakes[f][1], flakes[f][2]);
+  g.fillRect(239, 195, 24, 6);
+
+  // Top hat
+  g.fillStyle = '#23232E';
+  g.fillRect(140, 50, 120, 14);
+  g.fillRect(160, -5, 80, 58);
+  g.fillStyle = '#E5383B'; g.fillRect(160, 36, 80, 12);
+
+  // Face
+  g.fillStyle = '#23232E';
+  circ(182, 92, 7); circ(218, 92, 7);
+  var mouth = [[176, 118], [186, 124], [200, 127], [214, 124], [224, 118]];
+  for (var m = 0; m < mouth.length; m++) circ(mouth[m][0], mouth[m][1], 4);
+  g.fillStyle = '#FF8A1F';
+  g.beginPath(); g.moveTo(198, 100); g.lineTo(250, 110); g.lineTo(198, 112); g.closePath(); g.fill();
+  g.fillStyle = 'rgba(255,120,140,0.35)';
+  circ(170, 108, 9); circ(230, 108, 9);
 
   pictureImg = cv;
 }
@@ -147,30 +118,46 @@ function pieceEdge(c, ax, ay, bx, by, out) {
 }
 
 function piecePath(c, n) {
-  var pc = PIECE_CELL[n], e = PIECE_EDGES[n];
-  var x0 = pc.c * PIC_CELL, y0 = pc.r * PIC_CELL, x1 = x0 + PIC_CELL, y1 = y0 + PIC_CELL;
+  var d = PIECE_DEFS[n];
+  var C = PIC_U / 2, R = PIC_HOLE_R;
   c.beginPath();
-  c.moveTo(x0, y0);
-  pieceEdge(c, x0, y0, x1, y0, e[0]);
-  pieceEdge(c, x1, y0, x1, y1, e[1]);
-  pieceEdge(c, x1, y1, x0, y1, e[2]);
-  pieceEdge(c, x0, y1, x0, y0, e[3]);
+  if (d.type === 'circle') { c.arc(C, C, R, 0, Math.PI * 2); c.closePath(); return; }
+  var x0 = d.c * PIC_CELL, y0 = d.r * PIC_CELL, x1 = x0 + PIC_CELL, y1 = y0 + PIC_CELL;
+  var V = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+  var ci = -1;
+  for (var k = 0; k < 4; k++) if (V[k][0] === C && V[k][1] === C) ci = k;
+  function toward(A, B, dist) {
+    var dx = B[0] - A[0], dy = B[1] - A[1], len = Math.sqrt(dx * dx + dy * dy);
+    return [A[0] + dx / len * dist, A[1] + dy / len * dist];
+  }
+  var st = (ci + 2) % 4;
+  c.moveTo(V[st][0], V[st][1]);
+  for (var j = 0; j < 4; j++) {
+    var kk = (st + j) % 4, k2 = (kk + 1) % 4;
+    var a = V[kk], b = V[k2];
+    if (kk === ci) a = toward(V[kk], V[k2], R);
+    if (k2 === ci) b = toward(V[k2], V[kk], R);
+    pieceEdge(c, a[0], a[1], b[0], b[1], d.e[kk]);
+    if (k2 === ci) {
+      var nx = toward(V[k2], V[(k2 + 1) % 4], R);
+      c.arc(C, C, R, Math.atan2(b[1] - C, b[0] - C), Math.atan2(nx[1] - C, nx[0] - C), true);
+    }
+  }
   c.closePath();
 }
 
-// Draw a single piece centered at (cx, cy), its cell sized cw x ch px.
+// Draw piece n with its anchor at (cx, cy); sx/sy = pixels per picture unit.
 // opts: { border: px, alpha, rot, flash }
-function drawPieceAt(n, cx, cy, cw, ch, opts) {
+function drawPieceAt(n, cx, cy, sx, sy, opts) {
   if (!pictureImg) buildPictureImage();
   opts = opts || {};
-  var pc = PIECE_CELL[n];
-  var sx = cw / PIC_CELL, sy = ch / PIC_CELL;
+  var an = pieceAnchor(n);
   ctx.save();
   if (opts.alpha !== undefined) ctx.globalAlpha = opts.alpha;
   ctx.translate(cx, cy);
   if (opts.rot) ctx.rotate(opts.rot);
   ctx.scale(sx, sy);
-  ctx.translate(-(pc.c * PIC_CELL + PIC_CELL / 2), -(pc.r * PIC_CELL + PIC_CELL / 2));
+  ctx.translate(-an.x, -an.y);
   var lw = 1 / Math.min(sx, sy);
   if (opts.border) {
     ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 5 * S; ctx.shadowOffsetY = 2 * S;
@@ -241,14 +228,15 @@ function pictureDeniedTap() {
 }
 
 function slotCenter(n) {
-  var inr = pictureInner(), pc = PIECE_CELL[n];
-  return { x: inr.x + (pc.c + 0.5) * inr.w / 2, y: inr.y + (pc.r + 0.5) * inr.h / 2, cw: inr.w / 2, ch: inr.h / 2 };
+  var inr = pictureInner(), an = pieceAnchor(n);
+  var sx = inr.w / PIC_U, sy = inr.h / PIC_U;
+  return { x: inr.x + an.x * sx, y: inr.y + an.y * sy, sx: sx, sy: sy };
 }
 
-// Badge geometry on a box (top-right corner, bigger than a slot feels at icon size)
-function pieceBadgeGeom(b) {
-  var cw = L.bw * 0.44;
-  return { x: b.x + L.bw * 0.7, y: b.y + L.bh * 0.3, cw: cw, ch: cw };
+// Badge geometry on a box: centered on the box, same on-screen size for every piece
+function pieceBadgeGeom(b, n) {
+  var sc = L.bw * 0.62 / pieceSize(n);
+  return { x: b.x + L.bw / 2, y: b.y + L.bh / 2, sx: sc, sy: sc };
 }
 
 // Called from handleTap when a box is picked
@@ -256,8 +244,8 @@ function collectPicturePiece(b) {
   if (!picture || !b.piece || picture.state === 'gone') return;
   var n = b.piece;
   b.piece = 0;
-  var g = pieceBadgeGeom(b);
-  pieceFlights.push({ n: n, sx: g.x, sy: g.y, scw: g.cw, sch: g.ch, t: 0, delay: pieceFlights.length * 8 });
+  var g = pieceBadgeGeom(b, n);
+  pieceFlights.push({ n: n, x0: g.x, y0: g.y, ssx: g.sx, ssy: g.sy, t: 0, delay: pieceFlights.length * 8 });
   tone(950, 0.08, 'triangle', 0.07, 1400);
 }
 
@@ -309,20 +297,20 @@ function updatePicture() {
 function flightPos(f) {
   var end = slotCenter(f.n);
   var t = easeInOut(Math.min(1, f.t));
-  var mx = (f.sx + end.x) / 2, my = Math.min(f.sy, end.y) - 110 * S;
-  var x = (1 - t) * (1 - t) * f.sx + 2 * (1 - t) * t * mx + t * t * end.x;
-  var y = (1 - t) * (1 - t) * f.sy + 2 * (1 - t) * t * my + t * t * end.y;
-  // Size: lift up big, then shrink into the slot (fake perspective)
-  var big = 1.35, cw, ch;
+  var mx = (f.x0 + end.x) / 2, my = Math.min(f.y0, end.y) - 110 * S;
+  var x = (1 - t) * (1 - t) * f.x0 + 2 * (1 - t) * t * mx + t * t * end.x;
+  var y = (1 - t) * (1 - t) * f.y0 + 2 * (1 - t) * t * my + t * t * end.y;
+  // Size: lifts off bigger than on the box, then shrinks into its slot (fake perspective)
+  var bigX = Math.max(end.sx, f.ssx) * 1.3, bigY = Math.max(end.sy, f.ssy) * 1.3, sx, sy;
   if (f.t < 0.2) {
     var a = easeOut(f.t / 0.2);
-    cw = f.scw + (end.cw * big - f.scw) * a; ch = f.sch + (end.ch * big - f.sch) * a;
+    sx = f.ssx + (bigX - f.ssx) * a; sy = f.ssy + (bigY - f.ssy) * a;
   } else {
     var b2 = easeInOut((f.t - 0.2) / 0.8);
-    cw = end.cw * big + (end.cw - end.cw * big) * b2; ch = end.ch * big + (end.ch - end.ch * big) * b2;
+    sx = bigX + (end.sx - bigX) * b2; sy = bigY + (end.sy - bigY) * b2;
   }
   var rot = Math.sin(f.t * Math.PI * 2) * 0.35 * (1 - f.t);
-  return { x: x, y: y, cw: cw, ch: ch, rot: rot };
+  return { x: x, y: y, sx: sx, sy: sy, rot: rot };
 }
 
 function landPiece(n) {
@@ -351,10 +339,10 @@ function drawPicture() {
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (!b.piece || b.used || b.empty || b.isTunnel || b.isWall || b.covered) continue;
-    var g = pieceBadgeGeom(b);
+    var g = pieceBadgeGeom(b, b.piece);
     var ox = b.shakeT > 0 ? Math.sin(b.shakeT * 28) * 5 * S * b.shakeT : 0;
     var bob = Math.sin(tick * 0.06 + i) * 1.5 * S;
-    drawPieceAt(b.piece, g.x + ox, g.y + bob, g.cw, g.ch, { border: 2.2 * S, rot: Math.sin(tick * 0.03 + i) * 0.06 });
+    drawPieceAt(b.piece, g.x + ox, g.y + bob, g.sx, g.sy, { border: 2.2 * S, rot: Math.sin(tick * 0.03 + i) * 0.06 });
   }
 
   if (picture.state === 'gone') return;
@@ -401,7 +389,7 @@ function drawPicture() {
   for (var n = 1; n <= PICTURE_PIECES; n++) {
     if (picture.placed[n]) {
       var c = slotCenter(n);
-      drawPieceAt(n, c.x, c.y, c.cw, c.ch, { flash: (picture.snapT[n] || 0) * 0.7, alpha: alpha });
+      drawPieceAt(n, c.x, c.y, c.sx, c.sy, { flash: (picture.snapT[n] || 0) * 0.7, alpha: alpha });
     } else {
       // Dashed outline of the missing piece
       ctx.save();
@@ -436,16 +424,6 @@ function drawPicture() {
   }
   ctx.restore();
 
-  // Progress chip
-  if (picture.state === 'active') {
-    var label = picture.placedCount + '/' + PICTURE_PIECES;
-    var chW = 30 * S, chH = 15 * S, chX = r.x + r.w / 2 - chW / 2, chY = r.y + r.h - chH * 0.55;
-    ctx.fillStyle = '#5E3B1A'; rRect(chX, chY, chW, chH, chH / 2); ctx.fill();
-    ctx.fillStyle = '#FFF3D6';
-    ctx.font = 'bold ' + Math.round(10 * S) + 'px Fredoka, sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(label, chX + chW / 2, chY + chH / 2 + 0.5 * S);
-  }
   ctx.restore();
 }
 
@@ -453,10 +431,10 @@ function drawPieceFlights() {
   for (var i = 0; i < pieceFlights.length; i++) {
     var f = pieceFlights[i];
     if (f.delay > 0) {
-      drawPieceAt(f.n, f.sx, f.sy, f.scw, f.sch, { border: 2.2 * S });
+      drawPieceAt(f.n, f.x0, f.y0, f.ssx, f.ssy, { border: 2.2 * S });
       continue;
     }
     var p = flightPos(f);
-    drawPieceAt(f.n, p.x, p.y, p.cw, p.ch, { border: 2.5 * S * (1 - f.t * 0.6), rot: p.rot });
+    drawPieceAt(f.n, p.x, p.y, p.sx, p.sy, { border: 2.5 * S * (1 - f.t * 0.6), rot: p.rot });
   }
 }

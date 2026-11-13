@@ -85,7 +85,7 @@ function edPieceClick(idx) {
   if (v.piece) { delete v.piece; return; }
   if (edPictureCells().indexOf(idx) >= 0) { editorShowToast('No piece under the picture'); return; }
   var n = edNextFreePiece();
-  if (!n) { editorShowToast('All 4 pieces are already placed'); return; }
+  if (!n) { editorShowToast('All ' + PICTURE_PIECES + ' pieces are already placed'); return; }
   v.piece = n;
 }
 
@@ -346,7 +346,7 @@ function editorRenderToolbar() {
     picInfo.className = 'ed-color-row';
     picInfo.innerHTML = editor.pictureMode
       ? '<span style="font-size:11px;color:#9C8A70">Click the TOP-LEFT cell of the 2x2 frame &middot; click the frame to remove</span>'
-      : '<span style="font-size:11px;color:#9C8A70">Click a box to add/remove a piece (1&rarr;4) &middot; right-click = change number</span>';
+      : '<span style="font-size:11px;color:#9C8A70">Click a box to add/remove a piece (1&rarr;5) &middot; right-click = change number</span>';
     el.appendChild(picInfo);
   } else if (editor.tunnelMode) {
     // Direction selector row
