@@ -1,5 +1,5 @@
 // ============================================================
-// picture.js — Picture mechanic (5-piece jigsaw: 4 corners + round center)
+// picture.js — Picture mechanic (5-piece jigsaw: 2 on top, 3 below)
 // A 2x2 frame sits over 4 grid cells and hides them. 5 boxes on
 // the board carry a picture piece (box.piece = 1..5). Picking a
 // piece box sends its piece flying into its slot in the frame.
@@ -14,28 +14,37 @@
 var PICTURE_PIECES = 5;
 var PIC_U = 400;          // local picture size (units) — 2x2 cells of 200
 var PIC_CELL = 200;
-var PIC_HOLE_R = 64;      // radius of the round center piece
 
-// 5-piece cut: 4 corner pieces (jigsaw tabs between them, center cut
-// out) + 1 round piece in the middle.
-// Edges: [top, right, bottom, left]  +1 tab out, -1 tab in, 0 flat
+// 5-piece cut on the 2x2 frame (picture units 0..400):
+//   top row:    [1: 200x200] [2: 200x200]
+//   bottom row: [3: 100x200] [4: 200x200] [5: 100x200]
+// Each piece is a clockwise polygon; every edge has a tab value:
+//   +1 tab sticks out, -1 tab goes in (hole), 0 flat border
 var PIECE_DEFS = {
-  1: { type: 'quad', c: 0, r: 0, e: [0, 1, 1, 0] },     // top-left
-  2: { type: 'quad', c: 1, r: 0, e: [0, 0, -1, -1] },   // top-right
-  3: { type: 'quad', c: 0, r: 1, e: [-1, 1, 0, 0] },    // bottom-left
-  4: { type: 'quad', c: 1, r: 1, e: [1, 0, 0, -1] },    // bottom-right
-  5: { type: 'circle' }                                 // center
+  1: { v: [[0, 0], [200, 0], [200, 200], [100, 200], [0, 200]], e: [0, 1, 1, -1, 0] },
+  2: { v: [[200, 0], [400, 0], [400, 200], [300, 200], [200, 200]], e: [0, 0, 1, -1, -1] },
+  3: { v: [[0, 200], [100, 200], [100, 400], [0, 400]], e: [1, 1, 0, 0] },
+  4: { v: [[100, 200], [200, 200], [300, 200], [300, 400], [100, 400]], e: [-1, 1, -1, 0, -1] },
+  5: { v: [[300, 200], [400, 200], [400, 400], [300, 400]], e: [-1, 0, 0, 1] }
 };
 
+function pieceBBox(n) {
+  var v = PIECE_DEFS[n].v, x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  for (var i = 0; i < v.length; i++) {
+    x0 = Math.min(x0, v[i][0]); y0 = Math.min(y0, v[i][1]);
+    x1 = Math.max(x1, v[i][0]); y1 = Math.max(y1, v[i][1]);
+  }
+  return { x0: x0, y0: y0, x1: x1, y1: y1 };
+}
+
 function pieceAnchor(n) {
-  var d = PIECE_DEFS[n];
-  if (d.type === 'circle') return { x: PIC_U / 2, y: PIC_U / 2 };
-  // visual center of a corner piece, pushed outward because the middle is cut out
-  return { x: d.c * PIC_CELL + PIC_CELL / 2 + (d.c ? 8 : -8), y: d.r * PIC_CELL + PIC_CELL / 2 + (d.r ? 8 : -8) };
+  var b = pieceBBox(n);
+  return { x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2 };
 }
 
 function pieceSize(n) {
-  return PIECE_DEFS[n].type === 'circle' ? PIC_HOLE_R * 2.3 : PIC_CELL;
+  var b = pieceBBox(n);
+  return Math.max(b.x1 - b.x0, b.y1 - b.y0);
 }
 
 // ── Image (procedural winter scene, drawn once offscreen) ──
@@ -106,42 +115,27 @@ function buildPictureImage() {
 function pieceEdge(c, ax, ay, bx, by, out) {
   if (!out) { c.lineTo(bx, by); return; }
   var dx = bx - ax, dy = by - ay;
-  var nx = -dy, ny = dx; // points inside the piece for clockwise tracing
-  var v = -out * 0.24;
-  function P(u, w) { return [ax + dx * u + nx * w, ay + dy * u + ny * w]; }
-  var p1 = P(0.36, 0), c1 = P(0.42, v * 0.15), c2 = P(0.28, v), p2 = P(0.5, v);
-  var c3 = P(0.72, v), c4 = P(0.58, v * 0.15), p3 = P(0.64, 0), p4 = P(1, 0);
+  var len = Math.sqrt(dx * dx + dy * dy);
+  var ux = dx / len, uy = dy / len;
+  var nx = -uy, ny = ux;            // points inside the piece (clockwise tracing)
+  var k = Math.min(len, 110);       // tab size is capped so short edges get a proportional tab
+  var mid = len / 2;
+  function P(off, w) { var d = mid + off * k; var h = -out * w * k; return [ax + ux * d + nx * h, ay + uy * d + ny * h]; }
+  var p1 = P(-0.16, 0), c1 = P(-0.10, 0.06), c2 = P(-0.26, 0.32), p2 = P(0, 0.32);
+  var c3 = P(0.26, 0.32), c4 = P(0.10, 0.06), p3 = P(0.16, 0);
   c.lineTo(p1[0], p1[1]);
   c.bezierCurveTo(c1[0], c1[1], c2[0], c2[1], p2[0], p2[1]);
   c.bezierCurveTo(c3[0], c3[1], c4[0], c4[1], p3[0], p3[1]);
-  c.lineTo(p4[0], p4[1]);
+  c.lineTo(bx, by);
 }
 
 function piecePath(c, n) {
-  var d = PIECE_DEFS[n];
-  var C = PIC_U / 2, R = PIC_HOLE_R;
+  var d = PIECE_DEFS[n], v = d.v;
   c.beginPath();
-  if (d.type === 'circle') { c.arc(C, C, R, 0, Math.PI * 2); c.closePath(); return; }
-  var x0 = d.c * PIC_CELL, y0 = d.r * PIC_CELL, x1 = x0 + PIC_CELL, y1 = y0 + PIC_CELL;
-  var V = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
-  var ci = -1;
-  for (var k = 0; k < 4; k++) if (V[k][0] === C && V[k][1] === C) ci = k;
-  function toward(A, B, dist) {
-    var dx = B[0] - A[0], dy = B[1] - A[1], len = Math.sqrt(dx * dx + dy * dy);
-    return [A[0] + dx / len * dist, A[1] + dy / len * dist];
-  }
-  var st = (ci + 2) % 4;
-  c.moveTo(V[st][0], V[st][1]);
-  for (var j = 0; j < 4; j++) {
-    var kk = (st + j) % 4, k2 = (kk + 1) % 4;
-    var a = V[kk], b = V[k2];
-    if (kk === ci) a = toward(V[kk], V[k2], R);
-    if (k2 === ci) b = toward(V[k2], V[kk], R);
-    pieceEdge(c, a[0], a[1], b[0], b[1], d.e[kk]);
-    if (k2 === ci) {
-      var nx = toward(V[k2], V[(k2 + 1) % 4], R);
-      c.arc(C, C, R, Math.atan2(b[1] - C, b[0] - C), Math.atan2(nx[1] - C, nx[0] - C), true);
-    }
+  c.moveTo(v[0][0], v[0][1]);
+  for (var k = 0; k < v.length; k++) {
+    var a = v[k], b = v[(k + 1) % v.length];
+    pieceEdge(c, a[0], a[1], b[0], b[1], d.e[k]);
   }
   c.closePath();
 }
@@ -380,10 +374,10 @@ function drawPicture() {
   // Canvas (paper + faded image)
   ctx.save();
   rRect(inr.x, inr.y, inr.w, inr.h, 3 * S); ctx.clip();
-  ctx.fillStyle = '#F3ECDD'; ctx.fillRect(inr.x, inr.y, inr.w, inr.h);
-  ctx.globalAlpha = alpha * 0.16;
-  ctx.drawImage(pictureImg, inr.x, inr.y, inr.w, inr.h);
-  ctx.globalAlpha = alpha;
+  // Dark, hint-free canvas: the player discovers the image piece by piece
+  var dg = ctx.createLinearGradient(inr.x, inr.y, inr.x, inr.y + inr.h);
+  dg.addColorStop(0, '#2E2A36'); dg.addColorStop(1, '#1D1A24');
+  ctx.fillStyle = dg; ctx.fillRect(inr.x, inr.y, inr.w, inr.h);
 
   var ksx = inr.w / PIC_U, ksy = inr.h / PIC_U;
   for (var n = 1; n <= PICTURE_PIECES; n++) {
@@ -395,13 +389,13 @@ function drawPicture() {
       ctx.save();
       ctx.translate(inr.x, inr.y); ctx.scale(ksx, ksy);
       piecePath(ctx, n);
-      ctx.fillStyle = 'rgba(120,90,60,0.08)'; ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.03)'; ctx.fill();
       ctx.setLineDash([6 * S / ksx, 4 * S / ksx]);
-      ctx.strokeStyle = 'rgba(110,75,40,0.75)'; ctx.lineWidth = 2 * S / Math.min(ksx, ksy);
+      ctx.strokeStyle = 'rgba(255,240,215,0.55)'; ctx.lineWidth = 2 * S / Math.min(ksx, ksy);
       ctx.stroke();
       ctx.restore();
       var sc2 = slotCenter(n);
-      ctx.fillStyle = 'rgba(110,75,40,0.35)';
+      ctx.fillStyle = 'rgba(255,240,215,0.25)';
       ctx.font = 'bold ' + Math.round(inr.h * 0.13) + 'px Fredoka, sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(String(n), sc2.x, sc2.y);
