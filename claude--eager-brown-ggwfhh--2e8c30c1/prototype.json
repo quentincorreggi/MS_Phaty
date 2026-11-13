@@ -1,0 +1,146 @@
+{
+  "name": "Picture (4 pieces)",
+  "description": "Collect the 4 picture pieces carried by boxes to complete the picture \u2014 it then disappears and frees the 4 boxes hidden under it.",
+  "howToPlay": "Tap boxes with a jigsaw piece: the piece flies into the frame. Complete the picture to free the boxes under it. In the Level Editor use the 'Picture' tool (click the top-left cell of the 2x2) and the 'Piece' tool (click boxes, right-click to change the number).",
+  "author": "",
+  "showcaseLevel": {
+    "name": "Picture showcase",
+    "desc": "Complete the picture!",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default",
+        "piece": 1
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "hidden"
+      },
+      null,
+      null,
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default",
+        "piece": 2
+      },
+      null,
+      null,
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      null,
+      null,
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default",
+        "piece": 4
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      null,
+      null,
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default",
+        "piece": 3
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "picture": {
+      "idx": 16
+    }
+  }
+}
