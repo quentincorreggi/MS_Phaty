@@ -55,7 +55,7 @@ function initGame() {
       } else if (typeof cell === 'number') {
         if (cell >= 0) boxSlots[i] = { ci: cell, boxType: 'default' };
       } else if (typeof cell === 'object' && cell.ci >= 0) {
-        boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default' };
+        boxSlots[i] = { ci: cell.ci, boxType: cell.type || 'default', piece: cell.piece || 0 };
       }
     }
   }
@@ -136,11 +136,15 @@ function initGame() {
         iceHP: isIce ? 2 : 0,
         iceCrackT: 0, iceShatterT: 0,
         blockerCount: isBlocker ? BLOCKER_PER_BOX : 0,
+        piece: slot.piece || 0,
         x: L.sx + c * (L.bw + L.bg), y: L.sy + r * (L.bh + L.bg),
         shakeT: 0, hoverT: 0, popT: 0, revealT: 0, emptyT: 0,
         idlePhase: Math.random() * Math.PI * 2 });
     }
   }
+
+  // ── Picture frame (covers 4 cells) ──
+  initPicture(lvl);
 
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
@@ -182,6 +186,7 @@ function updateBoxReveals(animate) {
     if (!s) { passable[i] = false; continue; }
     if (s.isWall) { passable[i] = false; continue; }
     if (s.isTunnel) { passable[i] = false; continue; }
+    if (s.covered) { passable[i] = false; continue; }  // picture frame blocks like a wall
     passable[i] = !!(s.empty || s.used);
   }
 
@@ -222,6 +227,7 @@ function updateBoxReveals(animate) {
     if (!b) continue;
     if (b.isWall || b.isTunnel || b.empty || b.used) continue;
     if (b.spawning) continue;
+    if (b.covered) { b.revealed = false; continue; }  // hidden under the picture frame
 
     var br = Math.floor(k / L.cols), bcol = k % L.cols;
     var hasPath = false;
@@ -315,6 +321,7 @@ function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
   if (b.isWall) return false;      // walls are not tappable
+  if (b.covered) return false;     // under the picture frame
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
@@ -328,6 +335,7 @@ function handleTap(px, py) {
   if (won || !gameActive) return;
   ensureAudio();
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
+  if (pictureHitTest(px, py)) { pictureDeniedTap(); return; }
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
@@ -338,6 +346,7 @@ function handleTap(px, py) {
       sfx.pop();
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
+      collectPicturePiece(b);
       damageAdjacentIce(i);
       return;
     }
@@ -373,6 +382,9 @@ function update() {
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
+
+  // ── Picture frame + flying pieces ──
+  updatePicture();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -545,6 +557,7 @@ function frame() {
     drawBackground();
     drawFunnel();
     drawStock();
+    drawPicture();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();
@@ -552,6 +565,7 @@ function frame() {
     drawSortArea();
     drawBackButton();
     drawParticles();
+    drawPieceFlights();
     drawDebugWalls();
   }
   requestAnimationFrame(frame);

@@ -151,6 +151,7 @@ function isTileAvailableForTunnel(idx) {
   // Must be an empty slot or a fully-used box (not a tunnel, not an active box, not a wall)
   if (s.isTunnel) return false;
   if (s.isWall) return false;  // walls block tunnel spawning
+  if (s.covered) return false; // cells under the picture frame
   return s.empty || s.used;
 }
 
@@ -162,6 +163,7 @@ function trySpawnFromTunnels() {
     if (!s.isTunnel) continue;
     if (s.tunnelContents.length === 0) continue;
     if (s.tunnelSpawning) continue;
+    if (s.covered) continue;     // tunnel under the picture frame is dormant
     if (s.tunnelCooldown > 0) { s.tunnelCooldown--; continue; }
 
     var exitIdx = getTunnelExitIdx(i);

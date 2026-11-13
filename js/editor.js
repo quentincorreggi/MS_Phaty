@@ -17,6 +17,9 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  picture: -1,          // top-left cell of the 2x2 picture frame, -1 = none
+  pictureMode: false,   // true when placing the picture frame
+  pieceMode: false,     // true when painting picture pieces on boxes
   visible: false
 };
 
@@ -34,6 +37,68 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.picture = -1;
+  editor.pictureMode = false;
+  editor.pieceMode = false;
+}
+
+// ── Picture helpers ──
+function edPictureCells() {
+  if (editor.picture < 0) return [];
+  var p = editor.picture;
+  return [p, p + 1, p + 7, p + 8];
+}
+
+function edPieceCells() {
+  var res = {};
+  for (var i = 0; i < 49; i++) {
+    var v = editor.grid[i];
+    if (v && !v.wall && !v.tunnel && v.ci >= 0 && v.piece) res[i] = v.piece;
+  }
+  return res;
+}
+
+function edNextFreePiece() {
+  var used = {};
+  var pc = edPieceCells();
+  for (var k in pc) used[pc[k]] = true;
+  for (var n = 1; n <= PICTURE_PIECES; n++) if (!used[n]) return n;
+  return 0;
+}
+
+function edPieceBadgeHTML(n) {
+  return '<span class="ed-piece-badge">\uD83E\uDDE9' + n + '</span>';
+}
+
+function edPictureClick(idx) {
+  var cells = edPictureCells();
+  if (cells.indexOf(idx) >= 0) { editor.picture = -1; return; }
+  var r = Math.floor(idx / 7), c = idx % 7;
+  if (r === 0) { editorShowToast('Picture can\'t go on row 1'); return; }
+  if (r > 5 || c > 5) { editorShowToast('Picture needs 2x2 room (click its top-left cell)'); return; }
+  editor.picture = idx;
+}
+
+function edPieceClick(idx) {
+  var v = editor.grid[idx];
+  if (!v || v.wall || v.tunnel || !(v.ci >= 0)) { editorShowToast('Pieces go on boxes'); return; }
+  if (v.piece) { delete v.piece; return; }
+  if (edPictureCells().indexOf(idx) >= 0) { editorShowToast('No piece under the picture'); return; }
+  var n = edNextFreePiece();
+  if (!n) { editorShowToast('All 4 pieces are already placed'); return; }
+  v.piece = n;
+}
+
+// Right-click in piece mode: change this box's piece number (swap with the box holding it)
+function edPieceCycle(idx) {
+  var v = editor.grid[idx];
+  if (!v || !v.piece) return;
+  var next = (v.piece % PICTURE_PIECES) + 1;
+  var pc = edPieceCells();
+  for (var k in pc) {
+    if (pc[k] === next) { editor.grid[k].piece = v.piece; break; }
+  }
+  v.piece = next;
 }
 
 function showEditor(fresh) {
@@ -95,6 +160,18 @@ function editorRenderGrid() {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
     }
+    // Picture frame overlay
+    var picCells = edPictureCells();
+    var pPos = picCells.indexOf(i);
+    if (pPos >= 0) {
+      var ov = document.createElement('div');
+      ov.className = 'ed-pic-ov ed-pic-ov' + pPos;
+      if (pPos === 0) ov.innerHTML = '<span>\uD83D\uDDBC</span>';
+      cell.appendChild(ov);
+    }
+    if (v && v.piece && !v.wall && !v.tunnel) {
+      cell.insertAdjacentHTML('beforeend', edPieceBadgeHTML(v.piece));
+    }
     cell.setAttribute('data-idx', i);
     cell.addEventListener('click', editorCellClick);
     cell.addEventListener('contextmenu', editorCellErase);
@@ -104,6 +181,13 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.pictureMode || editor.pieceMode) {
+    if (editor.pictureMode) edPictureClick(idx); else edPieceClick(idx);
+    editorRenderGrid();
+    editorUpdateStats();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -144,7 +228,9 @@ function editorCellClick(e) {
       if (existing && !existing.tunnel && !existing.wall && existing.ci === editor.activeColor && existing.type === editor.activeType) {
         editor.grid[idx] = null;
       } else {
+        var keepPiece = (existing && existing.piece && !existing.tunnel && !existing.wall) ? existing.piece : 0;
         editor.grid[idx] = { ci: editor.activeColor, type: editor.activeType };
+        if (keepPiece) editor.grid[idx].piece = keepPiece;
       }
       if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
     }
@@ -157,6 +243,8 @@ function editorCellClick(e) {
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+  if (editor.pieceMode) { edPieceCycle(idx); editorRenderGrid(); editorUpdateStats(); return; }
+  if (editor.pictureMode) { if (edPictureCells().indexOf(idx) >= 0) editor.picture = -1; editorRenderGrid(); editorUpdateStats(); return; }
   editor.grid[idx] = null;
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
   editorRenderGrid();
@@ -178,13 +266,15 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.pictureMode && !editor.pieceMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.pictureMode = false;
+      editor.pieceMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -200,6 +290,8 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.pictureMode = false;
+    editor.pieceMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -214,14 +306,49 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.pictureMode = false;
+    editor.pieceMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(tunnelBtn);
 
+  // Picture frame mode button
+  var picBtn = document.createElement('button');
+  picBtn.className = 'ed-type-btn' + (editor.pictureMode ? ' active' : '');
+  picBtn.textContent = '\uD83D\uDDBC Picture';
+  picBtn.style.borderColor = editor.pictureMode ? 'rgba(168,116,62,0.7)' : '';
+  picBtn.style.color = editor.pictureMode ? '#8A5A2B' : '';
+  picBtn.addEventListener('click', function () {
+    editor.pictureMode = true; editor.pieceMode = false;
+    editor.tunnelMode = false; editor.wallMode = false;
+    editorRenderToolbar(); editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(picBtn);
+
+  // Picture piece mode button
+  var pieceBtn = document.createElement('button');
+  pieceBtn.className = 'ed-type-btn' + (editor.pieceMode ? ' active' : '');
+  pieceBtn.textContent = '\uD83E\uDDE9 Piece';
+  pieceBtn.style.borderColor = editor.pieceMode ? 'rgba(168,116,62,0.7)' : '';
+  pieceBtn.style.color = editor.pieceMode ? '#8A5A2B' : '';
+  pieceBtn.addEventListener('click', function () {
+    editor.pieceMode = true; editor.pictureMode = false;
+    editor.tunnelMode = false; editor.wallMode = false;
+    editorRenderToolbar(); editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(pieceBtn);
+
   el.appendChild(typeRow);
 
-  if (editor.tunnelMode) {
+  if (editor.pictureMode || editor.pieceMode) {
+    var picInfo = document.createElement('div');
+    picInfo.className = 'ed-color-row';
+    picInfo.innerHTML = editor.pictureMode
+      ? '<span style="font-size:11px;color:#9C8A70">Click the TOP-LEFT cell of the 2x2 frame &middot; click the frame to remove</span>'
+      : '<span style="font-size:11px;color:#9C8A70">Click a box to add/remove a piece (1&rarr;4) &middot; right-click = change number</span>';
+    el.appendChild(picInfo);
+  } else if (editor.tunnelMode) {
     // Direction selector row
     var dirRow = document.createElement('div');
     dirRow.className = 'ed-color-row';
@@ -441,6 +568,7 @@ function editorFillRandom() {
 
 function editorClearAll() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
+  editor.picture = -1;
   editor.selectedTunnel = -1;
   editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
 }
@@ -526,6 +654,23 @@ function editorUpdateStats() {
       warn = 'Total blocker marbles (' + totalBlockers + ') must be a multiple of 3';
     }
   }
+  // Picture checks
+  var pieceCells = edPieceCells();
+  var pieceCount = 0, picWarn = '';
+  var picCellsS = edPictureCells();
+  var seen = {};
+  for (var pk in pieceCells) {
+    pieceCount++;
+    if (seen[pieceCells[pk]]) picWarn = 'Piece ' + pieceCells[pk] + ' is used twice';
+    seen[pieceCells[pk]] = true;
+    if (picCellsS.indexOf(parseInt(pk)) >= 0) picWarn = 'A piece box is under the picture';
+  }
+  if (editor.picture >= 0 || pieceCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#A8743E">\uD83D\uDDBC Pieces: ' + pieceCount + '/' + PICTURE_PIECES + '</span>';
+    if (!picWarn && editor.picture < 0) picWarn = 'Pieces placed but no picture frame';
+    if (!picWarn && editor.picture >= 0 && pieceCount !== PICTURE_PIECES) picWarn = 'Picture needs exactly ' + PICTURE_PIECES + ' piece boxes';
+    if (picWarn) html += '<span class="ed-stat-warn">' + picWarn + '</span>';
+  }
   if (warn) html += '<span class="ed-stat-warn">' + warn + '</span>';
   el.innerHTML = html;
 }
@@ -563,12 +708,14 @@ function editorRenderSettings() {
 
 // ── Build level definition ──
 function editorBuildLevel() {
-  return {
+  var lvl = {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
-    grid: editor.grid.slice()
+    grid: JSON.parse(JSON.stringify(editor.grid))
   };
+  if (editor.picture >= 0) lvl.picture = { idx: editor.picture };
+  return lvl;
 }
 
 // ── Test play ──
@@ -625,6 +772,7 @@ function editorImportJSON() {
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
+      editor.picture = (lvl.picture && lvl.picture.idx !== undefined) ? lvl.picture.idx : -1;
       if (lvl.name) editor.name = lvl.name;
       if (lvl.desc) editor.desc = lvl.desc;
       var nameEl = document.getElementById('ed-name');
