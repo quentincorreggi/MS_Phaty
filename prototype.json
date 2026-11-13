@@ -1,7 +1,7 @@
 {
-  "name": "Picture (4 pieces)",
-  "description": "Collect the 4 picture pieces carried by boxes to complete the picture \u2014 it then disappears and frees the 4 boxes hidden under it.",
-  "howToPlay": "Tap boxes with a jigsaw piece: the piece flies into the frame. Complete the picture to free the boxes under it. In the Level Editor use the 'Picture' tool (click the top-left cell of the 2x2) and the 'Piece' tool (click boxes, right-click to change the number).",
+  "name": "Picture (5 pieces)",
+  "description": "Collect the 5 picture pieces carried by boxes to complete the picture \u2014 it then disappears and frees the 4 boxes hidden under it.",
+  "howToPlay": "Tap boxes with a jigsaw piece: the piece flies into the frame. Complete the picture to free the boxes under it. In the Level Editor use the 'Picture' tool (click the top-left cell of the 2x2) and the 'Piece' tool (click 5 boxes, right-click to change the number).",
   "author": "",
   "showcaseLevel": {
     "name": "Picture showcase",
@@ -92,7 +92,8 @@
       },
       {
         "ci": 0,
-        "type": "default"
+        "type": "default",
+        "piece": 5
       },
       {
         "ci": 3,
