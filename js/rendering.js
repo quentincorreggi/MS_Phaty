@@ -171,6 +171,12 @@ function drawStock() {
       continue;
     }
 
+    // ── Faucet (flagged isWall too, so check first) ──
+    if (b.isFaucet) {
+      drawFaucetOnGrid(ctx, b, S, tick);
+      continue;
+    }
+
     // ── Wall ──
     if (b.isWall) {
       drawWallOnGrid(ctx, b.x, b.y, L.bw, L.bh, S, tick);

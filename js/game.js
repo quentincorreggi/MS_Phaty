@@ -32,6 +32,7 @@ function initGame() {
   won = false; score = 0; particles = []; physMarbles = []; jumpers = []; tick = 0; hoverIdx = -1;
   totalBlockerMarbles = 0; blockersOnBelt = 0; blockerCollecting = false; blockerCollectT = 0;
   blockerCollectSlots = []; blockerCollectCleared = false;
+  faucetEmits = [];
   document.getElementById('win-screen').classList.remove('show');
   computeLayout(); initBeltSlots();
 
@@ -42,12 +43,17 @@ function initGame() {
   var boxSlots = {};
   var tunnelSlots = {};
   var wallSlots = {};
+  var faucetSlots = {};
   if (lvl.grid) {
     for (var i = 0; i < Math.min(lvl.grid.length, totalSlots); i++) {
       var cell = lvl.grid[i];
       if (cell === null || cell === undefined) continue;
       if (cell.wall) {
         wallSlots[i] = true;
+        continue;
+      }
+      if (cell.faucet) {
+        faucetSlots[i] = { ci: cell.ci || 0, content: cell.content || 9 };
         continue;
       }
       if (cell.tunnel) {
@@ -83,6 +89,8 @@ function initGame() {
       if (isBlockerBox) totalBlockerMarbles += BLOCKER_PER_BOX;
     }
   }
+  // Faucet contents: each drip of 3 gets its own sort column of that colour
+  for (var k in faucetSlots) colorMarblesTotal[faucetSlots[k].ci] += faucetSlots[k].content;
   var sortPerColor = [];
   for (var c = 0; c < NUM_COLORS; c++) {
     sortPerColor.push(SORT_CAP > 0 ? Math.ceil(colorMarblesTotal[c] / SORT_CAP) : 0);
@@ -95,8 +103,13 @@ function initGame() {
     var slot = boxSlots[idx];
     var tSlot = tunnelSlots[idx];
     var wSlot = wallSlots[idx];
+    var fSlot = faucetSlots[idx];
 
-    if (tSlot) {
+    if (fSlot) {
+      // Faucet — inert blocker that drips when adjacent boxes are played
+      stock.push(makeFaucetStock(fSlot.ci, fSlot.content,
+        L.sx + c * (L.bw + L.bg), L.sy + r * (L.bh + L.bg)));
+    } else if (tSlot) {
       // Tunnel entry
       stock.push({
         isTunnel: true, isWall: false,
@@ -339,6 +352,7 @@ function handleTap(px, py) {
       spawnBurst(b.x + L.bw / 2, b.y + L.bh / 2, COLORS[b.ci].fill, 18);
       spawnPhysMarbles(b);
       damageAdjacentIce(i);
+      triggerAdjacentFaucets(i);
       return;
     }
   }
@@ -373,6 +387,9 @@ function update() {
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
+
+  // ── Faucet drips + auto-drain ──
+  updateFaucets();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -525,6 +542,7 @@ function checkWin() {
   for (var i = 0; i < stock.length; i++) {
     if (stock[i].isTunnel && stock[i].tunnelContents && stock[i].tunnelContents.length > 0) return;
   }
+  if (faucetsBusy()) return;
   if (!won) {
     won = true; sfx.win();
     document.getElementById('win-msg').textContent = 'All marbles sorted perfectly!';

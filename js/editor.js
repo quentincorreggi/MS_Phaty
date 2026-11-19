@@ -17,6 +17,8 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  faucetMode: false,    // true when placing faucets
+  faucetContent: 9,     // marbles in newly placed faucets (3-12, step 3)
   visible: false
 };
 
@@ -34,6 +36,8 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.faucetMode = false;
+  editor.faucetContent = 9;
 }
 
 function showEditor(fresh) {
@@ -70,7 +74,19 @@ function editorRenderGrid() {
     var cell = document.createElement('div');
     cell.className = 'ed-cell';
     var v = editor.grid[i];
-    if (v && v.wall) {
+    if (v && v.faucet) {
+      // Faucet cell
+      var fc = COLORS[v.ci] || COLORS[0];
+      var fWarn = editorFaucetShortfall(i) > 0;
+      cell.style.background = 'linear-gradient(135deg,#D6E1EA,#AFC0CE)';
+      cell.style.borderColor = fWarn ? '#E8A84C' : fc.fill;
+      cell.style.borderWidth = '3px';
+      cell.title = CLR_NAMES[v.ci] + ' faucet — ' + (v.content || 9) + ' marbles (' + Math.round((v.content || 9) / 3) + ' drips)' +
+        (fWarn ? ' — not enough neighbouring boxes!' : '');
+      cell.innerHTML = '<span class="ed-cell-dot" style="font-size:16px">\uD83D\uDEB0</span>' +
+        '<span class="ed-tunnel-badge" style="background:' + fc.fill + '">' + (v.content || 9) + '</span>' +
+        (fWarn ? '<span class="ed-tunnel-badge" style="left:-2px;right:auto;background:#E8A84C">!</span>' : '');
+    } else if (v && v.wall) {
       // Wall cell
       cell.style.background = 'linear-gradient(135deg,#9A8D7B,#6F6355)';
       cell.style.borderColor = '#8A7D6B';
@@ -104,6 +120,25 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.faucetMode) {
+    var cur = editor.grid[idx];
+    if (editor.activeColor === -1) {
+      if (cur && cur.faucet) editor.grid[idx] = null;
+    } else if (cur && cur.faucet) {
+      if (cur.ci === editor.activeColor && cur.content === editor.faucetContent) editor.grid[idx] = null;
+      else editor.grid[idx] = { faucet: true, ci: editor.activeColor, content: editor.faucetContent };
+    } else if (cur) {
+      editorShowToast('A faucet needs an empty cell');
+      return;
+    } else {
+      editor.grid[idx] = { faucet: true, ci: editor.activeColor, content: editor.faucetContent };
+    }
+    editorRenderGrid();
+    editorUpdateStats();
+    editorRenderTunnelPanel();
+    return;
+  }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -178,13 +213,14 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.faucetMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.faucetMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -200,6 +236,7 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.faucetMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -214,10 +251,27 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.faucetMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(tunnelBtn);
+
+  // Faucet mode button
+  var faucetBtn = document.createElement('button');
+  faucetBtn.className = 'ed-type-btn' + (editor.faucetMode ? ' active' : '');
+  faucetBtn.textContent = '\uD83D\uDEB0 Faucet';
+  faucetBtn.style.borderColor = editor.faucetMode ? 'rgba(95,107,120,0.6)' : '';
+  faucetBtn.style.color = editor.faucetMode ? '#4F6A82' : '';
+  faucetBtn.addEventListener('click', function () {
+    editor.faucetMode = true;
+    editor.tunnelMode = false;
+    editor.wallMode = false;
+    if (editor.activeColor < 0) editor.activeColor = 0;
+    editorRenderToolbar();
+    editorRenderTunnelPanel();
+  });
+  typeRow.appendChild(faucetBtn);
 
   el.appendChild(typeRow);
 
@@ -285,7 +339,62 @@ function editorRenderToolbar() {
       colorRow.appendChild(cb);
     }
     el.appendChild(colorRow);
+
+    if (editor.faucetMode) {
+      var amtRow = document.createElement('div');
+      amtRow.className = 'ed-color-row';
+      amtRow.innerHTML = '<span style="font-size:11px;color:#9C8A70;margin-right:4px">Marbles:</span>';
+      var amts = [3, 6, 9, 12];
+      for (var a = 0; a < amts.length; a++) {
+        var ab = document.createElement('button');
+        ab.className = 'ed-tool' + (editor.faucetContent === amts[a] ? ' active' : '');
+        ab.style.background = 'linear-gradient(135deg,#D6E1EA,#AFC0CE)';
+        ab.style.color = '#3A4A5A';
+        ab.textContent = amts[a];
+        ab.title = amts[a] + ' marbles = ' + (amts[a] / 3) + ' drip' + (amts[a] > 3 ? 's' : '');
+        ab.setAttribute('data-amt', amts[a]);
+        ab.addEventListener('click', function () {
+          editor.faucetContent = parseInt(this.getAttribute('data-amt'));
+          editorRenderToolbar();
+        });
+        amtRow.appendChild(ab);
+      }
+      el.appendChild(amtRow);
+      var hint = document.createElement('div');
+      hint.className = 'ed-color-row';
+      hint.innerHTML = '<span style="font-size:11px;color:#9C8A70">Click an empty cell to place. Drips 3 marbles each time a box next to it is played.</span>';
+      el.appendChild(hint);
+    }
   }
+}
+
+// ── Faucet validation: how many drips can't be covered by neighbouring boxes ──
+function editorFaucetShortfall(idx) {
+  var v = editor.grid[idx];
+  if (!v || !v.faucet) return 0;
+  var drips = Math.round((v.content || 9) / 3);
+  var r = Math.floor(idx / 7), c = idx % 7;
+  var nb = [];
+  if (r > 0) nb.push(idx - 7);
+  if (r < 6) nb.push(idx + 7);
+  if (c > 0) nb.push(idx - 1);
+  if (c < 6) nb.push(idx + 1);
+  var playable = 0;
+  for (var i = 0; i < nb.length; i++) {
+    var n = editor.grid[nb[i]];
+    if (n && !n.wall && !n.tunnel && !n.faucet && n.ci >= 0) playable++;
+  }
+  // Boxes a tunnel will drop into a neighbouring cell also count
+  for (var t = 0; t < 49; t++) {
+    var tn = editor.grid[t];
+    if (!tn || !tn.tunnel || !tn.contents) continue;
+    var tr = Math.floor(t / 7), tc = t % 7;
+    if (tn.dir === 'top') tr--; else if (tn.dir === 'bottom') tr++;
+    else if (tn.dir === 'left') tc--; else if (tn.dir === 'right') tc++;
+    if (tr < 0 || tr > 6 || tc < 0 || tc > 6) continue;
+    if (nb.indexOf(tr * 7 + tc) >= 0) playable += tn.contents.length;
+  }
+  return Math.max(0, drips - playable);
 }
 
 // ── Tunnel contents editor panel ──
@@ -453,9 +562,20 @@ function editorUpdateStats() {
   var total = 0, typeCounts = {}, totalBlockers = 0;
   var tunnelCount = 0, tunnelBoxCount = 0;
   var wallCount = 0;
+  var faucetCount = 0, faucetWarn = '';
   for (var i = 0; i < 49; i++) {
     var v = editor.grid[i];
     if (!v) continue;
+    if (v.faucet) {
+      faucetCount++;
+      regularMrb[v.ci] += (v.content || 9);
+      var sf = editorFaucetShortfall(i);
+      if (sf > 0 && !faucetWarn) {
+        faucetWarn = CLR_NAMES[v.ci] + ' faucet (row ' + (Math.floor(i / 7) + 1) + ', col ' + (i % 7 + 1) +
+          ') has fewer neighbouring boxes than drips — it will empty itself at the end';
+      }
+      continue;
+    }
     if (v.wall) {
       wallCount++;
       continue;
@@ -500,6 +620,9 @@ function editorUpdateStats() {
   if (wallCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#8A7D6B">' + wallCount + ' wall' + (wallCount > 1 ? 's' : '') + '</span>';
   }
+  if (faucetCount > 0) {
+    html += '<span class="ed-stat-chip" style="background:#6F8296">' + faucetCount + ' faucet' + (faucetCount > 1 ? 's' : '') + '</span>';
+  }
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
   }
@@ -526,6 +649,7 @@ function editorUpdateStats() {
       warn = 'Total blocker marbles (' + totalBlockers + ') must be a multiple of 3';
     }
   }
+  if (!warn && faucetWarn) warn = '\u26A0 ' + faucetWarn;
   if (warn) html += '<span class="ed-stat-warn">' + warn + '</span>';
   el.innerHTML = html;
 }
@@ -618,6 +742,7 @@ function editorImportJSON() {
           if (cell === null || cell === undefined || cell === -1) editor.grid[i] = null;
           else if (typeof cell === 'number') editor.grid[i] = cell >= 0 ? { ci: cell, type: 'default' } : null;
           else if (cell.wall) editor.grid[i] = { wall: true };
+          else if (cell.faucet) editor.grid[i] = { faucet: true, ci: cell.ci || 0, content: cell.content || 9 };
           else if (cell.tunnel) editor.grid[i] = { tunnel: true, dir: cell.dir || 'bottom', contents: cell.contents || [] };
           else editor.grid[i] = cell;
         }

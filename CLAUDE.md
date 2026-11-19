@@ -53,6 +53,7 @@ You can also use these commands:
 | `js/belt.js` | Belt slot init, position helpers (`getSlotPos`, `getSlotT`) | 37 |
 | `js/tunnel.js` | Tunnel mechanic — hidden box queue, spawns into adjacent cell | 219 |
 | `js/wall.js` | Wall cell — inert structural blocker | 96 |
+| `js/faucet.js` | Faucet — drips 3 marbles of its colour when an adjacent box is played; auto-drains if stranded | ~290 |
 | `js/editor.js` | Level editor UI — grid painting, toolbar, import/export JSON | 653 |
 | `js/particles.js` | Particle effects (bursts, confetti) | 42 |
 | `js/audio.js` | Sound effects via Web Audio API | 62 |
@@ -72,6 +73,7 @@ correct position:
 7. `physics.js` — marble physics
 8. `tunnel.js` — tunnel mechanic
 9. `wall.js` — wall mechanic
+   `faucet.js` — faucet mechanic
 10. `rendering.js` — all drawing code
 11. `editor.js` — level editor
 12. `game.js` — game loop, init, boot (must be last)
@@ -153,6 +155,7 @@ level's `grid` array (49 = 7x7) is:
 - `{ ci: 0-7, type: 'default'|'hidden'|'ice'|'blocker' }` — box
 - `{ tunnel: true, dir: 'top'|'bottom'|'left'|'right', contents: [{ci, type}...] }` — tunnel
 - `{ wall: true }` — wall
+- `{ faucet: true, ci: 0-7, content: 3|6|9|12 }` — faucet
 
 ## How to Add a New Box Type
 
