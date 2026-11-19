@@ -17,6 +17,10 @@ var editor = {
   tunnelDir: 'bottom',  // current tunnel direction for new tunnels
   selectedTunnel: -1,   // index of selected tunnel for content editing
   wallMode: false,      // true when placing walls
+  karts: [],            // Soap Karts: [{ top: idx, road: [idx...] }]
+  kartMode: false,      // true when placing karts
+  roadMode: false,      // true when drawing a kart's road
+  selectedKart: -1,     // index into editor.karts
   visible: false
 };
 
@@ -34,6 +38,10 @@ function editorInit() {
   editor.tunnelDir = 'bottom';
   editor.selectedTunnel = -1;
   editor.wallMode = false;
+  editor.karts = [];
+  editor.kartMode = false;
+  editor.roadMode = false;
+  editor.selectedKart = -1;
 }
 
 function showEditor(fresh) {
@@ -95,6 +103,7 @@ function editorRenderGrid() {
       cell.style.background = 'rgba(180,165,145,0.25)';
       cell.style.borderColor = 'rgba(160,140,120,0.3)';
     }
+    editorDecorateKartCell(cell, i);
     cell.setAttribute('data-idx', i);
     cell.addEventListener('click', editorCellClick);
     cell.addEventListener('contextmenu', editorCellErase);
@@ -104,6 +113,9 @@ function editorRenderGrid() {
 
 function editorCellClick(e) {
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+
+  if (editor.kartMode) { editorKartClick(idx); return; }
+  if (editor.roadMode) { editorRoadClick(idx); return; }
 
   if (editor.wallMode) {
     // Wall placement mode
@@ -157,6 +169,12 @@ function editorCellClick(e) {
 function editorCellErase(e) {
   e.preventDefault();
   var idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+  if (editor.kartMode) {
+    var kk = editorKartAt(idx);
+    if (kk >= 0) editorDeleteKart(kk);
+    return;
+  }
+  if (editor.roadMode) { editorRoadUndo(); return; }
   editor.grid[idx] = null;
   if (editor.selectedTunnel === idx) editor.selectedTunnel = -1;
   editorRenderGrid();
@@ -178,13 +196,15 @@ function editorRenderToolbar() {
     var id = BoxTypeOrder[t];
     var bt = BoxTypes[id];
     var tb = document.createElement('button');
-    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && editor.activeType === id ? ' active' : '');
+    tb.className = 'ed-type-btn' + (!editor.tunnelMode && !editor.wallMode && !editor.kartMode && !editor.roadMode && editor.activeType === id ? ' active' : '');
     tb.textContent = bt.label;
     tb.setAttribute('data-type', id);
     tb.addEventListener('click', function () {
       editor.activeType = this.getAttribute('data-type');
       editor.tunnelMode = false;
       editor.wallMode = false;
+      editor.kartMode = false;
+      editor.roadMode = false;
       editorRenderToolbar();
       editorRenderTunnelPanel();
     });
@@ -200,6 +220,8 @@ function editorRenderToolbar() {
   wallBtn.addEventListener('click', function () {
     editor.wallMode = true;
     editor.tunnelMode = false;
+    editor.kartMode = false;
+    editor.roadMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
@@ -214,14 +236,21 @@ function editorRenderToolbar() {
   tunnelBtn.addEventListener('click', function () {
     editor.tunnelMode = true;
     editor.wallMode = false;
+    editor.kartMode = false;
+    editor.roadMode = false;
     editorRenderToolbar();
     editorRenderTunnelPanel();
   });
   typeRow.appendChild(tunnelBtn);
 
+  // Soap Kart + Road buttons
+  editorAddKartButtons(typeRow);
+
   el.appendChild(typeRow);
 
-  if (editor.tunnelMode) {
+  if (editor.kartMode || editor.roadMode) {
+    el.appendChild(editorKartToolRow());
+  } else if (editor.tunnelMode) {
     // Direction selector row
     var dirRow = document.createElement('div');
     dirRow.className = 'ed-color-row';
@@ -436,12 +465,14 @@ function editorFillRandom() {
   var indices = []; for (var i = 0; i < 49; i++) indices.push(i);
   shuffle(indices);
   for (var i = 0; i < cl.length; i++) editor.grid[indices[i]] = { ci: cl[i], type: 'default' };
+  editor.karts = []; editor.selectedKart = -1;
   editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
 }
 
 function editorClearAll() {
   for (var i = 0; i < 49; i++) editor.grid[i] = null;
   editor.selectedTunnel = -1;
+  editor.karts = []; editor.selectedKart = -1;
   editorRenderGrid(); editorUpdateStats(); editorRenderTunnelPanel();
 }
 
@@ -503,6 +534,9 @@ function editorUpdateStats() {
   if (tunnelCount > 0) {
     html += '<span class="ed-stat-chip" style="background:#3D3548;border:1px solid #6A6070">' + tunnelCount + ' tunnel' + (tunnelCount > 1 ? 's' : '') + ' (' + tunnelBoxCount + ' stored)</span>';
   }
+  if (editor.karts.length > 0) {
+    html += '<span class="ed-stat-chip" style="background:#B8743A">' + editor.karts.length + ' soap kart' + (editor.karts.length > 1 ? 's' : '') + '</span>';
+  }
   if (totalBlockers > 0) {
     html += '<span class="ed-stat-chip" style="background:' + COLORS[BLOCKER_CI].fill + '">' + totalBlockers + ' blocker mrb</span>';
   }
@@ -527,6 +561,8 @@ function editorUpdateStats() {
     }
   }
   if (warn) html += '<span class="ed-stat-warn">' + warn + '</span>';
+  var kartIssues = editorKartIssues();
+  for (var ki = 0; ki < kartIssues.length; ki++) html += '<span class="ed-stat-warn">\uD83C\uDFCE ' + kartIssues[ki] + '</span>';
   el.innerHTML = html;
 }
 
@@ -567,7 +603,8 @@ function editorBuildLevel() {
     name: editor.name, desc: editor.desc,
     mrbPerBox: editor.mrbPerBox, sortCap: editor.sortCap,
     lockButtons: editor.lockButtons,
-    grid: editor.grid.slice()
+    grid: editor.grid.slice(),
+    karts: editor.karts.map(function (k) { return { top: k.top, road: k.road.slice() }; })
   };
 }
 
@@ -622,6 +659,14 @@ function editorImportJSON() {
           else editor.grid[i] = cell;
         }
       }
+      editor.karts = [];
+      if (lvl.karts) {
+        for (var kq = 0; kq < lvl.karts.length; kq++) {
+          var lk = lvl.karts[kq];
+          if (lk && typeof lk.top === 'number') editor.karts.push({ top: lk.top, road: (lk.road || []).slice() });
+        }
+      }
+      editor.selectedKart = -1;
       if (lvl.mrbPerBox) editor.mrbPerBox = lvl.mrbPerBox;
       if (lvl.sortCap) editor.sortCap = lvl.sortCap;
       if (lvl.lockButtons !== undefined) editor.lockButtons = lvl.lockButtons;
@@ -688,3 +733,266 @@ function editorSaveShowcase() {
 
 function editorSetName(val) { editor.name = val; }
 function editorSetDesc(val) { editor.desc = val; }
+
+// ============================================================
+// Soap Kart editor tools
+// ============================================================
+
+function editorKartAt(idx) {
+  for (var k = 0; k < editor.karts.length; k++) {
+    if (editor.karts[k].top === idx || editor.karts[k].top + 7 === idx) return k;
+  }
+  return -1;
+}
+
+function editorKartTintCss(k) { return KART_ROAD_TINTS[k % KART_ROAD_TINTS.length].css; }
+
+function editorRefreshAll() {
+  editorRenderGrid();
+  editorRenderToolbar();
+  editorUpdateStats();
+  editorRenderTunnelPanel();
+}
+
+function editorAddKartButtons(typeRow) {
+  var kartBtn = document.createElement('button');
+  kartBtn.className = 'ed-type-btn' + (editor.kartMode ? ' active' : '');
+  kartBtn.textContent = '🏎 Soap Kart';
+  if (editor.kartMode) { kartBtn.style.borderColor = 'rgba(184,116,58,0.7)'; kartBtn.style.color = '#8A5226'; }
+  kartBtn.addEventListener('click', function () {
+    editor.kartMode = true; editor.roadMode = false;
+    editor.tunnelMode = false; editor.wallMode = false;
+    editorRefreshAll();
+  });
+  typeRow.appendChild(kartBtn);
+
+  var roadBtn = document.createElement('button');
+  roadBtn.className = 'ed-type-btn' + (editor.roadMode ? ' active' : '');
+  roadBtn.textContent = '🛣 Road';
+  if (editor.roadMode) { roadBtn.style.borderColor = 'rgba(232,184,74,0.8)'; roadBtn.style.color = '#B8862A'; }
+  roadBtn.addEventListener('click', function () {
+    if (editor.karts.length === 0) { editorShowToast('Place a Soap Kart first'); return; }
+    if (editor.selectedKart < 0 || editor.selectedKart >= editor.karts.length) editor.selectedKart = 0;
+    editor.roadMode = true; editor.kartMode = false;
+    editor.tunnelMode = false; editor.wallMode = false;
+    editorRefreshAll();
+  });
+  typeRow.appendChild(roadBtn);
+}
+
+function editorKartToolRow() {
+  var row = document.createElement('div');
+  row.className = 'ed-color-row';
+  row.style.alignItems = 'center';
+  var hint = document.createElement('span');
+  hint.style.cssText = 'font-size:11px;color:#9C8A70;width:100%;text-align:center';
+  if (editor.kartMode) {
+    hint.textContent = 'Click the TOP cell of the kart (it takes 2 cells). Click a kart to select it. Right-click = delete kart.';
+  } else {
+    var sk = editor.selectedKart;
+    hint.innerHTML = (sk >= 0 ? '<b style="color:' + editorKartTintCss(sk) + '">Kart ' + (sk + 1) + '</b> &mdash; ' : '') +
+      'click the next road cell (down, left or right) until the bottom row. Click a road cell to cut the road there. Right-click = undo step.';
+  }
+  row.appendChild(hint);
+
+  // Kart selector chips
+  for (var k = 0; k < editor.karts.length; k++) {
+    var chip = document.createElement('button');
+    chip.className = 'ed-qbtn';
+    chip.textContent = '🏎 ' + (k + 1);
+    chip.style.background = editorKartTintCss(k);
+    chip.style.color = '#fff';
+    if (k === editor.selectedKart) chip.style.boxShadow = '0 0 0 2px #5A4A38';
+    chip.setAttribute('data-k', k);
+    chip.addEventListener('click', function () {
+      editor.selectedKart = parseInt(this.getAttribute('data-k'));
+      editorRefreshAll();
+    });
+    row.appendChild(chip);
+  }
+
+  if (editor.roadMode && editor.selectedKart >= 0) {
+    var undo = document.createElement('button');
+    undo.className = 'ed-qbtn'; undo.textContent = '↩ Undo step';
+    undo.addEventListener('click', editorRoadUndo);
+    row.appendChild(undo);
+    var clr = document.createElement('button');
+    clr.className = 'ed-qbtn'; clr.textContent = 'Reset road';
+    clr.addEventListener('click', function () {
+      var kt = editor.karts[editor.selectedKart];
+      if (!kt) return;
+      var r = Math.floor(kt.top / 7);
+      kt.road = (r <= 4) ? [kt.top + 14] : [];
+      editorRefreshAll();
+    });
+    row.appendChild(clr);
+  }
+  if (editor.selectedKart >= 0) {
+    var del = document.createElement('button');
+    del.className = 'ed-qbtn'; del.textContent = '✖ Delete kart';
+    del.addEventListener('click', function () { editorDeleteKart(editor.selectedKart); });
+    row.appendChild(del);
+  }
+  return row;
+}
+
+function editorDeleteKart(k) {
+  if (k < 0 || k >= editor.karts.length) return;
+  editor.karts.splice(k, 1);
+  if (editor.selectedKart >= editor.karts.length) editor.selectedKart = editor.karts.length - 1;
+  if (editor.karts.length === 0) { editor.selectedKart = -1; editor.roadMode = false; }
+  editorRefreshAll();
+}
+
+function editorKartClick(idx) {
+  var existing = editorKartAt(idx);
+  if (existing >= 0) {
+    editor.selectedKart = existing;
+    editorRefreshAll();
+    return;
+  }
+  var row = Math.floor(idx / 7);
+  if (row > 5) { editorShowToast('A kart takes 2 cells — click a higher cell'); return; }
+  if (editorKartAt(idx + 7) >= 0) { editorShowToast('That overlaps another kart'); return; }
+  editor.karts.push({ top: idx, road: row <= 4 ? [idx + 14] : [] });
+  editor.selectedKart = editor.karts.length - 1;
+  // Straight into road drawing for the new kart
+  editor.kartMode = false; editor.roadMode = true;
+  editorRefreshAll();
+  editorShowToast('Kart placed! Now draw its road down to the bottom row');
+}
+
+function editorRoadClick(idx) {
+  var kOnCell = editorKartAt(idx);
+  if (kOnCell >= 0) { editor.selectedKart = kOnCell; editorRefreshAll(); return; }
+  var kt = editor.karts[editor.selectedKart];
+  if (!kt) { editorShowToast('Select a kart first'); return; }
+  var road = kt.road;
+  var pos = road.indexOf(idx);
+  if (pos >= 0) {
+    if (pos === road.length - 1) {
+      if (road.length > 1) road.pop();
+      else editorShowToast('The road always starts right under the kart');
+    } else {
+      road.length = pos + 1;
+    }
+    editorRefreshAll();
+    return;
+  }
+  var last = road.length ? road[road.length - 1] : kt.top + 7;
+  var lr = Math.floor(last / 7), lc = last % 7;
+  var r = Math.floor(idx / 7), c = idx % 7;
+  if (road.length && lr === 6) { editorShowToast('This road already reaches the exit'); return; }
+  var ok = false;
+  if (!road.length) ok = (idx === last + 7);
+  else ok = (r === lr + 1 && c === lc) || (r === lr && Math.abs(c - lc) === 1);
+  if (!ok) { editorShowToast('Roads go down, left or right — one cell from the end'); return; }
+  road.push(idx);
+  editorRefreshAll();
+}
+
+function editorRoadUndo() {
+  var kt = editor.karts[editor.selectedKart];
+  if (!kt) return;
+  if (kt.road.length > 1) kt.road.pop();
+  editorRefreshAll();
+}
+
+// Draws kart / road overlays on top of an editor grid cell
+function editorDecorateKartCell(cell, i) {
+  if (!editor.karts || editor.karts.length === 0) return;
+  // Road marks (all karts using this cell)
+  var users = [];
+  for (var k = 0; k < editor.karts.length; k++) {
+    var pos = editor.karts[k].road.indexOf(i);
+    if (pos >= 0) users.push({ k: k, pos: pos });
+  }
+  if (users.length > 0) {
+    var u = users[0];
+    for (var q = 0; q < users.length; q++) if (users[q].k === editor.selectedKart) u = users[q];
+    var road = editor.karts[u.k].road;
+    var next = road[u.pos + 1];
+    var arrow = '▼';
+    if (next !== undefined) {
+      if (next === i - 1) arrow = '◀';
+      else if (next === i + 1) arrow = '▶';
+    }
+    var mark = document.createElement('div');
+    mark.className = 'ed-road-mark' + (users.length > 1 ? ' shared' : '');
+    var col = editorKartTintCss(u.k);
+    mark.style.borderColor = col;
+    if (users.length > 1) {
+      mark.style.background = 'repeating-linear-gradient(45deg,' + editorKartTintCss(users[0].k) + '55 0 5px,' + editorKartTintCss(users[1].k) + '55 5px 10px)';
+    } else {
+      mark.style.background = col + '33';
+    }
+    mark.innerHTML = '<span style="color:' + col + '">' + arrow + '</span>';
+    cell.appendChild(mark);
+  }
+  // Kart body
+  var kk = editorKartAt(i);
+  if (kk >= 0) {
+    var kt = editor.karts[kk];
+    var isTop = (kt.top === i);
+    var ov = document.createElement('div');
+    ov.className = 'ed-kart-ov ' + (isTop ? 'top' : 'bot') + (kk === editor.selectedKart ? ' sel' : '');
+    ov.style.borderColor = editorKartTintCss(kk);
+    ov.innerHTML = isTop ? '<span>🧼</span>' : '<span>🏎</span>';
+    cell.appendChild(ov);
+  }
+}
+
+// Level-design checks (shown as warnings under the grid)
+function editorKartIssues() {
+  var out = [];
+  var ks = editor.karts;
+  var kartCells = {};
+  for (var k = 0; k < ks.length; k++) { kartCells[ks[k].top] = k; kartCells[ks[k].top + 7] = k; }
+  for (var k2 = 0; k2 < ks.length; k2++) {
+    var kt = ks[k2], name = 'Kart ' + (k2 + 1) + ': ';
+    var top = kt.top, bot = kt.top + 7;
+    if (Math.floor(bot / 7) >= 6) out.push(name + 'can’t sit on the bottom row');
+    var under = [editor.grid[top], editor.grid[bot]], boxes = 0;
+    for (var u = 0; u < 2; u++) {
+      var v = under[u];
+      if (!v) continue;
+      if (v.wall || v.tunnel) { out.push(name + 'wall or tunnel under the kart'); continue; }
+      if (v.ci >= 0) {
+        boxes++;
+        if (v.type === 'ice') out.push(name + 'no Ice box under the kart (it can’t get hit)');
+      }
+    }
+    if (boxes === 0) out.push(name + 'needs at least 1 box under it');
+    var road = kt.road;
+    if (!road.length) { out.push(name + 'has no road'); continue; }
+    if (road[0] !== top + 14) out.push(name + 'road must start right under the kart');
+    var bad = false, roadBoxes = 0;
+    for (var r = 0; r < road.length; r++) {
+      var cell = road[r];
+      if (r > 0) {
+        var a = road[r - 1], ar = Math.floor(a / 7), ac = a % 7, br = Math.floor(cell / 7), bc = cell % 7;
+        if (!((br === ar + 1 && bc === ac) || (br === ar && Math.abs(bc - ac) === 1))) bad = true;
+        if (ar === 6) bad = true;
+      }
+      var g = editor.grid[cell];
+      if (g && (g.wall || g.tunnel)) out.push(name + 'wall or tunnel on its road');
+      if (kartCells[cell] !== undefined) out.push(name + 'another kart is on its road');
+      if (g && g.ci >= 0 && !g.wall && !g.tunnel) roadBoxes++;
+    }
+    if (bad) out.push(name + 'road must go down/left/right, one cell at a time');
+    if (Math.floor(road[road.length - 1] / 7) !== 6) out.push(name + 'road doesn’t reach the bottom row yet');
+    if (roadBoxes === 0) out.push(name + 'road has no box on it');
+    var touches = false;
+    for (var i = 0; i < road.length && !touches; i++) {
+      for (var j = i + 2; j < road.length; j++) {
+        var ir = Math.floor(road[i] / 7), ic = road[i] % 7, jr = Math.floor(road[j] / 7), jc = road[j] % 7;
+        if (Math.abs(ir - jr) + Math.abs(ic - jc) === 1) { touches = true; break; }
+      }
+    }
+    if (touches) out.push(name + 'road runs right next to itself (keep a 1-cell gap)');
+    for (var o = k2 + 1; o < ks.length; o++) {
+      if (ks[o].road.length && ks[o].road[0] === road[0]) out.push('Karts ' + (k2 + 1) + ' & ' + (o + 1) + ' share their first road cell');
+    }
+  }
+  return out;
+}

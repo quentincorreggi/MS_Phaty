@@ -114,6 +114,14 @@ function updateStockPositions() {
     stock[i].x = L.sx + c * (L.bw + L.bg);
     stock[i].y = L.sy + r * (L.bh + L.bg);
   }
+  // Soap Kart paths depend on cell positions
+  if (typeof karts !== 'undefined' && typeof buildKartPath === 'function') {
+    for (var k = 0; k < karts.length; k++) {
+      var oldLen = karts[k].pathLen;
+      buildKartPath(karts[k]);
+      if (oldLen > 0) { karts[k].dist *= karts[k].pathLen / oldLen; karts[k].speed *= karts[k].pathLen / oldLen; }
+    }
+  }
 }
 
 function resize() {

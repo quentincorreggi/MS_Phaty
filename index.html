@@ -162,6 +162,15 @@
     display:flex;align-items:center;justify-content:center}
   .ed-tunnel-add-clr:hover{transform:scale(1.15);border-color:rgba(255,255,255,0.7)}
   .ed-tunnel-add-clr:active{transform:scale(0.9)}
+  .ed-road-mark{position:absolute;inset:2px;border:2px dashed;border-radius:5px;pointer-events:none;
+    display:flex;align-items:flex-end;justify-content:flex-end;padding:0 2px 0 0;font-size:9px;font-weight:700}
+  .ed-road-mark.shared{border-style:double;border-width:3px}
+  .ed-road-mark span{text-shadow:0 0 2px #fff,0 0 2px #fff}
+  .ed-kart-ov{position:absolute;left:-3px;right:-3px;background:rgba(184,116,58,0.62);border:2px solid;pointer-events:none;
+    display:flex;align-items:center;justify-content:center;font-size:15px;z-index:2}
+  .ed-kart-ov.top{top:-3px;bottom:-5px;border-bottom:none;border-radius:8px 8px 0 0}
+  .ed-kart-ov.bot{top:-5px;bottom:-3px;border-top:none;border-radius:0 0 8px 8px}
+  .ed-kart-ov.sel{box-shadow:0 0 0 2px rgba(90,74,56,0.6)}
 </style>
 </head>
 <body>
@@ -267,6 +276,7 @@
 <script src="js/physics.js"></script>
 <script src="js/tunnel.js"></script>
 <script src="js/wall.js"></script>
+<script src="js/soapkart.js"></script>
 <script src="js/rendering.js"></script>
 <script src="js/editor.js"></script>
 <script src="js/game.js"></script>

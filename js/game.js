@@ -142,6 +142,9 @@ function initGame() {
     }
   }
 
+  // ── Soap Karts: cover their 2 cells before computing reveals ──
+  initKarts(lvl.karts);
+
   // ── Reveal boxes that currently have an open path to the bottom ──
   updateBoxReveals(false);
 
@@ -182,6 +185,7 @@ function updateBoxReveals(animate) {
     if (!s) { passable[i] = false; continue; }
     if (s.isWall) { passable[i] = false; continue; }
     if (s.isTunnel) { passable[i] = false; continue; }
+    if (s.kartCovered !== undefined && s.kartCovered !== null) { passable[i] = false; continue; }  // parked kart = wall
     passable[i] = !!(s.empty || s.used);
   }
 
@@ -222,6 +226,7 @@ function updateBoxReveals(animate) {
     if (!b) continue;
     if (b.isWall || b.isTunnel || b.empty || b.used) continue;
     if (b.spawning) continue;
+    if (b.kartCovered !== undefined && b.kartCovered !== null) { b.revealed = false; continue; }
 
     var br = Math.floor(k / L.cols), bcol = k % L.cols;
     var hasPath = false;
@@ -274,6 +279,7 @@ function damageAdjacentIce(idx) {
   for (var ni = 0; ni < neighbors.length; ni++) {
     var nb = stock[neighbors[ni]];
     if (nb.isTunnel || nb.isWall) continue;  // tunnels and walls don't have ice
+    if (nb.kartCovered !== undefined && nb.kartCovered !== null) continue;  // hidden under a kart
     if (nb.empty || nb.used || nb.iceHP <= 0) continue;
 
     nb.iceHP--;
@@ -315,6 +321,7 @@ function isBoxTappable(idx) {
   var b = stock[idx];
   if (b.isTunnel) return false;
   if (b.isWall) return false;      // walls are not tappable
+  if (b.kartCovered !== undefined && b.kartCovered !== null) return false;  // under a Soap Kart
   if (b.empty || b.used) return false;
   if (b.spawning || b.revealT > 0) return false;
   if (b.iceHP > 0) return false;
@@ -328,6 +335,7 @@ function handleTap(px, py) {
   if (won || !gameActive) return;
   ensureAudio();
   if (px >= L.bkX && px <= L.bkX + L.bkSize && py >= L.bkY && py <= L.bkY + L.bkSize) { showLevelSelect(); return; }
+  if (handleKartTap(px, py)) return;
   for (var i = 0; i < stock.length; i++) {
     var b = stock[i];
     if (b.isTunnel || b.isWall) continue;  // skip tunnels and walls in tap handler
@@ -373,6 +381,9 @@ function update() {
 
   // ── Tunnel spawning ──
   trySpawnFromTunnels();
+
+  // ── Soap Karts ──
+  updateKarts();
 
   // Belt → sort matching
   for (var si = 0; si < BELT_SLOTS; si++) {
@@ -544,7 +555,9 @@ function frame() {
     ctx.clearRect(0, 0, W, H);
     drawBackground();
     drawFunnel();
+    drawKartRoads();
     drawStock();
+    drawKartsOverlay();
     drawPhysMarbles();
     drawBelt();
     drawBlockerProgress();

@@ -9,6 +9,7 @@ var L = {};
 var beltPath = [];
 var stock = [], sortCols = [], particles = [], physMarbles = [], jumpers = [];
 var score = 0, won = false, tick = 0, hoverIdx = -1;
+var karts = [];   // Soap Kart runtime state (see soapkart.js)
 var audioCtx = null;
 
 // === LEVEL SYSTEM ===

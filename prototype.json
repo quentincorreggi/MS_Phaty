@@ -1,0 +1,173 @@
+{
+  "name": "Soap Kart",
+  "description": "A Soap Kart sits on 2 boxes. Clear every box on its painted road and it celebrates, drives away through the bottom of the board and frees the boxes it was covering.",
+  "howToPlay": "Play the boxes sitting on the dashed roads (outlined in yellow and blue). Tap a kart early and it honks. When a road is empty the kart drives off \u2014 both roads share their end, so the last box there frees both karts.",
+  "author": "",
+  "showcaseLevel": {
+    "name": "Soap Kart Rally",
+    "desc": "Dig the roads so the karts can drive away",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      null,
+      null,
+      {
+        "ci": 0,
+        "type": "hidden"
+      },
+      null,
+      null,
+      null,
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      null,
+      null,
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      null,
+      null,
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      null,
+      null,
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 3,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      }
+    ],
+    "karts": [
+      {
+        "top": 8,
+        "road": [
+          22,
+          29,
+          36,
+          43
+        ]
+      },
+      {
+        "top": 5,
+        "road": [
+          19,
+          26,
+          25,
+          24,
+          31,
+          38,
+          37,
+          36,
+          43
+        ]
+      }
+    ]
+  }
+}

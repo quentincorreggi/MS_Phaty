@@ -187,6 +187,9 @@ function drawStock() {
     var hs = 1 + b.hoverT * 0.05;
     var ts = ps * hs;
 
+    // Hidden under a parked Soap Kart (kart is drawn on top)
+    if (b.kartCovered !== undefined && b.kartCovered !== null) { drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
+
     // Empty slot
     if (b.empty) { drawEmptySlot(b.x, b.y, L.bw, L.bh); continue; }
 
