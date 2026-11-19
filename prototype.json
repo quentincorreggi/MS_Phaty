@@ -1,0 +1,170 @@
+{
+  "name": "Faucet",
+  "description": "A faucet sits on the board filled with marbles of one colour. Every time you play a box next to it, its handles turn and it leaks 3 extra marbles of its colour onto the conveyor, until it runs dry and shuts off.",
+  "howToPlay": "The pink faucet in the middle holds 3 drips. Each purple box touching it (up, down, left, right) makes it pour 3 pink marbles onto the belt — a hidden cost on top of the box itself. Pick when the conveyor has room and a pink tray is ready. Once empty, the ring turns grey and the handles lock in '+'. The faucet stays as a wall for the rest of the level. Sort every marble to win.",
+  "author": "Louis",
+  "showcaseLevel": {
+    "name": "Faucet Showcase",
+    "desc": "One pink faucet surrounded by purple boxes",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 4,
+        "type": "default"
+      },
+      {
+        "ci": 4,
+        "type": "default"
+      },
+      {
+        "ci": 4,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 4,
+        "type": "default"
+      },
+      {
+        "faucet": true,
+        "ci": 0,
+        "content": 9
+      },
+      {
+        "ci": 4,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "ci": 4,
+        "type": "default"
+      },
+      null,
+      {
+        "ci": 4,
+        "type": "default"
+      },
+      {
+        "ci": 2,
+        "type": "default"
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "wall": true
+      }
+    ]
+  }
+}
