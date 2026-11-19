@@ -34,6 +34,7 @@ function makeFaucetStock(ci, content, x, y) {
     isFaucet: true, isWall: true, isTunnel: false,
     ci: ci, faucetDrips: drips, faucetTotal: drips, faucetPending: 0,
     faucetDry: false, faucetShutT: 0, faucetAutoCd: 60,
+    faucetHandleAng: Math.PI / 4, faucetHandleTarget: Math.PI / 4,   // X pose = open
     used: false, remaining: 0, spawning: false, spawnIdx: 0,
     revealed: false, empty: false, boxType: 'default',
     iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
@@ -62,6 +63,9 @@ function faucetQueueDrip(idx, delay) {
   if (!f || !f.isFaucet || f.faucetDrips <= 0) return;
   f.faucetDrips--;
   f.faucetPending += FAUCET_DRIP_SIZE;
+  // Handles turn a quarter on every drip; the last one adds an extra
+  // eighth so they settle in the "+" (closed) pose.
+  f.faucetHandleTarget += Math.PI / 2 + (f.faucetDrips === 0 ? Math.PI / 4 : 0);
   f.shakeT = 1;
   sfx.faucetWobble();
   for (var m = 0; m < FAUCET_DRIP_SIZE; m++) {
@@ -137,6 +141,7 @@ function updateFaucets() {
     if (!s.isFaucet) continue;
     if (s.shakeT > 0) s.shakeT = Math.max(0, s.shakeT - 0.035);
     if (s.faucetShutT > 0) s.faucetShutT = Math.max(0, s.faucetShutT - 0.03);
+    s.faucetHandleAng += (s.faucetHandleTarget - s.faucetHandleAng) * 0.12;
 
     // Runtime rescue: no neighbour can ever be played → drain itself
     if (won || s.faucetDrips <= 0 || s.faucetPending > 0) continue;
@@ -154,7 +159,8 @@ function updateFaucets() {
 // Front / top-down view, centred and symmetric: a mixer with two
 // cross handles left and right, and a spout coming toward the player.
 // The coloured ring sits around the spout tip. When the faucet runs
-// dry the handles turn from "X" to "+" (closed) and the ring goes grey.
+// dry the ring goes grey. The handles spin a quarter turn on every
+// drip and end in the "+" (closed) pose after the last one.
 function drawFaucetOnGrid(ctx, f, S, tick) {
   var x = f.x, y = f.y, w = L.bw, h = L.bh;
   var u = w / 100;
@@ -204,12 +210,11 @@ function drawFaucetOnGrid(ctx, f, S, tick) {
   ctx.beginPath(); ctx.ellipse(0, -14 * u, 38 * u, 12 * u, 0, 0, Math.PI * 2); ctx.fill();
 
   // Cross handles, mirrored left / right
-  var closedAmt = dry ? 1 - f.faucetShutT : 0;   // 0 = open (X), 1 = closed (+)
   for (var side = -1; side <= 1; side += 2) {
     var hx = side * 27 * u, hy = -16 * u;
     ctx.save();
     ctx.translate(hx, hy);
-    ctx.rotate(side * (Math.PI / 4) * (1 - closedAmt));
+    ctx.rotate(-side * f.faucetHandleAng);   // mirrored spin
     for (var a = 0; a < 4; a++) {
       ctx.save();
       ctx.rotate(a * Math.PI / 2);
