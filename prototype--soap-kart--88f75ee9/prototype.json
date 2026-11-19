@@ -1,0 +1,206 @@
+{
+  "name": "Soap Kart",
+  "description": "A Soap Kart sits on 2 boxes. Clear every box on its painted road and it celebrates, drives away through the bottom of the board and frees the boxes it was covering.",
+  "howToPlay": "Play the boxes sitting on the dashed yellow road, from the bottom of the board up to the kart. Tap the kart early and it honks. Once the whole road is empty, the kart celebrates, drives off through the bottom and frees the 2 boxes it was covering.",
+  "author": "",
+  "showcaseLevel": {
+    "name": "Custom Level",
+    "desc": "My custom level",
+    "mrbPerBox": 9,
+    "sortCap": 3,
+    "lockButtons": 0,
+    "grid": [
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "wall": true
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "wall": true
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "wall": true
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "wall": true
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      }
+    ],
+    "karts": [
+      {
+        "top": 12,
+        "road": [
+          26,
+          33,
+          32,
+          31,
+          38,
+          45
+        ]
+      }
+    ]
+  }
+}
