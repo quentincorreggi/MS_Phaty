@@ -33,7 +33,7 @@ function makeFaucetStock(ci, content, x, y) {
   return {
     isFaucet: true, isWall: true, isTunnel: false,
     ci: ci, faucetDrips: drips, faucetTotal: drips, faucetPending: 0,
-    faucetDry: false, faucetShutT: 0, faucetAutoCd: 60, faucetDropPhase: Math.random() * 200,
+    faucetDry: false, faucetShutT: 0, faucetAutoCd: 60,
     used: false, remaining: 0, spawning: false, spawnIdx: 0,
     revealed: false, empty: false, boxType: 'default',
     iceHP: 0, iceCrackT: 0, iceShatterT: 0, blockerCount: 0,
@@ -53,7 +53,7 @@ function faucetNeighbors(idx) {
 
 function faucetSpoutPos(f) {
   var u = L.bw / 100;
-  return { x: f.x + L.bw / 2 + 24 * u, y: f.y + L.bh / 2 + 20 * u };
+  return { x: f.x + L.bw / 2, y: f.y + L.bh / 2 + 30 * u };
 }
 
 // Queue one drip (3 marbles) from faucet at idx after `delay` frames.
@@ -151,6 +151,10 @@ function updateFaucets() {
 }
 
 // ── Drawing ──
+// Front / top-down view, centred and symmetric: a mixer with two
+// cross handles left and right, and a spout coming toward the player.
+// The coloured ring sits around the spout tip. When the faucet runs
+// dry the handles turn from "X" to "+" (closed) and the ring goes grey.
 function drawFaucetOnGrid(ctx, f, S, tick) {
   var x = f.x, y = f.y, w = L.bw, h = L.bh;
   var u = w / 100;
@@ -162,117 +166,100 @@ function drawFaucetOnGrid(ctx, f, S, tick) {
   // Ceramic tile backing — reads as a solid, permanent cell
   ctx.shadowColor = 'rgba(0,0,0,0.15)'; ctx.shadowBlur = 4 * S; ctx.shadowOffsetY = 2 * S;
   var bg = ctx.createLinearGradient(x, y, x, y + h);
-  bg.addColorStop(0, dry ? '#C4C8CC' : '#D6E1EA');
-  bg.addColorStop(1, dry ? '#A4A9AE' : '#AFC0CE');
+  bg.addColorStop(0, dry ? '#C4C8CC' : '#DCE6EE');
+  bg.addColorStop(1, dry ? '#A4A9AE' : '#AEBFCD');
   ctx.fillStyle = bg;
   rRect(x, y, w, h, 6 * S); ctx.fill();
   ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-  ctx.save();
-  ctx.beginPath(); rRect(x, y, w, h, 6 * S); ctx.clip();
-  if (!dry) {
-    // Soft wash of the faucet's colour so it reads from afar
-    var wash = ctx.createRadialGradient(x + w * 0.74, y + h * 0.85, 0, x + w * 0.74, y + h * 0.85, w * 0.75);
-    wash.addColorStop(0, c.light); wash.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.globalAlpha = 0.55; ctx.fillStyle = wash; ctx.fillRect(x, y, w, h); ctx.globalAlpha = 1;
-  }
-  ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1.2 * S;
-  ctx.beginPath();
-  ctx.moveTo(x + w / 2, y); ctx.lineTo(x + w / 2, y + h);
-  ctx.moveTo(x, y + h / 2); ctx.lineTo(x + w, y + h / 2);
-  ctx.stroke();
-  ctx.restore();
 
-  // Faucet body, centred, with wobble on adjacent pick
   ctx.translate(x + w / 2, y + h / 2);
   if (f.shakeT > 0) {
-    ctx.rotate(Math.sin(f.shakeT * 30) * 0.14 * f.shakeT);
-    var sq = 1 + Math.sin(f.shakeT * Math.PI) * 0.06;
+    ctx.rotate(Math.sin(f.shakeT * 30) * 0.08 * f.shakeT);
+    var sq = 1 + Math.sin(f.shakeT * Math.PI) * 0.07;
     ctx.scale(sq, 1 / sq);
   }
-  if (dry) ctx.globalAlpha = 0.85;
 
-  var metalA = dry ? '#BFC3C7' : '#F4F7FA';
-  var metalB = dry ? '#7E848A' : '#8E9AA6';
-  var metalEdge = dry ? '#5E6368' : '#5F6B78';
-  function chrome(y0, y1) {
-    var g = ctx.createLinearGradient(0, y0, 0, y1);
-    g.addColorStop(0, metalA); g.addColorStop(0.5, metalB); g.addColorStop(1, metalEdge);
+  var hi = dry ? '#D2D5D8' : '#FFFFFF';
+  var mid = dry ? '#979CA1' : '#A3B0BC';
+  var lo = dry ? '#5E6368' : '#4E5C6A';
+  function chromeH(x0, x1) {   // horizontal chrome gradient (vertical shapes)
+    var g = ctx.createLinearGradient(x0, 0, x1, 0);
+    g.addColorStop(0, lo); g.addColorStop(0.3, hi); g.addColorStop(0.55, mid); g.addColorStop(1, lo);
     return g;
   }
+  function chromeR(cx, cy, r) {  // radial chrome (balls, discs)
+    var g = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.4, r * 0.1, cx, cy, r);
+    g.addColorStop(0, hi); g.addColorStop(0.55, mid); g.addColorStop(1, lo);
+    return g;
+  }
+  function ball(cx, cy, r) {
+    ctx.fillStyle = chromeR(cx, cy, r);
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+  }
 
-  // Wall pipe + flange
-  ctx.fillStyle = chrome(-25 * u, -11 * u);
-  rRect(-50 * u, -25 * u, 42 * u, 14 * u, 3 * u); ctx.fill();
-  ctx.fillStyle = chrome(-31 * u, -5 * u);
-  rRect(-46 * u, -31 * u, 9 * u, 26 * u, 3 * u); ctx.fill();
+  // Deck plate (soft shadow + oval base)
+  ctx.fillStyle = 'rgba(40,55,70,0.18)';
+  ctx.beginPath(); ctx.ellipse(0, -12 * u, 40 * u, 14 * u, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = chromeH(-38 * u, 38 * u);
+  ctx.beginPath(); ctx.ellipse(0, -14 * u, 38 * u, 12 * u, 0, 0, Math.PI * 2); ctx.fill();
 
-  // Spout: out of the body to the right, curving down
-  ctx.lineCap = 'butt'; ctx.lineJoin = 'round';
-  ctx.strokeStyle = metalEdge; ctx.lineWidth = 15 * u;
-  ctx.beginPath(); ctx.moveTo(4 * u, -18 * u); ctx.lineTo(14 * u, -18 * u);
-  ctx.quadraticCurveTo(24 * u, -18 * u, 24 * u, -6 * u); ctx.lineTo(24 * u, 14 * u); ctx.stroke();
-  ctx.strokeStyle = chrome(-26 * u, 14 * u); ctx.lineWidth = 11 * u;
-  ctx.stroke();
-  ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 2.5 * u;
-  ctx.beginPath(); ctx.moveTo(6 * u, -21 * u); ctx.lineTo(14 * u, -21 * u);
-  ctx.quadraticCurveTo(21 * u, -21 * u, 21 * u, -8 * u); ctx.stroke();
+  // Cross handles, mirrored left / right
+  var closedAmt = dry ? 1 - f.faucetShutT : 0;   // 0 = open (X), 1 = closed (+)
+  for (var side = -1; side <= 1; side += 2) {
+    var hx = side * 27 * u, hy = -16 * u;
+    ctx.save();
+    ctx.translate(hx, hy);
+    ctx.rotate(side * (Math.PI / 4) * (1 - closedAmt));
+    for (var a = 0; a < 4; a++) {
+      ctx.save();
+      ctx.rotate(a * Math.PI / 2);
+      ctx.fillStyle = chromeH(-2.5 * u, 2.5 * u);
+      rRect(-2.5 * u, -15 * u, 5 * u, 15 * u, 2 * u); ctx.fill();
+      ball(0, -15 * u, 4.5 * u);
+      ctx.restore();
+    }
+    // Hub + white porcelain cap
+    ball(0, 0, 8 * u);
+    ctx.fillStyle = dry ? '#D8DADC' : '#FAFAF7';
+    ctx.beginPath(); ctx.arc(0, 0, 5.5 * u, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = lo; ctx.lineWidth = 0.8 * u;
+    ctx.beginPath(); ctx.arc(0, 0, 4.2 * u, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
 
-  // Coloured ring on the spout tip (grey once dry)
+  // Central column
+  ball(0, -16 * u, 10 * u);
+
+  // Spout coming toward the player (tapers slightly, widens at the tip)
+  ctx.fillStyle = chromeH(-9 * u, 9 * u);
+  ctx.beginPath();
+  ctx.moveTo(-8 * u, -16 * u);
+  ctx.lineTo(8 * u, -16 * u);
+  ctx.quadraticCurveTo(7 * u, 6 * u, 10 * u, 24 * u);
+  ctx.lineTo(-10 * u, 24 * u);
+  ctx.quadraticCurveTo(-7 * u, 6 * u, -8 * u, -16 * u);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  rRect(-1.8 * u, -12 * u, 3.6 * u, 30 * u, 1.8 * u); ctx.fill();
+
+  // Coloured ring around the spout tip (grey once dry)
   var ringFill = dry ? '#9A9EA3' : c.fill;
   var ringLight = dry ? '#C4C7CA' : c.light;
   var ringDark = dry ? '#6E7277' : c.dark;
+  if (!dry) { ctx.shadowColor = c.glow; ctx.shadowBlur = 10 * S; }
   ctx.fillStyle = ringDark;
-  rRect(13 * u, 1 * u, 22 * u, 15 * u, 4 * u); ctx.fill();
-  var rg = ctx.createLinearGradient(13 * u, 0, 35 * u, 0);
-  rg.addColorStop(0, ringLight); rg.addColorStop(0.45, ringFill); rg.addColorStop(1, ringDark);
+  ctx.beginPath(); ctx.ellipse(0, 27 * u, 18 * u, 9.5 * u, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+  var rg = ctx.createLinearGradient(-17 * u, 0, 17 * u, 0);
+  rg.addColorStop(0, ringDark); rg.addColorStop(0.3, ringLight); rg.addColorStop(0.55, ringFill); rg.addColorStop(1, ringDark);
   ctx.fillStyle = rg;
-  rRect(14 * u, 2 * u, 20 * u, 13 * u, 3.5 * u); ctx.fill();
-  if (!dry) {
-    ctx.shadowColor = c.glow; ctx.shadowBlur = 8 * S;
-    ctx.strokeStyle = c.light; ctx.lineWidth = 1 * u;
-    rRect(14 * u, 2 * u, 20 * u, 13 * u, 3.5 * u); ctx.stroke();
-    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
-  }
-  // Spout opening
-  ctx.fillStyle = dry ? '#55595D' : '#3A424A';
-  ctx.beginPath(); ctx.ellipse(24 * u, 15 * u, 6 * u, 2 * u, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0, 26 * u, 17 * u, 8.5 * u, 0, 0, Math.PI * 2); ctx.fill();
 
-  // Body
-  ctx.fillStyle = chrome(-30 * u, -6 * u);
-  rRect(-12 * u, -30 * u, 24 * u, 24 * u, 6 * u); ctx.fill();
-  ctx.strokeStyle = metalEdge; ctx.lineWidth = 1.2 * u;
-  rRect(-12 * u, -30 * u, 24 * u, 24 * u, 6 * u); ctx.stroke();
-
-  // Lever handle: tilted up when open, swings flat when shut
-  var openAng = -0.75, shutAng = 0.35;
-  var ang = dry ? shutAng + (openAng - shutAng) * f.faucetShutT : openAng;
-  ctx.fillStyle = chrome(-38 * u, -30 * u);
-  rRect(-4 * u, -38 * u, 8 * u, 10 * u, 2 * u); ctx.fill();
-  ctx.save();
-  ctx.translate(0, -37 * u); ctx.rotate(ang);
-  ctx.fillStyle = metalEdge;
-  rRect(-4 * u, -4 * u, 34 * u, 8 * u, 4 * u); ctx.fill();
-  ctx.fillStyle = chrome(-3 * u, 3 * u);
-  rRect(-3 * u, -3 * u, 32 * u, 6 * u, 3 * u); ctx.fill();
-  ctx.fillStyle = dry ? '#8A8F94' : '#E25B5B';
-  ctx.beginPath(); ctx.arc(28 * u, 0, 4.5 * u, 0, Math.PI * 2); ctx.fill();
-  ctx.restore();
-
-  // Idle drop forming at the tip while it still holds marbles
-  if (!dry && f.faucetDrips > 0) {
-    var cyc = ((tick + f.faucetDropPhase) % 200) / 200;
-    if (cyc > 0.55) {
-      var p = (cyc - 0.55) / 0.45;
-      var grow = Math.min(1, p * 2.2);
-      var fall = p > 0.6 ? (p - 0.6) / 0.4 : 0;
-      var dr = (1.5 + 2.5 * grow) * u;
-      ctx.globalAlpha = (dry ? 0.85 : 1) * (1 - fall);
-      ctx.fillStyle = c.fill;
-      ctx.beginPath(); ctx.arc(24 * u, 17 * u + dr + fall * 24 * u, dr, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.6)';
-      ctx.beginPath(); ctx.arc(24 * u - dr * 0.3, 17 * u + dr * 0.7 + fall * 24 * u, dr * 0.35, 0, Math.PI * 2); ctx.fill();
-    }
-  }
+  // Aerator opening
+  ctx.fillStyle = dry ? '#55595D' : '#39424B';
+  ctx.beginPath(); ctx.ellipse(0, 26.5 * u, 7.5 * u, 3.8 * u, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 0.7 * u;
+  ctx.beginPath(); ctx.ellipse(0, 26.5 * u, 4.5 * u, 2.2 * u, 0, 0, Math.PI * 2); ctx.stroke();
 
   ctx.restore();
 
