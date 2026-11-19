@@ -1,51 +1,67 @@
 {
   "name": "Soap Kart",
   "description": "A Soap Kart sits on 2 boxes. Clear every box on its painted road and it celebrates, drives away through the bottom of the board and frees the boxes it was covering.",
-  "howToPlay": "Play the boxes sitting on the dashed roads (outlined in yellow and blue). Tap a kart early and it honks. When a road is empty the kart drives off \u2014 both roads share their end, so the last box there frees both karts.",
+  "howToPlay": "Play the boxes sitting on the dashed yellow road, from the bottom of the board up to the kart. Tap the kart early and it honks. Once the whole road is empty, the kart celebrates, drives off through the bottom and frees the 2 boxes it was covering.",
   "author": "",
   "showcaseLevel": {
-    "name": "Soap Kart Rally",
-    "desc": "Dig the roads so the karts can drive away",
+    "name": "Custom Level",
+    "desc": "My custom level",
     "mrbPerBox": 9,
     "sortCap": 3,
     "lockButtons": 0,
     "grid": [
-      null,
-      null,
-      null,
-      null,
-      null,
       {
-        "ci": 3,
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "wall": true
+      },
+      {
+        "ci": 1,
         "type": "default"
       },
-      null,
-      null,
       {
-        "ci": 0,
-        "type": "hidden"
+        "wall": true
       },
-      null,
-      null,
-      null,
       {
-        "ci": 2,
-        "type": "default"
+        "wall": true
       },
-      null,
-      null,
       {
-        "ci": 2,
+        "ci": 1,
         "type": "default"
       },
       {
-        "ci": 0,
-        "type": "default"
-      },
-      null,
-      null,
-      {
-        "ci": 3,
+        "ci": 1,
         "type": "default"
       },
       {
@@ -57,48 +73,7 @@
         "type": "default"
       },
       {
-        "ci": 3,
-        "type": "default"
-      },
-      null,
-      {
-        "ci": 2,
-        "type": "default"
-      },
-      {
-        "ci": 0,
-        "type": "default"
-      },
-      {
         "ci": 1,
-        "type": "default"
-      },
-      null,
-      null,
-      {
-        "ci": 1,
-        "type": "default"
-      },
-      null,
-      {
-        "ci": 3,
-        "type": "default"
-      },
-      {
-        "ci": 2,
-        "type": "default"
-      },
-      null,
-      {
-        "ci": 0,
-        "type": "default"
-      },
-      {
-        "ci": 3,
-        "type": "default"
-      },
-      {
-        "ci": 2,
         "type": "default"
       },
       {
@@ -106,17 +81,10 @@
         "type": "default"
       },
       {
-        "ci": 0,
-        "type": "default"
+        "wall": true
       },
-      null,
       {
-        "ci": 3,
-        "type": "default"
-      },
-      null,
-      {
-        "ci": 0,
+        "ci": 1,
         "type": "default"
       },
       {
@@ -124,11 +92,11 @@
         "type": "default"
       },
       {
-        "ci": 2,
+        "ci": 1,
         "type": "default"
       },
       {
-        "ci": 3,
+        "ci": 1,
         "type": "default"
       },
       {
@@ -140,32 +108,97 @@
         "type": "default"
       },
       {
-        "ci": 2,
+        "wall": true
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "wall": true
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "wall": true
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 0,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
+        "type": "default"
+      },
+      {
+        "ci": 1,
         "type": "default"
       }
     ],
     "karts": [
       {
-        "top": 8,
+        "top": 12,
         "road": [
-          22,
-          29,
-          36,
-          43
-        ]
-      },
-      {
-        "top": 5,
-        "road": [
-          19,
           26,
-          25,
-          24,
+          33,
+          32,
           31,
           38,
-          37,
-          36,
-          43
+          45
         ]
       }
     ]
